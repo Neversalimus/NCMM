@@ -24,11 +24,13 @@ class FireEvidenceTests(unittest.TestCase):
         self.report = dict(schema=1, success=True, actual_cdda_sdl=True, manual_playthrough=False,
                            synthetic_attack_notifications=False, normal_game_command_dispatch=True,
                            native_activity_and_target_ui=True, ordinary_ai_turns=False, trials=[], frames=[])
+        self.report['controlled_native_gun_reliability'] = True
         cases = [('cpu', 'cancel', True)]
         for mode in ['cpu', 'gpu']:
             cases += [(mode, name, False) for name in ['keyboard_single', 'lmb_single', 'cancel', 'empty', 'no_target', 'window']
                       for _ in range(20 if name in {'keyboard_single', 'lmb_single', 'window'} else 10)]
             cases += [(mode, name, False) for name in ['blocked_wall', 'vertical_cancel', 'burst', 'dead_target', 'changed_weapon', 'pointer_only']]
+            cases += [(mode, 'misfire', False)] * 2
         for i, (mode, name, control) in enumerate(cases):
             shot = not control and name in ['keyboard_single', 'lmb_single', 'window', 'burst', 'changed_weapon', 'pointer_only']
             count = 3 if shot and name == 'burst' else int(shot)
@@ -38,7 +40,8 @@ class FireEvidenceTests(unittest.TestCase):
                 native_keyboard_mode='keychar' if i%2 else 'keycode', default_keychar_inputs=int(bool(i%2)), default_keycode_inputs=int(not i%2),
                 yaw_before=0, yaw_after=0, pitch_before=0, pitch_after=0, escape_recovery=False,
                 attack_serial_before=0, attack_serial_after=count, ammo_before=7, ammo_after=7-count,
-                moves_before=100, moves_after=100-int(shot)))
+                native_gun_dirt=10000 if name=='misfire' else 0, native_never_jams=name!='misfire', native_waterproof=True,
+                moves_before=100, moves_after=100-int(shot or name=='misfire')))
             file = f'first-person-fire-frame-{i}.png'
             self.report['frames'].append(dict(file=file, width=2, height=2, captured=True, presented=True,
                 enabled=True, perspective=not control, gpu=mode == 'gpu'))
@@ -49,7 +52,9 @@ class FireEvidenceTests(unittest.TestCase):
         return verify(self.root)
 
     def test_complete_synthetic_fixture(self):
-        self.assertEqual(self.run_report()['normal_native_ui_attempts'], 192)
+        result = self.run_report()
+        self.assertEqual(result['normal_native_ui_attempts'], 196)
+        self.assertEqual(result['native_misfire_refusals'], 4)
 
     def fps_fixture(self):
         self.report['fps_input_router'] = True
@@ -59,7 +64,39 @@ class FireEvidenceTests(unittest.TestCase):
 
     def test_complete_fps_synthetic_fixture(self):
         self.fps_fixture()
-        self.assertEqual(self.run_report()['normal_native_ui_attempts'], 192)
+        self.assertEqual(self.run_report()['normal_native_ui_attempts'], 196)
+
+    def test_positive_fixture_cannot_silently_misfire(self):
+        trial = next(t for t in self.report['trials'] if t['scenario']=='keyboard_single')
+        trial['attack_serial_after']=0;trial['ammo_after']=trial['ammo_before']
+        with self.assertRaises(AssertionError): self.run_report()
+
+    def test_misfire_must_not_spend_ammunition_or_report_hit(self):
+        for field in ('ammo_after','attack_serial_after'):
+            with self.subTest(field=field):
+                original=deepcopy(self.report)
+                trial=next(t for t in self.report['trials'] if t['scenario']=='misfire')
+                trial[field] += -1 if field=='ammo_after' else 1
+                with self.assertRaises(AssertionError): self.run_report()
+                self.report=original
+
+    def test_misfire_requires_real_native_attempt_cost(self):
+        trial=next(t for t in self.report['trials'] if t['scenario']=='misfire')
+        trial['moves_after']=trial['moves_before']
+        with self.assertRaises(AssertionError): self.run_report()
+
+    def test_misfire_cannot_be_an_escape_cancellation(self):
+        trial=next(t for t in self.report['trials'] if t['scenario']=='misfire')
+        trial['escape_recovery']=True
+        with self.assertRaises(AssertionError): self.run_report()
+
+    def test_misfire_requires_native_dirt_and_jamming_enabled(self):
+        for field,value in (('native_gun_dirt',0),('native_never_jams',True)):
+            with self.subTest(field=field):
+                original=deepcopy(self.report)
+                next(t for t in self.report['trials'] if t['scenario']=='misfire')[field]=value
+                with self.assertRaises(AssertionError): self.run_report()
+                self.report=original
 
     def test_fps_click_cannot_bypass_router(self):
         self.fps_fixture()

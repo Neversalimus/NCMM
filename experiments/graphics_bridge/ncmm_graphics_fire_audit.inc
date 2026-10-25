@@ -69,6 +69,7 @@
         std::string scenario,renderer,keyboard,native_keyboard;bool legacy=false,visible=false,escape_recovery=false;
         uint64_t default_keychar_inputs=0,default_keycode_inputs=0;
         uint64_t fps_attack_intents=0;
+        int native_gun_dirt=0;bool native_never_jams=false,native_waterproof=false;
         int ammo_before=0,ammo_after=0,moves_before=0,moves_after=0;
         uint64_t attack_before=0,attack_after=0;size_t first=0,last=0;
         float yaw_before=0,pitch_before=0,yaw_after=0,pitch_after=0;
@@ -99,6 +100,7 @@
         const bool click=std::string(scenario)=="lmb_single"||pointer_click;
         const bool changed_weapon=std::string(scenario)=="changed_weapon";
         const bool burst=std::string(scenario)=="burst";
+        const bool misfire=std::string(scenario)=="misfire";
         const bool vertical=std::string(scenario)=="vertical_cancel";
         const auto origin=you.pos_bub();
         const tripoint_bub_ms goal(origin.x(),origin.y()-5,origin.z()+(vertical?1:0));
@@ -111,8 +113,19 @@
         if(std::string(scenario)=="dead_target")target->set_hp(0);
         item gun(itype_id(burst?"hk_mp5":changed_weapon?"glock_17":"sw_619"),calendar::turn);
         if(!empty)gun.ammo_set(itype_id(burst||changed_weapon?"9mm":"38_special"),burst?30:changed_weapon?17:7);
+        // Native can mechanically fail even a pristine firearm. Successful
+        // fixtures exclude that RNG; separate dirty-gun fixtures must exercise
+        // the real, deterministic handle_gun_damage refusal through normal UI.
+        gun.set_flag(flag_id("WATERPROOF_GUN"));
+        if(!misfire)gun.set_flag(flag_id("NEVER_JAMS"));
+        gun.set_var("dirt",misfire?10000:0);
         if(burst)require(gun.gun_set_mode(gun_mode_id("AUTO"))||gun.gun_set_mode(gun_mode_id("BURST")),"fire_audit_native_automatic_mode_missing");
         you.set_wielded_item(gun);you.recoil=0;
+        result.native_gun_dirt=you.get_wielded_item()->get_var("dirt",0);
+        result.native_never_jams=you.get_wielded_item()->has_flag(flag_id("NEVER_JAMS"));
+        result.native_waterproof=you.get_wielded_item()->has_flag(flag_id("WATERPROOF_GUN"));
+        require(result.native_gun_dirt==(misfire?10000:0)&&result.native_never_jams==!misfire&&result.native_waterproof,
+                "fire_audit_native_reliability_fixture_invalid");
         camera(-ncmm_graphics_camera::pi*.5f,-.10f);ncmm::graphics_note_input_context("DEFAULTMODE");refresh();warm(mode);
         if(target){you.last_target=g->shared_from(*target);you.last_target_pos=target->pos_abs();result.visible=you.sees(here,*target);}
         else{you.last_target.reset();you.last_target_pos.reset();}
@@ -175,6 +188,7 @@
             out.member("native_keyboard_mode",result.native_keyboard);out.member("default_keychar_inputs",result.default_keychar_inputs);out.member("default_keycode_inputs",result.default_keycode_inputs);
             out.member("native_command",result.native_command);out.member("dispatch_calls",result.dispatch_calls);out.member("escape_recovery",result.escape_recovery);
             out.member("ammo_before",result.ammo_before);out.member("ammo_after",result.ammo_after);out.member("moves_before",result.moves_before);out.member("moves_after",result.moves_after);
+            out.member("native_gun_dirt",result.native_gun_dirt);out.member("native_never_jams",result.native_never_jams);out.member("native_waterproof",result.native_waterproof);
             out.member("attack_before",result.attack_before);out.member("attack_after",result.attack_after);out.member("first_frame",result.first);out.member("last_frame",result.last);out.end_object();progress<<'\n';}
         require(result.last>result.first&&!graphics_fire_capture.failed,"fire_audit_missing_presented_pixels");
         require(result.native_keyboard=="keychar"?(result.default_keychar_inputs>0&&result.default_keycode_inputs==0):
@@ -185,7 +199,10 @@
             for(size_t i=result.first;i<result.last;++i){const auto &f=graphics_fire_capture.frames[i];
                 require(f.enabled&&f.perspective&&f.captured&&f.presented,"fire_audit_intermediate_native_map_flash");
                 require(f.gpu==(std::string(mode)=="gpu"),"fire_audit_unreported_cpu_fallback");}
-            if(cancel||empty)require(result.attack_after==result.attack_before&&result.ammo_after==result.ammo_before,"fire_audit_cancel_or_failure_emitted_shot");
+            if(cancel||empty||misfire){
+                require(result.attack_after==result.attack_before&&result.ammo_after==result.ammo_before,"fire_audit_cancel_or_failure_emitted_shot");
+                if(misfire)require(result.moves_after<result.moves_before&&!result.escape_recovery,"fire_audit_native_misfire_not_attempted");
+            }
             else {const auto shots=result.attack_after-result.attack_before;const int spent=result.ammo_before-result.ammo_after;
                 require(shots>0&&spent>0&&shots==uint64_t(spent)&&result.moves_after<result.moves_before,"fire_audit_confirmed_native_shot_missing");
                 require(burst?shots>=2:shots==1,"fire_audit_native_shot_count_wrong");
@@ -206,6 +223,9 @@
                 options_manager::update_options_cache();attempt(scenario,mode);}
         }
         for(const char *scenario:{"blocked_wall","vertical_cancel","burst","dead_target","changed_weapon","pointer_only"})attempt(scenario,mode);
+        for(const char *keyboard:{"keycode","keychar"}){
+            get_options().get_option("SDL_KEYBOARD_MODE").setValue(keyboard);options_manager::update_options_cache();attempt("misfire",mode);
+        }
         {cancel_native_ui cancel_menu(window);game_menus::inv::common();}
         ncmm::graphics_note_input_context("DEFAULTMODE");redraw_native();
         const float yaw=graphics_camera_yaw,pitch=graphics_camera_pitch;
@@ -220,6 +240,7 @@
     fire_report.member("normal_game_command_dispatch",true);fire_report.member("native_activity_and_target_ui",true);
     fire_report.member("synthetic_attack_notifications",false);fire_report.member("ordinary_ai_turns",false);
     fire_report.member("fps_input_router",true);
+    fire_report.member("controlled_native_gun_reliability",true);
     fire_report.member("lmb_path","real SDL FPS LMB, viewport recapture, physical Tab Native-command mode, native picking and dispatch");
     fire_report.member("trials");fire_report.start_array();
     for(const auto &t:trials){fire_report.start_object();fire_report.member("scenario",t.scenario);fire_report.member("renderer",t.renderer);fire_report.member("legacy_control",t.legacy);
@@ -228,6 +249,7 @@
         fire_report.member("fps_attack_intents",t.fps_attack_intents);
         fire_report.member("native_keyboard_mode",t.native_keyboard);fire_report.member("default_keychar_inputs",t.default_keychar_inputs);fire_report.member("default_keycode_inputs",t.default_keycode_inputs);
         fire_report.member("ammo_before",t.ammo_before);fire_report.member("ammo_after",t.ammo_after);fire_report.member("moves_before",t.moves_before);fire_report.member("moves_after",t.moves_after);
+        fire_report.member("native_gun_dirt",t.native_gun_dirt);fire_report.member("native_never_jams",t.native_never_jams);fire_report.member("native_waterproof",t.native_waterproof);
         fire_report.member("attack_serial_before",t.attack_before);fire_report.member("attack_serial_after",t.attack_after);
         fire_report.member("first_frame",t.first);fire_report.member("last_frame_exclusive",t.last);
         fire_report.member("yaw_before",t.yaw_before);fire_report.member("yaw_after",t.yaw_after);fire_report.member("pitch_before",t.pitch_before);fire_report.member("pitch_after",t.pitch_after);

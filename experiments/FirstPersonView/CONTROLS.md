@@ -85,7 +85,8 @@ Tab возвращает оригинальные команды CDDA, F5 отк
 Automated router and renderer checks are separate from real Native gameplay.
 The opt-in Native FPS audit prepares 120 controlled cases and writes
 `first-person-fps-input.json`; the retained
-firing audit checks 192 normal trials plus the historical negative control and
+firing audit checks 196 normal trials, including four forced Native misfires,
+plus the historical negative control and
 every presented frame. Window-event injection is not a physical two-monitor or
 manual gameplay session. A release requires both pinned Native Hosts, actual
 installer checks and comparable ordinary before/after timing. Unit tests do not

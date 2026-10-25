@@ -33,9 +33,14 @@ The gameplay audit now dispatches the ordinary game command through SDL input,
 then processes the native aim activity and target UI. Its private qualification
 gateway calls `game::handle_action`; it does not fabricate an attack notification.
 One legacy-policy cancel trial must reproduce the old native-map presentation.
-The current fixed-policy fixture requires 192 attempts on CPU/GPU, including confirmed single
+The current fixed-policy fixture requires 196 attempts on CPU/GPU, including confirmed single
 and automatic shots, cancellation, an empty weapon, no target, a window, a blocked
-wall, a dead target, a changed weapon, pointer-only LMB and a vertical cancellation. Each successful native window presentation
+wall, a dead target, a changed weapon, pointer-only LMB, a vertical cancellation
+and four deterministic dirty-gun misfires. Owned successful-shot fixtures use
+Native reliability flags to exclude random mechanical failures. Dirty-gun
+fixtures instead require the normal Native firing UI to spend time without
+consuming ammunition or reporting a shot. Player weapon rules are unchanged.
+Each successful native window presentation
 has a lossless PNG, mode/backend state and a contiguous trial/frame receipt.
 `verify_fire_audit.py` checks image integrity and rejects any intermediate map
 frame or silent CPU fallback. The fixture alternates keychar/keycode through the
