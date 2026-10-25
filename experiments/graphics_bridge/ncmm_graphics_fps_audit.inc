@@ -470,9 +470,25 @@
                 auto *enemy=g->place_critter_at(mtype_id("mon_zombie"),target);
                 require(enemy&&you.get_wielded_item()->current_reach_range(you).first==2,
                         "fps_audit_reach_range_fixture");
-                camera(direction?-ncmm_graphics_camera::pi*.25f:-ncmm_graphics_camera::pi*.5f,-.2f);
-                warm(renderer_mode);native_redraw();
-                require(graphics_aim==enemy->pos_abs(),"fps_audit_out_of_range_reticle_missing");
+                // A fixed pitch can pass through transparent pixels between
+                // a Native billboard's limbs. Acquire a real centre-ray hit
+                // before testing range; never count a click into empty sky.
+                // Physical focus is valid even without the optional HUD label.
+                bool acquired=false;float selected_pitch=0;
+                for(float pitch:{-.3f,-.1f,-.2f,-.05f,0.f}) {
+                    camera(direction?-ncmm_graphics_camera::pi*.25f:-ncmm_graphics_camera::pi*.5f,pitch);
+                    refresh();warm(renderer_mode);native_redraw();
+                    if(graphics_aim==enemy->pos_abs()||graphics_fps_target(false)==target) {
+                        acquired=true;selected_pitch=pitch;break;
+                    }
+                }
+                log_line(NCMM_LOG_INFO,(std::string("FPS out-of-range fixture keyboard=")+mode+" renderer="+renderer_mode+
+                    " direction="+std::to_string(direction)+" acquired="+std::to_string(acquired)+
+                    " pitch="+std::to_string(selected_pitch)+" hud="+std::to_string(graphics_aim==enemy->pos_abs())+
+                    " focus="+std::to_string(graphics_fps_target(false)==target)).c_str());
+                if(!acquired)capture("reach-range-missed-"+std::string(mode)+"-"+renderer_mode+"-"+std::to_string(direction));
+                require(acquired,"fps_audit_out_of_range_reticle_missing");
+                require(!graphics_reach_in_range(you,*you.get_wielded_item(),target),"fps_audit_out_of_range_native_distance_fixture");
                 const int before=you.get_moves();const auto position=you.pos_abs();
                 const auto serial=graphics_attack_serial,intents=graphics_input_router.attack_intents;
                 SDL_Event click{};click.type=SDL_EVENT_MOUSE_BUTTON_DOWN;click.button.button=SDL_BUTTON_LEFT;
