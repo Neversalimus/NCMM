@@ -241,8 +241,8 @@ original game backup when upgrading ordinary NCMM, preview NCMM or legacy CML.
 | --- | --- |
 | Mouse | Continuous look while the viewport owns the cursor |
 | W / A / S / D, including chords | Camera-relative Native walking, physical keys in either layout |
-| Left mouse button | Native melee/reach/fire; first click after release only captures the viewport |
-| Right mouse button | Native aiming for a gun or reach weapon |
+| Left mouse button | Melee/reach or fire at the reticle; hold for an automatic gun mode; first click after cursor release only recaptures the viewport |
+| Right mouse button | Hold to raise/aim the gun; release to return to the hip pose, without opening the Native target selector |
 | E | Interact with the reachable object under the centre reticle |
 | R / G / I / U | Native reload / pickup / inventory / use wielded item |
 | Shift / Ctrl or C / Space | Native run toggle / crouch toggle / wait |
@@ -257,6 +257,25 @@ original game backup when upgrading ordinary NCMM, preview NCMM or legacy CML.
 | ↑ / ↓ in first person | Forward / backward relative to the camera |
 | ← / → in first person | Strafe left / right relative to the camera |
 | Native command mode; map/menus/vehicle keys | Original CDDA bindings and text input |
+
+FPS gunfire can hit empty space and uses the equipped gun's Native ammunition,
+projectiles, damage, recoil, readiness checks and misfires. Holding RMB applies
+Native recoil reduction with its aiming move cost when shooting. Ordinary FPS
+shots never create `ACT_AIM`, including when `AIM_AFTER_FIRING` is enabled; Tab/F
+still offers the full Native aiming UI. Reload-and-shoot weapons need loading
+with R first. Empty weapons and stale focus refuse the shot without a selector.
+Modal entry and focus loss fence held fire, while ordinary shooting preserves
+held WASD movement. This remains Native turn-based simulation with FPS input.
+
+Subway rail and tie IDs produce raised steel and wood geometry in the Native
+tile directions. Closed underground uses a black background and Native RGB
+lighting, with no artificial ambient floor or outdoor distance fog. Surface
+weather and daylight do not brighten the underground background; open shafts
+retain the sky. Invisible grass patches are discarded before animated instance
+preparation and software draw sorting, without reducing visible blade density.
+The paired RTX 4090 fixture measurements and pixel-identity checks are recorded
+in [the subway/light/grass report](reports/metro-light-grass-4090.json). Background
+games were running; these CPU timings do not guarantee ordinary frame times.
 
 Camera controls preserve the avatar's position, moves, time and destination.
 Version 0.8 expands the first-person environment radius from 16 to 48 map cells:
