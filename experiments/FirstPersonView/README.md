@@ -262,8 +262,9 @@ FPS gunfire can hit empty space and uses the equipped gun's Native ammunition,
 projectiles, damage, recoil, readiness checks and misfires. Holding RMB applies
 Native recoil reduction with its aiming move cost when shooting. Ordinary FPS
 shots never create `ACT_AIM`, including when `AIM_AFTER_FIRING` is enabled; Tab/F
-still offers the full Native aiming UI. Reload-and-shoot weapons need loading
-with R first. Empty weapons and stale focus refuse the shot without a selector.
+still offers the full Native aiming UI. Bows use Native reload-and-shoot with
+reachable ammunition and its normal reload/stamina cost. Empty weapons and
+stale focus refuse the shot without a selector.
 Modal entry and focus loss fence held fire, while ordinary shooting preserves
 held WASD movement. This remains Native turn-based simulation with FPS input.
 

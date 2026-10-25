@@ -175,9 +175,20 @@ void initialize();''')
             for( const auto &reason : reasons ) add_msg( m_info, reason );
             return;
         }
-        // RAS weapons must first be loaded with R. Calling fire_gun on an
-        // unloaded bow would produce a Native diagnostic popup.
-        if( !mode->ammo_sufficient( &you ) || !can_fire_weapon( you, here, *weapon ) ) return;
+        item_location reload_ammo;
+        if( mode->has_flag( flag_id( "RELOAD_AND_SHOOT" ) ) && !mode->ammo_remaining() ) {
+            // Use Native reachability/ammunition enumeration, never its
+            // selection UI. Reuse the player's valid choice when possible.
+            if( you.ammo_location && square_dist( you.pos_abs(), you.ammo_location.pos_abs() ) <= 1 &&
+                mode->can_reload_with( *you.ammo_location, false ) ) reload_ammo = you.ammo_location;
+            else {
+                const item_location used_gun = &*mode != &*weapon ? item_location( weapon, &*mode ) : weapon;
+                std::vector<item::reload_option> ammunition;
+                you.list_ammo( used_gun, ammunition, false );
+                for( const auto &option : ammunition ) if( option ) { reload_ammo = option.ammo; break; }
+            }
+        }
+        if( ( !mode->ammo_sufficient( &you ) && !reload_ammo ) || !can_fire_weapon( you, here, *weapon ) ) return;
         const Target_attributes attributes( you.pos_bub(), *fps_target );
         const aim_mods_cache aim_cache = you.gen_aim_mods_cache( *mode );
         for( int move = 0; move < fps_aim_moves && you.recoil > 0; ++move ) {
@@ -186,7 +197,8 @@ void initialize();''')
             you.recoil = std::max( 0.0, you.recoil - amount );
             you.mod_moves( -1 );
         }
-        you.fire_gun( here, *fps_target, mode.qty, *mode );
+        // Native performs the RAS load, reload cost and stamina use itself.
+        you.fire_gun( here, *fps_target, mode.qty, *mode, reload_ammo );
         return;
     }
     you.assign_activity( aim_activity_actor::use_wielded() );''')

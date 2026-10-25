@@ -535,6 +535,18 @@
                 const char *name=shooting==0?"lmb_fps_gun":shooting==1?"lmb_fps_free_fire":shooting==2?"rmb_fps_ads_fire":"lmb_fps_empty";
                 samples.push_back({name,mode,renderer_mode,shooting==3?0:1,before-you.get_moves()});
             }
+            floor();you.set_moves(10000);you.recoil=0;you.set_stamina(you.get_stamina_max());you.set_wielded_item(item(itype_id("shortbow"),calendar::turn));
+            item arrows(itype_id("arrow_wood"),calendar::turn);arrows.charges=2;
+            here.add_item_or_charges(you.pos_bub(),arrows);you.ammo_location=item_location();
+            camera(-ncmm_graphics_camera::pi*.5f,0);warm(renderer_mode);native_redraw();
+            const auto bow_serial=graphics_attack_serial;const int bow_moves=you.get_moves();
+            SDL_Event bow_click{};bow_click.type=SDL_EVENT_MOUSE_BUTTON_DOWN;bow_click.button.button=SDL_BUTTON_LEFT;
+            SDL_Event bow_release=bow_click;bow_release.type=SDL_EVENT_MOUSE_BUTTON_UP;
+            const bool bow_modal=dispatch({bow_click,bow_release});
+            int arrows_left=0;for(const auto &entry:here.i_at(you.pos_bub()))if(entry.typeId()==itype_id("arrow_wood"))arrows_left+=entry.charges;
+            require(!bow_modal&&!you.activity&&graphics_attack_serial==bow_serial+1&&you.get_moves()<bow_moves&&arrows_left==1,
+                    "fps_bow_did_not_use_costed_native_reload_and_shoot_without_menu");
+            samples.push_back({"lmb_fps_bow",mode,renderer_mode,1,bow_moves-you.get_moves()});
             get_options().get_option("AIM_AFTER_FIRING").setValue(previous_aim_after?"true":"false");options_manager::update_options_cache();
             floor();warm(renderer_mode);native_redraw();
             you.set_desired_movement_mode(move_mode_id("walk"));

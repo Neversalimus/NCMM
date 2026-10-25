@@ -196,7 +196,7 @@
     "python_first_person": 170,
     "python_bridge": 21,
     "fps_router_checks": 3055,
-    "native_fps_matrix_cases_planned": 160,
+    "native_fps_matrix_cases_planned": 164,
     "native_fps_matrix_status": "remote CI required; not run locally"
   },
   "limitations": [
@@ -242,5 +242,13 @@
     "gpu_exe_sha256": "91ba8a6cb4671d6d91f729ee2139e8e9f69b11e6dcbfd59d0e5d39cfd22d1430",
     "module_sha256": "8e908cf672f6eed7d415a3c3f2906a65464620966fe8f8447ec85eba0b539bf9",
     "mouse_capture_or_warp": false
+  },
+  "later_reload_and_shoot_regression": {
+    "description": "Native list_ammo and fire_gun reload/stamina path; no ammo selector; shortbow source-ammunition assertion added to remote matrix",
+    "source_sha256": "e17e540f9a0b6f59df425b0ff2f21e1ef49fc38237dcfeb57eccc7b4857203f4",
+    "native_matrix_cases": 164,
+    "native_matrix_status": "remote CI required; not run locally",
+    "python_first_person_passed": 170,
+    "python_bridge_passed": 21
   }
 }

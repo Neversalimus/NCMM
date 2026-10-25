@@ -10,7 +10,7 @@ COUNTS={'physical_w_8_yaws':8,'wd_one_diagonal':1,'held_w_three_native_boundarie
         'e_ground_item_cancel':1,'e_container_cancel':1,'e_window_cancel':1,
         'e_npc_cancel':1,'e_terminal_cancel':1,'e_native_stair':1,'native_offset_stair':1,
         'e_vehicle_cancel':1,'e_occluded_refusal':1,'grass_native_presentation':1,
-        'lmb_fps_gun':1,'lmb_fps_free_fire':1,'rmb_fps_ads_fire':1,'lmb_fps_empty':1}
+        'lmb_fps_gun':1,'lmb_fps_free_fire':1,'rmb_fps_ads_fire':1,'lmb_fps_empty':1,'lmb_fps_bow':1}
 ACTIONS={'held_w_three_native_boundaries':3,'native_run_crouch_wait':4,
          'focus_resize_dpi_release':0,'e_occluded_refusal':0,'grass_native_presentation':0,
          'lmb_reach_out_of_range':0,'lmb_fps_empty':0}
