@@ -566,7 +566,9 @@
             const auto terminal = you.pos_bub() + tripoint_rel_ms(0, -1, 0);
             require(here.add_computer(terminal, "FPS input audit", 0) != nullptr,
                     "fps_audit_terminal_fixture");
-            cancel_interaction("e_terminal_cancel", terminal, -.5f, SDL_SCANCODE_E, SDLK_E);
+            // The existing fallback console billboard is one metre tall;
+            // target its middle instead of grazing its top alpha boundary.
+            cancel_interaction("e_terminal_cancel", terminal, -.8f, SDL_SCANCODE_E, SDLK_E);
 
             floor();
             // At the existing pitch limit, crouching permits a real centre
@@ -604,7 +606,7 @@
                 if (here.veh_at(viewer) || !here.passable(viewer))
                     continue;
                 you.setpos(here, viewer, false);
-                cancel_interaction("e_vehicle_cancel", p, -.2f, SDL_SCANCODE_E, SDLK_E);
+                cancel_interaction("e_vehicle_cancel", p, -.7f, SDL_SCANCODE_E, SDLK_E);
                 vehicle_checked = true;
                 break;
             }
