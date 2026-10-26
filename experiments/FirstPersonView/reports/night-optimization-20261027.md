@@ -112,6 +112,18 @@ Do not merge or release before the user's separate finalization request.
    tests changed their reader's geometry without changing its revision during
    a shift; those mutations now explicitly advance the revision.
 
+6. **Repair the allocation measurement harness.** Linux module CI passed its
+   ordinary 45 tests, then ASan found an allocation-family mismatch in the new
+   test hook: nothrow array-new still used the runtime, while the replacement
+   array-delete used `free`. Matching nothrow allocation/deallocation forms now
+   use the same unaligned allocation family. Aligned forms stay with the runtime.
+   Smoke checks cover scalar/array, ordinary/nothrow, constructor exceptions,
+   partial-array cleanup, deterministic allocation failure and aligned pairs.
+   The affected Release suite passes 146029 checks. An extracted standalone
+   MSVC ASan smoke also passes with mismatch detection enabled; the old hook
+   did not reproduce the Linux failure on MSVC. Fresh Linux CI is still required.
+   Production allocation and all sanitizer settings remain unchanged.
+
 ## Working queue
 
 1. Audit temporary per-cell expansion of identical floor meshes before GPU
@@ -137,10 +149,18 @@ At `da8f991`, the complete local build, all 50 inventoried autonomous CTests,
 195 Python tests, 24 atomic bridge tests and the separate hidden render-only
 RTX 4090 scene pass. Grass remains 45 draws, zero CPU world raster and zero
 warm static uploads. Windows/Linux GPU jobs, source/package audit and runtime
-checks also pass; GPU sanitizer and actual Native runs remain in progress.
+checks and the GPU sanitizer also pass; actual Native runs remain in progress.
 The subsequent slab-only edit passed its affected 850221-check pure suite;
 it does not change the compiled module/GPU scene. Fresh Host qualification is
 still required for that header.
+
+CI update: GPU Windows/Linux/Clang ASan/UBSan/Vulkan run 40418690852 passes.
+Windows module checks pass. Linux module job 121909444832 in run 40418690848
+passed its ordinary 45 tests, then ASan rejected the new test-only allocation
+probe: it replaced `delete[]` with `free` without replacing nothrow array-new,
+used by normalized-record pages. Matching allocation forms are now repaired
+locally without disabling ASan or its mismatch detection. The Linux module gate
+must be rerun; no completed full Native qualification is claimed.
 
 Run the affected checks after each edit, then the autonomous local inventory,
 hidden GPU pixels/resource checks, source/package checks and fresh remote

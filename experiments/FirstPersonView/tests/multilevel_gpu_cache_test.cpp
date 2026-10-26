@@ -7,6 +7,7 @@
 
 namespace index_allocation_probe {
 thread_local size_t expected=0,count=0,bytes=0;
+thread_local bool fail_next=false;
 void observe(size_t size)noexcept{
     // MSVC overallocates a large vector by at most 39 bytes for alignment.
     // The controlled sparse fixture has no other allocation of this size.
@@ -17,14 +18,61 @@ struct scope {
     ~scope(){expected=0;}
 };
 }
-void *operator new(size_t size){if(void *value=std::malloc(size?size:1)){index_allocation_probe::observe(size);return value;}throw std::bad_alloc();}
+void *operator new(size_t size){
+    if(index_allocation_probe::fail_next){index_allocation_probe::fail_next=false;throw std::bad_alloc();}
+    if(void *value=std::malloc(size?size:1)){index_allocation_probe::observe(size);return value;}throw std::bad_alloc();}
 void *operator new[](size_t size){return ::operator new(size);}
+// normalized_record pages use nothrow new[]. Keep every unaligned allocation
+// form on the same malloc/free pair, including constructor-failure cleanup.
+void *operator new(size_t size,const std::nothrow_t &)noexcept{try{return ::operator new(size);}catch(...){return nullptr;}}
+void *operator new[](size_t size,const std::nothrow_t &)noexcept{try{return ::operator new[](size);}catch(...){return nullptr;}}
 void operator delete(void *value)noexcept{std::free(value);}
 void operator delete[](void *value)noexcept{::operator delete(value);}
 void operator delete(void *value,size_t)noexcept{::operator delete(value);}
 void operator delete[](void *value,size_t)noexcept{::operator delete(value);}
+void operator delete(void *value,const std::nothrow_t &)noexcept{::operator delete(value);}
+void operator delete[](void *value,const std::nothrow_t &)noexcept{::operator delete[](value);}
+// Aligned allocation/deallocation families remain entirely with the runtime.
 
 namespace {
+int allocation_smoke_live=0,allocation_smoke_throw_after=0;
+struct allocation_smoke_value {
+    allocation_smoke_value(){++allocation_smoke_live;}
+    ~allocation_smoke_value(){--allocation_smoke_live;}
+};
+struct allocation_smoke_failure {
+    allocation_smoke_failure(){if(--allocation_smoke_throw_after==0)throw 71;++allocation_smoke_live;}
+    ~allocation_smoke_failure(){--allocation_smoke_live;}
+};
+struct alignas(64) allocation_smoke_aligned:allocation_smoke_value {};
+template<class Check> void allocation_forms_smoke(Check check){
+    auto *ordinary=new allocation_smoke_value;check(ordinary&&allocation_smoke_live==1);delete ordinary;
+    auto *ordinary_array=new allocation_smoke_value[3];check(allocation_smoke_live==3);delete[] ordinary_array;
+    auto *nothrow=new(std::nothrow) allocation_smoke_value;check(nothrow&&allocation_smoke_live==1);delete nothrow;
+    auto *nothrow_array=new(std::nothrow) allocation_smoke_value[3];check(nothrow_array&&allocation_smoke_live==3);delete[] nothrow_array;
+    check(allocation_smoke_live==0);
+    // C++ calls the matching placement delete if a constructor throws; array
+    // cleanup must also destroy the elements which were already constructed.
+    for(bool array:{false,true})for(bool no_throw:{false,true}){
+        allocation_smoke_throw_after=array?3:1;bool caught=false;
+        try{
+            if(array){auto *value=no_throw?new(std::nothrow) allocation_smoke_failure[4]:new allocation_smoke_failure[4];delete[] value;}
+            else{auto *value=no_throw?new(std::nothrow) allocation_smoke_failure:new allocation_smoke_failure;delete value;}
+        }catch(int tag){caught=tag==71;}
+        check(caught&&allocation_smoke_live==0);
+    }
+    // Test allocation failure without requesting an enormous ASan allocation.
+    index_allocation_probe::fail_next=true;check(::operator new(16,std::nothrow)==nullptr&&!index_allocation_probe::fail_next);
+    index_allocation_probe::fail_next=true;check(::operator new[](16,std::nothrow)==nullptr&&!index_allocation_probe::fail_next);
+    void *zero=::operator new(0);check(zero!=nullptr);::operator delete(zero);
+    void *zero_array=::operator new[](0,std::nothrow);check(zero_array!=nullptr);::operator delete[](zero_array);
+    void *sized=::operator new(16);::operator delete(sized,size_t(16));
+    void *sized_array=::operator new[](16);::operator delete[](sized_array,size_t(16));
+    auto *aligned=new allocation_smoke_aligned;check(reinterpret_cast<uintptr_t>(aligned)%alignof(allocation_smoke_aligned)==0&&allocation_smoke_live==1);delete aligned;
+    auto *aligned_array=new(std::nothrow) allocation_smoke_aligned[3];check(aligned_array&&reinterpret_cast<uintptr_t>(aligned_array)%alignof(allocation_smoke_aligned)==0&&allocation_smoke_live==3);delete[] aligned_array;
+    check(allocation_smoke_live==0);
+    std::cout<<"Allocation forms smoke: ordinary/nothrow scalar/array, constructor failures, zero/sized deletion and runtime aligned pairs PASS\n";
+}
 struct index_fixture {
     ncmm_graphics_multilevel_scene_v1 world{};
     std::vector<ncmm_graphics_cell_v1> cells;
@@ -187,6 +235,7 @@ template<class Check> void retained_index_checks(Check check,bool benchmark){
 
 int main(int argc,char **argv){try{
     int checks=0;auto check=[&](bool value,const char *message){++checks;if(!value)throw std::runtime_error(message);};
+    allocation_forms_smoke([&](bool value){check(value,"test allocation forms preserve allocator pairs and object lifetimes");});
     retained_index_checks(check,argc>1&&!std::strcmp(argv[1],"--index-benchmark"));
     for(int levels:{1,3,21,32}){
         ncmm_graphics_multilevel_scene_v1 world{};world.origin_x=INT32_MIN;world.origin_y=INT32_MAX-6;world.loaded_min_z=-10;world.loaded_max_z=-10+levels-1;
