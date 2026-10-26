@@ -32,17 +32,32 @@ Do not merge or release before the user's separate finalization request.
    a hardware qualification. The owner/lifetime regression (11 checks) and
    complete GPU geometry/cache pure suite (324193 checks) pass.
 
+2. **GPU traversal avoids CPU depth sorting.** Dirty GPU cells were sorted by
+   distance before cell-local collection, although the collector independently
+   emits the final cell/pass order. CPU front-to-back sorting is retained.
+   The pure producer benchmark now separates cold preparation, camera changes,
+   first updates at a tile boundary and local edits, with raw samples, p95/p99
+   and exact resource/command digests. All four digests, regenerated-cell counts
+   and atlas read counts match the original sorted path. The CPU pixel/depth/
+   picking equivalence suite passes 3416 checks.
+
+   Same 97x97 mixed floor/wall/table fixture, 1280x800, MSVC Release, 16 samples
+   per state: cold median 20.2533 -> 18.6074 ms, boundary median 4.76405 ->
+   4.31435 ms. These are producer CPU times with **no device or presentation**.
+   Boundary p95 5.09173 -> 5.2219 ms and local-edit median 2.075 -> 2.42435 ms
+   did not improve. Background workload was not controlled; no overall game
+   frame-time or latency claim follows. Full conditions and raw samples are
+   in `night-gpu-preparation-20261027.json`.
+
 ## Working queue
 
-1. Remove CPU distance sorting from GPU cell collection only, after an exact
-   output comparison and bounded first-update preparation measurements.
-2. Reuse the unchanged sparse-world dense XYZ index without retaining a Host
+1. Reuse the unchanged sparse-world dense XYZ index without retaining a Host
    scene pointer; prove ordered-position invalidation and lifecycle bounds.
-3. Repair confirmed chain-link wire direction changes at straight half-panel
+2. Repair confirmed chain-link wire direction changes at straight half-panel
    seams. First reproduce with actual emitted geometry, then verify negative
    coordinates, origin shifts, turns and gates. Current boundary-only tests
    cannot establish continuity.
-4. Distant radio towers are still classified as generic BUILDING horizon
+3. Distant radio towers are still classified as generic BUILDING horizon
    patches and become wide boxes. Near towers already use lattice geometry.
    A separate compatible skyline representation is needed; do not silently
    repurpose the existing kind or hide the object as a performance change.

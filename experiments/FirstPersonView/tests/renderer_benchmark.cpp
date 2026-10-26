@@ -3,6 +3,7 @@
 #include <fstream>
 #include "scene_hash.hpp"
 #include "hybrid_renderer.hpp"
+#include "gpu_scene.hpp"
 #include "ncmm_graphics_camera.hpp"
 #include <cstdlib>
 #include <iostream>
@@ -91,11 +92,73 @@ void distance_benchmark(int rounds,const char *json_path){
             out<<"{\"policy\":\""<<(r.optimized?"optimized":"unculled_reference")<<"\",\"radius\":"<<r.radius<<",\"scene\":\""<<std::array<const char *,4>{"open","forest","vehicles","smoke"}[r.mode]<<"\",\"cached\":"<<(r.cached?"true":"false")<<",\"median_ms\":"<<r.median<<",\"p95_ms\":"<<r.p95<<",\"geometry_cells\":"<<r.cells<<",\"culled_cells\":"<<r.culled<<",\"sky_pixels\":"<<r.sky<<",\"volume_samples\":"<<r.samples<<'}';}
         out<<"]}\n";require(bool(out),"JSON write");}
 }
+void gpu_preparation_benchmark(int rounds,const char *json_path){
+    using clock=std::chrono::steady_clock;
+    constexpr int side=97;
+    std::vector<ncmm_graphics_cell_v1> cells(side*side);
+    std::vector<ncmm_graphics_cell_v2> details(cells.size());
+    presentation_data meta;meta.cells.resize(cells.size());meta.view.struct_size=sizeof(meta.view);
+    meta.view.eye_height=1.55f;meta.view.body_scale=meta.view.held_length=1;
+    for(size_t i=0;i<cells.size();++i){
+        cells[i].flags=NCMM_GFX_VISIBLE;std::strcpy(cells[i].terrain,"t_floor");
+        std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=.9f;
+        if(i%223==0){std::strcpy(cells[i].furniture,"f_table");details[i].furniture_shape=NCMM_SHAPE_TABLE;}
+        if(i%229==0)details[i].terrain_shape=NCMM_SHAPE_WALL;
+    }
+    ncmm_graphics_scene_v2 scene{};scene.struct_size=sizeof(scene);
+    scene.base={sizeof(ncmm_graphics_scene_v1),1280,800,side,side,48.5f,48.5f,cells.data(),cells.size()};
+    scene.details=details.data();scene.detail_count=details.size();scene.environment.daylight=1;
+    scene.environment.sun_z=1;scene.environment.animation_seconds=10;
+    uint32_t pixel=0x727a68ff;uint64_t sprite_calls=0;
+    auto provider=[&](uint32_t,uint32_t,ncmm_graphics_sprite_v2 &out){++sprite_calls;out={sizeof(out),1,1,1,&pixel};return true;};
+    auto quantile=[](std::vector<double> v,double p){std::sort(v.begin(),v.end());const double at=(v.size()-1)*p;const size_t low=size_t(at);
+        return v[low]+(v[std::min(low+1,v.size()-1)]-v[low])*(at-low);};
+    std::ofstream out;if(json_path){out.open(json_path);require(bool(out),"GPU preparation JSON");
+        out<<"{\"schema\":1,\"scope\":\"pure GPU producer CPU preparation, no device, upload, raster or presentation; cache clear and digest excluded\",\"timing_is_player_fps\":false,\"width\":1280,\"height\":800,\"side\":97,\"rounds\":"<<rounds<<",\"records\":[";}
+    for(int mode=0;mode<4;++mode){
+        first_person::gpu::scene_cache cache;first_person::gpu::packet packet;frame stats;
+        ncmm_gpu_metrics_v1 host{};host.resource_epoch=1;host.world_origin_x=200;host.world_origin_y=300;
+        require(cache.build(scene,0,0,provider,packet,stats,host,{},&meta,nullptr,1280,800,NCMM_GPU_FORCE),"GPU preparation warmup");
+        std::vector<double> samples;std::vector<uint32_t> rebuilt;uint64_t digest=1469598103934665603ull;
+        const uint64_t before=sprite_calls;
+        for(int n=0;n<rounds;++n){
+            if(mode==0)cache.clear();
+            if(mode==2)host.world_origin_x+=n%2?-1:1;
+            if(mode==3)details[side*48+48].terrain_shape=n%2?NCMM_SHAPE_WALL:NCMM_SHAPE_FLAT;
+            packet.reset();const auto start=clock::now();
+            require(cache.build(scene,mode==1?float(n)*.037f:0,0,provider,packet,stats,host,{},&meta,nullptr,1280,800,NCMM_GPU_FORCE),"GPU preparation frame");
+            const auto &view=packet.finish(nullptr);
+            samples.push_back(std::chrono::duration<double,std::milli>(clock::now()-start).count());
+            rebuilt.push_back(cache.generated_cells);
+            auto hash=[&](const void *p,size_t bytes){digest=first_person::hash_bytes(digest,p,bytes);};
+            // Resource descriptors contain callback pointers; compare their
+            // immutable contents and the exact submitted commands instead.
+            hash(view.draws,size_t(view.draw_count)*sizeof(view.draws[0]));
+            hash(view.cells,size_t(view.cell_count)*sizeof(view.cells[0]));
+            hash(view.bones,size_t(view.bone_count)*sizeof(view.bones[0]));
+            for(uint32_t i=0;i<view.mesh_count;++i){const auto &mesh=view.meshes[i];hash(&mesh.key,sizeof(mesh.key));
+                hash(mesh.vertices,size_t(mesh.vertex_count)*sizeof(mesh.vertices[0]));hash(mesh.indices,size_t(mesh.index_count)*sizeof(mesh.indices[0]));
+                hash(mesh.materials,size_t(mesh.material_count)*sizeof(mesh.materials[0]));}
+            for(uint32_t i=0;i<view.texture_count;++i){const auto &texture=view.textures[i];hash(&texture.key,sizeof(texture.key));
+                hash(texture.rgba,size_t(texture.pitch)*texture.height*sizeof(texture.rgba[0]));}
+        }
+        const char *name=std::array<const char *,4>{"cold","camera_turn","tile_boundary","local_mutation"}[mode];
+        std::cout<<name<<": first "<<samples.front()<<" ms, median "<<quantile(samples,.5)<<" ms, p95 "<<quantile(samples,.95)
+                 <<" ms, p99 "<<quantile(samples,.99)<<" ms; digest "<<digest<<", atlas reads "<<sprite_calls-before<<'\n'<<std::flush;
+        if(json_path){if(mode)out<<',';out<<"{\"scene\":\""<<name<<"\",\"first_ms\":"<<samples.front()<<",\"median_ms\":"<<quantile(samples,.5)
+            <<",\"p95_ms\":"<<quantile(samples,.95)<<",\"p99_ms\":"<<quantile(samples,.99)<<",\"digest\":\""<<digest<<"\",\"sprite_reads\":"<<sprite_calls-before
+            <<",\"samples_ms\":[";for(size_t i=0;i<samples.size();++i){if(i)out<<',';out<<samples[i];}
+            out<<"],\"generated_cells\":[";for(size_t i=0;i<rebuilt.size();++i){if(i)out<<',';out<<rebuilt[i];}out<<"]}";}
+        details[side*48+48].terrain_shape=NCMM_SHAPE_FLAT;
+    }
+    if(json_path){out<<"]}\n";require(bool(out),"GPU preparation JSON write");}
+}
 // Manual timing tool, deliberately not a CI pass/fail FPS threshold. Run on an
 // otherwise idle machine and compare the same build type and round count.
 int main(int argc,char **argv){
     using clock=std::chrono::steady_clock;
     const int rounds=argc>1?std::max(1,std::atoi(argv[1])):12;
+    if(argc>2&&std::string(argv[2])=="gpu-preparation"){gpu_preparation_benchmark(rounds,argc>3?argv[3]:nullptr);return 0;}
     if(argc>2&&std::string(argv[2])=="viewmodel"){viewmodel_benchmark(rounds,argc>3?argv[3]:nullptr);return 0;}
     if(argc>2&&std::string(argv[2])=="distance"){distance_benchmark(rounds,argc>3?argv[3]:nullptr);return 0;}
     for(int mode=0;mode<5;++mode){

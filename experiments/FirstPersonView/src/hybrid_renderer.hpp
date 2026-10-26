@@ -1073,7 +1073,10 @@ class renderer {
             const bool floor=in_view(at+vec{0,0,-.10f},at+vec{1,1,NCMM_WORLD_LEVEL_HEIGHT});
             if(!model&&!floor){++f.culled_cells;continue;}
             ++f.geometry_cells;order.push_back(i);}
-        std::stable_sort(order.begin(),order.end(),[&](int a,int b){
+        // CPU rasterization benefits from front-to-back depth rejection. GPU
+        // collection retains complete cell-local meshes; its collector emits
+        // the final cell/pass order independently of this traversal.
+        if(!gpu_sink)std::stable_sort(order.begin(),order.end(),[&](int a,int b){
             const vec a_delta=cell_center(a)-eye,b_delta=cell_center(b)-eye;
             return dot(a_delta,a_delta)<dot(b_delta,b_delta);});
         for(int pass=0;pass<2;++pass)for(int i:order){const vec at=cell_origin(i);const int x=int(at.x),y=int(at.y);const auto &c=base.cells[i];const auto &d=s.details[i];
