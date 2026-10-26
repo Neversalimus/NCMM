@@ -1,5 +1,5 @@
 """Synthetic verifier fixtures, never Native evidence."""
-import json,tempfile,unittest
+import json,re,tempfile,unittest
 from pathlib import Path
 from verify_fps_audit import verify,COUNTS,ACTIONS,FREE
 
@@ -20,6 +20,10 @@ class FpsEvidenceTests(unittest.TestCase):
         (self.root/'first-person-fps-input.json').write_text(json.dumps(self.report))
         return verify(self.root)
     def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],172)
+    def test_packaged_runner_and_verifier_require_the_same_matrix_size(self):
+        runner=(Path(__file__).resolve().parents[1]/'Run-FirstPersonBenchmark.ps1').read_text(encoding='utf-8-sig')
+        counts=re.findall(r'@\(\$audit\.samples\)\.Count -ne (\d+)',runner)
+        self.assertEqual(counts,[str(4*sum(COUNTS.values()))])
     def test_subtile_move_cannot_spend_turn(self):
         next(s for s in self.report['samples'] if s['scenario']=='continuous_subtile_without_turn')['native_move_cost']=1
         with self.assertRaises(AssertionError):self.run_report()

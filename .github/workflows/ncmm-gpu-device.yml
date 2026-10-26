@@ -209,7 +209,8 @@ jobs:
             'experiments/FirstPersonView/tests/gpu_contract_test.cpp':'e60eefa8fa0a67094d9da1a31f39490439829bd427f371d7ca9459ec2b55abd3',
             'experiments/FirstPersonView/tests/multilevel_module_test.cpp':'8a8cffb801752c45a35f95611cd4e8fbc06c557da0ccaf6347c35bae2214f16b',
             'experiments/FirstPersonView/tests/verify_fps_audit.py':'e694105e46d2c0f937b2cd2eaf7b1bc5f166143e0bf6262949eeac96d2d45f04',
-            'experiments/FirstPersonView/tests/test_verify_fps_audit.py':'cab1a1f38f654fdb420a3f45d747952af17f15457026d02de80d81e1014f7010'}
+            'experiments/FirstPersonView/tests/test_verify_fps_audit.py':'2ae25ed55d85ea7d36be87b5c0a0dd2a150e50e0efc96bed7bae25ba3d6f9fe8',
+            'experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1':'b43ab626462f6a7bbc66d997c6745f618faecfcfcec2c01512c0346de5a70746'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')

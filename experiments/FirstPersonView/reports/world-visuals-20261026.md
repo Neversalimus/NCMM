@@ -264,7 +264,7 @@ preparation measurements with background games running, not full game frame
 times, GPU timings or a 15 ms qualification.
 
 Local validation passes 49 explicitly inventoried autonomous C++ tests plus
-the separate hidden render-only GPU scene on RTX 4090, 192 Python tests and
+the separate hidden render-only GPU scene on RTX 4090, 193 Python tests and
 22 atomic Native-patch tests. No local Native game, gameplay/input harness,
 mouse capture/warp or focus change is used. Remote Native qualification now
 requires 172 FPS cases per pin, including presented sub-tile motion with zero
@@ -274,3 +274,5 @@ be checked before this new TEST build is delivered.
 The sub-tile probe records positions from the frames actually submitted for
 presentation, rather than a newer input state observed during rendering.
 Ordinary movement cases retain their configured speed.
+The packaged PowerShell runner's expected matrix size is checked against the
+Python verifier, so a stale wrapper count cannot reject a complete Native report.
