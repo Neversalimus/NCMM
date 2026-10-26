@@ -5,7 +5,7 @@ bool graphics_fps_invert = false;
 bool graphics_fps_enabled = true;
 bool graphics_fps_ads_active=false,graphics_fps_gunshot_pending=false;
 uint64_t graphics_fps_ads_since=0,graphics_fps_ads_changed=0;
-struct {std::optional<tripoint_abs_ms> target,origin;std::string weapon;uint64_t world=0,queued=0;float yaw=0,pitch=0;int aim_moves=0;} graphics_fps_gunshot;
+struct {std::optional<tripoint_abs_ms> target,origin;std::string weapon;uint64_t world=0,queued=0;float yaw=0,pitch=0;int aim_moves=0;ncmm_projectile_aim_v1 aim{};} graphics_fps_gunshot;
 #if defined(TILES)
 
 struct graphics_fps_focus_state {
@@ -200,7 +200,11 @@ void graphics_fps_input_end(const std::string &action) {
     graphics_fps_outgoing_owned = false;
 }
 void graphics_fps_native_begin() {
-    graphics_locomotion_sync();graphics_walk.motion.clock(SDL_GetTicks());
+    const bool committed=graphics_locomotion_sync();
+    // An acknowledged crossing keeps its bounded integration clock. Resetting
+    // it here held the first post-step camera frame at the boundary again.
+    if(!committed&&!graphics_walk.resume_pending)graphics_walk.motion.clock(SDL_GetTicks());
+    graphics_projectile_aim={};
     graphics_fps_gunshot_pending=false;
     if(character_state_available()){
         const auto weapon=get_avatar().get_wielded_item();
@@ -517,10 +521,22 @@ bool graphics_fps_queue_gunshot(){
     const int range=std::clamp(weapon->gun_range(&you),1,MAX_VIEW_DISTANCE);
     auto target=graphics_fps_target(false);
     if(target&&rl_dist(you.pos_bub(),*target)>range)target.reset();
+    // Interaction/depth picking includes the avatar cell, nearby floors and
+    // furniture. Only a real creature supplies a ballistic lock-on target.
+    if(target){const auto *cr=get_creature_tracker().creature_at<Creature>(*target);
+        if(!cr||cr==&you)target.reset();}
     if(!target){
-        const float cp=std::cos(graphics_camera_pitch),dx=std::cos(graphics_camera_yaw)*cp,dy=std::sin(graphics_camera_yaw)*cp;
-        for(int distance=range;distance>0;--distance){const auto p=you.pos_bub()+tripoint_rel_ms(int(std::round(dx*distance)),int(std::round(dy*distance)),int(std::round(std::sin(graphics_camera_pitch)*distance/NCMM_WORLD_LEVEL_HEIGHT)));
-            if(p!=you.pos_bub()&&here.ncmm_graphics_loaded(p)){target=p;break;}}
+        const auto fractional=graphics_locomotion_continuous()?graphics_walk.motion.position():ncmm_graphics_camera::locomotion::point{};
+        graphics_fps_gunshot.aim={1,fractional.x,fractional.y,graphics_eye_height(),graphics_camera_yaw,graphics_camera_pitch};
+        ncmm_world::material_semantics_cache materials,elevated;
+        const auto absolute=you.pos_abs();
+        const auto cell=ncmm_projectile::free_target({.5f+fractional.x,.5f+fractional.y,graphics_fps_gunshot.aim.eye_height},
+            graphics_camera_yaw,graphics_camera_pitch,float(range),NCMM_WORLD_LEVEL_HEIGHT,[&](int x,int y,int z){
+                const int64_t ax=int64_t(absolute.x())+x,ay=int64_t(absolute.y())+y;
+                if(ax<INT32_MIN||ax>INT32_MAX||ay<INT32_MIN||ay>INT32_MAX)return uint32_t(NCMM_WORLD_UNKNOWN);
+                return graphics_world_read_source(here,int(ax),int(ay),absolute.z()+z,materials,elevated);});
+        if(cell){const auto p=you.pos_bub()+tripoint_rel_ms(cell->x,cell->y,cell->z);
+            if(p!=you.pos_bub()&&here.ncmm_graphics_loaded(p))target=p;}
     }
     if(target){
         const auto *cr=get_creature_tracker().creature_at<Creature>(*target);
@@ -535,7 +551,7 @@ bool graphics_take_fps_gunshot_impl(std::optional<tripoint_bub_ms> &target,int &
     if(!graphics_fps_gunshot.target||!graphics_view.enabled||!graphics_input_router.captured()||!weapon||!weapon->is_gun()||weapon->typeId().str()!=graphics_fps_gunshot.weapon||
        !graphics_fps_gunshot.origin||get_avatar().pos_abs()!=*graphics_fps_gunshot.origin||graphics_creature_world_epoch!=graphics_fps_gunshot.world||SDL_GetTicks()-graphics_fps_gunshot.queued>5000||
        std::abs(std::remainder(graphics_camera_yaw-graphics_fps_gunshot.yaw,6.2831853f))>.001f||std::abs(graphics_camera_pitch-graphics_fps_gunshot.pitch)>.001f)return true;
-    const auto p=get_map().get_bub(*graphics_fps_gunshot.target);if(get_map().ncmm_graphics_loaded(p)){target=p;aim_moves=graphics_fps_gunshot.aim_moves;}return true;
+    const auto p=get_map().get_bub(*graphics_fps_gunshot.target);if(get_map().ncmm_graphics_loaded(p)){target=p;aim_moves=graphics_fps_gunshot.aim_moves;graphics_projectile_aim=graphics_fps_gunshot.aim;}return true;
 }
 const std::string *graphics_fps_take_action_impl(const std::string &category) {
     if (category != "DEFAULTMODE")
@@ -552,7 +568,7 @@ const std::string *graphics_fps_take_action_impl(const std::string &category) {
     if (value.action == command::move) {
         const auto delta = graphics_input_router.continuous_walk()?std::pair<int,int>{value.forward,value.right}:
             ncmm_graphics_camera::movement(graphics_camera_yaw, value.forward, value.right);
-        if(graphics_input_router.continuous_walk())graphics_walk.issued=true;
+        if(graphics_input_router.continuous_walk()){graphics_walk.issued=true;graphics_walk.boundary_started=SDL_GetTicks();}
         graphics_fps_action = action_ident(get_movement_action_from_delta(
             tripoint_rel_ms(delta.first, delta.second, 0), iso_rotate::yes));
         graphics_fps_move_origin = get_map().get_abs(get_avatar().pos_bub());

@@ -1,5 +1,7 @@
 #include "liquid_surface.hpp"
 #include "projectile_assets.hpp"
+#include "ncmm_graphics_ballistic_aim.hpp"
+#include "weapon_effects.hpp"
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -31,6 +33,43 @@ int main(){
     mounts state;auto flight=state.prepare(raw,100,200,0,2.6f,{.7f,.4f,1.4f},"m27");require(flight.serial==7,"confirmed Native path becomes a flight");
     const auto initial=flight.path[0];const auto rebased=state.prepare(raw,101,200,0,2.6f,{8,8,8},"m27");
     require(std::abs(rebased.path[0].x+1-initial.x)<.00001f&&rebased.path[0].z==initial.z,"muzzle stays anchored when player moves across a tile");
+    // A long barrel is ahead of the first Native cell centre. The old
+    // centre-to-centre splice emitted a backwards first leg in this case.
+    for(int heading=0;heading<8;++heading)for(float pitch:{-.65f,0.f,.45f})for(float fraction:{-.42f,0.f,.42f}){
+        const float yaw=heading*3.14159265f/4;const int dx=int(std::round(std::cos(yaw))),dy=int(std::round(std::sin(yaw)));
+        raw.serial++;for(unsigned n=0;n<raw.count;++n)raw.path[n]={100+dx*int(n),200+dy*int(n),0};
+        const auto camera=weapon_fx::make_camera({.5f+fraction,.5f,1.6f},yaw,pitch,1);
+        const auto muzzle=camera.world({.23f,-.21f,1.7f});
+        const ncmm_projectile_aim_v1 aim{1,fraction,0,1.6f,yaw,pitch};
+        auto shot=state.prepare(raw,100,200,0,2.6f,muzzle,"m27",&aim,camera.forward);
+        require(shot.serial&&shot.count==2&&length(shot.path[0]-muzzle)<.00001f,"every heading starts at the actual transformed barrel");
+        const auto first=along(shot,.02f)-shot.path[0];
+        require(viewmodel::dot(first,camera.forward)>0,"first visible projectile segment always travels forward from the barrel");
+        if(pitch==0)require(std::abs(shot.path[1].z-1.6f)<.00001f,"empty-space horizontal fire stays at eye height");
+        const auto moved=state.prepare(raw,99,201,0,2.6f,{99,99,99},"m27",&aim,{-1,0,0});
+        require(length(moved.path[1]-shot.path[1]-point{1,-1,0})<.00001f,"turning/moving never drags a confirmed impact or muzzle");
+    }
+    raw.serial++;raw.count=2;raw.path[0]={100,200,0};raw.path[1]={101,200,0};
+    require(!state.prepare(raw,100,200,0,2.6f,{2,.5f,1.5f},"m27",nullptr,{1,0,0}).serial,"point-blank impact behind a long barrel cannot make a backwards bullet");
+    raw.serial++;raw.weapon[0]=0;
+    const auto unbound=state.prepare(raw,100,200,0,2.6f,{8,8,8},"");
+    require(length(unbound.path[0]-point{.5f,.5f,1.25f})<.00001f,"an empty weapon ID never binds a bounce to the player's barrel");
+    raw.count=9;std::strcpy(raw.weapon,"m27");for(unsigned n=0;n<raw.count;++n)raw.path[n]={100+int(n),200,0};
+    {
+        auto floor=[](int,int,int z){return z==0?uint32_t(NCMM_WORLD_FLOOR):0u;};
+        for(int heading=0;heading<16;++heading){const float yaw=heading*3.14159265f/8;
+            const auto horizontal=ncmm_projectile::free_target({.9f,.25f,1.6f},yaw,0,30,2.6f,floor);
+            require(horizontal&&std::hypot(float(horizontal->x),float(horizontal->y))>28&&horizontal->z==0,"free fire is distant and forward, never the avatar/interaction cell");
+            const auto down=ncmm_projectile::free_target({.9f,.25f,1.6f},yaw,-.3f,30,2.6f,floor);
+            require(down&&down->z==0&&std::hypot(float(down->x),float(down->y))>3&&std::hypot(float(down->x),float(down->y))<7,"downward ray ends on the first physical ground plane");
+            const auto up=ncmm_projectile::free_target({.9f,.25f,1.6f},yaw,.3f,30,2.6f,floor);
+            require(up&&up->z>0,"upward free fire can cross open storeys");
+        }
+        const auto wall=ncmm_projectile::free_target({.5f,.5f,1.6f},0,0,30,2.6f,[](int x,int,int){return x==5?uint32_t(NCMM_WORLD_OPAQUE):0u;});
+        require(wall&&wall->x==5&&wall->y==0,"reticle ray stops at a physical wall instead of targeting the ground below it");
+        const auto loaded=ncmm_projectile::free_target({.5f,.5f,1.6f},0,0,30,2.6f,[](int x,int,int){return x>=8?uint32_t(NCMM_WORLD_UNKNOWN):0u;});
+        require(loaded&&loaded->x==7,"free fire never requests an unloaded target");
+    }
     for(unsigned kind=NCMM_PROJECTILE_BULLET;kind<=NCMM_PROJECTILE_THROWN;++kind){flight.kind=kind;size_t vertices=0;
         draw(flight,flight.started+duration(flight)*.55,[&](point a,point b,point c,point d,point color){vertices+=4;for(auto p:{a,b,c,d,color})require(std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z),"projectile asset vertices are finite");});
         require(vertices>0&&vertices<=24,"each projectile family has a bounded visible asset");

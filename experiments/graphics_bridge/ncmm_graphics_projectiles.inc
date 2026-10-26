@@ -1,9 +1,10 @@
 // All producer/consumer calls are on Native's main thread. The bounded ring
 // owns coordinates only, never a projectile, item, creature or map reference.
-struct graphics_projectile_record {ncmm_graphics_projectile_v1 value{};double queued=0;ncmm_projectile::presentation_clock clock;};
+struct graphics_projectile_record {ncmm_graphics_projectile_v1 value{};double queued=0;ncmm_projectile::presentation_clock clock;ncmm_projectile_aim_v1 aim{};};
+ncmm_projectile_aim_v1 graphics_projectile_aim{};
 std::array<graphics_projectile_record,NCMM_PROJECTILE_LIMIT> graphics_projectile_records{};
 uint64_t graphics_projectile_serial=0;size_t graphics_projectile_cursor=0;
-void graphics_projectiles_reset(){graphics_projectile_records={};graphics_projectile_cursor=0;}
+void graphics_projectiles_reset(){graphics_projectile_records={};graphics_projectile_cursor=0;graphics_projectile_aim={};}
 void graphics_projectiles_presented(uint64_t ticks){for(auto &record:graphics_projectile_records)if(record.value.serial)record.clock.presented(ticks/1000.0);}
 bool graphics_projectiles_active(uint64_t ticks){
     const double now=ticks/1000.0;
@@ -39,7 +40,8 @@ void graphics_note_projectile_impl(Creature *origin,const map &here,const projec
         append(p);if(p==end)break;
     }
     if(value.count<2)return;
-    auto &record=graphics_projectile_records[graphics_projectile_cursor++%graphics_projectile_records.size()];record={value,SDL_GetTicks()/1000.0,{}};
+    auto &record=graphics_projectile_records[graphics_projectile_cursor++%graphics_projectile_records.size()];
+    record={value,SDL_GetTicks()/1000.0,{},value.weapon[0]?graphics_projectile_aim:ncmm_projectile_aim_v1{}};
     graphics_mouse_dirty=true;
 #else
     (void)origin;(void)here;(void)projectile;(void)source;(void)end;(void)path;
@@ -60,3 +62,12 @@ int graphics_get_projectile_paths(ncmm_graphics_projectile_v1 *out,size_t capaci
 #endif
 }
 const ncmm_host_graphics_projectiles_v1 graphics_projectiles_api={1,sizeof(ncmm_host_graphics_projectiles_v1),1,0,graphics_get_projectile_paths};
+int graphics_get_projectile_paths_v2(ncmm_graphics_projectile_v2 *out,size_t capacity){
+    if(!out||capacity<NCMM_PROJECTILE_LIMIT)return -1;
+    std::array<ncmm_graphics_projectile_v1,NCMM_PROJECTILE_LIMIT> paths{};
+    const int count=graphics_get_projectile_paths(paths.data(),paths.size());
+    for(int n=0;n<count;++n){out[n]={};out[n].base=paths[n];
+        for(const auto &record:graphics_projectile_records)if(record.value.serial==paths[n].serial){out[n].aim=record.aim;break;}}
+    return count;
+}
+const ncmm_host_graphics_projectiles_v2 graphics_projectiles_v2_api={1,sizeof(ncmm_host_graphics_projectiles_v2),2,0,graphics_get_projectile_paths_v2};

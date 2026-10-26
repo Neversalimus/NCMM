@@ -48,6 +48,10 @@ def verify(root):
                     distance=sample['fractional_distance'];frames=sample['presented_frames']
                     assert type(distance) in (int,float) and .001<distance<.49,'Missing fractional movement inside the original tile'
                     assert type(frames) is int and frames>=2,'Fractional movement was not presented by Native'
+                if case=='held_w_three_native_boundaries':
+                    assert type(sample['boundary_presented_frames']) is int and sample['boundary_presented_frames']>=1,'Missing first post-boundary presentation'
+                    assert sample['boundary_frozen_frames']==0,'A held walk froze again in the first safe post-boundary frame'
+                    assert type(sample['boundary_max_gap_ms']) is int and sample['boundary_max_gap_ms']>=0,'Missing measured Native boundary gap'
     return dict(success=True,actual_cdda_sdl=True,samples=len(samples),manual_playthrough=False,
                 native_action_costs_verified=True,
                 limitations=['Controlled isolated world; ordinary AI turns are covered by the separate gameplay audit',

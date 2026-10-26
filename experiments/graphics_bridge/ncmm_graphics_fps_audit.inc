@@ -225,6 +225,7 @@
         int actions = 0, cost = 0;
         int direction = -1;
         float fractional_distance=0;uint32_t presented_frames=0;
+        uint64_t boundary_frames=0,boundary_frozen_frames=0,boundary_max_gap_ms=0;
     };
     std::vector<sample> samples;
     for (const char *mode : {"keychar", "keycode"}) {
@@ -308,8 +309,12 @@
                         graphics_input_router.movements == held_actions + 3 &&
                         you.get_moves() < held_moves,
                     "fps_audit_held_w_not_three_native_boundaries");
-            samples.push_back({"held_w_three_native_boundaries", mode, renderer_mode, 3,
-                               held_moves - you.get_moves()});
+            require(graphics_walk.boundary_frames>=1&&graphics_walk.boundary_frozen_frames==0,
+                "fps_boundary_first_safe_present_froze_camera");
+            sample boundary_sample{"held_w_three_native_boundaries",mode,renderer_mode,3,held_moves-you.get_moves()};
+            boundary_sample.boundary_frames=graphics_walk.boundary_frames;
+            boundary_sample.boundary_frozen_frames=graphics_walk.boundary_frozen_frames;
+            boundary_sample.boundary_max_gap_ms=graphics_walk.boundary_max_gap_ms;samples.push_back(boundary_sample);
             floor();
             warm(renderer_mode);
             you.set_moves(10000);
@@ -579,6 +584,16 @@
                 graphics_prepare_held();require(graphics_held_ready&&(graphics_held_item.flags&NCMM_HELD_COMBUSTION),"fps_powder_ammunition_metadata_missing");
                 if(shooting==0)require(g->place_critter_at(mtype_id("mon_zombie"),you.pos_bub()+tripoint_rel_ms(0,-5,0))!=nullptr,"fps_gun_target_fixture");
                 camera(-ncmm_graphics_camera::pi*.5f,shooting==0?-.1f:0.f);warm(renderer_mode);native_redraw();
+                if(shooting==1){
+                    // Depth/interaction focus is deliberately wrong for a
+                    // shot. It must not turn a free shot into floor/self aim.
+                    graphics_fps_focus={};graphics_fps_focus.target=you.pos_abs()+tripoint_rel_ms(1,0,0);
+                    graphics_fps_focus.origin=you.pos_abs();graphics_fps_focus.yaw=graphics_camera_yaw;
+                    graphics_fps_focus.pitch=graphics_camera_pitch;graphics_fps_focus.revision=graphics_world_revision;
+                    require(graphics_fps_queue_gunshot()&&graphics_fps_gunshot.target&&graphics_fps_gunshot.aim.free_ray==1&&
+                        rl_dist(*graphics_fps_gunshot.target,you.pos_abs())>3,"fps_free_shot_selected_interaction_floor");
+                    graphics_fps_gunshot_pending=false;
+                }
                 const int before=you.get_moves(),ammo=you.get_wielded_item()->ammo_remaining();const auto serial=graphics_attack_serial;
                 SDL_Event click{};click.type=SDL_EVENT_MOUSE_BUTTON_DOWN;click.button.button=SDL_BUTTON_LEFT;
                 SDL_Event release=click;release.type=SDL_EVENT_MOUSE_BUTTON_UP;
@@ -602,7 +617,7 @@
                     " cost="+std::to_string(before-you.get_moves())).c_str());
                 require(!modal&&!you.activity&&graphics_input_router.captured(),"fps_gun_opened_selector_or_lost_capture");
                 const int shots=ammo-you.get_wielded_item()->ammo_remaining();
-                if(shooting==1){require(std::any_of(graphics_projectile_records.begin(),graphics_projectile_records.end(),[](const auto &entry){return entry.value.serial&&entry.value.kind==NCMM_PROJECTILE_BULLET&&entry.value.count>=2;}),"fps_native_confirmed_bullet_path_missing");}
+                if(shooting==1){require(std::any_of(graphics_projectile_records.begin(),graphics_projectile_records.end(),[](const auto &entry){return entry.value.serial&&entry.value.kind==NCMM_PROJECTILE_BULLET&&entry.value.count>=2&&entry.aim.free_ray==1&&std::abs(entry.aim.pitch)<.001f&&entry.aim.eye_height>.1f;}),"fps_native_confirmed_reticle_bullet_path_missing");}
                 require(shooting==3?(shots==0&&graphics_attack_serial==serial&&you.get_moves()==before):
                         (shots==1&&graphics_attack_serial==serial+1&&you.get_moves()<before),"fps_gun_ammo_or_native_cost_wrong");
                 if(shooting==2){SDL_Event up=release;up.button.button=SDL_BUTTON_RIGHT;dispatch({up});require(!graphics_fps_ads_impl(),"fps_rmb_release_kept_ads");}
@@ -922,6 +937,10 @@
         if(entry.name=="continuous_subtile_without_turn"){
             out.member("fractional_distance",entry.fractional_distance);out.member("presented_frames",entry.presented_frames);
             out.member("configured_walking_speed",1.0);
+        }
+        if(entry.name=="held_w_three_native_boundaries"){
+            out.member("boundary_presented_frames",entry.boundary_frames);out.member("boundary_frozen_frames",entry.boundary_frozen_frames);
+            out.member("boundary_max_gap_ms",entry.boundary_max_gap_ms);
         }
         if (entry.direction >= 0)
             out.member("direction", entry.direction);

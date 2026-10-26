@@ -16,10 +16,17 @@ class FpsEvidenceTests(unittest.TestCase):
                         self.report['samples'].append(dict(scenario=case,keyboard_mode=mode,renderer=renderer,
                             native_actions=ACTIONS.get(case,1),native_move_cost=0 if case in FREE else 100,direction=i))
                         if case=='continuous_subtile_without_turn':self.report['samples'][-1].update(fractional_distance=.12,presented_frames=3,configured_walking_speed=1)
+                        if case=='held_w_three_native_boundaries':self.report['samples'][-1].update(boundary_presented_frames=2,boundary_frozen_frames=0,boundary_max_gap_ms=35)
     def run_report(self):
         (self.root/'first-person-fps-input.json').write_text(json.dumps(self.report))
         return verify(self.root)
     def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],180)
+    def test_frozen_post_boundary_frame_is_rejected(self):
+        next(s for s in self.report['samples'] if s['scenario']=='held_w_three_native_boundaries')['boundary_frozen_frames']=1
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_missing_post_boundary_present_is_rejected(self):
+        del next(s for s in self.report['samples'] if s['scenario']=='held_w_three_native_boundaries')['boundary_presented_frames']
+        with self.assertRaises(KeyError):self.run_report()
     def test_packaged_runner_and_verifier_require_the_same_matrix_size(self):
         runner=(Path(__file__).resolve().parents[1]/'Run-FirstPersonBenchmark.ps1').read_text(encoding='utf-8-sig')
         counts=re.findall(r'@\(\$audit\.samples\)\.Count -ne (\d+)',runner)

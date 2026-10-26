@@ -53,6 +53,7 @@ first_person::animation::timeline hand_timeline;
 first_person::viewmodel::animator hand_animator;
 first_person::weapon_fx::timeline weapon_effects;
 const ncmm_host_graphics_projectiles_v1 *projectile_api=nullptr;
+const ncmm_host_graphics_projectiles_v2 *projectile_v2_api=nullptr;
 first_person::projectile_assets::mounts projectile_mounts;
 std::vector<uint32_t> weapon_effect_pixels,weapon_composed_pixels;
 std::vector<ncmm_graphics_quad_v1> commands;
@@ -184,12 +185,16 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         first_person::weapon::hud_scale(float(scene->base.pixel_height)/scene->base.pixel_width,has_metadata?metadata.view.body_scale:1.f),
         has_metadata?std::clamp(metadata.view.body_scale,.70f,1.25f):1.f);
     metadata.projectiles.clear();
-    if(has_metadata&&active_world&&projectile_api){
-        std::array<ncmm_graphics_projectile_v1,NCMM_PROJECTILE_LIMIT> paths{};
-        const int count=projectile_api->get_paths(paths.data(),paths.size());
+    if(has_metadata&&active_world&&(projectile_v2_api||projectile_api)){
+        std::array<ncmm_graphics_projectile_v2,NCMM_PROJECTILE_LIMIT> paths{};
+        int count=0;
+        if(projectile_v2_api)count=projectile_v2_api->get_paths(paths.data(),paths.size());
+        else{std::array<ncmm_graphics_projectile_v1,NCMM_PROJECTILE_LIMIT> legacy{};
+            count=projectile_api->get_paths(legacy.data(),legacy.size());
+            if(count>=0&&size_t(count)<=legacy.size())for(int n=0;n<count;++n)paths[n].base=legacy[n];}
         auto muzzle=weapon_camera.world(first_person::weapon::muzzle(pose,weapon_profile));
         muzzle=muzzle-first_person::viewmodel::point{float(active_world->origin_x),float(active_world->origin_y),active_world->origin_z*active_world->level_height};
-        if(count>=0&&size_t(count)<=paths.size())for(int n=0;n<count;++n){auto flight=projectile_mounts.prepare(paths[n],active_world->origin_x,active_world->origin_y,active_world->origin_z,active_world->level_height,muzzle,scene->environment.held_item);
+        if(count>=0&&size_t(count)<=paths.size())for(int n=0;n<count;++n){auto flight=projectile_mounts.prepare(paths[n].base,active_world->origin_x,active_world->origin_y,active_world->origin_z,active_world->level_height,muzzle,scene->environment.held_item,&paths[n].aim,weapon_camera.forward);
             if(flight.serial)metadata.projectiles.push_back(std::move(flight));}
     }
     weapon_effects.observe(state,pose,weapon_profile,weapon_camera,scene->environment.held_item,epoch);
@@ -247,6 +252,12 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         key^=creature_state->statistics().generated;
         wk=first_person::hash_bytes(wk,&input.view.world_epoch,sizeof(input.view.world_epoch));wk=first_person::hash_bytes(wk,&input.view.tileset_epoch,sizeof(input.view.tileset_epoch));}
     if(has_metadata){auto hash=[&](const void *data,size_t n){wk=first_person::hash_bytes(wk,data,n);};
+        const auto flight_count=uint32_t(metadata.projectiles.size());key=first_person::hash_bytes(key,&flight_count,sizeof(flight_count));
+        for(const auto &flight:metadata.projectiles){
+            key=first_person::hash_bytes(key,&flight.serial,sizeof(flight.serial));key=first_person::hash_bytes(key,&flight.kind,sizeof(flight.kind));
+            key=first_person::hash_bytes(key,&flight.started,sizeof(flight.started));key=first_person::hash_bytes(key,&flight.count,sizeof(flight.count));
+            key=first_person::hash_bytes(key,flight.path.data(),flight.count*sizeof(flight.path[0]));
+        }
         // Appearance and movement only change composition, not static geometry.
         const uint64_t presentation_key=first_person::hash_bytes(1469598103934665603ull,&metadata.view,sizeof(metadata.view));
         key^=presentation_key;
@@ -323,6 +334,7 @@ void input(uint32_t action,void *) {
     if(controls)controls->set_camera(float(yaw),pitch);
 }
 int init(const ncmm_host_api_v1 *api) {
+    projectile_api=nullptr;projectile_v2_api=nullptr;projectile_mounts.reset();
     hand_timeline.reset();hand_animator.reset();
     weapon_effects.reset();weapon_effect_pixels.clear();weapon_composed_pixels.clear();
     held_api=nullptr;held_state.reset();const char *held_switch=std::getenv("NCMM_FP_HELD_ASSETS");held_assets_enabled=!held_switch||std::strcmp(held_switch,"0")!=0;
@@ -372,6 +384,8 @@ int init(const ncmm_host_api_v1 *api) {
         hybrid=candidate;yaw=-first_person::pi*.5;pitch=0;
         const auto *paths=static_cast<const ncmm_host_graphics_projectiles_v1 *>(api->query_interface(NCMM_GRAPHICS_PROJECTILES_ID,1,0));
         if(paths&&paths->abi_version==1&&paths->major==1&&paths->struct_size>=sizeof(*paths)&&paths->get_paths)projectile_api=paths;
+        const auto *paths2=static_cast<const ncmm_host_graphics_projectiles_v2 *>(api->query_interface(NCMM_GRAPHICS_PROJECTILES_V2_ID,2,0));
+        if(paths2&&paths2->abi_version==1&&paths2->major==2&&paths2->struct_size>=sizeof(*paths2)&&paths2->get_paths)projectile_v2_api=paths2;
         const auto *f=static_cast<const ncmm_host_graphics_focus_v1 *>(api->query_interface(NCMM_GRAPHICS_FOCUS_ID,1,0));
         if(f&&f->abi_version==1&&f->major==1&&f->struct_size>=sizeof(*f)&&f->set_focus)focus=f;
         auto *g=static_cast<const ncmm_host_graphics_gpu_v1 *>(api->query_interface(NCMM_GRAPHICS_GPU_ID,1,0));
@@ -402,7 +416,7 @@ int init(const ncmm_host_api_v1 *api) {
     return 1;
 }
 void shutdown() {
-    projectile_api=nullptr;projectile_mounts.reset();
+    projectile_api=nullptr;projectile_v2_api=nullptr;projectile_mounts.reset();
     aim_blend=0;aim_seconds=0;aim_epoch=0;
     hand_timeline.reset();hand_animator.reset();
     held_api=nullptr;held_state.reset();

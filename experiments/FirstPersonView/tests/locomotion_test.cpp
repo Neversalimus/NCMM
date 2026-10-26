@@ -36,6 +36,15 @@ int main(){
     require(walk.acknowledge(1,0)&&near(walk.position().x,-.5f),"matching committed step rebases the fractional position");
     walk.clock(5000);walk.advance(5016,0,1,0,3,open);
     require(walk.position().x>-.5f&&walk.position().x<-.2f,"busy Native time is discarded instead of becoming movement debt");
+    {
+        locomotion crossing;crossing.clock(0);unsigned now=16;
+        for(;now<1000&&!crossing.pending();now+=16)crossing.advance(now,0,1,0,3,open);
+        require(crossing.pending().x==1&&crossing.acknowledge(1,0),"delayed boundary is actually committed");
+        const auto boundary=crossing.position();
+        crossing.advance(now+24,0,1,0,3,open);
+        require(crossing.position().x>boundary.x+.05f&&crossing.position().x<boundary.x+.16f,"first post-commit frame moves instead of freezing again at the boundary");
+        require(!crossing.pending(),"bounded integration cannot manufacture a second costed action");
+    }
     for(unsigned now=5032;now<5300;now+=16)walk.advance(now,0,0,0,3,open);
     const auto stopped=walk.position();walk.advance(5316,0,0,0,3,open);
     require(std::abs(stopped.x)>.01f&&near(stopped.x,walk.position().x,.0001f),"release brakes at the fractional location without snapping to a centre");
@@ -77,6 +86,7 @@ int main(){
         input.key(button::forward,true,false,0);require(!input.ready(10000)&&input.walking().forward==1,"held continuous walking does not manufacture tile actions");
         input.boundary(1,0);input.native_wait(false);
         require(!input.walking_owned()&&!input.walking_suspended(),"a busy Native action preserves FPS walking ownership without advancing it");
+        require(input.walking(true).forward==1&&!input.ready(10000),"safe pre-poll presentation can sample held state without enabling Native action dispatch");
         input.native_wait(true);input.cancel_boundary();
         require(!input.ready(10000),"a reset or changed obstacle cancels a queued boundary without reissuing held walking");
         input.boundary(1,0);require(input.take(10000).action==command::move&&!input.ready(10001),"one boundary yields exactly one Native intent");

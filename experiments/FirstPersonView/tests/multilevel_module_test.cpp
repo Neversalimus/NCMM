@@ -1,6 +1,8 @@
 #include "ncmm_api.h"
 #include "ncmm_graphics_multilevel.h"
 #include "ncmm_graphics_controls.h"
+#include "ncmm_graphics_presentation.h"
+#include "ncmm_graphics_projectiles.h"
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -10,6 +12,7 @@ extern "C" void ncmm_open_ui_v1(const ncmm_host_api_v1 *);
 namespace {
 int checks=0,world_registrations=0,legacy_registrations=0,frames=0;
 bool enabled=false;uint64_t pixels=0;
+bool projectile_fixture=false,show_projectile=false;unsigned v2_reads=0,legacy_reads=0;
 ncmm_gpu_cpu_metrics_v1 cpu_metrics{};
 ncmm_graphics_render_multilevel_v1 callback=nullptr;
 ncmm_graphics_input_v1 input=nullptr;
@@ -32,8 +35,28 @@ ncmm_host_graphics_gpu_v1 gpu_api{1,sizeof(gpu_api),1,0,gpu_unavailable,gpu_subm
 int metrics(ncmm_multilevel_metrics_v1 *){return 0;}
 ncmm_host_graphics_v2 v2{2,sizeof(v2),2,0,old_reg,enable,is_enabled,sprite,submit};
 ncmm_host_graphics_multilevel_v1 world_api{1,sizeof(world_api),1,0,reg,enable,is_enabled,sprite,submit,submit_gpu,metrics};
+int pose_state(ncmm_graphics_control_state_v1 *out){*out={sizeof(*out),0,NCMM_GRIP_GUN,0,0,0,0,0,.8f};return 1;}
+int camera(float,float){return 1;}
+ncmm_host_graphics_controls_v1 controls{1,sizeof(controls),1,0,pose_state,camera};
+int present_scene(ncmm_graphics_presentation_v1 *out){*out={};out->struct_size=sizeof(*out);out->eye_height=1.55f;out->body_scale=1;out->held_length=.8f;out->gun_kind=NCMM_GUN_RIFLE;return 1;}
+int present_cells(ncmm_graphics_detail_v1 *out,size_t n){for(size_t i=0;i<n;++i)out[i]={};return 1;}
+int target(int32_t,float,float){return 1;}int effects(const uint32_t *,uint32_t,uint32_t,uint32_t){return 1;}
+ncmm_host_graphics_presentation_v1 presentation{1,sizeof(presentation),1,0,present_scene,present_cells,target,effects};
+int paths2(ncmm_graphics_projectile_v2 *out,size_t n){check(n==NCMM_PROJECTILE_LIMIT,"bounded v2 projectile read");++v2_reads;if(!show_projectile)return 0;
+    *out={};auto &p=out->base;p.serial=41;p.world_epoch=1;p.seconds=10;p.kind=NCMM_PROJECTILE_BULLET;p.count=9;std::strcpy(p.weapon,"m27");
+    for(unsigned i=0;i<p.count;++i)p.path[i]={1000001,-999999-int(i),0};
+    out->aim={1,0,0,1.55f,-1.5707963268f,0};return 1;}
+int paths1(ncmm_graphics_projectile_v1 *,size_t){++legacy_reads;return 0;}
+ncmm_host_graphics_projectiles_v2 projectiles2{1,sizeof(projectiles2),2,0,paths2};
+ncmm_host_graphics_projectiles_v1 projectiles1{1,sizeof(projectiles1),1,0,paths1};
 int has(const char *){return 1;}uint32_t major(){return 1;}uint32_t minor(){return 9;}
 const void *query(const char *id,uint32_t,uint32_t){
+    if(projectile_fixture){
+        if(!std::strcmp(id,NCMM_GRAPHICS_CONTROLS_ID))return &controls;
+        if(!std::strcmp(id,NCMM_GRAPHICS_PRESENTATION_ID))return &presentation;
+        if(!std::strcmp(id,NCMM_GRAPHICS_PROJECTILES_V2_ID))return &projectiles2;
+        if(!std::strcmp(id,NCMM_GRAPHICS_PROJECTILES_ID))return &projectiles1;
+    }
     if(!std::strcmp(id,NCMM_GRAPHICS_V2_ID))return &v2;
     if(!std::strcmp(id,NCMM_GRAPHICS_MULTILEVEL_ID))return &world_api;
     if(!std::strcmp(id,NCMM_GRAPHICS_GPU_ID))return &gpu_api;
@@ -71,5 +94,15 @@ int main(){try{
     auto bad=world;bad.cell_count=26;const int before=frames;check(!callback(&bad,nullptr)&&frames==before,"malformed multi-Z frame cannot reuse previous visible pixels");
     ncmm_open_ui_v1(&api);check(!enabled,"F6 restores tiles");mod->shutdown();check(!callback(&world,nullptr),"callback-scoped world pointers do not survive shutdown");
     check(mod->init(&api)&&world_registrations==2,"world provider reloads cleanly");mod->shutdown();
+    projectile_fixture=true;check(mod->init(&api),"projectile v2 provider initializes");ncmm_open_ui_v1(&api);
+    world.cell_count=9;world.slice_count=1;world.loaded_max_z=0;world.camera_dx=world.camera_dy=world.camera_dz=0;
+    world.appearance.base.cell_count=world.appearance.detail_count=9;std::strcpy(world.appearance.environment.held_item,"m27");
+    world.appearance.environment.animation_seconds=10.01;
+    check(callback(&world,nullptr),"projectile module baseline");const auto clear=pixels;
+    show_projectile=true;check(callback(&world,nullptr)&&pixels!=clear&&cpu_metrics.raster_calls>0,"new projectile changes actual shared-module pixels at the same animation timestamp");
+    show_projectile=false;check(callback(&world,nullptr)&&pixels==clear,"expired/removed projectile cannot remain in retained CPU pixels");
+    check(v2_reads>=3&&legacy_reads==0,"current shared module uses the v2 firing ray instead of the legacy table");mod->shutdown();
+    projectiles2.struct_size=sizeof(projectiles2)-1;check(mod->init(&api),"truncated optional v2 table falls back safely");ncmm_open_ui_v1(&api);
+    check(callback(&world,nullptr)&&legacy_reads>0,"unchanged v1 projectile API remains supported");mod->shutdown();
     std::cout<<"Multi-level shared-module lifecycle: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}}

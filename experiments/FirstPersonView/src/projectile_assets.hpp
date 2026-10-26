@@ -28,19 +28,37 @@ inline bool valid(const flight &f){
     return true;
 }
 class mounts {
-    struct entry {uint64_t serial=0,epoch=0;point muzzle{};int32_t x=0,y=0,z=0;};
+    struct entry {uint64_t serial=0,epoch=0;point muzzle{},end{};int32_t x=0,y=0,z=0;bool visible=false;};
     std::array<entry,NCMM_PROJECTILE_LIMIT> entries{};size_t cursor=0;
 public:
     void reset(){entries={};cursor=0;}
-    flight prepare(const ncmm_graphics_projectile_v1 &p,int32_t x,int32_t y,int32_t z,float level,point muzzle,const char *weapon){
+    flight prepare(const ncmm_graphics_projectile_v1 &p,int32_t x,int32_t y,int32_t z,float level,point muzzle,const char *weapon,
+            const ncmm_projectile_aim_v1 *aim=nullptr,point forward={}){
         flight f;if(!valid(p)||!std::isfinite(level)||level<=0)return f;
         entry *mount=nullptr;for(auto &e:entries)if(e.serial==p.serial&&e.epoch==p.world_epoch){mount=&e;break;}
         if(!mount){mount=&entries[cursor++%entries.size()];
             const auto &source=p.path[0];const point start{float(int64_t(source.x)-x)+.5f,float(int64_t(source.y)-y)+.5f,float(int64_t(source.z)-z)*level+1.25f};
-            *mount={p.serial,p.world_epoch,weapon&&std::strcmp(weapon,p.weapon)==0?muzzle:start,x,y,z};}
-        f.serial=p.serial;f.kind=p.kind;f.count=p.count;f.started=p.seconds;
-        f.path[0]=mount->muzzle+point{float(int64_t(mount->x)-x),float(int64_t(mount->y)-y),float(int64_t(mount->z)-z)*level};
-        for(uint32_t n=1;n<p.count;++n){const auto &at=p.path[n];f.path[n]={float(int64_t(at.x)-x)+.5f,float(int64_t(at.y)-y)+.5f,float(int64_t(at.z)-z)*level+1.25f};f.length+=length(f.path[n]-f.path[n-1]);}
+            const bool bound=p.weapon[0]&&weapon&&std::strcmp(weapon,p.weapon)==0;
+            const auto &last=p.path[p.count-1];
+            point end{float(int64_t(last.x)-x)+.5f,float(int64_t(last.y)-y)+.5f,float(int64_t(last.z)-z)*level+1.25f};
+            if(bound&&aim&&aim->free_ray==1&&std::isfinite(aim->offset_x+aim->offset_y+aim->eye_height+aim->yaw+aim->pitch)&&
+               std::abs(aim->offset_x)<=1&&std::abs(aim->offset_y)<=1&&std::abs(aim->pitch)<=1.35f&&aim->eye_height>0&&aim->eye_height<=4){
+                end.x+=aim->offset_x;end.y+=aim->offset_y;
+                const float horizontal=std::hypot(float(int64_t(last.x)-source.x),float(int64_t(last.y)-source.y));
+                const float plane=float(int64_t(last.z)-z)*level;
+                end.z=std::clamp(start.z-1.25f+aim->eye_height+std::tan(aim->pitch)*horizontal,plane+.005f,plane+level-.005f);
+            }
+            const point beginning=bound?muzzle:start;
+            // A long barrel can already extend beyond the first grid centre.
+            // Never splice a backward first leg into the confirmed trajectory.
+            // A point-blank impact behind the visible barrel has no flight.
+            const bool visible=!bound||length(forward)<.1f||viewmodel::dot(end-beginning,forward)>.02f;
+            *mount={p.serial,p.world_epoch,beginning,end,x,y,z,visible};}
+        if(!mount->visible)return f;
+        f.serial=p.serial;f.kind=p.kind;f.count=2;f.started=p.seconds;
+        const point rebase{float(int64_t(mount->x)-x),float(int64_t(mount->y)-y),float(int64_t(mount->z)-z)*level};
+        f.path[0]=mount->muzzle+rebase;f.path[1]=mount->end+rebase;
+        f.length=length(f.path[1]-f.path[0]);
         if(!std::isfinite(f.length)||f.length<=.001f||f.length>256)f.serial=0;return f;
     }
 };

@@ -17,7 +17,7 @@ def prepare(root,updates,bridge):
         'static bool manager_reset_setting(const module_setting_meta &);\n'
         'namespace\n{')
     loader=once(loader,'#include "ncmm_graphics_camera.hpp"',
-        '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_locomotion.hpp"\n#include "ncmm_graphics_grass.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"\n#include "gun_mode.h"\n#if defined(TILES)\n#include "cata_imgui.h"\n#endif')
+        '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_ballistic_aim.hpp"\n#include "ncmm_graphics_locomotion.hpp"\n#include "ncmm_graphics_grass.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"\n#include "gun_mode.h"\n#if defined(TILES)\n#include "cata_imgui.h"\n#endif')
     loader=once(loader,'    if( !graphics_control_context ) graphics_release_mouse();','    graphics_fps_sync();')
     loader=once(loader,'    if( graphics_fire_capture.active ) graphics_fire_input_context.store( (category == "DEFAULTMODE" ? 1u : category == "TARGET" ? 2u : 3u) | (text ? 4u : 0u) );',
         '    graphics_fps_input_begin(category);\n'
@@ -30,6 +30,8 @@ def prepare(root,updates,bridge):
     loader=once(loader,'    return graphics_draw( x, y, width, height );',
         '    const bool result=graphics_draw(x,y,width,height);graphics_fps_rendered(result);return result;')
     loader=once(loader,'    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {',
+        '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PROJECTILES_V2_ID ) {\n'
+        '        return min_major<=2&&min_minor==0?&graphics_projectiles_v2_api:nullptr;\n    }\n'
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PROJECTILES_ID ) {\n'
         '        return min_major<=1&&min_minor==0?&graphics_projectiles_api:nullptr;\n    }\n'
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_FOCUS_ID ) {\n'
@@ -253,6 +255,6 @@ void initialize();''')
     ballistic=once(ballistic,'        // Done with the trajectory!',
         '        if(first)ncmm::graphics_note_projectile(origin,*here,proj_arg,source,tp,t_copy);\n        // Done with the trajectory!')
     updates['ballistics.cpp']=ballistic
-    for name in ('ncmm_graphics_projectiles.h','ncmm_graphics_projectiles.inc','ncmm_graphics_input.hpp','ncmm_graphics_locomotion.hpp','ncmm_graphics_locomotion.inc','ncmm_graphics_grass.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
+    for name in ('ncmm_graphics_projectiles.h','ncmm_graphics_projectiles.inc','ncmm_graphics_ballistic_aim.hpp','ncmm_graphics_input.hpp','ncmm_graphics_locomotion.hpp','ncmm_graphics_locomotion.inc','ncmm_graphics_grass.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
         if (root/'src'/name).exists():raise ValueError('FPS experimental source already exists: '+name)
         updates[name]=(bridge/name).read_text(encoding='utf-8')

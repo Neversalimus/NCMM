@@ -116,6 +116,16 @@ class geometry_cache {
 public:
     uint64_t hits=0,misses=0;
     void clear(){*this=geometry_cache{};}
+    // Invalidate the actual dependency neighbourhood, retaining every other
+    // absolute-coordinate fact, including after the ring has rotated.
+    void invalidate(int64_t x,int64_t y,int low,int high,int64_t w,int64_t h){
+        if(w<=0||h<=0){std::fill(revisions.begin(),revisions.end(),0);return;}
+        const int64_t left=std::max(x,int64_t(ox)),right=std::min(x+w,int64_t(ox)+width),
+                      top=std::max(y,int64_t(oy)),bottom=std::min(y+h,int64_t(oy)+height);
+        for(int z=std::max(low,minz);z<=std::min(high,maxz);++z)
+            for(int64_t yy=top;yy<bottom;++yy)for(int64_t xx=left;xx<right;++xx)
+                revisions[relative_slot(int(xx-ox),int(yy-oy),z-minz)]=0;
+    }
     bool prepare(int32_t x,int32_t y,int low,int high,int w,int h,uint64_t world){
         if(!world||w<1||h<1||w>97||h>97||low < -128||high > 128||low>high||int64_t(high)-low>=NCMM_WORLD_MAX_SLICES)return false;
         hits=misses=0;

@@ -30,15 +30,18 @@
             // strips require globally sorted, uninstanced GPU draws per tile.
             // This keeps two floor triangles and no extra pass or depth layer.
             const unsigned size=ground.texture?std::clamp(ground.texture->data.width,32u,128u):32u;
-            blend.pixels.resize(size_t(size)*size);const auto at=cell_origin(i);
-            const float phase=0; // one periodic edge profile, shared across tiles
+            blend.pixels.resize(size_t(size)*size);
             auto sample=[](const material &m,float u,float v){if(!m.texture||!m.texture->valid())return m.color;
                 const auto p=m.texture->sample(u,v);return unpack(p)+m.color*(1-float(p&255)/255);};
             for(unsigned y=0;y<size;++y)for(unsigned x=0;x<size;++x){const float u=float(x)/(size-1),v=float(y)/(size-1),local_y=1-v;
                 vec color=sample(ground,u,v);
                 for(unsigned side=0;side<4;++side)if(mask&(1u<<side)){
                     const float distance=side==0?1-u:side==1?1-local_y:side==2?u:local_y,along=side%2?u:local_y;
-                    const float width=.24f+.035f*std::sin(along*2*pi+phase),t=clamp(distance/width),weight=1-t*t*(3-2*t);
+                    // A less uniform, wider shared feather. Keep this profile
+                    // shared: per-cell random textures break material batching
+                    // and turn a dense grass boundary into dozens more draws.
+                    const float width=.26f+.045f*std::sin(along*2*pi)+.018f*std::sin(along*4*pi+.7f),
+                                t=clamp(distance/width),weight=1-t*t*(3-2*t);
                     const float nu=side==0?0:side==2?1:u,nv=side==1?1:side==3?0:v;
                     color=color*(1-weight)+sample(adjacent[side],nu,nv)*weight;
                 }

@@ -234,6 +234,21 @@ int main(){try{
             }
         }
     }
+    {
+        // Field processors used to discard the complete geometry window.
+        // Compare the entire retained ring with a fresh oracle after edits.
+        geometry_cache regional;int ox=-13,oy=21;unsigned reads=0;std::array<unsigned,3*17*17> content{};
+        auto source=[&](int x,int y,int z){return content[size_t(z+1)*17*17+size_t(y-oy)*17+size_t(x-ox)];};
+        auto visit=[&](){for(int z=-1;z<=1;++z)for(int y=oy;y<oy+17;++y)for(int x=ox;x<ox+17;++x){
+            const auto expected=source(x,y,z);check(regional.get(x,y,z,1,[&]{++reads;return expected;})==expected);}};
+        check(regional.prepare(ox,oy,-1,1,17,17,1));visit();check(reads==867);reads=0;
+        for(unsigned change=0;change<60;++change){const int x=ox+int(change*7%17),y=oy+int(change*11%17),z=int(change%3)-1;
+            ++content[size_t(z+1)*17*17+size_t(y-oy)*17+size_t(x-ox)];
+            regional.invalidate(int64_t(x)-1,int64_t(y)-1,z-1,z+1,3,3);visit();
+            check(reads<=27);reads=0;}
+        regional.invalidate(INT32_MAX,INT32_MAX,-1,1,INT32_MAX,INT32_MAX);visit();check(reads==0);
+        regional.invalidate(INT32_MIN,INT32_MIN,-1,1,0,1);visit();check(reads==867);
+    }
     check(cache.prepare(1000000,-1000000,-4,4,3,3,1));
     for(int z=-4;z<=4;++z)for(int y=0;y<3;++y)for(int x=0;x<3;++x){const uint32_t expected=uint32_t((z+4)*9+y*3+x);
         check(cache.get(1000000+x,-1000000+y,z,1,[&]{++source_reads;return expected;})==expected);}
