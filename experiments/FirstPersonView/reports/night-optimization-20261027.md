@@ -94,12 +94,29 @@ Do not merge or release before the user's separate finalization request.
    corner, open gate) were generated and visually inspected. They are isolated
    render fixtures, not a Native game session. GPU qualification remains pending.
 
+5. **Retain overlapping slab facts.** A tile shift discarded the entire closed
+   plane proof/prefix and sampled all slab flags again. The new tri-state ring
+   retains only owned absolute-cell UNKNOWN/FLOOR/GLASS facts across an unchanged
+   source revision and overlapping XY window. Whole-plane state and rectangle
+   prefixes still reset on every shift. Epoch/revision/Z/layout changes and
+   non-overlapping moves invalidate facts; no Native notification was weakened.
+
+   The same immutable 97x97 fixture failed before the fix and now reports:
+   cold 9409 -> 9409 flag callbacks, axial step 9409 -> 97, diagonal step
+   9409 -> 193; a negative whole-plane proof followed by a rectangle proof
+   14114 -> 9409. These are accesses to geometry-cache flags, **not Native
+   map reads or a 97x frame-time improvement**. No millisecond benefit has been
+   established. All 850221 source-cache checks pass, including 320 shifts,
+   entering/exiting holes/glass/water, exact rectangle oracles, revisions,
+   loaded bounds, extreme coordinates and bounded/released memory. Two old
+   tests changed their reader's geometry without changing its revision during
+   a shift; those mutations now explicitly advance the revision.
+
 ## Working queue
 
-1. Measure the Host sealed-plane proofs at an ordinary window shift: currently
-   the proof and prefix are discarded even for unchanged overlapping slabs.
-   A retained absolute-cell proof must still respect all source revisions,
-   holes/glass/water/stairs, loaded bounds and lifecycle accounting.
+1. Audit temporary per-cell expansion of identical floor meshes before GPU
+   content deduplication. Reuse is useful only with a complete geometry key and
+   proof that edges, UVs, liquids, slabs/Z and source sprites are preserved.
 2. Distant radio towers are still classified as generic BUILDING horizon
    patches and become wide boxes. Near towers already use lattice geometry.
    A separate compatible skyline representation is needed; do not silently
@@ -115,6 +132,15 @@ Other historical symptoms have existing causal fixes and regressions. This
 audit has not established their recurrence in a current game session.
 
 ## Validation still required for this continuation
+
+At `da8f991`, the complete local build, all 50 inventoried autonomous CTests,
+195 Python tests, 24 atomic bridge tests and the separate hidden render-only
+RTX 4090 scene pass. Grass remains 45 draws, zero CPU world raster and zero
+warm static uploads. Windows/Linux GPU jobs, source/package audit and runtime
+checks also pass; GPU sanitizer and actual Native runs remain in progress.
+The subsequent slab-only edit passed its affected 850221-check pure suite;
+it does not change the compiled module/GPU scene. Fresh Host qualification is
+still required for that header.
 
 Run the affected checks after each edit, then the autonomous local inventory,
 hidden GPU pixels/resource checks, source/package checks and fresh remote

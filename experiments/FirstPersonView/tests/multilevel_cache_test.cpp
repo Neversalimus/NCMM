@@ -4,9 +4,80 @@
 #include <map>
 #include <stdexcept>
 #include <thread>
+
+template<class Check> void sealed_ring_checks(Check check){
+    using namespace ncmm_world;
+    auto require=[&](bool value,const char *message){if(!value)std::cerr<<"Sealed plane: "<<message<<'\n';check(value);};
+    sealed_plane_cache slabs;size_t callbacks=0;
+    auto field=[&](int x,int y,int){++callbacks;return x==48&&y==48?uint32_t(NCMM_WORLD_DOWN):uint32_t(NCMM_WORLD_FLOOR);};
+    require(slabs.prepare(0,0,-10,10,97,97,1,1),"initial97x97 source window");
+    require(!slabs.closed_rectangle(0,0,0,96,96,field),"the canonical hole defeats the full rectangle");const auto cold=callbacks;
+    require(slabs.prepare(1,0,-10,10,97,97,1,1),"one-tile axial shift");
+    callbacks=0;require(!slabs.closed_rectangle(0,1,0,97,96,field),"axial shift preserves the absolute hole");const auto axial=callbacks;
+    require(slabs.prepare(2,1,-10,10,97,97,1,1),"one-tile diagonal shift");
+    callbacks=0;require(!slabs.closed_rectangle(0,2,1,98,97,field),"diagonal shift preserves the absolute hole");const auto diagonal=callbacks;
+    sealed_plane_cache shared;require(shared.prepare(0,0,-10,10,97,97,1,1),"independent cold plane");callbacks=0;
+    require(!shared.closed(0,field)&&!shared.closed_rectangle(0,0,0,96,96,field),"global negative and prefix proof agree");const auto combined=callbacks;
+    std::cout<<"Sealed slab flag callbacks: cold="<<cold<<", axial="<<axial<<", diagonal="<<diagonal<<", closed+rectangle="<<combined<<'\n';
+    require(cold==9409&&axial==97&&diagonal==193,"stable slab facts read only entering strips after a fully known plane");
+    require(combined<=9409,"closed(false) and rectangle share previously sampled slab facts");
+    // A previously sealed proof is invalid after a shift: an entering hole,
+    // glass floor or water tile must be read before returning closed again.
+    for(uint32_t opening:{0u,uint32_t(NCMM_WORLD_DOWN),uint32_t(NCMM_WORLD_WATER),uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR)}){
+        sealed_plane_cache entering;auto read=[&](int x,int y,int){return x==97&&y==48?opening:uint32_t(NCMM_WORLD_FLOOR);};
+        require(entering.prepare(0,0,0,0,97,97,7,1)&&entering.closed(0,read),"initial opaque proof excludes the future opening");
+        require(entering.prepare(1,0,0,0,97,97,7,1)&&!entering.closed(0,read),"entering opening invalidates the complete-plane proof");
+        require(entering.closed_rectangle(0,1,0,47,96,read)&&!entering.closed_rectangle(0,97,48,97,48,read),"new prefix distinguishes a safe rectangle from the entering opening");
+        require(entering.prepare(0,0,0,0,97,97,7,1)&&entering.closed(0,read),"an exited opening cannot remain in the new prefix or global state");
+    }
+    // The reader is immutable within an epoch/revision. Compare independent
+    // canonical scans after positive/negative ring wraps and sparse Z queries.
+    auto canonical=[](int x,int y,int z){
+        const uint32_t value=(uint32_t(x)*17u^uint32_t(y)*71u^uint32_t(z)*193u)%13u;
+        return value==0?uint32_t(NCMM_WORLD_DOWN):value==1?uint32_t(NCMM_WORLD_WATER):value==2?uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR):
+            value==3?uint32_t(NCMM_WORLD_UNKNOWN):uint32_t(NCMM_WORLD_FLOOR);
+    };
+    sealed_plane_cache ring;int ox=-1000000,oy=1000000;uint32_t random=0x41b7c924u;
+    auto next=[&](){random=random*1664525u+1013904223u;return random;};
+    for(int step=0;step<320;++step){ox+=int(next()%5)-2;oy+=int(next()%5)-2;
+        require(ring.prepare(ox,oy,-2,2,9,7,19,23),"bounded canonical ring shift");
+        for(int z=-2;z<=2;++z)for(int sample=0;sample<5;++sample){
+            int left=int(next()%9),right=int(next()%9),top=int(next()%7),bottom=int(next()%7);if(left>right)std::swap(left,right);if(top>bottom)std::swap(top,bottom);
+            bool expected=true;for(int y=top;y<=bottom;++y)for(int x=left;x<=right;++x)expected=expected&&full_opaque_slab(canonical(ox+x,oy+y,z));
+            require(ring.closed_rectangle(z,ox+left,oy+top,ox+right,oy+bottom,canonical)==expected,"shifted rectangle proof matches an independent absolute-coordinate scan");
+        }
+    }
+    // Real source mutations always carry a new revision, even when the same
+    // absolute cells remain inside the window. Epoch/layout/teleport changes
+    // also invalidate all known facts, not only the entering strips.
+    sealed_plane_cache resets;size_t sampled=0;uint32_t current=NCMM_WORLD_FLOOR;
+    auto read=[&](int,int,int){++sampled;return current;};
+    auto reset=[&](int32_t x,int32_t y,int low,int high,int w,int h,uint64_t epoch,uint64_t revision,uint32_t value){
+        current=value;sampled=0;require(resets.prepare(x,y,low,high,w,h,epoch,revision),"new source identity/layout remains accepted");
+        require(resets.closed_rectangle(low,x,y,int32_t(int64_t(x)+w-1),int32_t(int64_t(y)+h-1),read)==full_opaque_slab(value),"new source identity replaces all old slab facts");
+        require(sampled==size_t(w)*h,"source identity/layout/teleport requires fresh facts across the complete plane");
+    };
+    reset(0,0,-2,2,9,7,1,1,NCMM_WORLD_FLOOR);
+    reset(0,0,-2,2,9,7,1,2,NCMM_WORLD_WATER);
+    reset(0,0,-2,2,9,7,2,2,NCMM_WORLD_FLOOR);
+    reset(9,0,-2,2,9,7,2,2,NCMM_WORLD_WATER); // no XY overlap
+    reset(9,0,-1,3,9,7,2,2,NCMM_WORLD_FLOOR);
+    reset(9,0,-1,3,13,11,2,2,NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR);
+    reset(INT32_MAX-96,INT32_MIN,0,31,97,97,2,2,NCMM_WORLD_UNKNOWN);
+    reset(INT32_MIN,INT32_MAX-96,0,31,97,97,2,2,NCMM_WORLD_WATER);
+    const auto before=sampled;
+    require(!resets.closed_rectangle(0,INT32_MIN,INT32_MAX-96,INT32_MIN+97,INT32_MAX,read)&&sampled==before,"out-of-window rectangle never reads source flags");
+    require(!resets.prepare(INT32_MAX,0,0,0,97,97,1,1)&&resets.bytes()<=NCMM_WORLD_MAX_SLICES,"invalid coordinate span releases every retained plane");
+    sealed_plane_cache bounded;require(bounded.prepare(0,0,0,31,97,97,4,5)&&bounded.bytes()<=NCMM_WORLD_MAX_SLICES,"unqueried planes allocate no slab or prefix arrays");
+    for(int z=0;z<32;++z)require(!bounded.closed_rectangle(z,0,0,96,96,[](int,int,int){return uint32_t(NCMM_WORLD_WATER);}),"all32 lazily sampled planes retain independent facts");
+    require(bounded.bytes()<2u*1024u*1024u,"slab facts and prefix capacities remain below two MiB together");bounded.clear();
+    require(bounded.bytes()<=NCMM_WORLD_MAX_SLICES,"clear releases slab facts, prefixes and proof state");
+}
+
 int main(){try{
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
+    sealed_ring_checks(check);
     {
         int identities[2]{};
         const auto *a=reinterpret_cast<const map *>(&identities[0]);
@@ -146,10 +217,12 @@ int main(){try{
         check(sealed.closed(0,plane)&&reads==81); // repeated camera frames reuse the proof
         hole=true;check(sealed.prepare(0,0,-2,3,9,9,1,2));check(!sealed.closed(0,plane)&&reads==122);
         check(!sealed.closed(0,plane)&&reads==122); // negative proofs are memoized too
-        hole=false;check(sealed.prepare(1,0,-2,3,9,9,1,2));check(sealed.closed(0,plane)&&reads==203);
+        // A changed reader needs a new source revision; an XY shift alone is
+        // not a geometry mutation of the overlapping absolute cells.
+        hole=false;check(sealed.prepare(1,0,-2,3,9,9,1,3));check(sealed.closed(0,plane)&&reads==203);
         check(!sealed.closed(-3,plane)&&reads==203);
-        check(sealed.prepare(1,0,-2,3,9,9,2,2));check(sealed.closed(0,plane)&&reads==284);
-        check(!sealed.prepare(INT32_MAX,0,0,0,9,9,2,2));check(!sealed.closed(0,plane)&&reads==284);
+        check(sealed.prepare(1,0,-2,3,9,9,2,3));check(sealed.closed(0,plane)&&reads==284);
+        check(!sealed.prepare(INT32_MAX,0,0,0,9,9,2,3));check(!sealed.closed(0,plane)&&reads==284);
         for(uint32_t opening:{0u,uint32_t(NCMM_WORLD_DOWN),uint32_t(NCMM_WORLD_RAMP),uint32_t(NCMM_WORLD_WATER),uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR)}){
             check(sealed.prepare(0,0,0,0,1,1,3,opening+1));check(!sealed.closed(0,[&](int,int,int){return opening;}));
         }
@@ -161,7 +234,7 @@ int main(){try{
         check(!slabs.closed(0,plane)); // a distant shaft defeats the global proof
         const int before=reads;
         check(slabs.closed_rectangle(0,1000000,-1000008,1000003,-1000005,plane));
-        check(reads==before+81);const int built=reads;
+        check(before<81&&reads==81);const int built=reads; // global/prefix proofs share the same sampled plane
         check(!slabs.closed_rectangle(0,1000003,-1000005,1000005,-1000003,plane));
         check(slabs.closed_rectangle(0,1000005,-1000003,1000008,-1000000,plane));
         check(reads==built); // every later rectangle is four prefix reads
@@ -177,9 +250,11 @@ int main(){try{
         check(reads==built);
         check(slabs.prepare(1000000,-1000008,-1,2,9,9,1,2));
         check(!slabs.closed_rectangle(0,1000000,-1000008,1000003,-1000005,[](int,int,int){return uint32_t(NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_FLOOR);}));
-        check(slabs.prepare(1000001,-1000008,-1,2,9,9,1,2));
+        // The preceding glass-only reader and this canonical floor reader are
+        // different geometry sources, so the new draw has a new revision.
+        check(slabs.prepare(1000001,-1000008,-1,2,9,9,1,3));
         check(slabs.closed_rectangle(0,1000001,-1000008,1000003,-1000005,plane));
-        check(slabs.prepare(1000001,-1000008,-1,2,9,9,2,2));
+        check(slabs.prepare(1000001,-1000008,-1,2,9,9,2,3));
         check(!slabs.closed_rectangle(0,1000001,-1000008,1000003,-1000005,[](int,int,int){return 0u;}));
         check(slabs.prepare(0,0,0,31,97,97,3,3));
         for(int z=0;z<32;++z)check(!slabs.closed_rectangle(z,0,0,96,96,[](int,int,int){return 0u;}));
