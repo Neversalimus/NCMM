@@ -37,6 +37,15 @@ void graphics_snapshot_external_callback(const char *module_id)
 }
 bool &graphics_gameplay_context = graphics_context.perspective;
 ncmm_graphics_input::router graphics_input_router;
+void graphics_locomotion_reset();
+void graphics_locomotion_pause(uint64_t);
+void graphics_locomotion_tick(uint64_t);
+void graphics_locomotion_presented();
+bool graphics_locomotion_sync(bool consume=false);
+bool graphics_locomotion_continuous();
+bool graphics_locomotion_moving();
+float graphics_locomotion_movement();
+ncmm_graphics_camera::offset graphics_locomotion_offset();
 void graphics_fps_sync();
 void graphics_fps_reset();
 void graphics_fps_on_enable();
@@ -190,6 +199,7 @@ bool graphics_world_needs_redraw();
 #include "ncmm_graphics_held.inc"
 #include "ncmm_graphics_hybrid.inc"
 #include "ncmm_graphics_world.inc"
+#include "ncmm_graphics_locomotion.inc"
 
 #if defined(TILES)
 // Opt-in evidence for the real native UI. No readback/IO on the normal path.

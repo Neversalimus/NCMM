@@ -36,6 +36,7 @@ const ncmm_host_graphics_gpu_v1 *gpu=nullptr;
 const ncmm_host_api_v2_core *settings=nullptr;
 void (*diagnostic_log)(ncmm_log_level_v1,const char *)=nullptr;
 std::unique_ptr<first_person::gpu::scene_cache> gpu_world;
+first_person::gpu::packet gpu_frame;
 uint32_t renderer_mode=NCMM_GPU_AUTO;std::string last_setting="auto",last_gpu_reason;
 bool mode_override=false;
 first_person::hybrid::presentation_data metadata;
@@ -46,6 +47,7 @@ float pitch=0,look_sway_x=0,look_sway_y=0;
 double look_sway_started=0,last_scene_seconds=0;
 float aim_blend=0;
 double aim_seconds=0;
+struct {bool ready=false;double x=0,y=0;float phase=0;uint64_t epoch=0;} gait;
 uint64_t aim_epoch=0;
 first_person::animation::timeline hand_timeline;
 first_person::viewmodel::animator hand_animator;
@@ -63,6 +65,7 @@ std::chrono::steady_clock::time_point world_built{};
 void select_renderer(uint32_t mode){
     if(mode==renderer_mode)return;
     renderer_mode=mode;frame_valid=world_valid=false;
+    gpu_frame.reset(true);
     if(mode==NCMM_GPU_CPU&&gpu)gpu->invalidate();
 }
 void report_gpu_fallback(const std::string &reason){
@@ -144,8 +147,18 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     aim_blend+=std::clamp(desired_aim-aim_blend,-aim_step,aim_step);aim_seconds=seconds;pose.aim=aim_blend;
     if(has_metadata){const float t=float(std::fmod(scene->environment.animation_seconds,1000.0));
         const float lag=std::exp(-float(std::max(0.0,scene->environment.animation_seconds-look_sway_started))*9);
-        pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
-        pose.sway_y=std::sin(t*2.2f)*.0032f+std::abs(std::sin(t*10))*metadata.view.movement*.010f+look_sway_y*lag;}
+        float phase=t*8;
+        if(active_world){
+            const double x=double(active_world->origin_x)+scene->base.camera_x+active_world->camera_dx,
+                         y=double(active_world->origin_y)+scene->base.camera_y+active_world->camera_dy;
+            const double step=std::hypot(x-gait.x,y-gait.y);
+            if(!gait.ready||gait.epoch!=epoch||step>.5)gait.phase=0;
+            else gait.phase=std::fmod(gait.phase+float(step)*8,4*first_person::hybrid::pi);
+            gait.x=x;gait.y=y;gait.epoch=epoch;gait.ready=true;phase=gait.phase;
+        }
+        const float movement=metadata.view.movement*(1-.8f*pose.aim);
+        pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(phase*.5f)*movement*.006f+look_sway_x*lag;
+        pose.sway_y=std::sin(t*2.2f)*.0032f+std::cos(phase)*movement*.006f+look_sway_y*lag;}
     pose.prepared_frame=&hand_animator.prepare(pose,!scene->environment.held_item[0],pose.grip==NCMM_GRIP_GUN&&(!has_metadata||metadata.view.gun_kind!=NCMM_GUN_BOW));
     if(held_api&&held_state){ncmm_held_item_v1 item{};item.struct_size=sizeof(item);
         if(held_api->get_item(&item)){
@@ -186,11 +199,11 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         if(available_now&&(renderer_mode!=NCMM_GPU_AUTO||!available.software_device)){
             const float factor=std::min({1.f,float(high_quality?2560:1920)/scene->base.pixel_width,float(high_quality?1440:1080)/scene->base.pixel_height});
             const int width=std::max(1,int(scene->base.pixel_width*factor)),height=std::max(1,int(scene->base.pixel_height*factor));
-            first_person::gpu::packet packet;first_person::hybrid::frame statistics;
+            gpu_frame.reset();auto &packet=gpu_frame;first_person::hybrid::frame statistics;
             const first_person::hybrid::sprite_provider provider=[](uint32_t cell,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){return hybrid&&hybrid->get_sprite(cell,layer,&sprite)!=0;};
             const bool built=gpu_world->build(*scene,float(yaw),pitch,provider,packet,statistics,available,pose,has_metadata?&metadata:nullptr,has_creatures?creature_state.get():nullptr,width,height,renderer_mode,active_world);
             bool submitted=false;
-            if(built){const auto &base=packet.finish(gpu);if(active_world){ncmm_gpu_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.base=base;
+            if(built){const auto &base=packet.finish(gpu);packet.scene.producer_cache_bytes+=packet.scratch_bytes();if(active_world){ncmm_gpu_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.base=base;
                     world.coordinates=active_world->coordinates;world.cell_count=active_world->cell_count;world.origin_x=active_world->origin_x;world.origin_y=active_world->origin_y;world.origin_z=active_world->origin_z;world.level_height=active_world->level_height;
                     submitted=multilevel&&multilevel->submit_gpu(&world);}
                 else submitted=gpu->submit_scene(&base);}
@@ -305,7 +318,7 @@ int init(const ncmm_host_api_v1 *api) {
     first_person::viewmodel::clear_textures();
     graphics=nullptr;
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
-    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();renderer_mode=NCMM_GPU_AUTO;last_setting="auto";mode_override=false;last_gpu_reason.clear();
+    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_frame.reset(true);gpu_world.reset();gait={};renderer_mode=NCMM_GPU_AUTO;last_setting="auto";mode_override=false;last_gpu_reason.clear();
     controls=nullptr;focus=nullptr;presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();look_sway_x=look_sway_y=0;look_sway_started=last_scene_seconds=0;frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
     const auto core=ncmm::sdk::require_core(api,caps,sizeof(caps)/sizeof(caps[0]),NCMM_SDK_CORE_FIELD_END(api_minor));
     if(!core) return 0;
@@ -322,6 +335,7 @@ int init(const ncmm_host_api_v1 *api) {
         settings->world_setting_register_float(id,"NCMM_FP_SENSITIVITY","Mouse sensitivity / Чувствительность мыши","Linear multiplier; no added acceleration. / Линейный множитель без дополнительного ускорения.",.05,4,1,.05,NCMM_WORLD_SETTING_LIVE);
         settings->world_setting_register_bool(id,"NCMM_FP_INVERT_Y","Invert mouse Y / Инверсия мыши по вертикали","Invert vertical look. / Инвертировать вертикальный осмотр.",0,NCMM_WORLD_SETTING_LIVE);
         settings->world_setting_register_int(id,"NCMM_FP_REPEAT_MS","Held movement interval / Интервал удерживаемого движения","Milliseconds; at most one action when Native is ready. / Миллисекунды; одно действие только при готовности игры.",100,400,140,NCMM_WORLD_SETTING_LIVE);
+        settings->world_setting_register_float(id,"NCMM_FP_WALK_SPEED","Walking speed / Скорость ходьбы","Continuous movement within tiles; crossing a tile spends one game step. / Плавное движение внутри клетки; переход через границу выполняет игровой шаг.",1,6,3,.25,NCMM_WORLD_SETTING_LIVE);
         settings->world_setting_register_bool(id,"NCMM_FP_HELP","Show FPS help once / Показать подсказку FPS один раз","Cleared after showing; enable to show again. / Выключается после показа; включите для повторной подсказки.",1,NCMM_WORLD_SETTING_LIVE);
         const char *keys[]={"A","B","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","Tab","Up","Down","Left","Right"};
         struct binding {const char *id,*name,*key;};
@@ -381,7 +395,7 @@ void shutdown() {
     if(multilevel)multilevel->set_enabled(id,0);
     else if(hybrid) hybrid->set_enabled(id,0);
     if(graphics) graphics->set_enabled(id,0);
-    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();
+    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_frame.reset(true);gpu_world.reset();gait={};
     first_person::viewmodel::clear_textures();
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
     controls=nullptr;focus=nullptr;
@@ -396,7 +410,7 @@ const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View"
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}
 extern "C" NCMM_EXPORT void ncmm_open_ui_v1(const ncmm_host_api_v1 *) {
     hand_timeline.reset();hand_animator.reset();
-    if(multilevel){frame_valid=world_valid=false;const bool enabled=!multilevel->is_enabled(id);multilevel->set_enabled(id,enabled);if(!enabled&&gpu_world)gpu_world->clear();}
-    else if(hybrid){frame_valid=world_valid=false;const bool enabled=!hybrid->is_enabled(id);hybrid->set_enabled(id,enabled);if(!enabled&&gpu_world)gpu_world->clear();}
+    if(multilevel){frame_valid=world_valid=false;const bool enabled=!multilevel->is_enabled(id);multilevel->set_enabled(id,enabled);if(!enabled&&gpu_world){gpu_frame.reset(true);gpu_world->clear();gait={};}}
+    else if(hybrid){frame_valid=world_valid=false;const bool enabled=!hybrid->is_enabled(id);hybrid->set_enabled(id,enabled);if(!enabled&&gpu_world){gpu_frame.reset(true);gpu_world->clear();gait={};}}
     if(graphics) graphics->set_enabled(id,!graphics->is_enabled(id));
 }

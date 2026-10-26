@@ -140,6 +140,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     if(previous_position&&*previous_position!=current_position)last_step=ticks;
     previous_position=current_position;
     p.movement=last_step ? std::clamp(1.0f-float(ticks-last_step)/340.0f,0.0f,1.0f) : 0.0f;
+    if(graphics_locomotion_continuous())p.movement=graphics_locomotion_movement();
     p.body_scale=std::clamp( you.height()/175.0f, .45f, 2.0f ); p.held_length=.5f;
     graphics_copy_text( p.dimension, g->get_dimension_prefix().str() ); p.sky_style=sky( p.dimension );
     const char *cpu=std::getenv( "NCMM_FP_CPU" );

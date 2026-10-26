@@ -15,7 +15,8 @@
             if(argc>1)require(SDL_SaveBMP(image,(std::string(argv[1])+"-visual-"+label+".bmp").c_str()),"save device visual evidence");
             SDL_DestroySurface(image);return pixels;
         };
-        auto submit=[&](animation::pose pose,const std::string &name,bool optic){gpu::packet packet;
+        gpu::packet packet;
+        auto submit=[&](animation::pose pose,const std::string &name,bool optic){packet.reset();
             require(cache.build(f.scene,-hybrid::pi*.5f,0,f.provider(),packet,stats,engine.metrics(),pose,&f.appearance,nullptr,640,480,NCMM_GPU_FORCE),"collect visual device packet");
             require(engine.submit(packet.finish(&api)),engine.metrics().reason);
             require(stats.viewmodel_draws==2&&!stats.viewmodel_errors&&engine.metrics().cpu_raster_calls==0,"all gun models execute hardware ADS with two real hands");
@@ -23,6 +24,7 @@
                 for(int y=238;y<=242;++y)for(int x=318;x<=322;++x)clear+=sky(pixels[size_t(y)*640+x]);
                 if(clear<10)std::fprintf(stderr,"ADS GPU aperture %s: %zu / 25 background pixels\n",name.c_str(),clear);
                 require(clear>=10,"real GPU optic aperture shows the background world");}
+            return pixels;
         };
         for(uint32_t kind=NCMM_GUN_PISTOL;kind<=NCMM_GUN_BOW;++kind)for(uint32_t mods:{0u,1u,511u}){
             animation::pose pose;pose.grip=NCMM_GRIP_GUN;pose.aim=1;pose.ammo_loaded=true;pose.length=.8f;
@@ -52,9 +54,23 @@
         }
         f.scene.environment.held_item[0]=0;f.appearance.view.gun_kind=NCMM_GUN_NONE;
         for(const auto *id:objects){const int at=f.sample();f.object(at,id);submit({},id,false);f.cells[at].furniture[0]=0;f.details[at].furniture_shape=NCMM_SHAPE_FLAT;}
+        const float camera_x=f.scene.base.camera_x;
+        f.object(f.sample(),"f_filing_cabinet");std::vector<uint32_t> previous_fraction;
+        for(int n=0;n<8;++n){
+            f.scene.base.camera_x=camera_x+float(n-4)*.07f;
+            auto current=submit({},"fractional-camera-"+std::to_string(n),false);
+            require(std::abs(packet.scene.camera.eye[0]-f.scene.base.camera_x)<1e-5f,"fractional camera reaches the actual device packet");
+            if(n)require(!cache.generated_cells&&!packet.scene.mesh_count&&!packet.scene.texture_count,
+                "fractional walking reuses static world geometry without fresh GPU uploads");
+            if(n){size_t changed=0;for(int y=100;y<400;++y)for(int x=100;x<540;++x)
+                    changed+=current[size_t(y)*640+x]!=previous_fraction[size_t(y)*640+x];
+                require(changed>80,"fractional camera translation changes actual world pixels");}
+            previous_fraction=std::move(current);
+        }
+        f.scene.base.camera_x=camera_x;f.cells[f.sample()].furniture[0]=0;f.details[f.sample()].furniture_shape=NCMM_SHAPE_FLAT;
         unsigned layout_frames=0;
         for(const auto *id:oriented_objects)for(unsigned side=0;side<4;++side){
-            fixture room;const float angle=facing_room(room,id,side);gpu::packet packet;
+            fixture room;const float angle=facing_room(room,id,side);packet.reset();
             require(cache.build(room.scene,angle,-.15f,room.provider(),packet,stats,engine.metrics(),{},&room.appearance,nullptr,640,480,NCMM_GPU_FORCE),"oriented furniture packet");
             require(!ncmm_gpu::validate(packet.finish(nullptr)),"oriented furniture obeys unchanged GPU contract");
             require(engine.submit(packet.finish(&api)),engine.metrics().reason);

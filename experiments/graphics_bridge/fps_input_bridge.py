@@ -17,7 +17,7 @@ def prepare(root,updates,bridge):
         'static bool manager_reset_setting(const module_setting_meta &);\n'
         'namespace\n{')
     loader=once(loader,'#include "ncmm_graphics_camera.hpp"',
-        '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_grass.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"\n#include "gun_mode.h"\n#if defined(TILES)\n#include "cata_imgui.h"\n#endif')
+        '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_locomotion.hpp"\n#include "ncmm_graphics_grass.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"\n#include "gun_mode.h"\n#if defined(TILES)\n#include "cata_imgui.h"\n#endif')
     loader=once(loader,'    if( !graphics_control_context ) graphics_release_mouse();','    graphics_fps_sync();')
     loader=once(loader,'    if( graphics_fire_capture.active ) graphics_fire_input_context.store( (category == "DEFAULTMODE" ? 1u : category == "TARGET" ? 2u : 3u) | (text ? 4u : 0u) );',
         '    graphics_fps_input_begin(category);\n'
@@ -226,6 +226,6 @@ void initialize();''')
         '                return;\n            }\n'
         '            static_popup popup;')
     updates['animation.cpp']=animation
-    for name in ('ncmm_graphics_input.hpp','ncmm_graphics_grass.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
+    for name in ('ncmm_graphics_input.hpp','ncmm_graphics_locomotion.hpp','ncmm_graphics_locomotion.inc','ncmm_graphics_grass.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
         if (root/'src'/name).exists():raise ValueError('FPS experimental source already exists: '+name)
         updates[name]=(bridge/name).read_text(encoding='utf-8')

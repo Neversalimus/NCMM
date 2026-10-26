@@ -43,8 +43,8 @@
         std::atomic<int> queued{0};
         std::thread worker;
         fps_events(SDL_WindowID window, float x, float y, std::vector<SDL_Event> events,
-                   unsigned duration)
-            : worker([this, window, x, y, events, duration]() mutable {
+                   unsigned duration,bool fractional=false)
+            : worker([this, window, x, y, events, duration,fractional]() mutable {
                   auto key = [window](SDL_Scancode code, SDL_Keycode value, bool down) {
                       SDL_Event event{};
                       event.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
@@ -112,6 +112,7 @@
                   }
                   const uint64_t finish = SDL_GetTicks() + duration;
                   while (!stop.load() && SDL_GetTicks() < finish) {
+                      if(fractional&&graphics_locomotion_audit_frames.load()>=2)break;
                       SDL_Delay(20);
                       if (graphics_fps_audit_wait.load() & 2u) {
                           modal_seen.store(true);
@@ -155,7 +156,7 @@
     };
     size_t dispatch_number = 0;
     auto dispatch = [&](std::vector<SDL_Event> events, int boundaries = 1,
-                        unsigned duration = 2000, bool virtual_cursor_outside = false, bool attack_boundary=false) {
+                        unsigned duration = 2000, bool virtual_cursor_outside = false, bool attack_boundary=false,bool fractional=false) {
         checkpoint("fps_input_" + get_option<std::string>("SDL_KEYBOARD_MODE") + "_" +
                    get_option<std::string>("NCMM_FIRST_PERSON_RENDERER") + "_" +
                    std::to_string(++dispatch_number));
@@ -181,7 +182,7 @@
                 event.button.y = virtual_cursor_outside?-16.f:mouse_y;
             }
         graphics_fps_audit_wait.store(0);
-        fps_events feed(window, mouse_x, mouse_y, std::move(events), duration);
+        fps_events feed(window, mouse_x, mouse_y, std::move(events), duration,fractional);
         for (int boundary = 0; boundary < boundaries; ++boundary) {
             const auto issued = attack_boundary?graphics_input_router.attack_intents:graphics_input_router.issued;
             for (int retry = 0; retry < 64; ++retry) {
@@ -214,6 +215,7 @@
         std::string name, mode, renderer;
         int actions = 0, cost = 0;
         int direction = -1;
+        float fractional_distance=0;uint32_t presented_frames=0;
     };
     std::vector<sample> samples;
     for (const char *mode : {"keychar", "keycode"}) {
@@ -236,7 +238,7 @@
                 const int moves = you.get_moves();
                 const auto actions = graphics_input_router.movements;
                 // Deliberately disagreeing Russian keycode and physical W.
-                dispatch(tap(SDL_SCANCODE_W, SDL_Keycode(0x0446)));
+                dispatch({key_event(SDL_SCANCODE_W, SDL_Keycode(0x0446),true)},1,12000);
                 const auto delta = ncmm_graphics_camera::movement(yaw, 1, 0);
                 if (you.pos_abs() != origin + tripoint_rel_ms(delta.first, delta.second, 0)) {
                     const auto actual = you.pos_abs() - origin;
@@ -268,9 +270,7 @@
             const auto actions = graphics_input_router.movements;
             const int moves = you.get_moves();
             dispatch({key_event(SDL_SCANCODE_W, SDLK_W, true),
-                      key_event(SDL_SCANCODE_D, SDLK_D, true),
-                      key_event(SDL_SCANCODE_W, SDLK_W, false),
-                      key_event(SDL_SCANCODE_D, SDLK_D, false)});
+                      key_event(SDL_SCANCODE_D, SDLK_D, true)},1,12000);
             if (you.pos_abs() != origin + tripoint_rel_ms(1, -1, 0) ||
                 graphics_input_router.movements != actions + 1 || you.get_moves() >= moves) {
                 const auto actual = you.pos_abs() - origin;
@@ -312,10 +312,34 @@
             const auto wall_actions = graphics_input_router.movements;
             dispatch({key_event(SDL_SCANCODE_W, SDLK_W, true)}, 3, 600);
             require(you.pos_abs() == wall_origin &&
-                        graphics_input_router.movements == wall_actions + 1,
+                        graphics_input_router.movements == wall_actions&&you.get_moves()==wall_moves&&
+                        std::abs(graphics_walk.motion.position().y)<=.321f,
                     "fps_audit_wall_repeated_held_walk_or_crossed_collision");
             samples.push_back(
-                {"wall_fences_held_w", mode, renderer_mode, 1, wall_moves - you.get_moves()});
+                {"wall_blocks_without_turn", mode, renderer_mode, 0, wall_moves - you.get_moves()});
+            floor();camera(-ncmm_graphics_camera::pi*.5f,-.08f);warm(renderer_mode);native_redraw();
+            graphics_locomotion_reset();graphics_locomotion_audit_frames.store(0);
+            const auto fractional_origin=you.pos_abs();const auto fractional_turn=calendar::turn;
+            const int fractional_moves=you.get_moves();const auto fractional_actions=graphics_input_router.movements;
+            dispatch({key_event(SDL_SCANCODE_W,SDLK_W,true)},1,3000,false,false,true);
+            const auto fractional_position=graphics_walk.motion.position();
+            const float fractional_distance=std::hypot(fractional_position.x,fractional_position.y);
+            require(graphics_locomotion_audit_frames.load()>=2&&fractional_distance>.001f&&fractional_distance<.49f&&
+                    you.pos_abs()==fractional_origin&&calendar::turn==fractional_turn&&you.get_moves()==fractional_moves&&
+                    graphics_input_router.movements==fractional_actions,"fps_subtile_motion_spent_turn_or_was_not_presented");
+            sample fractional_sample{"continuous_subtile_without_turn",mode,renderer_mode,0,0};
+            fractional_sample.fractional_distance=fractional_distance;
+            fractional_sample.presented_frames=graphics_locomotion_audit_frames.load();samples.push_back(fractional_sample);
+            floor();camera(-ncmm_graphics_camera::pi*.5f,-.08f);warm(renderer_mode);native_redraw();
+            const auto slide_origin=you.pos_abs();const int slide_moves=you.get_moves();
+            for(int y=-5;y<=2;++y)here.ter_set(you.pos_bub()+tripoint_rel_ms(1,y,0),ter_id("t_wall"));
+            refresh();native_redraw();const auto slide_actions=graphics_input_router.movements;
+            dispatch({key_event(SDL_SCANCODE_W,SDLK_W,true),key_event(SDL_SCANCODE_D,SDLK_D,true)},3,12000);
+            require(you.pos_abs()==slide_origin+tripoint_rel_ms(0,-3,0)&&
+                    graphics_input_router.movements==slide_actions+3&&you.get_moves()<slide_moves&&
+                    graphics_walk.motion.position().x>.05f&&graphics_walk.motion.position().x<=.321f,
+                    "fps_continuous_wall_slide_failed");
+            samples.push_back({"continuous_wall_slide",mode,renderer_mode,3,slide_moves-you.get_moves()});
             floor();
             warm(renderer_mode);
             native_redraw();
@@ -852,6 +876,9 @@
         out.member("renderer", entry.renderer);
         out.member("native_actions", entry.actions);
         out.member("native_move_cost", entry.cost);
+        if(entry.name=="continuous_subtile_without_turn"){
+            out.member("fractional_distance",entry.fractional_distance);out.member("presented_frames",entry.presented_frames);
+        }
         if (entry.direction >= 0)
             out.member("direction", entry.direction);
         out.end_object();

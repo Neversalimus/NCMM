@@ -1,4 +1,5 @@
 #include "ncmm_gpu_validation.hpp"
+#include "gpu_packet.hpp"
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -41,5 +42,20 @@ int main() {
     s.mode=NCMM_GPU_FORCE;material.flags=NCMM_GPU_TEXTURED;check(ncmm_gpu::validate(s));material.texture_key=4;check(!ncmm_gpu::validate(s));
     material.flags=NCMM_GPU_IMPOSTOR;check(ncmm_gpu::validate(s));material.normal_key=material.depth_key=4;material.impostor_span=1;check(!ncmm_gpu::validate(s));
     material.impostor_span=0;check(ncmm_gpu::validate(s));
+    {
+        using namespace first_person::gpu;
+        packet reused;auto owner=std::make_shared<owned_mesh>();owner->key=71;
+        owner->vertices.assign(vertices.begin(),vertices.end());owner->indices={0,1,2};owner->materials.resize(1);
+        std::weak_ptr<const owned_mesh> released=owner;
+        reused.draw(owner,identity,0,NCMM_GPU_OPAQUE);reused.cells.resize(64);reused.finish(nullptr);
+        const auto *draw_storage=reused.draws.data();const auto *cell_storage=reused.cells.data();
+        const size_t scratch=reused.scratch_bytes();owner.reset();check(!released.expired());
+        reused.reset();check(released.expired());
+        check(reused.draws.data()==draw_storage&&reused.cells.data()==cell_storage&&reused.scratch_bytes()==scratch);
+        const auto &empty=reused.finish(nullptr);check(!empty.draw_count&&!empty.cell_count&&!empty.mesh_count&&!empty.texture_count&&empty.bone_count==1);
+        check(!empty.world_epoch&&!empty.frame_serial&&!empty.width&&!empty.height);
+        reused.draws.reserve(packet::scratch_limit/sizeof(ncmm_gpu_draw_v1)+1);reused.reset();
+        check(reused.scratch_bytes()<=sizeof(ncmm_gpu_matrix_v1));
+    }
     std::printf("GPU submission contract: %d checks PASS\n",checks);return 0;
 }

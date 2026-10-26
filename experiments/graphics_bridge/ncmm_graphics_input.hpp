@@ -66,6 +66,7 @@ class router {
     static constexpr uint32_t movement_mask = 15;
     uint32_t observed_ = 0, blocked_ = 0;
     intent edge_{}, pending_{};
+    intent boundary_{};bool continuous_walk_=false;
     context context_ = context::map;
     bool command_mode_ = false, captured_ = false, resume_ = false, waiting_ = false,
          move_issued_ = false;
@@ -80,6 +81,7 @@ class router {
     void clear_intent() {
         blocked_ |= observed_;
         edge_ = {};
+        boundary_ = {};
         pending_ = {};
         move_issued_ = false;
         next_move_ = 0;
@@ -92,6 +94,20 @@ class router {
     context owner() const { return context_; }
     bool captured() const { return captured_; }
     bool command_mode() const { return command_mode_; }
+    bool walking_owned()const{return waiting_&&captured_&&context_==context::gameplay;}
+    void continuous_walk(bool value){continuous_walk_=value;if(!value)boundary_={};}
+    bool continuous_walk()const{return continuous_walk_;}
+    intent walking(){
+        if(!continuous_walk_||!walking_owned())return {};
+        auto value=movement(observed_&~blocked_&movement_mask);
+        // Preserve a very short press as a fractional nudge, never a full tile.
+        if(!value.forward&&!value.right)value=edge_;
+        edge_={};return value;
+    }
+    void boundary(int x,int y){
+        if(continuous_walk_&&walking_owned()&&pending_.action==command::none&&boundary_.action==command::none&&(x||y))
+            boundary_={command::move,std::clamp(x,-1,1),std::clamp(y,-1,1)};
+    }
     bool aiming()const{return captured_&&context_==context::gameplay&&(observed_&~blocked_&bit(button::aim));}
     void automatic_fire(bool enabled,uint32_t interval=240){automatic_fire_=enabled;fire_repeat_ms_=std::clamp(interval,120u,1200u);}
     void repeat_ms(uint32_t value) { repeat_ms_ = std::clamp(value, 100u, 400u); }
@@ -114,6 +130,7 @@ class router {
         waiting_ = false;
         command_mode_ = false;
         context_ = context::map;
+        continuous_walk_=false;
     }
     bool capture() {
         if ((context_ != context::gameplay && context_ != context::vehicle) || !waiting_)
@@ -182,6 +199,9 @@ class router {
         // while the cursor is released. Tab explicitly grants Native ownership.
         if (!down || repeat || was_down)
             return true;
+        // A held walking key may begin during a costed action. This preserves
+        // physical state for the next input lifetime without queuing a turn.
+        if(continuous_walk_&&(mask&movement_mask)&&captured_&&!waiting_&&!(blocked_&mask))return true;
         if (!waiting_ || !captured_ || (blocked_ & mask)) {
             blocked_ |= mask;
             return true;
@@ -243,6 +263,7 @@ class router {
         if (pending_.action != command::none)
             return true;
         if(automatic_fire_&&(observed_&~blocked_&bit(button::attack))&&now>=next_fire_)return true;
+        if(continuous_walk_)return boundary_.action!=command::none;
         const auto move = movement(observed_ & ~blocked_ & movement_mask);
         return now >= next_move_ &&
                ((move.forward || move.right) || (edge_.forward || edge_.right));
@@ -263,8 +284,10 @@ class router {
             ++issued;
             return value;
         }
-        if(automatic_fire_&&(observed_&~blocked_&bit(button::attack))&&now>=next_fire_){
+        if(automatic_fire_&&(observed_&~blocked_&bit(button::attack))&&now>=next_fire_&&
+           (!continuous_walk_||boundary_.action==command::none)){
             next_fire_=now+fire_repeat_ms_;++attack_intents;++issued;return {command::attack};}
+        if(continuous_walk_){const auto value=boundary_;boundary_={};move_issued_=true;++issued;++movements;return value;}
         auto value = movement(observed_ & ~blocked_ & movement_mask);
         if (!value.forward && !value.right)
             value = edge_;

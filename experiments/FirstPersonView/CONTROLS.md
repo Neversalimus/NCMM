@@ -3,12 +3,16 @@
 F6 enables the view. Mouse look uses raw SDL relative deltas and the existing
 camera callback; it never advances a turn. WASD uses physical SDL scancodes,
 including when a Russian keycode or text event accompanies the press.
+Walking uses a continuous position inside the authoritative Native tile. Short
+movements and stopping between tile centres do not advance simulation time.
+Crossing a tile boundary requests one ordinary Native movement action; only a
+successful action rebases the continuous position, without a camera jump.
 
 | Default | Native action |
 | --- | --- |
-| W A S D, chords | Camera-relative eight-direction walking |
+| W A S D, chords | Continuous camera-relative walking; normalized diagonal speed |
 | LMB | Visible hostile melee / reach / gun fire; gun coordinate targeting otherwise |
-| RMB | Native gun / reach targeting, with its normal confirmations and cancel |
+| RMB | Hold firearm ADS; release returns to the hip pose |
 | E | `interact` at the current visible adjacent XYZ; Native action menu if needed |
 | R | `reload_weapon` |
 | G | `pickup`, with the Native selection, quantity and container UI |
@@ -26,10 +30,15 @@ including when a Russian keycode or text event accompanies the press.
 
 F5 uses the existing NCMM world-setting metadata and persistence. It provides
 FPS enable/disable, sensitivity, Y inversion, ten primary physical-key bindings
-and a bounded 100–400 ms held-step interval (default 140 ms). Numeric values
+and continuous walking speed (1–6 tiles per second, default 3). Running,
+crouching, prone movement and difficult terrain adjust that speed. The older
+100–400 ms held-step interval remains for fallback tile controls. Numeric values
 can be increased, decreased or reset. Duplicate assignments are rejected.
-Movement waits for the real Native action boundary; the interval is a minimum,
-not a promise to advance the simulation at that frequency.
+Movement waits for the real Native action boundary. A slow frame or a busy
+simulation cannot accumulate movement debt or queue several future turns.
+A body-radius collider stops before solid terrain, closed doors, unsupported
+edges, vehicles and occupied tiles, and slides along walls. Use E to open doors
+and LMB to attack instead of automatically attacking by walking into a creature.
 
 Native menus, inventory, text fields, search and IME own their original events.
 Legacy "press any key" windows use the same modal input lease, including
@@ -58,9 +67,11 @@ A viewport click permits independent mouse look; Tab/Esc releases the pointer.
 Leaving the driver context fences held keys. FPS WASD throttle/steering is
 deliberately deferred; no second vehicle simulation is implemented.
 
-RMB opens the qualified Native aim UI. There is no new weapon-specific ADS
-alignment or optical simulation. Existing PSX poses, Mana Hands, reload and
-item switching remain driven by Native held-item and attack state.
+RMB retains the aligned firearm ADS pose without opening Native target menus.
+Native aiming remains available in Tab command mode. Existing PSX poses, Mana
+Hands, reload and item switching remain driven by Native held-item and attack
+state. Small camera footfalls and walking hand sway follow actual distance;
+ADS reduces their amplitude. Releasing movement brakes at the current position.
 
 The small Host router contains button state, one pending action and one movement
 edge. It has no action queue, simulation, avatar coordinates or Native pointers.
@@ -76,14 +87,17 @@ pixels keep their established contract.
 
 ## Проверка и ограничения
 
-Управление: мышь — осмотр; WASD — ходьба; ЛКМ — атака; ПКМ — штатное
+Управление: мышь — осмотр; WASD — плавная ходьба; ЛКМ — атака; ПКМ — удерживать
 прицеливание; E — действие с объектом; R/G/I/U — перезарядить, подобрать,
 инвентарь, применить предмет; Shift/Ctrl — бег/приседание; Space — ожидание.
 Tab возвращает оригинальные команды CDDA, F5 открывает настройки, F6 — карту.
 В машине сохраняются штатные команды, а обзор мышью независим от руля.
+Внутри клетки можно двигаться и останавливаться свободно. Игровой шаг
+выполняется при пересечении границы клетки; его стоимость и допустимость
+проверяет CDDA. Стены не расходуют ходы от одного удерживания клавиши.
 
 Automated router and renderer checks are separate from real Native gameplay.
-The opt-in Native FPS audit prepares 120 controlled cases and writes
+The opt-in Native FPS audit prepares 172 controlled cases and writes
 `first-person-fps-input.json`; the retained
 firing audit checks 196 normal trials, including four forced Native misfires,
 plus the historical negative control and

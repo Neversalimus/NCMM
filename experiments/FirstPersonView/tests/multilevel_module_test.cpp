@@ -64,6 +64,10 @@ int main(){try{
     for(int i=9;i<18;++i)for(float &light:coordinates[i].lower_light)light=.9f;
     check(callback(&world,nullptr)&&pixels!=dark,"lower-side RGB invalidates retained ceiling pixels");const auto bright=pixels;
     world.camera_dz=-.4f;check(callback(&world,nullptr)&&pixels!=bright,"visual Z camera offset reaches shared module");
+    const auto before_fraction=pixels;world.camera_dx=.27f;world.camera_dy=-.19f;
+    check(callback(&world,nullptr)&&pixels!=before_fraction&&cpu_metrics.raster_calls>0,"fractional XY camera invalidates cached CPU world pixels");
+    const auto fractional=pixels;
+    check(callback(&world,nullptr)&&pixels==fractional&&!cpu_metrics.raster_calls,"stopping at a fractional position reuses its owned CPU image");
     auto bad=world;bad.cell_count=26;const int before=frames;check(!callback(&bad,nullptr)&&frames==before,"malformed multi-Z frame cannot reuse previous visible pixels");
     ncmm_open_ui_v1(&api);check(!enabled,"F6 restores tiles");mod->shutdown();check(!callback(&world,nullptr),"callback-scoped world pointers do not survive shutdown");
     check(mod->init(&api)&&world_registrations==2,"world provider reloads cleanly");mod->shutdown();

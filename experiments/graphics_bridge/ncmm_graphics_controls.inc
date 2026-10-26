@@ -43,6 +43,9 @@ bool graphics_apply_mouse_capture(bool capture)
 void graphics_release_mouse()
 {
     graphics_input_router.release();
+#if defined(TILES)
+    graphics_locomotion_pause(SDL_GetTicks());
+#endif
     graphics_apply_mouse_capture(false);
 }
 
@@ -187,6 +190,7 @@ bool graphics_redraw_due()
 #if defined(TILES)
     if( !graphics_view.enabled || !graphics_control_context || !character_state_available() ) return false;
     const uint64_t now = SDL_GetTicks();
+    graphics_locomotion_tick(now);
     const double age = now / 1000.0 - graphics_attack_started;
     // One recovery frame after the last keyframe restores the idle pose.
     const bool attack = graphics_attack_serial && age >= 0 && age < (graphics_attack_kind==2?.95:.53);

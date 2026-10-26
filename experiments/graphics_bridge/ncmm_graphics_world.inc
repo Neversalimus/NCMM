@@ -133,6 +133,7 @@ bool graphics_verify_world_sources(size_t &checked,size_t *tile_checked=nullptr)
 }
 void graphics_clear_world()
 {
+    graphics_locomotion_reset();
     graphics_snapshot_lease.invalidate();graphics_camera_cache.clear();
     graphics_world_candidate_storage.clear();graphics_world_cell_storage.clear();graphics_world_position_storage.clear();
     graphics_world_coordinate_storage.clear();graphics_world_slice_storage.clear();graphics_world_facade_storage.clear();
@@ -146,7 +147,7 @@ void graphics_world_frame_presented()
 {
     if(graphics_frame_pending_present&&graphics_view.enabled){
         const auto ticks=SDL_GetTicks();
-        if(graphics_world_pending_present)graphics_world_camera_motion.presented(ticks);
+        if(graphics_world_pending_present){graphics_world_camera_motion.presented(ticks);graphics_locomotion_presented();}
         if(graphics_attack_pending){graphics_attack_started=ticks/1000.0;graphics_attack_pending=false;}
     }
     graphics_world_pending_present=graphics_frame_pending_present=false;
@@ -223,6 +224,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         return graphics_world_derived.get(ax,ay,z,graphics_world_revision,[&]{return derive_flags(ax,ay,z);});
     };
     const uint64_t ticks=SDL_GetTicks();
+    const bool continuous_step=graphics_locomotion_sync(true);
     auto continuing=graphics_world_camera_motion.sample(ticks);
     if(graphics_world_previous_position&&*graphics_world_previous_position!=absolute){
         const auto previous=*graphics_world_previous_position;const int dz=absolute.z()-previous.z();
@@ -232,7 +234,8 @@ bool graphics_draw_world(int x,int y,int width,int height)
         const uint32_t from=flags(previous.x(),previous.y(),previous.z()),to=flags(absolute.x(),absolute.y(),absolute.z());
         const bool passage=dz>0?((from&NCMM_WORLD_CONNECTED_UP)&&((same_xy&&(to&NCMM_WORLD_OPEN_DOWN))||((from&NCMM_WORLD_RAMP)&&(to&(NCMM_WORLD_RAMP|NCMM_WORLD_FLOOR))))):((to&NCMM_WORLD_CONNECTED_UP)&&((same_xy&&(from&NCMM_WORLD_OPEN_DOWN))||((to&NCMM_WORLD_RAMP)&&(from&(NCMM_WORLD_RAMP|NCMM_WORLD_FLOOR)))));
         const bool walk=dz==0&&std::abs(dx)<=1&&std::abs(dy)<=1&&std::abs(continuing.z)<.002f&&!you.in_vehicle;
-        if((can_interpolate&&passage)||walk)
+        if(continuous_step)graphics_world_camera_motion.reset();
+        else if((can_interpolate&&passage)||walk)
             graphics_world_camera_motion.begin({continuing.x-float(dx),continuing.y-float(dy),continuing.z-dz*NCMM_WORLD_LEVEL_HEIGHT},ticks);
         else graphics_world_camera_motion.reset();
     }
@@ -260,9 +263,11 @@ bool graphics_draw_world(int x,int y,int width,int height)
     // A rapid tall-avatar stair sequence must cancel its visual lag rather than
     // publish an invalid scene and disable the renderer.
     if(std::abs(animated.z+safe_eye-raw_eye)>NCMM_WORLD_LEVEL_HEIGHT*2){graphics_world_camera_motion.reset();animated={};}
-    const float camera_dz=animated.z+safe_eye-raw_eye;
+    const auto fractional=graphics_locomotion_offset();
+    animated.x+=fractional.x;animated.y+=fractional.y;
+    const float camera_dz=animated.z+safe_eye-raw_eye+fractional.z;
     graphics_world_transition_active=graphics_world_camera_motion.active(ticks);graphics_world_vertical_transition_active=std::abs(animated.z)>.002f;
-    const ncmm_world::point eye{radius+.5f+animated.x,radius+.5f+animated.y,safe_eye+animated.z};
+    const ncmm_world::point eye{radius+.5f+animated.x,radius+.5f+animated.y,safe_eye+animated.z+fractional.z};
     // Walking reuses the authoritative eye instead of retracing the world for
     // each subpixel sample. A stair camera still traces its displayed height:
     // using the destination storey would remove the floor around the camera
@@ -554,7 +559,7 @@ void graphics_clear_world(){graphics_multilevel_frame=nullptr;}
 #endif
 bool graphics_world_needs_redraw(){
 #if defined(TILES)
-    return graphics_world_transition_active;
+    return graphics_world_transition_active||graphics_locomotion_moving();
 #else
     return false;
 #endif

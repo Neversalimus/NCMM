@@ -49,6 +49,7 @@ void graphics_fps_poll_impl() {
     }
 }
 void graphics_fps_reset() {
+    graphics_locomotion_reset();
     graphics_fps_ads_active=graphics_fps_gunshot_pending=false;graphics_fps_ads_since=graphics_fps_ads_changed=0;
     graphics_input_router.reset();
     graphics_fps_focus = {};
@@ -142,6 +143,8 @@ void graphics_fps_sync() {
     environment.vehicle =
         character_state_available() && (get_avatar().controlling_vehicle || graphics_fps_vehicle);
     graphics_input_router.update(environment);
+    graphics_input_router.continuous_walk(graphics_view.world_render&&environment.enabled&&environment.available&&environment.fps&&
+        !environment.vehicle&&character_state_available()&&!get_avatar().in_vehicle);
     if (graphics_fps_initial_capture &&
         graphics_input_router.owner() == ncmm_graphics_input::context::gameplay) {
         if (graphics_input_router.capture())
@@ -185,15 +188,17 @@ void graphics_fps_input_end(const std::string &action) {
     graphics_fps_outgoing_owned = false;
 }
 void graphics_fps_native_begin() {
+    graphics_locomotion_sync();graphics_walk.motion.clock(SDL_GetTicks());
     graphics_fps_gunshot_pending=false;
     if(character_state_available()){
         const auto weapon=get_avatar().get_wielded_item();
         const auto mode=weapon&&weapon->is_gun()?weapon->gun_current_mode():gun_mode{};
         graphics_input_router.automatic_fire(mode&&mode.qty>1&&!mode.melee(),mode?uint32_t(std::clamp(mode.qty,1,10))*100u:240u);
     }
-    if (graphics_fps_move_origin && character_state_available())
-        graphics_input_router.completed_move(get_map().get_abs(get_avatar().pos_bub()) !=
-                                             *graphics_fps_move_origin);
+    if (graphics_fps_move_origin && character_state_available()){
+        const bool changed=get_map().get_abs(get_avatar().pos_bub())!=*graphics_fps_move_origin;
+        graphics_input_router.completed_move(changed);graphics_locomotion_completed(changed);
+    }
     graphics_fps_move_origin.reset();
     graphics_fps_open_target.reset();
     graphics_fps_dispatch_action.clear();
@@ -246,6 +251,7 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
     graphics_fps_ui_claimed = !allowed;
     graphics_fps_sync();
     if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
+        graphics_locomotion_tick(SDL_GetTicks());
         if (event.type == SDL_EVENT_KEY_DOWN && (event.key.mod & (SDL_KMOD_ALT | SDL_KMOD_GUI))) {
             graphics_fps_initial_capture = false;
             graphics_release_mouse();
@@ -312,6 +318,7 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
     return false;
 }
 bool graphics_fps_pending_impl() {
+    graphics_locomotion_tick(SDL_GetTicks());
     return graphics_input_router.ready(SDL_GetTicks());
 }
 int graphics_set_focus(int32_t cell) {
@@ -525,6 +532,7 @@ bool graphics_take_fps_gunshot_impl(std::optional<tripoint_bub_ms> &target,int &
 const std::string *graphics_fps_take_action_impl(const std::string &category) {
     if (category != "DEFAULTMODE")
         return nullptr;
+    graphics_locomotion_tick(SDL_GetTicks());
     const auto value = graphics_input_router.take(SDL_GetTicks());
     if (value.action == ncmm_graphics_input::command::none)
         return nullptr;
@@ -534,8 +542,9 @@ const std::string *graphics_fps_take_action_impl(const std::string &category) {
     graphics_click_pending=false;
     using command = ncmm_graphics_input::command;
     if (value.action == command::move) {
-        const auto delta =
+        const auto delta = graphics_input_router.continuous_walk()?std::pair<int,int>{value.forward,value.right}:
             ncmm_graphics_camera::movement(graphics_camera_yaw, value.forward, value.right);
+        if(graphics_input_router.continuous_walk())graphics_walk.issued=true;
         graphics_fps_action = action_ident(get_movement_action_from_delta(
             tripoint_rel_ms(delta.first, delta.second, 0), iso_rotate::yes));
         graphics_fps_move_origin = get_map().get_abs(get_avatar().pos_bub());
