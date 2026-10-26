@@ -91,17 +91,18 @@ $worldSourceText=Get-Content -LiteralPath (Join-Path $worldRoot 'SOURCE.json') -
 $worldSelection=$worldSelectionText | ConvertFrom-Json
 $worldImport=$worldImportText | ConvertFrom-Json
 if($worldSelection.schema -ne 1 -or $worldSelection.license -ne 'CC0-1.0' -or $worldImport.schema -ne 1 -or
-    $worldSelection.models.Count -ne 43 -or $worldImport.models.Count -ne 43 -or
+    $worldSelection.models.Count -ne 44 -or $worldImport.models.Count -ne 44 -or
     $worldImport.source_selection_sha256 -ne (Get-FileHash -LiteralPath $worldSelectionPath -Algorithm SHA256).Hash.ToLowerInvariant()){
     throw 'World resource provenance differs from the validated inventory.'
 }
 foreach($entry in $worldSelection.files.PSObject.Properties){
-    if($entry.Name -notmatch '^source/kenney/[A-Za-z0-9_. /-]+$' -or $entry.Name.Contains('..')){throw 'Unsafe world source path.'}
+    if($entry.Name -notmatch '^source/(kenney|3td)/[A-Za-z0-9_. /-]+$' -or $entry.Name.Contains('..')){throw 'Unsafe world source path.'}
     if((Get-FileHash -LiteralPath (Join-Path $worldRoot $entry.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.Value){throw 'Pinned world source changed.'}
 }
 $worldRuntime='{"schema":1,"runtime_importer":false,"selection":'+$worldSelectionText.Trim()+',"imported":'+$worldImportText.Trim()+',"source":'+$worldSourceText.Trim()+'}'
 [IO.File]::WriteAllText((Join-Path $fp 'world-assets.manifest.json'),$worldRuntime,(New-Object Text.UTF8Encoding($false)))
-Copy-Item -LiteralPath (Join-Path $worldRoot 'source/kenney/License.txt') -Destination (Join-Path $fp 'world-assets-license.txt')
+$worldLicenses=[IO.File]::ReadAllText((Join-Path $worldRoot 'source/kenney/License.txt'))+"`n`n"+[IO.File]::ReadAllText((Join-Path $worldRoot 'source/3td/License.txt'))
+[IO.File]::WriteAllText((Join-Path $fp 'world-assets-license.txt'),$worldLicenses,(New-Object Text.UTF8Encoding($false)))
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'assets/fire_effects/references.json') -Destination (Join-Path $fp 'weapon-effects.references.json')
 # End offline world resource packaging.
 Copy-Item (Join-Path $HostRoot 'cataclysm-tiles.exe') (Join-Path $hostDest 'cataclysm-tiles.ncmm.exe')

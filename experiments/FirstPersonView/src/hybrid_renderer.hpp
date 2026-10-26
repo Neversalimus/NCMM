@@ -10,6 +10,7 @@
 #include "held_pose.hpp"
 #include "weapon_view.hpp"
 #include "world_props.generated.hpp"
+#include "furniture_layout.hpp"
 #include "creature_scene.hpp"
 #include "effects.hpp"
 #include "liquid_surface.hpp"
@@ -192,6 +193,24 @@ struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float
     bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;
     bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false,distance_lod=false,grass=false,gpu_local=false;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
+struct prop_placement {props::id model;vec scale,origin;unsigned turns=0;surface finish=surface::none;};
+inline bool opaque_prop(props::id id){
+    static const auto values=[](){std::array<bool,size_t(props::id::count)> out{};
+        for(size_t i=0;i<out.size();++i){out[i]=true;const auto &model=props::get(props::id(i));
+            for(size_t n=0;n<model.count;++n)out[i]=out[i]&&model.triangles[n].color[3]>=.99f;}return out;}();
+    return size_t(id)<values.size()&&values[size_t(id)];
+}
+inline vec quarter_turn(vec p,unsigned turns){switch(turns&3u){case 1:return{-p.y,p.x,p.z};case 2:return{-p.x,-p.y,p.z};case 3:return{p.y,-p.x,p.z};default:return p;}}
+template<class Emit> inline void prop_triangles(const prop_placement &placed,int cell,Emit emit){
+    const auto &model=props::get(placed.model);
+    for(size_t n=0;n<model.count;++n){const auto &source=model.triangles[n];triangle t{};
+        for(size_t k=0;k<3;++k){const auto &p=source.vertices[k];
+            t.v[k]={placed.origin+quarter_turn({p.x*placed.scale.x,p.y*placed.scale.y,p.z*placed.scale.z},placed.turns),k==0?0.f:1.f,k==2?1.f:0.f,{1,1,1}};}
+        t.normal=normalize(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p));
+        t.m={nullptr,{source.color[0]*.86f,source.color[1]*.86f,source.color[2]*.86f},source.color[3],false,false,false,cell,placed.finish};
+        t.m.gpu_local=true;emit(t);
+    }
+}
 
 // Geometry-only destination. The shared generator preserves the existing art
 // and dimensions; this path never enters project(), raster() or pixel effects.
@@ -207,6 +226,7 @@ struct geometry_sink {
     virtual void horizon_complete(){}
     virtual bool arms(const viewmodel::submission &){return false;}
     virtual bool item(const held::submission &){return false;}
+    virtual bool prop(const prop_placement &,int){return false;}
     virtual void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,
                       vec origin,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)=0;
     virtual void impostor(const creature::asset &asset,const creature::pose_state &pose,vec origin,int cell,int lod,bool targetable)=0;

@@ -141,3 +141,68 @@ The protected GPU backend, resource lifetime policy, geometry ABI and shipping
 shaders are unchanged. Strict readback comparisons and sanitizer gates remain
 enabled, including the earlier intermittent llvmpipe comparison limitation;
 this work does not claim to diagnose that earlier issue.
+
+## Furniture facing, partitions and repeated-room preparation
+
+The terrain `orientation` field describes a structural axis, not a saved
+furniture front. Using it for every prop left rows pointing the same way and
+could only produce two rotations. The new layout policy keeps four cardinal
+facings. Explicit directional identifiers win; otherwise chairs face adjacent
+work surfaces, desk working edges face their chairs, and cabinets/appliances
+put their backs at visible walls or cubicle partitions. Storage rows face the
+aisle. Ties are deterministic, independent of camera/player position. Only the
+four visible same-level neighbours are sampled, within the existing cached-cell
+invalidation footprint. No hidden room furniture is inspected.
+
+Imported furniture uses a common -Y front. Composed objects rotate their local
+offsets too, so monitors stay on the correct side of their desks. The separate
+3TD cabinet had the opposite source axis and is calibrated offline by 180
+degrees. Room dividers now form thin framed panels, 1.87 m tall, with connected
+straight, corner, T and cross layouts. They no longer use the 0.72 m generic
+sprite-footprint extrusion.
+
+The filing cabinet is the original **388-triangle** visual node from Ron
+Kapaun / 3TD Studios' [Office Starter Pack](https://opengameart.org/content/3td-office-starter-pack).
+Its CC0 dedication is retained as the original pack PDF and a UTF-8 license
+transcription. Two pinned diffuse images are sampled offline into face colours;
+source lamps, exporter collision geometry and environment reflection are
+excluded. The catalog now contains 44 models: 43 original Kenney selections
+and this cabinet. Installer manifests and notices include both sources, with
+all 49 source/license files hash checked. There is no runtime model importer.
+
+Repeated authored furniture now shares a complete opaque **floor plus prop**
+template. Each new combination is expanded and hashed once, while individual
+cells retain their own draw transform, lighting and current index. A maximum
+of eight props per assembly and 512 weak template keys bounds this additional
+cache. Existing resource budgets and failure handling remain enforced. There
+is no extra floor/prop draw split; transparent models retain their old path.
+World/resource resets release the template owners and accounting.
+
+A local pure preparation ablation uses a 33x33 room with 496 objects, including
+384 authored props. Its comparison copy returns false at the existing `prop`
+callback, selecting the exact ordinary triangle path, with no other source
+change. Nine cold samples and 54 warm camera samples per variant gave:
+
+| Same updated scene | Ordinary triangle expansion | Shared cell templates |
+| --- | ---: | ---: |
+| Cold preparation median | 29.990 ms | 7.123 ms |
+| Warm preparation median | 0.196 ms | 0.201 ms |
+| Draw commands | 1095 | 1095 |
+| Unique meshes / indices | 32 / 13536 | 32 / 13536 |
+| Template builds / reused prop cells | 0 / 0 | 5 / 379 |
+
+The material-resolved triangle multiset, transforms, cells and draw passes
+match (canonical geometry digest `3523857513230377072`). Opaque triangle and
+material table ordering may differ. These are CPU scene-preparation numbers,
+with background games still running, not ordinary game frame times or a 15 ms
+qualification. The warm timings do not establish an improvement.
+
+Validation: 49 explicitly inventoried autonomous C++/render-only tests pass,
+including a new furniture layout/cache test, and 186 Python tests pass. The
+unchanged strict GPU device suite passes on RTX 4090 with 64 additional
+orientation images (16 families x four walls), 34 ordinary object views,
+zero CPU world raster and zero warm static uploads. Those orientation captures
+were visually inspected; the cabinet fronts, appliance doors, chair seats,
+desk drawer fronts and monitors face the aisle. Native gameplay and installer
+checks must still bind to the resulting source revision before delivery.
+No local Native process, input injection, mouse capture or focus change is used.

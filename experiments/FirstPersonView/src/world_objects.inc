@@ -10,26 +10,32 @@
                 quad(t,r,ring(b,inner,n+1),ring(b,inner,n),m,axis);
             }else{quad(a,q,p,p,m,axis*-1);quad(b,t,r,r,m,axis);}}
     }
-    void prop_model(int i,props::id id,float height,float width=.94f,float depth=.94f,vec offset={}){
-        const auto &model=props::get(id);const vec center=cell_center(i)+offset;
-        const float angle=s.details[i].orientation?pi*.5f:0;
+    std::array<furniture::sample,4> furniture_neighbors(int i)const{
+        std::array<furniture::sample,4> around{};
+        for(unsigned side=0;side<4;++side){const int n=neighbor(i,furniture::dx(side),furniture::dy(side));if(!visible(n))continue;
+            auto &out=around[side];out.known=true;const auto shape=s.details[n].terrain_shape;
+            out.wall=shape==NCMM_SHAPE_WALL||shape==NCMM_SHAPE_WINDOW||shape==NCMM_SHAPE_WINDOW_BROKEN||shape==NCMM_SHAPE_WINDOW_COVERED||shape==NCMM_SHAPE_GLASS_WALL;
+            out.blocked=out.wall||shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_FENCE;
+            if(!world_data||(world_flags(n)&NCMM_WORLD_BODY_VISIBLE))out.kind=furniture::classify(base.cells[n].furniture);
+            out.blocked=out.blocked||out.kind==furniture::role::divider;
+        }return around;
+    }
+    unsigned furniture_turns(int i)const{return furniture::turns(furniture::front(base.cells[i].furniture,furniture_neighbors(i)));}
+    void prop_model(int i,props::id id,float height,float width=.94f,float depth=.94f,vec offset={},surface finish=surface::none){
+        const auto &model=props::get(id);const unsigned turns=furniture_turns(i);offset=quarter_turn(offset,turns);
+        const vec center=cell_center(i)+offset;const float angle=turns*pi*.5f;
         const float scale=height/model.dimensions.z;
         const vec size{std::min(scale,width/std::max(.01f,model.dimensions.x)),std::min(scale,depth/std::max(.01f,model.dimensions.y)),scale};
         if(dot(center-eye,center-eye)>35*35){material m{nullptr,{.32f,.31f,.27f},1,false,false,false,i,surface::wood};
             if(model.count){const auto &c=model.triangles[0].color;m.color={c[0],c[1],c[2]};}
             box(center,{-model.dimensions.x*size.x*.5f,-model.dimensions.y*size.y*.5f,0},
                 {model.dimensions.x*size.x*.5f,model.dimensions.y*size.y*.5f,height},m,angle);return;}
-        for(size_t n=0;n<model.count;++n){const auto &source=model.triangles[n];std::array<vec,3> points;
-            for(size_t k=0;k<3;++k){const auto &p=source.vertices[k];points[k]=rotate({p.x*size.x,p.y*size.y,p.z*size.z},vec{.5f,.5f,0}+offset,angle);}
-            const vec normal=normalize(cross(points[1]-points[0],points[2]-points[0]));
-            material m{nullptr,{source.color[0]*.86f,source.color[1]*.86f,source.color[2]*.86f},source.color[3],false,false,false,i};
-            // Keep authored cell-local coordinates exact on the GPU. Adding
-            // and subtracting a cell position first changes low float bits and
-            // prevents identical furniture from sharing one immutable mesh.
-            m.gpu_local=gpu_sink&&gpu_sink->local_geometry();if(!m.gpu_local)for(auto &p:points)p=p+cell_origin(i);
-            const vec illumination=gpu_sink?vec{1,1,1}:light(i,normal);
-            triangle t{{vertex{points[0],0,0,illumination},vertex{points[1],1,0,illumination},vertex{points[2],1,1,illumination}},m,normal};
-            if(gpu_sink)gpu_sink->emit(t);else(m.alpha<.99f?transparent:opaque).push_back(t);}
+        const prop_placement placed{id,size,vec{.5f,.5f,0}+offset,turns,finish};
+        if(gpu_sink&&gpu_sink->prop(placed,i))return;
+        prop_triangles(placed,i,[&](triangle t){t.m.gpu_local=gpu_sink&&gpu_sink->local_geometry();
+            if(!t.m.gpu_local)for(auto &v:t.v)v.p=v.p+cell_origin(i);
+            if(!gpu_sink)for(auto &v:t.v)v.light=light(i,t.normal);
+            if(gpu_sink)gpu_sink->emit(t);else(t.m.alpha<.99f?transparent:opaque).push_back(t);});
     }
     bool pipe_id(const char *id)const{return std::strstr(id,"pipe")&&!std::strstr(id,"scaffolding")&&!std::strstr(id,"organ");}
     bool pipe_model(int i,uint32_t layer){
@@ -60,10 +66,23 @@
         const std::string id=layer==NCMM_GFX_TERRAIN?base.cells[i].terrain:base.cells[i].furniture;
         using ncmm_graphics_shapes::contains;using P=props::id;
         if(pipe_model(i,layer))return true;
-        const vec center=cell_center(i);const float a=s.details[i].orientation?pi*.5f:0;
+        const vec center=cell_center(i);const float a=layer==NCMM_GFX_FURNITURE?furniture_turns(i)*pi*.5f:s.details[i].orientation?pi*.5f:0;
         material steel{nullptr,{.29f,.32f,.34f},1,false,false,false,i,surface::metal};
         material dark{nullptr,{.075f,.085f,.09f},1,false,false,false,i,surface::rubber};
         material wood{nullptr,{.37f,.25f,.14f},1,false,false,false,i,surface::wood};
+        if(layer==NCMM_GFX_FURNITURE&&furniture::classify(id)==furniture::role::divider){
+            const unsigned mask=furniture::divider_connections(furniture_neighbors(i));
+            material fabric{nullptr,{.32f,.40f,.43f},1,false,false,false,i},frame=steel;frame.color={.16f,.20f,.22f};
+            for(unsigned side=0;side<4;++side)if(mask&(1u<<side)){const float angle=side*pi*.5f;
+                box(center,{0,-.045f,.14f},{.5f,.045f,1.81f},fabric,angle);
+                for(float z:{.10f,1.81f})box(center,{0,-.057f,z},{.5f,.057f,z+.055f},frame,angle);
+            }
+            box(center,{-.06f,-.06f,0},{.06f,.06f,1.87f},frame);
+            for(unsigned side=0;side<4;++side)if(mask&(1u<<side)){
+                const auto end=center+vec{furniture::dx(side)*.47f,furniture::dy(side)*.47f,0};
+                box(end,{-.03f,-.03f,.07f},{.03f,.03f,1.87f},frame);
+            }return true;
+        }
         if(contains(id,"stump")||contains(id,"trunk_fallen")||(layer==NCMM_GFX_FURNITURE&&ncmm_graphics_shapes::word(id,"log"))){
             const bool fallen=contains(id,"fallen")||ncmm_graphics_shapes::word(id,"log");
             const vec from=fallen?rotate({-.46f,0,.17f},center,a):center;
@@ -148,6 +167,7 @@
         if(contains(id,"coat_rack")){prop_model(i,P::coatRackStanding,1.75f);return true;}
         if(contains(id,"bookcase")||contains(id,"shelf")){prop_model(i,P::bookcaseOpen,1.8f);return true;}
         if(contains(id,"locker")||contains(id,"wardrobe")){prop_model(i,P::bookcaseClosed,1.9f);return true;}
+        if(contains(id,"filing")||contains(id,"file_cabinet")){prop_model(i,P::filingCabinet,1.42f,.56f,.72f,{},surface::metal);return true;}
         if(contains(id,"cabinet")||contains(id,"dresser")){prop_model(i,P::bathroomCabinet,.92f);return true;}
         if(contains(id,"crate")||contains(id,"cardboard")){prop_model(i,contains(id,"open")?P::cardboardBoxOpen:P::cardboardBoxClosed,.64f);return true;}
         if(contains(id,"trash")||contains(id,"garbage")){prop_model(i,P::trashcan,.85f);return true;}

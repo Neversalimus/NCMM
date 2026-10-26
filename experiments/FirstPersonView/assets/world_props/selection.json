@@ -49,7 +49,12 @@
     "source/kenney/televisionVintage.glb": "eb144cc8fb1e7f761e3665226e4266c8868679421d21d6548f24d2abad7c67cf",
     "source/kenney/toilet.glb": "16165cfd03c56c2cb443b800570810a22ef770f65e7a468f6761d9dc14eaaeae",
     "source/kenney/trashcan.glb": "e0ccc1fe50cbd05386477fdff527171d1cf7c0de2ba7ff3233f8d9561feb2561",
-    "source/kenney/washer.glb": "0c9704df1817d2699b72305b96cde097c9558bacabaef2fd5ab1ff4c03b81abf"
+    "source/kenney/washer.glb": "0c9704df1817d2699b72305b96cde097c9558bacabaef2fd5ab1ff4c03b81abf",
+    "source/3td/3TD_CC0_License_EULA.pdf": "7bd7e7f7cbd2326b4952c6c0f593af411eb68a672ed52a77cc843c071e33a8f5",
+    "source/3td/3TD_DividerPaint_Dark_01.jpg": "15cba12e935002db5278cd33cab37922bca79ca91c13d19a93b8746ce9c16458",
+    "source/3td/3TD_OldDeskHandle_01.jpg": "1026a83e32460f2ef85146454add65060974cb200e26e7819daebfec2724397b",
+    "source/3td/License.txt": "b4d632f6075244e69ebb79f990f68b743d7fef6e7df365f170be450185b0e601",
+    "source/3td/OfficeFileCabinet_01.DAE": "544112da698c2ab4a8dcf96a51bc2ade337b33c1f1abe351793407d9a4f72bcf"
   },
   "models": [
     {
@@ -223,6 +228,26 @@
     {
       "id": "televisionVintage",
       "source": "source/kenney/televisionVintage.glb"
+    },
+    {
+      "id": "filingCabinet",
+      "source": "source/3td/OfficeFileCabinet_01.DAE",
+      "visual_node": "OfficeFileCabinetOne300",
+      "source_turns": 2,
+      "textures": {
+        "_TD_DividerPaint_Dark_01_jpg": "source/3td/3TD_DividerPaint_Dark_01.jpg",
+        "_TD_OldDeskHandle_01_jpg": "source/3td/3TD_OldDeskHandle_01.jpg"
+      }
+    }
+  ],
+  "additional_sources": [
+    {
+      "author": "Ron Kapaun / 3TD Studios",
+      "license": "CC0-1.0",
+      "source": "https://opengameart.org/content/3td-office-starter-pack",
+      "download": "https://opengameart.org/sites/default/files/3TD_Office%20Starter.zip",
+      "archive_sha256": "20775d2353b7926aee6943fb40b37b1891f7f4f9528c2b7a46546621115bca45",
+      "adaptation": "Selected visual node only; source diffuse textures baked into face colours; exporter collision mesh/lights/environment reflection excluded."
     }
   ]
 }

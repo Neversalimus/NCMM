@@ -53,7 +53,17 @@ inline void save(const hybrid::frame &frame,const std::string &name){if(name.emp
     std::ofstream out(name+".ppm",std::ios::binary);out<<"P6\n"<<frame.width<<' '<<frame.height<<"\n255\n";
     for(const auto p:frame.pixels){const char rgb[]={char(p>>24),char(p>>16),char(p>>8)};out.write(rgb,3);}require(bool(out),"save pure renderer preview");}
 inline bool sky(uint32_t p){return int((p>>8)&255)>int(p>>24)+15;}
+inline float facing_room(fixture &f,const char *id,unsigned side){
+    const int at=f.sample();f.object(at,id);
+    const int wall=at-furniture::dx(side)-furniture::dy(side)*f.size;
+    f.terrain(wall,"t_wall");f.details[wall].terrain_shape=NCMM_SHAPE_WALL;
+    f.scene.base.camera_x=float(at%f.size)+.5f+furniture::dx(side)*3.f;
+    f.scene.base.camera_y=float(at/f.size)+.5f+furniture::dy(side)*3.f;
+    return std::atan2(float(-furniture::dy(side)),float(-furniture::dx(side)));
+}
+inline const char *oriented_objects[]={"f_filing_cabinet","f_cabinet","f_bookcase","f_locker","f_desk","f_console","f_chair","f_armchair",
+    "f_sofa","f_bed","f_sink","f_washer","f_fridge","f_oven","f_toilet","f_room_divider"};
 inline const char *objects[]={"f_chair","f_armchair","f_sofa","f_bed","f_bunk_bed","f_bench","f_stool","f_table","f_desk","f_counter",
     "f_bookcase","f_locker","f_cabinet","f_crate_c","f_trashcan","f_toilet","f_bathtub","f_shower","f_sink","f_washer","f_dryer",
-    "f_fridge","f_freezer","f_oven","f_microwave","f_indoor_plant","f_console","f_vending_c","f_atm","f_piano","f_rack","f_unknown_modded_object"};
+    "f_fridge","f_freezer","f_oven","f_microwave","f_indoor_plant","f_console","f_vending_c","f_atm","f_piano","f_rack","f_filing_cabinet","f_room_divider","f_unknown_modded_object"};
 }

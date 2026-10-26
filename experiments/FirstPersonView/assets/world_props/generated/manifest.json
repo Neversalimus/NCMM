@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "source_selection_sha256": "1383ea973546fd2425dfa3ce4ac09375a901bdf1aa7b49a2ce9e6e7e12740e5a",
+  "source_selection_sha256": "79fab4600d06cee141a9725c132a092df22c74faade3a932e1df734fcf7c963e",
   "files": {
-    "world_props.generated.hpp": "913ab5707ee0ceae4e6097c69514228063d3dfa6fadca36a7ca3b29ac8043939",
-    "world_props.generated.cpp": "c52622ab7f7c5ab4ad6e370ae768afffc5c728062953d55710d39c72db84660c"
+    "world_props.generated.hpp": "6ed755f69d25bb91a642dd0fb4bf6cfb577a2e2ddbb2e34f13ad292772da91f4",
+    "world_props.generated.cpp": "dd3c5d5bbcb26aae2c49b741d95d3a5916337e74fecfec8a3722420f7da2a009"
   },
   "models": [
     {
@@ -391,6 +391,15 @@
         0.4100000262260437,
         0.26999998092651367,
         0.26999998092651367
+      ]
+    },
+    {
+      "id": "filingCabinet",
+      "triangles": 388,
+      "dimensions": [
+        0.6529272398550332,
+        0.6655617253391354,
+        1.6603159624148172
       ]
     }
   ]

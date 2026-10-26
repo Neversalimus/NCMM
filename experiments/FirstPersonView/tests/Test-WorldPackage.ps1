@@ -15,9 +15,10 @@ $nativeReceipt=$source
 . ([scriptblock]::Create($statements))
 if(-not [object]::ReferenceEquals($source,$nativeReceipt)){throw 'World packaging changed the Native receipt.'}
 $runtime=Get-Content -LiteralPath (Join-Path $fp 'world-assets.manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-if($runtime.runtime_importer -ne $false -or $runtime.imported.models.Count -ne 43 -or $runtime.selection.models.Count -ne 43 -or
+if($runtime.runtime_importer -ne $false -or $runtime.imported.models.Count -ne 44 -or $runtime.selection.models.Count -ne 44 -or
     $runtime.source.license -ne 'CC0-1.0' -or @(Get-ChildItem -LiteralPath $fp -File).Count -ne 3){throw 'Packaged world source inventory differs.'}
 if((Get-Content -LiteralPath (Join-Path $fp 'world-assets-license.txt') -Raw) -notmatch 'Creative Commons Zero'){throw 'Author license missing.'}
+if((Get-Content -LiteralPath (Join-Path $fp 'world-assets-license.txt') -Raw) -notmatch 'Ron Kapaun / 3TD Studios'){throw 'Office asset license missing.'}
 $effects=Get-Content -LiteralPath (Join-Path $fp 'weapon-effects.references.json') -Raw | ConvertFrom-Json
 if($effects.schema -ne 1 -or $effects.references.Count -ne 2){throw 'Effect reference inventory missing.'}
-[ordered]@{success=$true;powershell=$PSVersionTable.PSVersion.ToString();world_models=43;native_receipt_preserved=$true;output=$fp} | ConvertTo-Json -Compress
+[ordered]@{success=$true;powershell=$PSVersionTable.PSVersion.ToString();world_models=44;native_receipt_preserved=$true;output=$fp} | ConvertTo-Json -Compress

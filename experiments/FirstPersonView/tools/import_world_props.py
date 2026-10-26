@@ -2,6 +2,7 @@
 import argparse,hashlib,json,math,re
 from pathlib import Path
 from import_held_items import Inputs,read_glb,require,hierarchy,trs,multiply,transform
+from import_office_collada import read_collada
 
 class WorldInputs(Inputs):
     def __init__(self,root,selection):
@@ -17,6 +18,9 @@ def convert(root):
     for entry in selection['models']:
         name=entry['id'];require(re.fullmatch('[A-Za-z][A-Za-z0-9]{0,40}',name),'Invalid prop identifier')
         require(name not in [m['id'] for m in models],'Duplicate prop identifier')
+        if entry['source'].endswith('.DAE'):
+            triangles,bounds=read_collada(inputs,entry)
+            models.append(dict(id=name,triangles=triangles,bounds=bounds));continue
         source=read_glb(inputs,entry['source']);require(len(source['indices'])<=24000,'Prop triangle budget exceeded')
         require(all(not m['texture'] for m in source['materials']),'Selected props require flat source materials')
         parents,order=hierarchy(source['nodes']);globals_=[None]*len(parents)

@@ -141,3 +141,15 @@ with mild runtime weathering. No runtime model importer or network access.
 Installed modules include world-assets.manifest.json and world-assets-license.txt.
 Weapon gas/flash sprites are original procedural art; reference links in
 weapon-effects.references.json do not redistribute source footage or audio.
+
+Ron Kapaun / 3TD Studios Office Starter Pack:
+  https://opengameart.org/content/3td-office-starter-pack
+License: CC0 1.0 Universal. Original OfficeFileCabinet_01.DAE, its two diffuse
+images and the pack's 3TD_CC0_License_EULA.pdf are retained in
+experiments/FirstPersonView/assets/world_props/source/3td, with a UTF-8 license
+transcription. Original archive SHA256:
+20775d2353b7926aee6943fb40b37b1891f7f4f9528c2b7a46546621115bca45
+Only the selected visual node is imported; exporter collision geometry, lights
+and environment reflection are excluded. Pinned diffuse images are sampled
+offline into face colours. The cabinet front is calibrated to the same -Y axis
+as the existing world catalog. No runtime Collada or image import is added.

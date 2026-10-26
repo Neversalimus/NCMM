@@ -52,6 +52,15 @@
         }
         f.scene.environment.held_item[0]=0;f.appearance.view.gun_kind=NCMM_GUN_NONE;
         for(const auto *id:objects){const int at=f.sample();f.object(at,id);submit({},id,false);f.cells[at].furniture[0]=0;f.details[at].furniture_shape=NCMM_SHAPE_FLAT;}
+        unsigned layout_frames=0;
+        for(const auto *id:oriented_objects)for(unsigned side=0;side<4;++side){
+            fixture room;const float angle=facing_room(room,id,side);gpu::packet packet;
+            require(cache.build(room.scene,angle,-.15f,room.provider(),packet,stats,engine.metrics(),{},&room.appearance,nullptr,640,480,NCMM_GPU_FORCE),"oriented furniture packet");
+            require(!ncmm_gpu::validate(packet.finish(nullptr)),"oriented furniture obeys unchanged GPU contract");
+            require(engine.submit(packet.finish(&api)),engine.metrics().reason);
+            require(engine.metrics().cpu_raster_calls==0,"furniture layout gallery never falls back to CPU raster");
+            read(std::string("office-")+id+"-front-"+std::to_string(side));++layout_frames;
+        }
         // Cold/warm packets include round pipes and the blended opaque floor.
         f.object(f.sample(),"t_sewage_pipe",true);f.object(f.sample()-1,"t_sewage_pipe",true);f.object(f.sample()-f.size,"t_sewage_pipe",true);
         submit({},"pipe-corner",false);
@@ -79,7 +88,7 @@
             if(argc>1)require(SDL_SaveBMP(image,(std::string(argv[1])+"-visual-muzzle-"+std::to_string(int(age*100))+".bmp").c_str()),"save actual muzzle composite");SDL_DestroySurface(image);
         }
         SDL_DestroyTexture(overlay);
-        if(argc>1){std::ofstream report(std::string(argv[1])+"-visual.json");report<<"{\"success\":true,\"fallback_ads_frames\":21,\"authored_ads_frames\":"<<authored_frames<<",\"object_frames\":"<<std::size(objects)<<",\"muzzle_gpu_composites\":2,\"warm_static_uploads\":0,\"cpu_world_raster_calls\":0}\n";require(bool(report),"write complete visual qualification");}
+        if(argc>1){std::ofstream report(std::string(argv[1])+"-visual.json");report<<"{\"success\":true,\"fallback_ads_frames\":21,\"authored_ads_frames\":"<<authored_frames<<",\"object_frames\":"<<std::size(objects)<<",\"furniture_orientation_frames\":"<<layout_frames<<",\"muzzle_gpu_composites\":2,\"warm_static_uploads\":0,\"cpu_world_raster_calls\":0}\n";require(bool(report),"write complete visual qualification");}
         std::printf("World visual GPU PASS: 21 fallback ADS, %u authored ADS, %zu objects, 2 muzzle composites; warm static uploads=0\n",authored_frames,std::size(objects));
         visual_backend=nullptr;
     }
