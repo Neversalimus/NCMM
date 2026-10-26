@@ -41,6 +41,10 @@ scene by twenty million world units: adding/subtracting absolute float origins
 rounded away barrel offsets. The corrected scene has identical projectile
 pixels after translation. Free-fire ray samples also reuse unchanged voxel
 facts, avoiding eight repeated Native queries per travelled metre.
+The first visible streak also retains its muzzle end during the clock's 10 ms
+presentation lead; otherwise a fast bullet could first appear a metre ahead of
+the barrel despite a correct stored origin. Every projectile family is tested
+at short and long distances for this initial contact.
 
 Ground transitions have a wider, less uniform shared feather. A world-random
 texture variant was rejected by the actual GPU draw-budget check: it produced

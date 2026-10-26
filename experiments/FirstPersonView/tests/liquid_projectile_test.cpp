@@ -78,6 +78,12 @@ int main(){
         require(vertices>0&&vertices<=24,"each projectile family has a bounded visible asset");
         vertices=0;draw(flight,flight.started+duration(flight)+.01,[&](auto,auto,auto,auto,auto){++vertices;});require(!vertices,"expired flights emit nothing");
         require(length(along(flight,flight.length*2)-flight.path[flight.count-1])<.00001f,"visual cannot overshoot Native final point");}
+    for(unsigned kind=NCMM_PROJECTILE_BULLET;kind<=NCMM_PROJECTILE_THROWN;++kind)for(float distance:{2.f,8.f,60.f,128.f}){
+        projectile_assets::flight first;first.serial=1;first.kind=kind;first.count=2;first.started=1;first.path[0]={0,0,1.5f};first.path[1]={distance,0,1.5f};first.length=distance;
+        float beginning=distance;unsigned vertices=0;
+        draw(first,1.01,[&](point a,point b,point c,point d,point){for(auto p:{a,b,c,d}){beginning=std::min(beginning,p.x);++vertices;}});
+        require(vertices&&std::abs(beginning)<.0001f,"first presented streak touches the actual barrel at every flight length and projectile family");
+    }
     raw.count=65;require(!valid(raw),"overlong Native path rejected");raw.count=9;raw.path[4].x+=5;require(!valid(raw),"discontinuous path rejected");raw.path[4].x-=5;raw.seconds=std::numeric_limits<double>::quiet_NaN();require(!valid(raw),"nonfinite timing rejected");
     std::cout<<"Connected liquids and projectile assets: "<<checks<<" checks PASS\n";
 }

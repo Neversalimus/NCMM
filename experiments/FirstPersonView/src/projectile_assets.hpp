@@ -74,7 +74,10 @@ template<class Emit> void draw(const flight &f,double now,Emit emit,float minimu
     const float age=float(now-f.started),time=duration(f);if(age<0||age>=time)return;
     const float head=std::min(f.length,f.length*age/time);
     float span=f.kind==NCMM_PROJECTILE_ARROW?.65f:f.kind==NCMM_PROJECTILE_BOLT?.36f:f.kind==NCMM_PROJECTILE_PELLET?.32f:f.kind==NCMM_PROJECTILE_LASER?f.length:1.25f;
-    const auto tip=along(f,head),tail=along(f,std::max(0.f,head-span));const auto delta=tip-tail;const float d=length(delta);if(d<.002f)return;
+    // The presentation clock leads the first visible sample by 10 ms. At
+    // bullet speed that is already over two metres: retain the muzzle end of
+    // this first streak, rather than spawning a disconnected trail in midair.
+    const auto tip=along(f,head),tail=along(f,age<=.0101f?0.f:std::max(0.f,head-span));const auto delta=tip-tail;const float d=length(delta);if(d<.002f)return;
     const auto forward=delta*(1/d);point right=viewmodel::cross(forward,{0,0,1});if(length(right)<.001f)right={1,0,0};else right=right*(1/length(right));
     const auto up=viewmodel::cross(right,forward);
     auto ribbon=[&](point a,point b,float width,point color,float minimum_scale=1){width=std::max(width,minimum_width*minimum_scale);emit(a-right*width,b-right*width,b+right*width,a+right*width,color);emit(a-up*width,b-up*width,b+up*width,a+up*width,color);};
