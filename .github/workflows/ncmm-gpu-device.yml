@@ -228,7 +228,9 @@ jobs:
             'experiments/FirstPersonView/tests/gpu_geometry_test.cpp':'93fc54245c93aad162dcf708561e8350c11f9fcac46fac25b03055402a51755f',
             'experiments/FirstPersonView/reports/night-gpu-preparation-20261027.json':'cabaa6ae7340c273e7cab5014bc11902ce00c0547124ecf65f1dfe60e410b60b',
             'experiments/FirstPersonView/tests/renderer_benchmark.cpp':'c6e91ff126477a877e9d6df34bf7dd61c834a8fe40efb321dad249c628d5d8a6',
-            'experiments/FirstPersonView/tests/multilevel_gpu_cache_test.cpp':'c507f7e11f2d151c5922e669ff554dd7de38f0fd478dbc50e55e8b741df53f11'}
+            'experiments/FirstPersonView/tests/multilevel_gpu_cache_test.cpp':'c507f7e11f2d151c5922e669ff554dd7de38f0fd478dbc50e55e8b741df53f11',
+            'experiments/FirstPersonView/src/architecture.inc':'5c031bb8ea4555a3686637942ef1ed8fea6143c9f86597240e0de1310e9036d0',
+            'experiments/FirstPersonView/tests/multilevel_render_test.cpp':'3ba5b47e70d8d378239117a1a11bb9820f99fd7116c1f73b6c8ad41870889aed'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')

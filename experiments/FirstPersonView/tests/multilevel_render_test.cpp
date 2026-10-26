@@ -1,5 +1,7 @@
 #include "gpu_scene.hpp"
 #include "ncmm_gpu_validation.hpp"
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 using namespace first_person::hybrid;
@@ -43,8 +45,148 @@ struct collector:geometry_sink {
     void skin(const first_person::creature::model &,const first_person::creature::skeleton_pose &,int,vec,int,vec,bool,bool,float,vec)override{}
     void impostor(const first_person::creature::asset &,const first_person::creature::pose_state &,vec,int,int,bool)override{}
 };
+struct chain_wire {vec from,to;};
+// Recover the centreline from the two actual triangles of each narrow wire
+// quad. Posts and rails have a different section; this does not duplicate the
+// generator's phase formula or mistake coincident bounds for a joined mesh.
+std::vector<chain_wire> chain_wires(fixture &scene){
+    collector mesh;frame stats;
+    renderer(scene.world.appearance,0,0,{},stats,{},nullptr,{},nullptr,&scene.world).collect(mesh,400,260);
+    std::vector<chain_wire> result;
+    for(size_t i=0;i+1<mesh.triangles.size();i+=2){const auto &a=mesh.triangles[i],&b=mesh.triangles[i+1];
+        if(a.m.finish!=surface::metal||std::abs(a.normal.z)>.001f)continue;
+        const vec first=b.v[2].p-a.v[0].p,last=a.v[2].p-a.v[1].p;
+        if(std::abs(dot(first,first)-.000128f)>.0000001f||std::abs(dot(last,last)-.000128f)>.0000001f)continue;
+        const vec from=(a.v[0].p+b.v[2].p)*.5f,to=(a.v[1].p+a.v[2].p)*.5f;
+        if(dot(to-from,to-from)>.002f)result.push_back({from,to});
+    }
+    check(result.size()>=20,"chain-link regression actually samples diagonal wire geometry");return result;
 }
-int main(){try{
+struct chain_end {float height,slope;};
+std::vector<chain_end> chain_ends(const std::vector<chain_wire> &wires,vec seam,vec direction,bool before){
+    std::vector<chain_end> result;
+    for(const auto &wire:wires){const float a=dot(wire.from-seam,direction),b=dot(wire.to-seam,direction);
+        const float side_a=cross(wire.from-seam,direction).z,side_b=cross(wire.to-seam,direction).z;
+        if(std::abs(side_a)>.0001f||std::abs(side_b)>.0001f||std::abs(a-b)<.05f)continue;
+        const bool first=std::abs(a)<.0001f,last=std::abs(b)<.0001f;
+        if(!first&&!last)continue;const float other=first?b:a;
+        if(before?other>=-.05f:other<=.05f)continue;
+        const float height=first?wire.from.z:wire.to.z;
+        // Keep the sampling cut between physical wire heights. A line at
+        // exactly .20 m can otherwise land on opposite sides of a float
+        // comparison after rotating a reflected half-panel.
+        if(height<.213f||height>1.637f)continue;
+        result.push_back({height,(wire.to.z-wire.from.z)/(b-a)});
+    }
+    return result;
+}
+void chain_seam(const std::vector<chain_wire> &wires,vec seam,vec direction){
+    const auto before=chain_ends(wires,seam,direction,true),after=chain_ends(wires,seam,direction,false);
+    check(before.size()>=12&&before.size()==after.size(),"both sides of a fence seam retain the same real wire endpoints");
+    for(const auto &end:before){check(std::abs(std::abs(end.slope)-1)<.0001f,"diagonal wire keeps its physical pitch");
+        check(std::any_of(after.begin(),after.end(),[&](const auto &next){return std::abs(next.height-end.height)<.0001f&&std::abs(next.slope-end.slope)<.0001f;}),
+              "straight chain-link wires must continue collinearly across a half-panel or cell seam");}
+}
+void chain_same(const std::vector<chain_wire> &before,const std::vector<chain_wire> &after,vec shift){
+    check(before.size()==after.size(),"snapshot origin changes cannot add or remove fence wires");
+    for(size_t i=0;i<before.size();++i)for(const auto &pair:{std::pair<vec,vec>{before[i].from,after[i].from},std::pair<vec,vec>{before[i].to,after[i].to}}){
+        const vec delta=pair.second-pair.first-shift;
+        check(dot(delta,delta)<.0000001f,"the same absolute fence keeps its wire phase after a snapshot origin shift");}
+}
+void chain_link_regression(){
+    for(const auto absolute:{std::pair<int,int>{17,29},{-113,-197},{-20000003,19999991}})for(bool vertical:{false,true}){
+        fixture scene(1);const int ax=scene.world.origin_x,ay=scene.world.origin_y;
+        for(auto &p:scene.positions){p.x+=absolute.first-ax;p.y+=absolute.second-ay;}
+        scene.world.origin_x=absolute.first;scene.world.origin_y=absolute.second;
+        const uint32_t mask=vertical?NCMM_SURFACE_CONNECT_N|NCMM_SURFACE_CONNECT_S:NCMM_SURFACE_CONNECT_E|NCMM_SURFACE_CONNECT_W;
+        for(int offset=-1;offset<=1;++offset){const int at=scene.cell(8+(vertical?0:offset),1+(vertical?offset:0),0);
+            std::strcpy(scene.appearance[at].terrain,"t_chainfence");scene.details[at].terrain_shape=NCMM_SHAPE_FENCE;
+            scene.details[at].terrain_flags=NCMM_SURFACE_CONNECTIONS|mask;}
+        check(ncmm_world::valid(scene.world),"chain-link regression uses valid positive, negative and distant world coordinates");
+        const auto wires=chain_wires(scene);const vec along=vertical?vec{0,1,0}:vec{1,0,0},center{8.5f,1.5f,0};
+        for(float sign:{-1.f,1.f}){chain_seam(wires,center,along*sign);chain_seam(wires,center+along*.5f,along*sign);}
+        // Keep all physical cells unchanged while a wider snapshot starts at a
+        // different origin. The same geometry moves locally, never in world Z.
+        scene.world.origin_x-=3;scene.world.origin_y-=2;scene.world.appearance.base.grid_width+=6;scene.world.appearance.base.grid_height+=4;
+        scene.world.appearance.base.camera_x+=3;scene.world.appearance.base.camera_y+=2;
+        check(ncmm_world::valid(scene.world),"shifted sparse fence snapshot remains a valid world");
+        chain_same(wires,chain_wires(scene),{3,2,0});
+    }
+    for(unsigned turn=0;turn<4;++turn){fixture corner(1);const int at=corner.cell(8,1,0);
+        corner.details[at].terrain_shape=NCMM_SHAPE_FENCE;corner.details[at].terrain_flags=NCMM_SURFACE_CONNECTIONS|
+            (NCMM_SURFACE_CONNECT_E<<turn)|(NCMM_SURFACE_CONNECT_E<<((turn+1)%4));
+        const auto wires=chain_wires(corner);const vec center{8.5f,1.5f,0};
+        const vec from=quarter_turn({1,0,0},turn),to=quarter_turn({1,0,0},turn+1);
+        const auto a=chain_ends(wires,center,from,false),b=chain_ends(wires,center,to,false);
+        check(a.size()>=12&&a.size()==b.size(),"both leaves of a chain-link corner have complete endpoint coverage");
+        for(const auto &end:a)check(std::any_of(b.begin(),b.end(),[&](const auto &next){return std::abs(next.height-end.height)<.0001f;}),
+                                  "wire heights meet when the fence turns through a corner");
+    }
+    for(unsigned turn=0;turn<2;++turn){fixture gate(1);const int at=gate.cell(8,1,0);
+        gate.details[at].terrain_shape=NCMM_SHAPE_GATE_OPEN;gate.details[at].orientation=turn;
+        const auto wires=chain_wires(gate);const float angle=turn*pi*.5f+pi*.46f;const vec along{std::cos(angle),std::sin(angle),0};
+        for(const auto &wire:wires){const vec delta=wire.to-wire.from;const float run=dot(delta,along);
+            check(std::abs(std::abs(delta.z/run)-1)<.0001f&&std::abs(cross(delta,along).z)<.0001f,"opened gate keeps a rigid, hinged wire panel");
+            check(wire.from.z>=.0799f&&wire.to.z<=1.8001f,"gate wires stay inside the existing vertical limits");}
+        gate.world.origin_x-=3;gate.world.origin_y-=2;gate.world.appearance.base.grid_width+=6;gate.world.appearance.base.grid_height+=4;
+        gate.world.appearance.base.camera_x+=3;gate.world.appearance.base.camera_y+=2;
+        chain_same(wires,chain_wires(gate),{3,2,0});
+    }
+}
+// Optional offline readback of the real CPU renderer. No window, input,
+// alternate wire rasterizer or image post-processing participates here.
+void chain_captures(const std::filesystem::path &directory){
+    std::filesystem::create_directories(directory);
+    for(const std::string name:{"straight-front","straight-oblique","straight-vertical","corner","gate-open"}){
+        fixture scene(1);
+        for(int y=3;y<24;++y)for(int x=0;x<24;++x){
+            scene.positions.push_back({scene.world.origin_x+x,scene.world.origin_y+y,0,NCMM_WORLD_BODY_VISIBLE,0,0,1});
+            ncmm_graphics_cell_v1 appearance{};appearance.flags=NCMM_GFX_VISIBLE;appearance.light=1;scene.appearance.push_back(appearance);
+            ncmm_graphics_cell_v2 detail{};detail.light_r=detail.light_g=detail.light_b=.9f;scene.details.push_back(detail);
+        }
+        for(size_t i=0;i<scene.positions.size();++i){scene.positions[i].flags|=NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP;
+            scene.appearance[i].flags=NCMM_GFX_VISIBLE;std::strcpy(scene.appearance[i].terrain,"t_floor");std::strcpy(scene.details[i].ground,"t_floor");}
+        scene.world.cell_count=uint32_t(scene.positions.size());scene.world.coordinates=scene.positions.data();
+        scene.slices[0].cell_count=scene.world.cell_count;
+        auto &base=scene.world.appearance.base;base.grid_height=24;base.cells=scene.appearance.data();base.cell_count=scene.appearance.size();
+        base.pixel_width=1280;base.pixel_height=800;
+        scene.world.appearance.details=scene.details.data();scene.world.appearance.detail_count=scene.details.size();
+        scene.world.appearance.environment.daylight=.95f;scene.world.appearance.environment.sun_x=.6f;
+        scene.world.appearance.environment.sun_y=-.4f;scene.world.appearance.environment.sun_z=.69f;
+        auto fence=[&](int x,int y,uint32_t connections){const int i=scene.cell(x,y,0);
+            std::strcpy(scene.appearance[i].terrain,"t_chainfence");scene.details[i].terrain_shape=NCMM_SHAPE_FENCE;
+            scene.details[i].terrain_flags=NCMM_SURFACE_CONNECTIONS|connections;};
+        float yaw=pi*.5f,pitch=-.17f;base.camera_x=12.5f;base.camera_y=6.5f;
+        if(name=="straight-vertical"){
+            for(int y=3;y<=20;++y)fence(12,y,(y>3?uint32_t(NCMM_SURFACE_CONNECT_N):0u)|(y<20?uint32_t(NCMM_SURFACE_CONNECT_S):0u));
+            base.camera_x=9.5f;base.camera_y=12.5f;yaw=0;
+        }else if(name=="corner"){
+            for(int x=12;x<=20;++x)fence(x,10,(x>12?uint32_t(NCMM_SURFACE_CONNECT_W):uint32_t(NCMM_SURFACE_CONNECT_S))|(x<20?uint32_t(NCMM_SURFACE_CONNECT_E):0u));
+            for(int y=11;y<=19;++y)fence(12,y,NCMM_SURFACE_CONNECT_N|(y<19?uint32_t(NCMM_SURFACE_CONNECT_S):0u));
+            base.camera_x=9.0f;base.camera_y=7.0f;yaw=pi*.25f;pitch=-.12f;
+        }else{
+            for(int x=3;x<=21;++x)fence(x,10,(x>3?uint32_t(NCMM_SURFACE_CONNECT_W):0u)|(x<21?uint32_t(NCMM_SURFACE_CONNECT_E):0u));
+            if(name=="straight-oblique"){base.camera_x=6.5f;base.camera_y=7.5f;yaw=.72f;pitch=-.12f;}
+            if(name=="gate-open"){const int gate=scene.cell(12,10,0);
+                std::strcpy(scene.appearance[gate].terrain,"t_chaingate_o");scene.details[gate].terrain_shape=NCMM_SHAPE_GATE_OPEN;
+                base.camera_x=15.5f;base.camera_y=7.0f;yaw=std::atan2(3.8f,-3.3f);pitch=-.12f;}
+        }
+        frame image;
+        if(!build_frame(scene.world.appearance,yaw,pitch,{},image,1280,800,{},nullptr,nullptr,nullptr,{},nullptr,&scene.world))
+            throw std::runtime_error("chain capture could not render its physical fixture");
+        std::ofstream out(directory/(name+".ppm"),std::ios::binary);out<<"P6\n"<<image.width<<' '<<image.height<<"\n255\n";
+        for(const uint32_t pixel:image.pixels){const char rgb[]={char(pixel>>24),char(pixel>>16),char(pixel>>8)};out.write(rgb,3);}
+        if(!out)throw std::runtime_error("chain capture could not write its CPU readback");
+        std::cout<<"CPU chain capture "<<name<<" "<<image.width<<'x'<<image.height<<'\n';
+    }
+}
+}
+int main(int argc,char **argv){try{
+    if(argc>1){
+        if(argc!=3||std::string(argv[1])!="--chain-captures")throw std::runtime_error("usage: first_person_multilevel_render_tests [--chain-captures directory]");
+        chain_captures(std::filesystem::path(argv[2]));return 0;
+    }
+    chain_link_regression();
     for(const auto &test:{std::pair<const char *,unsigned>{"t_railroad_track_h",1},{"t_railroad_track_on_tie_v",2},{"t_railroad_track_d1",4},{"t_railroad_track_d2",8}}){
         fixture rail(1);rail.slab(0);const int at=rail.cell(6,1,0);std::strcpy(rail.appearance[at].terrain,test.first);
         check(ncmm_rail::track(test.first)&&ncmm_rail::axes(test.first)==test.second,"Native rail suffix selects its physical direction");

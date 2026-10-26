@@ -77,16 +77,39 @@ Do not merge or release before the user's separate finalization request.
    packet-digest equality. No expensive global mesh reset was added merely to
    force bit-identical arithmetic, and no visual repair is claimed for it.
 
+4. **Continuous chain-link phase.** Each reflected half-panel previously
+   restarted its own diagonal wire pattern. Actual emitted triangles reproduced
+   wires changing direction at a straight seam; matching boundary extents did
+   not detect this defect. Cardinal panels now use one absolute lattice phase.
+   Integer remainder arithmetic preserves the phase at negative/large world
+   coordinates and across snapshot-origin shifts. Hinged open gates retain
+   their local frame. Wire pitch/thickness, height, posts and rails are unchanged.
+
+   The original collinearity regression failed before the fix. Afterward the
+   multilevel render suite passes 112369 checks, including straight half/cell
+   seams in all four directions, corners, gates and origin shifts. A test-only
+   endpoint cutoff was moved between physical wire heights to avoid a float
+   boundary at exactly 0.20 m; the old wrong slopes still fail the criterion.
+   Five optional actual CPU-renderer captures (front/oblique/vertical straight,
+   corner, open gate) were generated and visually inspected. They are isolated
+   render fixtures, not a Native game session. GPU qualification remains pending.
+
 ## Working queue
 
-1. Repair confirmed chain-link wire direction changes at straight half-panel
-   seams. First reproduce with actual emitted geometry, then verify negative
-   coordinates, origin shifts, turns and gates. Current boundary-only tests
-   cannot establish continuity.
+1. Measure the Host sealed-plane proofs at an ordinary window shift: currently
+   the proof and prefix are discarded even for unchanged overlapping slabs.
+   A retained absolute-cell proof must still respect all source revisions,
+   holes/glass/water/stairs, loaded bounds and lifecycle accounting.
 2. Distant radio towers are still classified as generic BUILDING horizon
    patches and become wide boxes. Near towers already use lattice geometry.
    A separate compatible skyline representation is needed; do not silently
    repurpose the existing kind or hide the object as a performance change.
+3. Normal-vision static stairs may be withheld with BODY permissions. This is
+   a hypothesis, not a confirmed current game defect: existing Native fixtures
+   enable night vision. First obtain a causal normal/night-vision pair before
+   changing the deliberate hidden-navigation filter. Any future fix must
+   distinguish terrain from furniture and leave hidden contents/focus/exploration
+   protected.
 
 Other historical symptoms have existing causal fixes and regressions. This
 audit has not established their recurrence in a current game session.
