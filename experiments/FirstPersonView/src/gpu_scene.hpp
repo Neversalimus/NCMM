@@ -17,8 +17,14 @@ struct mesh_builder {
     std::map<uint64_t,uint32_t> materials;
     uint32_t material(ncmm_gpu_material_v1 value,const std::shared_ptr<const owned_texture> &texture=nullptr){
         uint64_t key=material_key(value);auto found=materials.find(key);if(found!=materials.end())return found->second;
-        const auto index=uint32_t(mesh.materials.size());mesh.materials.push_back(value);materials.emplace(key,index);if(texture)mesh.textures.push_back(texture);return index;}
-    void texture(std::shared_ptr<const owned_texture> value){if(value)mesh.textures.push_back(std::move(value));}
+        const auto index=uint32_t(mesh.materials.size());mesh.materials.push_back(value);materials.emplace(key,index);if(texture)this->texture(texture);return index;}
+    void texture(const std::shared_ptr<const owned_texture> &value){
+        if(!value)return;
+        // A cell may emit thousands of triangles with one prepared atlas.
+        // Retain its immutable owner once; packet collection visits these
+        // owners on every warm frame as well as during the original build.
+        for(const auto &owned:mesh.textures)if(owned->key==value->key)return;
+        mesh.textures.push_back(value);}
     void triangle(const hybrid::triangle &value,uint32_t material,vec origin){
         const uint32_t first=uint32_t(mesh.vertices.size());for(const auto &v:value.v){ncmm_gpu_vertex_v1 out{};vec p=v.p-origin;
             out.position[0]=p.x;out.position[1]=p.y;out.position[2]=p.z;out.normal[0]=out.face_normal[0]=value.normal.x;out.normal[1]=out.face_normal[1]=value.normal.y;out.normal[2]=out.face_normal[2]=value.normal.z;
