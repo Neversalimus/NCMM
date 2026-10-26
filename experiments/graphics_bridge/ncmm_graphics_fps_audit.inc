@@ -187,6 +187,10 @@
             const auto issued = attack_boundary?graphics_input_router.attack_intents:graphics_input_router.issued;
             for (int retry = 0; retry < 64; ++retry) {
                 g->ncmm_graphics_smoke_handle_action();
+                // Observe the completed Native step before a following fixture
+                // can teleport back to its starting tile. Ordinary play observes
+                // it in the next input loop or world redraw instead.
+                graphics_locomotion_sync();
                 if (feed.sent.load() && ((attack_boundary?graphics_input_router.attack_intents:graphics_input_router.issued) > issued || feed.done.load()))
                     break;
             }

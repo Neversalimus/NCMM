@@ -1,4 +1,5 @@
 #include "ncmm_graphics_locomotion.hpp"
+#include "ncmm_graphics_camera.hpp"
 #include "ncmm_graphics_input.hpp"
 #include <cstdlib>
 #include <iostream>
@@ -43,6 +44,15 @@ int main(){
     require(near(std::hypot(diagonal.x,diagonal.y),normal.x,.03f)&&near(diagonal.x,diagonal.y),"W+D is normalized and keeps its continuous angle");
     const auto oblique=travel(16,.31f,1,0);
     require(near(oblique.y/oblique.x,std::tan(.31f),.005f),"camera-relative motion is not quantized into eight headings");
+    for(unsigned frame:{8u,16u,32u,50u})for(int direction=0;direction<8;++direction){
+        walk.reset();walk.clock(0);const float yaw=direction*ncmm_graphics_camera::pi/4;
+        for(unsigned now=frame;now<1000&&!walk.pending();now+=frame)walk.advance(now,yaw,1,0,3,open);
+        const auto expected=ncmm_graphics_camera::movement(yaw,1,0);
+        const auto step=walk.pending();
+        if(step.x!=expected.first||step.y!=expected.second)
+            std::cerr<<"first boundary heading "<<direction<<": expected "<<expected.first<<','<<expected.second<<" actual "<<step.x<<','<<step.y<<'\n';
+        require(step.x==expected.first&&step.y==expected.second,"an independent walk crosses the correct first boundary at all eight cardinal/diagonal headings");
+    }
     walk.reset();walk.clock(0);
     auto wall=[](int x,int){return x>0;};
     for(unsigned now=16;now<2000;now+=16){walk.advance(now,0,1,1,3,wall);const auto step=walk.pending();if(step)walk.acknowledge(step.x,step.y);}

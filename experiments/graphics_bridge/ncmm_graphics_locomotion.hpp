@@ -42,6 +42,14 @@ private:
         if(!step)return false;
         amount=std::clamp(amount,0.f,1.f);
         to={from.x+(to.x-from.x)*amount,from.y+(to.y-from.y)*amount};
+        // sin/cos at exact diagonal headings differ by a few float ULPs.
+        // Merge boundaries within 0.00001 world units, rather than making
+        // a nominal diagonal spend two Native actions at a frame-dependent gap.
+        constexpr float corner_epsilon=.00001f;
+        if(to.x>=.5f-corner_epsilon&&to.x>from.x)step.x=1;
+        else if(to.x<=-.5f+corner_epsilon&&to.x<from.x)step.x=-1;
+        if(to.y>=.5f-corner_epsilon&&to.y>from.y)step.y=1;
+        else if(to.y<=-.5f+corner_epsilon&&to.y<from.y)step.y=-1;
         if(step.x)to.x=.5f*step.x;
         if(step.y)to.y=.5f*step.y;
         boundary_=step;return true;
