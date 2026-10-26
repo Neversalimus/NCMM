@@ -141,9 +141,57 @@ inline bool valid(const ncmm_graphics_multilevel_scene_v1 &s){
     }
     return count==s.cell_count;
 }
+// Persistent lookup data owns positions and integer indices only. Scene and
+// Native coordinate pointers remain in the short-lived coordinates adapter.
+class coordinate_index_storage {
+    using position=std::array<int32_t,3>;
+    std::array<int64_t,7> layout{};
+    uint64_t epoch=0;
+    bool ready=false;
+    std::vector<int32_t> dense;
+    std::vector<position> positions;
+public:
+    void clear()noexcept{
+        std::vector<int32_t>().swap(dense);std::vector<position>().swap(positions);
+        layout={};epoch=0;ready=false;
+    }
+    size_t bytes()const noexcept{return dense.capacity()*sizeof(int32_t)+positions.capacity()*sizeof(position);}
+    const std::vector<int32_t> &values()const noexcept{return dense;}
+    bool prepare(const ncmm_graphics_multilevel_scene_v1 *s){
+        if(!s){clear();return false;}
+        const auto &b=s->appearance.base;const int64_t levels=int64_t(s->loaded_max_z)-s->loaded_min_z+1;
+        if(s->cell_count>NCMM_WORLD_MAX_CELLS||(s->cell_count&&!s->coordinates)||
+           b.grid_width<1||b.grid_height<1||b.grid_width>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||b.grid_height>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||
+           s->loaded_min_z < -128||s->loaded_max_z>128||levels<1||levels>NCMM_WORLD_MAX_SLICES){clear();return false;}
+        const std::array<int64_t,7> wanted{{b.grid_width,b.grid_height,s->origin_x,s->origin_y,s->loaded_min_z,s->loaded_max_z,s->cell_count}};
+        bool same=ready&&epoch==s->world_epoch&&layout==wanted&&positions.size()==s->cell_count;
+        for(uint32_t i=0;i<s->cell_count;++i){const auto &c=s->coordinates[i];
+            const int64_t x=int64_t(c.x)-s->origin_x,y=int64_t(c.y)-s->origin_y;
+            if(x<0||y<0||x>=b.grid_width||y>=b.grid_height||c.z<s->loaded_min_z||c.z>s->loaded_max_z||
+               (i&&!(order(s->coordinates[i-1])<order(c)))){clear();return false;}
+            if(same&&positions[i]!=position{{c.z,c.y,c.x}})same=false;
+        }
+        if(same)return true;
+        ready=false;
+        const size_t count=size_t(levels)*b.grid_width*b.grid_height;
+        // Exact growth keeps retained capacities within the existing bounded
+        // XYZ volume and sparse-cell limits, including an expanding Z window.
+        if(count>dense.capacity())std::vector<int32_t>(count,-1).swap(dense);
+        else dense.assign(count,-1);
+        if(s->cell_count>positions.capacity())std::vector<position>(s->cell_count).swap(positions);
+        else positions.resize(s->cell_count);
+        for(uint32_t i=0;i<s->cell_count;++i){const auto &c=s->coordinates[i];
+            positions[i]={{c.z,c.y,c.x}};
+            const size_t at=(size_t(c.z-s->loaded_min_z)*b.grid_height+size_t(int64_t(c.y)-s->origin_y))*b.grid_width+size_t(int64_t(c.x)-s->origin_x);
+            dense[at]=int32_t(i);
+        }
+        layout=wanted;epoch=s->world_epoch;ready=true;return true;
+    }
+};
 class coordinates {
     const ncmm_graphics_multilevel_scene_v1 *scene=nullptr;
     std::vector<int32_t> dense;
+    const std::vector<int32_t> *retained_dense=nullptr;
     int width=0,height=0;
     int slot(int64_t x,int64_t y,int64_t z)const{
         if(!scene||x<0||y<0||x>=width||y>=height||z<scene->loaded_min_z||z>scene->loaded_max_z)return -1;
@@ -160,11 +208,16 @@ public:
         for(uint32_t i=0;i<s->cell_count;++i){const auto &c=s->coordinates[i];const int at=slot(int64_t(c.x)-s->origin_x,int64_t(c.y)-s->origin_y,c.z);
             if(at>=0&&dense[size_t(at)]<0)dense[size_t(at)]=int32_t(i);}
     }
+    coordinates(const ncmm_graphics_multilevel_scene_v1 *s,coordinate_index_storage &storage):scene(s){
+        if(!storage.prepare(s)){scene=nullptr;return;}
+        width=s->appearance.base.grid_width;height=s->appearance.base.grid_height;retained_dense=&storage.values();
+    }
     int find(int x,int y,int z)const{
         if(!scene||(scene->cell_count&&!scene->coordinates))return -1;
         const int64_t ax=int64_t(scene->origin_x)+x,ay=int64_t(scene->origin_y)+y;
         if(ax<INT32_MIN||ax>INT32_MAX||ay<INT32_MIN||ay>INT32_MAX)return -1;
-        if(!dense.empty()){const int at=slot(x,y,z);return at<0?-1:dense[size_t(at)];}
+        const auto &lookup=retained_dense?*retained_dense:dense;
+        if(!lookup.empty()){const int at=slot(x,y,z);return at<0?-1:lookup[size_t(at)];}
         const auto wanted=std::make_tuple(z,int32_t(ay),int32_t(ax));
         uint32_t lo=0,hi=scene->cell_count;
         while(lo<hi){uint32_t mid=lo+(hi-lo)/2;if(order(scene->coordinates[mid])<wanted)lo=mid+1;else hi=mid;}

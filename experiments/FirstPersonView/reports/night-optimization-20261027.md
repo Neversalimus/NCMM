@@ -49,15 +49,41 @@ Do not merge or release before the user's separate finalization request.
    frame-time or latency claim follows. Full conditions and raw samples are
    in `night-gpu-preparation-20261027.json`.
 
+3. **Owned sparse-world index.** Each GPU callback allocated and filled the
+   entire loaded-Z dense lookup, even when its ordered XYZ set was unchanged.
+   The baseline regression measured one 790395-byte allocation both cold and
+   warm for a 97x97 / 21-level window. The retained path makes zero warm dense
+   allocations. Persistent data contains only integer slots and owned XYZ
+   triples; the adapter's Host scene pointer remains callback-local.
+
+   The key includes epoch, grid/origin XY, loaded Z bounds, count and the exact
+   ordered coordinates. New source allocations, flags, light and camera changes
+   reuse the same mapping. Holes, reordered indices, window/epoch changes and
+   malformed input are checked against the original binary-search oracle.
+   Retained capacity is counted and released by `clear()`. 146015 checks pass.
+
+   Isolated index construction plus one lookup, 512 calls (no scene render):
+   20 sparse cells, 57.5496 -> 0.0456 ms total; 9409 visible floor cells,
+   59.769 -> 20.0672 ms total. Both remove 512 dense allocations / 404682240
+   allocated bytes and preserve their lookup digest. These are component
+   timings under background load. A changed coordinate set still rebuilds the
+   mapping; this is not a claim about a whole camera turn or a Native step.
+
+   The expanded test also reproduced an existing local slab-Z roundoff with
+   the old index: changing physical origin Z produces a 7.45058e-8 difference
+   from a cold rebuild. Exact topology, materials, current transforms and
+   integer lookup are preserved. The origin-Z comparison allows only this
+   bounded local vertex-Z roundoff; every mapping transition retains exact
+   packet-digest equality. No expensive global mesh reset was added merely to
+   force bit-identical arithmetic, and no visual repair is claimed for it.
+
 ## Working queue
 
-1. Reuse the unchanged sparse-world dense XYZ index without retaining a Host
-   scene pointer; prove ordered-position invalidation and lifecycle bounds.
-2. Repair confirmed chain-link wire direction changes at straight half-panel
+1. Repair confirmed chain-link wire direction changes at straight half-panel
    seams. First reproduce with actual emitted geometry, then verify negative
    coordinates, origin shifts, turns and gates. Current boundary-only tests
    cannot establish continuity.
-3. Distant radio towers are still classified as generic BUILDING horizon
+2. Distant radio towers are still classified as generic BUILDING horizon
    patches and become wide boxes. Near towers already use lattice geometry.
    A separate compatible skyline representation is needed; do not silently
    repurpose the existing kind or hide the object as a performance change.
