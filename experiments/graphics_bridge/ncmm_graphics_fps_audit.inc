@@ -614,8 +614,9 @@
             dispatch(tap(SDL_SCANCODE_LSHIFT, SDLK_LSHIFT));
             require(you.is_run_mode_desired(), "fps_audit_shift_did_not_toggle_native_run");
             // Native commits a requested movement mode on the next ordinary
-            // action. Verify real running and stamina through a real step.
-            dispatch(tap(SDL_SCANCODE_W, SDLK_W));
+            // action. Hold through a tile boundary: a sub-tile nudge now
+            // deliberately spends no movement or stamina.
+            dispatch({key_event(SDL_SCANCODE_W,SDLK_W,true)},1,12000);
             require(you.is_running() && you.get_stamina() < run_stamina,
                     "fps_audit_run_step_did_not_use_native_stamina");
             dispatch(tap(SDL_SCANCODE_C, SDLK_C));
