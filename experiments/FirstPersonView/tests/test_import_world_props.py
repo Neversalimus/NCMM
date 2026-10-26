@@ -1,10 +1,12 @@
 """Offline source provenance, deterministic tables and hostile bounded inputs."""
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 from import_world_props import WorldInputs,convert
@@ -89,6 +91,15 @@ class WorldPropImportTests(unittest.TestCase):
         self.assertEqual(model['triangles'],388)
         self.assertGreater(model['dimensions'][2],1)
         self.assertEqual(result,convert(self.root))
+
+    def test_office_sub_ulp_libm_variation_preserves_exact_generated_bytes(self):
+        self.office_fixture();expected=convert(self.root)
+        sin,cos=math.sin,math.cos
+        for direction in (-math.inf,math.inf):
+            with self.subTest(direction=direction):
+                with patch('import_office_collada.math.sin',side_effect=lambda v:math.nextafter(sin(v),direction)), \
+                     patch('import_office_collada.math.cos',side_effect=lambda v:math.nextafter(cos(v),direction)):
+                    self.assertEqual(convert(self.root),expected)
 
     def test_office_exporter_absolute_texture_urls_are_never_followed(self):
         selection=self.office_fixture();selection['models'][0]['textures']={};self.write(selection)

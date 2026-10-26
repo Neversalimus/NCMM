@@ -129,4 +129,7 @@ def read_collada(inputs,entry):
     bounds=[high[c]-low[c] for c in range(3)]
     if turns%2:bounds[0],bounds[1]=bounds[1],bounds[0]
     require(all(v>.005 for v in bounds),'Office model has empty bounds')
+    # Match the generated float table precision. Platform libm differences in
+    # source rotations must not leak sub-ULP double tails into the manifest.
+    bounds=[float(format(v,'.8g')) for v in bounds]
     return [([point(p) for p in triangle],color) for triangle,color in output],bounds
