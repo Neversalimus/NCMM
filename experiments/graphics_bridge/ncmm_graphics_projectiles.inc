@@ -1,13 +1,14 @@
 // All producer/consumer calls are on Native's main thread. The bounded ring
 // owns coordinates only, never a projectile, item, creature or map reference.
-struct graphics_projectile_record {ncmm_graphics_projectile_v1 value{};double queued=0;};
+struct graphics_projectile_record {ncmm_graphics_projectile_v1 value{};double queued=0;ncmm_projectile::presentation_clock clock;};
 std::array<graphics_projectile_record,NCMM_PROJECTILE_LIMIT> graphics_projectile_records{};
 uint64_t graphics_projectile_serial=0;size_t graphics_projectile_cursor=0;
 void graphics_projectiles_reset(){graphics_projectile_records={};graphics_projectile_cursor=0;}
+void graphics_projectiles_presented(uint64_t ticks){for(auto &record:graphics_projectile_records)if(record.value.serial)record.clock.presented(ticks/1000.0);}
 bool graphics_projectiles_active(uint64_t ticks){
     const double now=ticks/1000.0;
     for(const auto &record:graphics_projectile_records)if(record.value.serial&&record.value.world_epoch==graphics_world_epoch&&
-        now-record.queued<1.5&&(!record.value.seconds||now-record.value.seconds<1.5))return true;
+        (record.clock.committed?now-record.clock.start<1.5:now-record.queued<2.0))return true;
     return false;
 }
 bool graphics_projectile_presentation_impl(){
@@ -49,10 +50,9 @@ int graphics_get_projectile_paths(ncmm_graphics_projectile_v1 *out,size_t capaci
     if(!out||capacity<NCMM_PROJECTILE_LIMIT||active_module_id!=graphics_view.owner||!graphics_render_active)return -1;
     const double now=SDL_GetTicks()/1000.0;size_t count=0;
     for(auto &record:graphics_projectile_records){auto &value=record.value;
-        if(!value.serial||value.world_epoch!=graphics_world_epoch||now-record.queued>2.0)continue;
-        if(value.seconds==0)value.seconds=now;
-        if(now-value.seconds>1.5)continue;
-        out[count++]=value;
+        if(!value.serial||value.world_epoch!=graphics_world_epoch||(!record.clock.committed&&now-record.queued>2.0))continue;
+        if(record.clock.committed&&now-record.clock.start>1.5)continue;
+        out[count]=value;out[count++].seconds=record.clock.sample(now);
     }
     return int(count);
 #else

@@ -21,6 +21,11 @@ int main(){
         require(triangles<=144&&area>.1&&area<=1.00001,"puddle mesh has bounded area and cost");if(mask==255)require(triangles==2&&std::abs(area-1)<.00001,"pool interior is exactly one quad");
     }
     using namespace projectile_assets;
+    ncmm_projectile::presentation_clock clock;
+    require(std::abs(clock.sample(10)-9.99)<.00001,"first flight already has a short visible muzzle segment");
+    require(std::abs(clock.sample(10.4)-10.39)<.00001,"unpresented slow frames cannot age a flight");
+    clock.presented(10.8);require(std::abs(10.816-clock.sample(10.816)-.026)<.00001,"first presented frame anchors the flight clock");
+    clock.presented(11);require(std::abs(clock.start-10.8)<.00001,"later frames cannot restart an existing flight");
     ncmm_graphics_projectile_v1 raw{};raw.serial=7;raw.world_epoch=9;raw.seconds=2;raw.kind=NCMM_PROJECTILE_BULLET;raw.count=9;std::strcpy(raw.weapon,"m27");
     for(unsigned n=0;n<raw.count;++n)raw.path[n]={100+int(n),200,0};
     mounts state;auto flight=state.prepare(raw,100,200,0,2.6f,{.7f,.4f,1.4f},"m27");require(flight.serial==7,"confirmed Native path becomes a flight");

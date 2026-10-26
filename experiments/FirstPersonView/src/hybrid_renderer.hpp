@@ -1088,9 +1088,9 @@ class renderer {
             if(!world_data&&(c.flags&NCMM_GFX_CEILING)&&(!d.vehicle_features||(d.terrain_flags&NCMM_SURFACE_TERRAIN_CEILING)))ceiling(i,x,y);
             if(world_data&&!(world_flags(i)&NCMM_WORLD_BODY_VISIBLE))continue;
             if(d.field[0]&&d.field_shape==NCMM_SHAPE_FLAT&&!extra(i).gas){auto field=mat(i,NCMM_GFX_FIELD,{.48f,.18f,.12f},true);
-                if(extra(i).field_liquid)puddle(i,extra(i).field_liquid,.013f);
+                if(extra(i).field_liquid)puddle(i,extra(i).field_liquid,.014f);
                 else quad(at+vec{0,0,.013f},at+vec{1,0,.013f},at+vec{1,1,.013f},at+vec{0,1,.013f},field);}
-            if(c.item[0]&&extra(i).item_liquid&&extra(i).item_liquid!=extra(i).field_liquid)puddle(i,extra(i).item_liquid,.017f);
+            if(c.item[0]&&extra(i).item_liquid&&extra(i).item_liquid!=extra(i).field_liquid)puddle(i,extra(i).item_liquid,.014f);
             continue;}
             if(world_data&&!(world_flags(i)&NCMM_WORLD_BODY_VISIBLE)){
                 if(world_flags(i)&NCMM_WORLD_STRUCTURE_VISIBLE)architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);

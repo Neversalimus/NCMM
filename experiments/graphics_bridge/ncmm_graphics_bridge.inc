@@ -40,6 +40,7 @@ ncmm_graphics_input::router graphics_input_router;
 void graphics_locomotion_reset();
 void graphics_projectiles_reset();
 bool graphics_projectiles_active(uint64_t);
+void graphics_projectiles_presented(uint64_t);
 void graphics_locomotion_pause(uint64_t);
 void graphics_locomotion_tick(uint64_t);
 void graphics_locomotion_presented();

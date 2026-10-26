@@ -24,4 +24,13 @@ typedef struct ncmm_host_graphics_projectiles_v1 {
 } ncmm_host_graphics_projectiles_v1;
 #ifdef __cplusplus
 }
+namespace ncmm_projectile {
+// Start flight at the first actual presentation. A slow first CPU raster must
+// not consume the complete animation before the player can see it.
+struct presentation_clock {
+    double start=0;bool sampled=false,committed=false;
+    double sample(double now){sampled=true;return (committed?start:now)-.01;}
+    void presented(double now){if(sampled&&!committed){start=now;committed=true;}}
+};
+}
 #endif

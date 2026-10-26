@@ -148,6 +148,7 @@ void graphics_world_frame_presented()
 {
     if(graphics_frame_pending_present&&graphics_view.enabled){
         const auto ticks=SDL_GetTicks();
+        graphics_projectiles_presented(ticks);
         if(graphics_world_pending_present){graphics_world_camera_motion.presented(ticks);graphics_locomotion_presented();}
         if(graphics_attack_pending){graphics_attack_started=ticks/1000.0;graphics_attack_pending=false;}
     }
