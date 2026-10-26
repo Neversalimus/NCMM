@@ -178,7 +178,7 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_held.inc':'b8e1362606f87abd1e81e110e3066eae220637054ea6b68fbad658a8b48098ec',
             'experiments/graphics_bridge/ncmm_graphics_effects.inc':'b12053892afece39efdd33f7856d0dcc6ecab059eb78b410e367d025f1bf2f15',
             'experiments/graphics_bridge/ncmm_graphics_hybrid.inc':'2fdf5f83e1ef4fb209f9bd9479ac4e1edc0a6b1c17d964370c1bc8953ef2699d',
-            'experiments/graphics_bridge/ncmm_graphics_fps_audit.inc':'711cd3aec9c4503775bedc086a37cb9cb25f2635a5192cc6ed59c6f25f9c49a1',
+            'experiments/graphics_bridge/ncmm_graphics_fps_audit.inc':'c144a74de68fc47de65153d352c82ba02c4cf28b1fe17107b39d19603979f8b6',
             'experiments/graphics_bridge/ncmm_graphics_smoke.inc':'3516038c400904cde75124deffd53d3e7d55cd522f0d40666f803bc56d5c7e21',
             'experiments/FirstPersonView/Build-FirstPersonInstaller.ps1':'5a1673d9c371929ebba88a3840d2daecb47cbd2cc4f2b064731b59069eddcdbd',
             'experiments/FirstPersonView/FirstPersonInstallerBridge.cs':'c4bdedf2ba160d65801b0553d244b9a176042863cf4765aae61b9b05bfb9d420',
@@ -201,15 +201,15 @@ jobs:
             'experiments/FirstPersonView/tests/Test-WorldPackage.ps1':'156fddd5b0a107583a4c454855093abf38e6f69031619daa5e71c80fb6ef7e74',
             'experiments/FirstPersonView/assets/world_props/SOURCE.json':'22a3ef12ffc34cb14c9cfae1618fffe96faaa27274debbfc32d614117979be47',
             'experiments/graphics_bridge/ncmm_graphics_locomotion.hpp':'38645d6964264a3dd1e5516b29a8a48a57ae3cd389dcc3219c30a238b53d1af3',
-            'experiments/graphics_bridge/ncmm_graphics_locomotion.inc':'eaf2d8ec7e3f83442771c7cc82ff8428da8b927d9e8a4dbc268dd02c9fab1c32',
+            'experiments/graphics_bridge/ncmm_graphics_locomotion.inc':'e6fd0e33c22d4969c5749c6e866e5587de6f74f98ef2c100dae62ea0d788571d',
             'experiments/graphics_bridge/ncmm_graphics_bridge.inc':'fe8f095e4f864e7dff3f541854de294412095a9d97ca7ac9ce1c416aaf0d45b0',
             'experiments/graphics_bridge/ncmm_graphics_world.inc':'4576a4a5e175dac40d74440d61df9b9c1ba309ce74b5a27a3de3229797e7cdbd',
             'experiments/FirstPersonView/src/gpu_packet.hpp':'68c8fac6edd8fa779d7a1e6b812107ec7f566a719b870ac58d0f474b0b7ed7ed',
             'experiments/FirstPersonView/tests/locomotion_test.cpp':'6b69fa333a66f4b1eeb803069751ec80b9175a79c87dae650951d54c9e62e979',
             'experiments/FirstPersonView/tests/gpu_contract_test.cpp':'e60eefa8fa0a67094d9da1a31f39490439829bd427f371d7ca9459ec2b55abd3',
             'experiments/FirstPersonView/tests/multilevel_module_test.cpp':'8a8cffb801752c45a35f95611cd4e8fbc06c557da0ccaf6347c35bae2214f16b',
-            'experiments/FirstPersonView/tests/verify_fps_audit.py':'7d3b97cb032ef2458779f61952c18f8e0871db3a81733d9db3698eb69b4127f1',
-            'experiments/FirstPersonView/tests/test_verify_fps_audit.py':'5976895d87cbb19737b092eadb72a460fd80fdb9c435b7968a56bb95888fdfd3'}
+            'experiments/FirstPersonView/tests/verify_fps_audit.py':'e694105e46d2c0f937b2cd2eaf7b1bc5f166143e0bf6262949eeac96d2d45f04',
+            'experiments/FirstPersonView/tests/test_verify_fps_audit.py':'cab1a1f38f654fdb420a3f45d747952af17f15457026d02de80d81e1014f7010'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')

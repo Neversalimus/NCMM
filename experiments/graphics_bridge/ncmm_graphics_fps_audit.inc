@@ -5,9 +5,11 @@
     const std::string previous_keyboard = get_option<std::string>("SDL_KEYBOARD_MODE");
     const std::string previous_renderer = get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");
     const bool previous_aim_after=get_option<bool>("AIM_AFTER_FIRING");
+    const std::string previous_walk_speed=get_options().get_option("NCMM_FP_WALK_SPEED").getValue();
     struct fps_audit_guard {
         std::string keyboard, renderer;
         bool aim_after;
+        std::string walk_speed;
         move_mode_id movement, desired;
         ~fps_audit_guard() {
             graphics_fps_audit_active = false;
@@ -18,9 +20,10 @@
             get_options().get_option("SDL_KEYBOARD_MODE").setValue(keyboard);
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(renderer);
             get_options().get_option("AIM_AFTER_FIRING").setValue(aim_after?"true":"false");
+            get_options().get_option("NCMM_FP_WALK_SPEED").setValue(walk_speed);
             options_manager::update_options_cache();
         }
-    } restore_fps{previous_keyboard, previous_renderer,previous_aim_after, you.current_movement_mode(),
+    } restore_fps{previous_keyboard, previous_renderer,previous_aim_after,previous_walk_speed, you.current_movement_mode(),
                   you.get_desired_move_mode()};
     graphics_fps_audit_active = true;
     const auto window = SDL_GetWindowID(get_sdl_window());
@@ -322,18 +325,29 @@
             samples.push_back(
                 {"wall_blocks_without_turn", mode, renderer_mode, 0, wall_moves - you.get_moves()});
             floor();camera(-ncmm_graphics_camera::pi*.5f,-.08f);warm(renderer_mode);native_redraw();
+            // This probe needs two distinct presentations inside one tile even
+            // on slow software rendering. All costed walking cases keep the
+            // configured ordinary speed; use the valid F5 minimum here only.
+            get_options().get_option("NCMM_FP_WALK_SPEED").setValue("1");
+            require(world_setting_get_f64("NCMM_FP_WALK_SPEED",3)==1,"fps_subtile_probe_speed_not_applied");
             graphics_locomotion_reset();graphics_locomotion_audit_frames.store(0);
             const auto fractional_origin=you.pos_abs();const auto fractional_turn=calendar::turn;
             const int fractional_moves=you.get_moves();const auto fractional_actions=graphics_input_router.movements;
             dispatch({key_event(SDL_SCANCODE_W,SDLK_W,true)},1,3000,false,false,true);
             const auto fractional_position=graphics_walk.motion.position();
             const float fractional_distance=std::hypot(fractional_position.x,fractional_position.y);
+            log_line(NCMM_LOG_INFO,(std::string("FPS fractional diagnostic keyboard=")+mode+" renderer="+renderer_mode+
+                " frames="+std::to_string(graphics_locomotion_audit_frames.load())+" distance="+std::to_string(fractional_distance)+
+                " moved="+std::to_string(you.pos_abs()!=fractional_origin)+" turn_changed="+std::to_string(calendar::turn!=fractional_turn)+
+                " cost="+std::to_string(fractional_moves-you.get_moves())+
+                " actions="+std::to_string(graphics_input_router.movements-fractional_actions)).c_str());
             require(graphics_locomotion_audit_frames.load()>=2&&fractional_distance>.001f&&fractional_distance<.49f&&
                     you.pos_abs()==fractional_origin&&calendar::turn==fractional_turn&&you.get_moves()==fractional_moves&&
                     graphics_input_router.movements==fractional_actions,"fps_subtile_motion_spent_turn_or_was_not_presented");
             sample fractional_sample{"continuous_subtile_without_turn",mode,renderer_mode,0,0};
             fractional_sample.fractional_distance=fractional_distance;
             fractional_sample.presented_frames=graphics_locomotion_audit_frames.load();samples.push_back(fractional_sample);
+            get_options().get_option("NCMM_FP_WALK_SPEED").setValue(previous_walk_speed);
             floor();camera(-ncmm_graphics_camera::pi*.5f,-.08f);warm(renderer_mode);native_redraw();
             const auto slide_origin=you.pos_abs();const int slide_moves=you.get_moves();
             for(int y=-5;y<=2;++y)here.ter_set(you.pos_bub()+tripoint_rel_ms(1,y,0),ter_id("t_wall"));
@@ -883,6 +897,7 @@
         out.member("native_move_cost", entry.cost);
         if(entry.name=="continuous_subtile_without_turn"){
             out.member("fractional_distance",entry.fractional_distance);out.member("presented_frames",entry.presented_frames);
+            out.member("configured_walking_speed",1.0);
         }
         if (entry.direction >= 0)
             out.member("direction", entry.direction);

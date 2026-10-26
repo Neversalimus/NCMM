@@ -43,6 +43,7 @@ def verify(root):
                 elif case not in ALLOW_ZERO:
                     assert cost>0,'Gameplay action did not spend Native moves'
                 if case=='continuous_subtile_without_turn':
+                    assert sample['configured_walking_speed']==1,'Sub-tile presentation probe must use the declared F5 minimum'
                     distance=sample['fractional_distance'];frames=sample['presented_frames']
                     assert type(distance) in (int,float) and .001<distance<.49,'Missing fractional movement inside the original tile'
                     assert type(frames) is int and frames>=2,'Fractional movement was not presented by Native'

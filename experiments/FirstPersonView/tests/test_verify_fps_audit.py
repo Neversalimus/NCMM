@@ -15,7 +15,7 @@ class FpsEvidenceTests(unittest.TestCase):
                     for i in range(count):
                         self.report['samples'].append(dict(scenario=case,keyboard_mode=mode,renderer=renderer,
                             native_actions=ACTIONS.get(case,1),native_move_cost=0 if case in FREE else 100,direction=i))
-                        if case=='continuous_subtile_without_turn':self.report['samples'][-1].update(fractional_distance=.12,presented_frames=3)
+                        if case=='continuous_subtile_without_turn':self.report['samples'][-1].update(fractional_distance=.12,presented_frames=3,configured_walking_speed=1)
     def run_report(self):
         (self.root/'first-person-fps-input.json').write_text(json.dumps(self.report))
         return verify(self.root)
@@ -29,6 +29,9 @@ class FpsEvidenceTests(unittest.TestCase):
             with self.assertRaises(AssertionError):self.run_report()
     def test_subtile_move_requires_presented_frames(self):
         next(s for s in self.report['samples'] if s['scenario']=='continuous_subtile_without_turn')['presented_frames']=0
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_subtile_probe_must_declare_its_controlled_speed(self):
+        next(s for s in self.report['samples'] if s['scenario']=='continuous_subtile_without_turn')['configured_walking_speed']=0
         with self.assertRaises(AssertionError):self.run_report()
     def test_wall_contact_cannot_issue_native_step(self):
         next(s for s in self.report['samples'] if s['scenario']=='wall_blocks_without_turn')['native_actions']=1

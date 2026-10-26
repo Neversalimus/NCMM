@@ -9,7 +9,7 @@ struct graphics_locomotion_state {
     std::array<bool,9> blocked{};
     uint64_t lease=0,revision=0,epoch=0,stencil_builds=0,stencil_reads=0;
     bool issued=false;float walking_speed=3;
-    ncmm_graphics_camera::locomotion::point presented{};
+    ncmm_graphics_camera::locomotion::point rendered{},presented{};
 } graphics_walk;
 bool graphics_locomotion_continuous(){return graphics_input_router.continuous_walk();}
 void graphics_locomotion_reset(){graphics_walk={};graphics_input_router.cancel_boundary();}
@@ -37,13 +37,16 @@ float graphics_locomotion_movement(){
 ncmm_graphics_camera::offset graphics_locomotion_offset(){
     if(!graphics_locomotion_continuous())return {};
     const auto p=graphics_walk.motion.position();
+    graphics_walk.rendered=p;
     // Small distance-driven footfall, independent of wall-clock idle animation.
     const float bob=std::sin(graphics_walk.motion.distance()*8.0f)*.009f*graphics_locomotion_movement()*
         (graphics_input_router.aiming()?.2f:1.f);
     return {p.x,p.y,bob};
 }
 void graphics_locomotion_presented(){
-    graphics_walk.presented=graphics_walk.motion.position();
+    // Input can be pumped during presentation. Count the position used to
+    // build this frame, rather than a newer solver position from that input.
+    graphics_walk.presented=graphics_walk.rendered;
     if(graphics_fps_audit_active&&std::hypot(graphics_walk.presented.x,graphics_walk.presented.y)>.001f)
         graphics_locomotion_audit_frames.fetch_add(1);
 }

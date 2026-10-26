@@ -264,10 +264,13 @@ preparation measurements with background games running, not full game frame
 times, GPU timings or a 15 ms qualification.
 
 Local validation passes 49 explicitly inventoried autonomous C++ tests plus
-the separate hidden render-only GPU scene on RTX 4090, 191 Python tests and
+the separate hidden render-only GPU scene on RTX 4090, 192 Python tests and
 22 atomic Native-patch tests. No local Native game, gameplay/input harness,
 mouse capture/warp or focus change is used. Remote Native qualification now
 requires 172 FPS cases per pin, including presented sub-tile motion with zero
-Native action/time cost, zero-cost wall blocking and three costed wall-slide
+Native action/time cost at the declared F5 minimum of 1 tile/s, zero-cost wall blocking and three costed wall-slide
 crossings. That fresh Native result and the exact installer identities must
 be checked before this new TEST build is delivered.
+The sub-tile probe records positions from the frames actually submitted for
+presentation, rather than a newer input state observed during rendering.
+Ordinary movement cases retain their configured speed.
