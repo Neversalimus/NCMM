@@ -96,6 +96,7 @@ class router {
     bool command_mode() const { return command_mode_; }
     bool walking_suspended()const{return !captured_||context_!=context::gameplay;}
     bool walking_owned()const{return waiting_&&!walking_suspended();}
+    bool walking_held()const{return !walking_suspended()&&(observed_&~blocked_&movement_mask);}
     void cancel_boundary(){boundary_={};}
     void continuous_walk(bool value){continuous_walk_=value;if(!value)boundary_={};}
     bool continuous_walk()const{return continuous_walk_;}
@@ -120,6 +121,14 @@ class router {
     void reconcile_focus(uint32_t held) {
         release();
         observed_ = blocked_ = held & ((uint32_t(1) << unsigned(button::count)) - 1);
+    }
+    // Native modal windows may drain releases without routing them to FPS.
+    // Keep still-held controls fenced, but never retain a released key forever.
+    void reconcile_released(uint32_t held){observed_&=held;blocked_&=held;}
+    static int presentation_wait(int native_ms,uint64_t now,uint64_t last,uint32_t interval){
+        const uint64_t elapsed=now>=last?now-last:interval;
+        const int left=elapsed>=interval?1:int(interval-elapsed);
+        return native_ms<0?left:std::min(native_ms,left);
     }
     void release(bool resume = false) {
         captured_ = false;

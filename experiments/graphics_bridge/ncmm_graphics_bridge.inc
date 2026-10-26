@@ -38,6 +38,8 @@ void graphics_snapshot_external_callback(const char *module_id)
 bool &graphics_gameplay_context = graphics_context.perspective;
 ncmm_graphics_input::router graphics_input_router;
 void graphics_locomotion_reset();
+void graphics_projectiles_reset();
+bool graphics_projectiles_active(uint64_t);
 void graphics_locomotion_pause(uint64_t);
 void graphics_locomotion_tick(uint64_t);
 void graphics_locomotion_presented();
@@ -200,6 +202,7 @@ bool graphics_world_needs_redraw();
 #include "ncmm_graphics_hybrid.inc"
 #include "ncmm_graphics_world.inc"
 #include "ncmm_graphics_locomotion.inc"
+#include "ncmm_graphics_projectiles.inc"
 
 #if defined(TILES)
 // Opt-in evidence for the real native UI. No readback/IO on the normal path.

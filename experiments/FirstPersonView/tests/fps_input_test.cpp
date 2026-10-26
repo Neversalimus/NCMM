@@ -200,6 +200,18 @@ int main() {
         probe.update(gameplay());
         require(!probe.ready(100001), "held buttons stay fenced after return");
     }
+    r.reset();r.native_wait(true);r.update(gameplay());require(r.capture(),"recovery fixture captured");r.continuous_walk(true);
+    r.key(button::forward,true,false,1);r.release(true);
+    r.reconcile_released(0);r.update(gameplay());
+    r.key(button::forward,true,false,2);require(r.walking().forward==1,"fresh W recovers after a modal drained its KEY_UP");
+    r.release(true);r.reconcile_released(1u<<unsigned(button::forward));r.update(gameplay());
+    require(!r.walking_held(),"recovery still fences a physically held W");
+    r.key(button::forward,false,false,3);r.key(button::forward,true,false,4);
+    require(r.walking().forward==1,"release and repress resumes walking after teleport/menu");
+    for(uint64_t elapsed=0;elapsed<250;++elapsed){const int wait=router::presentation_wait(125,1000+elapsed,1000,16);
+        require(wait>=1&&wait<=16,"held movement cannot sleep for Native 125 ms input timeout");
+        require(router::presentation_wait(5,1000+elapsed,1000,16)<=5,"earlier Native timeout wins");}
+    require(router::presentation_wait(-1,1000,1000,16)==16,"infinite native wait still wakes for presentation");
     std::printf("FPS router: %u checks PASS; no game or SDL calls\n", checks);
     return 0;
 }

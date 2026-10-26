@@ -34,6 +34,19 @@ struct fixture {
         scene.base.pixel_width=width;scene.base.pixel_height=height;hybrid::frame image;
         require(hybrid::build_frame(scene,yaw,pitch,provider(),image,width,height,pose,nullptr,nullptr,&appearance),"render-only world fixture");return image;}
 };
+inline void connected_pool(fixture &f){
+    for(int y=2;y<=8;++y)for(int x=2;x<=8;++x){const int i=y*f.size+x;f.terrain(i,"t_pavement");
+        if((x<=5&&y<=5)||(x>=5&&y>=4&&y<=7)){
+            std::strcpy(f.details[i].field,"fd_blood");f.details[i].field_shape=NCMM_SHAPE_FLAT;
+            f.appearance.cells[i].field_liquid=NCMM_LIQ_BLOOD;
+        }}
+}
+inline projectile_assets::flight projectile_fixture(fixture &f,uint32_t kind){
+    projectile_assets::flight flight;flight.serial=5;flight.kind=kind;flight.count=9;flight.started=10;
+    for(uint32_t n=0;n<flight.count;++n)flight.path[n]={f.scene.base.camera_x,f.scene.base.camera_y-.4f-float(n),1.35f};flight.length=8;
+    f.scene.environment.animation_seconds=flight.started+projectile_assets::duration(flight)*.80;
+    return flight;
+}
 struct collector:hybrid::geometry_sink {
     std::vector<hybrid::triangle> triangles;
     std::map<int,std::set<uint32_t>> floor_colors;

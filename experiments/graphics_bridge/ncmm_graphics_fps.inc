@@ -20,6 +20,7 @@ std::array<ncmm_graphics_input::button, SDL_SCANCODE_COUNT> graphics_fps_keys;
 bool graphics_fps_keys_ready = false, graphics_fps_focused = true, graphics_fps_available = true;
 bool graphics_fps_vehicle = false;
 bool graphics_fps_initial_capture = false, graphics_fps_ui_claimed = false;
+bool graphics_fps_focus_resume = false;
 bool graphics_fps_outgoing_owned = false;
 // Opt-in Native fixture signalling only. A worker may enqueue SDL events; it
 // never reads Native objects or polls hardware button state.
@@ -49,6 +50,7 @@ void graphics_fps_poll_impl() {
     }
 }
 void graphics_fps_reset() {
+    graphics_fps_focus_resume=false;
     graphics_locomotion_reset();
     graphics_fps_ads_active=graphics_fps_gunshot_pending=false;graphics_fps_ads_since=graphics_fps_ads_changed=0;
     graphics_input_router.reset();
@@ -154,7 +156,16 @@ void graphics_fps_sync() {
         graphics_input_router.release();
     graphics_fps_publish_wait();
 }
+uint32_t graphics_fps_held_keys(){
+    if(!graphics_fps_keys_ready)graphics_fps_refresh_settings();
+    int count=0;const bool *keys=SDL_GetKeyboardState(&count);uint32_t held=0;
+    for(int code=1;keys&&code<count&&code<SDL_SCANCODE_COUNT;++code)
+        if(keys[code]&&graphics_fps_keys[code]!=ncmm_graphics_input::button::none)
+            held|=uint32_t(1)<<unsigned(graphics_fps_keys[code]);
+    return held;
+}
 void graphics_fps_input_begin(const std::string &category) {
+    const bool returning=category=="DEFAULTMODE"&&!graphics_fps_audit_default;
     graphics_fps_audit_polling = false;
     // A nested Native any-key window can change the current UI category.
     // Reassert the actual caller before each subsequent Native wait.
@@ -167,6 +178,7 @@ void graphics_fps_input_begin(const std::string &category) {
         cataimgui::client::want_capture_mouse() || cataimgui::client::want_capture_keyboard();
     if (category == "DEFAULTMODE") {
         graphics_fps_refresh_settings();
+        if(returning)graphics_input_router.reconcile_released(graphics_fps_held_keys());
         // Use the real Native remote-control state at the action boundary,
         // never a vehicle lookup for every mouse event.
         graphics_fps_vehicle =
@@ -218,6 +230,7 @@ void graphics_fps_rendered(bool success) {
 }
 bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, bool allowed) {
     if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+        graphics_fps_focus_resume=graphics_fps_focus_resume||graphics_input_router.captured();
         graphics_fps_focused = false;
         graphics_fps_initial_capture = false;
         graphics_fps_sync();
@@ -225,16 +238,9 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
     }
     if (event.type == SDL_EVENT_WINDOW_FOCUS_GAINED) {
         graphics_fps_focused = true;
-        graphics_fps_initial_capture = false;
-        if (!graphics_fps_keys_ready)
-            graphics_fps_refresh_settings();
-        int count = 0;
-        const bool *keys = SDL_GetKeyboardState(&count);
-        uint32_t held = 0;
-        for (int code = 1; keys && code < count && code < SDL_SCANCODE_COUNT; ++code)
-            if (keys[code] && graphics_fps_keys[code] != ncmm_graphics_input::button::none)
-                held |= uint32_t(1) << unsigned(graphics_fps_keys[code]);
-        graphics_input_router.reconcile_focus(held);
+        graphics_fps_initial_capture = graphics_fps_focus_resume;
+        graphics_fps_focus_resume=false;
+        graphics_input_router.reconcile_focus(graphics_fps_held_keys());
         graphics_fps_sync();
         return false;
     }
@@ -253,6 +259,7 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
     if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
         graphics_locomotion_tick(SDL_GetTicks());
         if (event.type == SDL_EVENT_KEY_DOWN && (event.key.mod & (SDL_KMOD_ALT | SDL_KMOD_GUI))) {
+            graphics_fps_focus_resume=graphics_input_router.captured();
             graphics_fps_initial_capture = false;
             graphics_release_mouse();
             return false;
@@ -262,6 +269,7 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
              graphics_input_router.owner() == ncmm_graphics_input::context::vehicle) &&
             graphics_input_router.captured()) {
             graphics_fps_initial_capture = false;
+            graphics_fps_focus_resume=false;
             graphics_release_mouse();
             return true;
         }

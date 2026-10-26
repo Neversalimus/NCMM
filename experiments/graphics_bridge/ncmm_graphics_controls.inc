@@ -185,17 +185,28 @@ bool graphics_process_mouse( uint32_t kind, float x, float y, float dx, float dy
     return false;
 }
 
+uint32_t graphics_redraw_interval(uint64_t now){
+    const double age=now/1000.0-graphics_attack_started;
+    const bool attack=graphics_attack_serial&&age>=0&&age<(graphics_attack_kind==2?.95:.53);
+    return graphics_mouse_dirty||attack||graphics_input_router.walking_held()||graphics_projectiles_active(now)||graphics_fps_ads_animating_impl()||graphics_world_needs_redraw()?16u:graphics_grass_active?33u:90u;
+}
+int graphics_input_wait_limit(int native_ms){
+#if defined(TILES)
+    if(graphics_view.enabled&&graphics_control_context&&graphics_input_router.captured()&&character_state_available()){
+        const uint64_t now=SDL_GetTicks();
+        return ncmm_graphics_input::router::presentation_wait(native_ms,now,graphics_last_redraw,graphics_redraw_interval(now));
+    }
+#endif
+    return native_ms;
+}
 bool graphics_redraw_due()
 {
 #if defined(TILES)
     if( !graphics_view.enabled || !graphics_control_context || !character_state_available() ) return false;
     const uint64_t now = SDL_GetTicks();
     graphics_locomotion_tick(now);
-    const double age = now / 1000.0 - graphics_attack_started;
-    // One recovery frame after the last keyframe restores the idle pose.
-    const bool attack = graphics_attack_serial && age >= 0 && age < (graphics_attack_kind==2?.95:.53);
     // Slow ambient animation while idle; simulation time still never advances.
-    if( now - graphics_last_redraw < ( graphics_mouse_dirty || attack || graphics_fps_ads_animating_impl() || graphics_world_needs_redraw() ? 16u : graphics_grass_active?33u:90u ) ) return false;
+    if( now - graphics_last_redraw < graphics_redraw_interval(now) ) return false;
     graphics_last_redraw = now; graphics_mouse_dirty = false;
     if( g ) g->invalidate_main_ui_adaptor();
     return true;

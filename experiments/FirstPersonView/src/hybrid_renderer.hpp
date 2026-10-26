@@ -1,4 +1,5 @@
 #pragma once
+#include "projectile_assets.hpp"
 #include "ncmm_graphics_grass.hpp"
 #include "ncmm_graphics_rail.hpp"
 #include "ncmm_graphics_v2.h"
@@ -49,6 +50,7 @@ inline float noise(float x,float y){int ix=int(std::floor(x)),iy=int(std::floor(
     auto n=[](int a,int b){return random(uint32_t(a)*374761393u+uint32_t(b)*668265263u);};
     return(n(ix,iy)*(1-fx)+n(ix+1,iy)*fx)*(1-fy)+(n(ix,iy+1)*(1-fx)+n(ix+1,iy+1)*fx)*fy;}
 struct presentation_data {
+    std::vector<projectile_assets::flight> projectiles;
     ncmm_graphics_presentation_v1 view{};
     std::vector<ncmm_graphics_detail_v1> cells;
     std::vector<ncmm_lod_patch_v1> horizon;
@@ -1086,12 +1088,9 @@ class renderer {
             if(!world_data&&(c.flags&NCMM_GFX_CEILING)&&(!d.vehicle_features||(d.terrain_flags&NCMM_SURFACE_TERRAIN_CEILING)))ceiling(i,x,y);
             if(world_data&&!(world_flags(i)&NCMM_WORLD_BODY_VISIBLE))continue;
             if(d.field[0]&&d.field_shape==NCMM_SHAPE_FLAT&&!extra(i).gas){auto field=mat(i,NCMM_GFX_FIELD,{.48f,.18f,.12f},true);
-                if(extra(i).field_liquid){field.texture=nullptr;field.liquid=extra(i).field_liquid;field.color=liquid_color(field.liquid);field.finish=surface::water;field.spill=true;}
-                quad(at+vec{0,0,.013f},at+vec{1,0,.013f},at+vec{1,1,.013f},at+vec{0,1,.013f},field);}
-            if(c.item[0]&&extra(i).item_liquid){
-                material puddle{nullptr,liquid_color(extra(i).item_liquid),1,false,false,false,i,surface::water};
-                puddle.liquid=extra(i).item_liquid;puddle.spill=true;
-                quad(at+vec{0,0,.017f},at+vec{1,0,.017f},at+vec{1,1,.017f},at+vec{0,1,.017f},puddle);}
+                if(extra(i).field_liquid)puddle(i,extra(i).field_liquid,.013f);
+                else quad(at+vec{0,0,.013f},at+vec{1,0,.013f},at+vec{1,1,.013f},at+vec{0,1,.013f},field);}
+            if(c.item[0]&&extra(i).item_liquid&&extra(i).item_liquid!=extra(i).field_liquid)puddle(i,extra(i).item_liquid,.017f);
             continue;}
             if(world_data&&!(world_flags(i)&NCMM_WORLD_BODY_VISIBLE)){
                 if(world_flags(i)&NCMM_WORLD_STRUCTURE_VISIBLE)architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
@@ -1346,6 +1345,19 @@ class renderer {
                 face(point(ax,ay),point(bx,by),point(bx,by,.028f),point(ax,ay,.028f),edge);}}
         face(point(0,float(img->data.height)),point(float(img->data.width),float(img->data.height)),point(float(img->data.width),0),point(0,0),item);
     }
+    void projectiles(){
+        if(!metadata)return;
+        for(const auto &flight:metadata->projectiles){
+            const float phase=std::clamp(float(s.environment.animation_seconds-flight.started)/projectile_assets::duration(flight),0.f,1.f);
+            const auto head=projectile_assets::along(flight,flight.length*phase);
+            const float minimum=std::clamp(1.5f*projectile_assets::length(head-projectile_assets::point{eye.x,eye.y,eye.z})/projection,.002f,.08f);
+            projectile_assets::draw(flight,s.environment.animation_seconds,[&](auto a,auto b,auto c,auto d,auto color){
+            auto convert=[](auto p){return vec{p.x,p.y,p.z};};
+            material m{nullptr,{clamp(color.x),clamp(color.y),clamp(color.z)},1,false,false,false,-2,surface::none};
+            quad(convert(a),convert(b),convert(c),convert(d),m,normalize(cross(convert(b-a),convert(c-a))));
+            },minimum);
+        }
+    }
 public:
     // A borrowed index must describe this exact validated world and outlive the
     // renderer. CPU calls omit it and keep their existing owned lookup.
@@ -1356,7 +1368,7 @@ public:
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;
-        if(creature_data)dynamic_creatures();held();gpu_sink=nullptr;
+        if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
     }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;
@@ -1400,6 +1412,7 @@ public:
             // current creature pass. Glass never becomes an opaque cache layer.
             paint(transparent);
         }
+        opaque.clear();transparent.clear();projectiles();paint(opaque);paint(transparent);
         if(f.transparency)paint(f.transparency->triangles);
         f.aimed=-1;
         const int target=f.creatures[size_t(f.height/2)*f.width+f.width/2];
@@ -1434,6 +1447,8 @@ inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,co
     return true;
 }
 inline bool valid_presentation(const presentation_data &p,size_t count){
+    if(p.projectiles.size()>NCMM_PROJECTILE_LIMIT)return false;
+    for(const auto &flight:p.projectiles)if(!projectile_assets::valid(flight))return false;
     const auto &v=p.view;
     if(v.struct_size<sizeof(v)||p.cells.size()!=count||(v.flags&~(NCMM_PRESENT_GPU_EFFECTS|NCMM_PRESENT_AIMING))||v.sky_style>NCMM_SKY_FUNGAL||v.gun_kind>NCMM_GUN_BOW||
        !terminated(v.dimension)||!std::isfinite(v.eye_height)||v.eye_height<.1f||v.eye_height>4||!std::isfinite(v.body_scale)||v.body_scale<.1f||v.body_scale>3||

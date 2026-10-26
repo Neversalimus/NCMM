@@ -82,5 +82,14 @@ int main(int argc,char **argv){try{
     require(!fx.active(10.31),"energy/pneumatic ammunition never gains a combustion flash");
     pose.combustion=true;profile.kind=NCMM_GUN_BOW;state.attack_serial=pose.attack_serial=3;fx.observe(state,pose,profile,view,"test",1);require(!fx.active(10.31),"bow never emits gunpowder effects");
     fx.observe(state,pose,profile,view,"test",2);require(!fx.active(10.31),"changing worlds cannot replay a stale shot");
+    {fixture pool;connected_pool(pool);const auto image=pool.render({},-hybrid::pi*.5f,-.45f);if(!prefix.empty())save(image,prefix+"-connected-puddles");
+        fixture range;for(uint32_t kind=NCMM_PROJECTILE_BULLET;kind<=NCMM_PROJECTILE_THROWN;++kind){auto flight=projectile_fixture(range,kind);
+            range.appearance.projectiles={flight};const auto image=range.render({},-hybrid::pi*.5f,0);if(!prefix.empty())save(image,prefix+"-projectile-"+std::to_string(kind));}
+        range.object(range.sample(),"t_wall",true);range.cells[range.sample()].flags|=NCMM_GFX_WALL;
+        range.details[range.sample()].terrain_shape=NCMM_SHAPE_WALL;
+        const auto flight=projectile_fixture(range,NCMM_PROJECTILE_BULLET);range.appearance.projectiles.clear();const auto blocked=range.render({},-hybrid::pi*.5f,0);
+        range.appearance.projectiles={flight};const auto hidden=range.render({},-hybrid::pi*.5f,0);
+        if(hidden.pixels!=blocked.pixels){save(blocked,"projectile-wall-cpu-base");save(hidden,"projectile-wall-cpu-failed");}
+        require(hidden.pixels==blocked.pixels,"CPU world depth occludes projectiles behind a wall");}
     std::cout<<"World visuals: "<<checks<<" checks PASS; no Native/input/cursor calls\n";return 0;
 }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}}

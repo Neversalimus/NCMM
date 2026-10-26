@@ -32,6 +32,9 @@ int main(){
     auto loop=lease.begin_native_loop();auto menu=lease.begin("INVENTORY");
     require(!lease.active(),"nested Native menu revokes animation-loop lease");
     lease.end(menu,"TIMEOUT");require(!lease.active(),"menu timeout cannot reactivate world access");
+    const auto resumed=lease.begin("DEFAULTMODE");
+    require(lease.active(),"a new real default poll reacquires ownership after a modal");
+    lease.end(resumed,"TIMEOUT");require(lease.active(),"resumed polling does not remain permanently revoked");
     lease.end(loop,"ncmm.view.turn_left");
     loop=lease.begin_native_loop();auto recursive=lease.begin_native_loop();
     require(!lease.active(),"recursive native input loop cannot inherit ownership");

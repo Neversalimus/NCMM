@@ -84,6 +84,26 @@
         submit({},"terrain-seam",false);gpu::packet warm;
         require(cache.build(f.scene,-hybrid::pi*.5f,0,f.provider(),warm,stats,engine.metrics(),{},&f.appearance,nullptr,640,480,NCMM_GPU_FORCE),"warm visual packet");
         const auto &description=warm.finish(&api);require(description.mesh_count==0&&description.texture_count==0&&description.generated_cells==0,"stable props and seams cause no repeated static mesh/texture upload");
+        {
+            fixture pool;connected_pool(pool);gpu::scene_cache pool_cache;packet.reset();
+            require(pool_cache.build(pool.scene,-hybrid::pi*.5f,-.45f,pool.provider(),packet,stats,engine.metrics(),{},&pool.appearance,nullptr,640,480,NCMM_GPU_FORCE),"connected liquid geometry packet");
+            require(!ncmm_gpu::validate(packet.finish(nullptr))&&engine.submit(packet.finish(&api)),"connected liquid uses unchanged hardware contract");read("connected-puddles");
+            fixture range;gpu::scene_cache flight_cache;
+            auto render_flight=[&](const std::string &name){packet.reset();
+                require(flight_cache.build(range.scene,-hybrid::pi*.5f,0,range.provider(),packet,stats,engine.metrics(),{},&range.appearance,nullptr,640,480,NCMM_GPU_FORCE),"projectile geometry packet");
+                require(!ncmm_gpu::validate(packet.finish(nullptr))&&engine.submit(packet.finish(&api)),"projectile obeys unchanged hardware contract");
+                require(engine.metrics().cpu_raster_calls==0,"projectile never renders a software world");return read(name);};
+            for(uint32_t kind=NCMM_PROJECTILE_BULLET;kind<=NCMM_PROJECTILE_THROWN;++kind){auto flight=projectile_fixture(range,kind);
+                range.appearance.projectiles.clear();const auto before=render_flight("projectile-base-"+std::to_string(kind));
+                range.appearance.projectiles={flight};const auto after=render_flight("projectile-"+std::to_string(kind));size_t changed=0;
+                for(size_t p=0;p<before.size();++p)changed+=before[p]!=after[p];require(changed>=4,"each projectile family is visible on the actual GPU");
+                require(packet.draws.size()<256,"projectile draw budget stays bounded");
+            }
+            range.object((range.size-4)*range.size+range.size/2,"t_wall",true);range.cells[range.sample()].flags|=NCMM_GFX_WALL;
+            range.details[range.sample()].terrain_shape=NCMM_SHAPE_WALL;
+            auto flight=projectile_fixture(range,NCMM_PROJECTILE_BULLET);range.appearance.projectiles.clear();const auto blocked=render_flight("projectile-wall-base");
+            range.appearance.projectiles={flight};require(render_flight("projectile-wall-hidden")==blocked,"wall occludes the confirmed projectile instead of drawing an overlay through it");
+        }
         // The production effect layer uses SDL on the already borrowed GPU
         // renderer. Verify real alpha composition without a CPU world render.
         animation::pose shot_pose;shot_pose.grip=NCMM_GRIP_GUN;shot_pose.seconds=10;shot_pose.combustion=true;

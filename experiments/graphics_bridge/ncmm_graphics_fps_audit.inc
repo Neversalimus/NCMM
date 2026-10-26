@@ -159,7 +159,7 @@
     };
     size_t dispatch_number = 0;
     auto dispatch = [&](std::vector<SDL_Event> events, int boundaries = 1,
-                        unsigned duration = 2000, bool virtual_cursor_outside = false, bool attack_boundary=false,bool fractional=false) {
+                        unsigned duration = 2000, bool virtual_cursor_outside = false, bool attack_boundary=false,bool fractional=false,bool preserve_capture=false) {
         checkpoint("fps_input_" + get_option<std::string>("SDL_KEYBOARD_MODE") + "_" +
                    get_option<std::string>("NCMM_FIRST_PERSON_RENDERER") + "_" +
                    std::to_string(++dispatch_number));
@@ -174,9 +174,11 @@
                 "fps_audit_display_to_window_coordinates");
         // Settle real startup/resize events before the one-shot event script.
         // A fresh viewport capture is itself routed through SDL below.
-        graphics_release_mouse();
-        SDL_WarpMouseInWindow(get_sdl_window(), mouse_x, mouse_y);
-        inp_mngr.pump_events();
+        if(!preserve_capture){
+            graphics_release_mouse();
+            SDL_WarpMouseInWindow(get_sdl_window(), mouse_x, mouse_y);
+            inp_mngr.pump_events();
+        }
         for (auto &event : events)
             if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
                 event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
@@ -396,7 +398,8 @@
                     events.push_back(gained);
                 }
                 dispatch(std::move(events));
-                if (graphics_input_router.captured() ||
+                const bool expected_capture=event_type==SDL_EVENT_WINDOW_FOCUS_LOST;
+                if (graphics_input_router.captured()!=expected_capture ||
                     graphics_input_router.ready(SDL_GetTicks()) || you.pos_abs() != position ||
                     you.get_moves() != before_moves) {
                     const auto delta = you.pos_abs() - position;
@@ -412,11 +415,31 @@
                          " last=" + graphics_fps_action)
                             .c_str());
                 }
-                require(!graphics_input_router.captured() &&
+                require(graphics_input_router.captured()==expected_capture &&
                             !graphics_input_router.ready(SDL_GetTicks()) &&
                             you.pos_abs() == position && you.get_moves() == before_moves,
                         "fps_audit_window_event_kept_capture_or_advanced_game");
                 samples.push_back({"focus_resize_dpi_release", mode, renderer_mode, 0, 0});
+            }
+            for(int recovery=0;recovery<2;++recovery){
+                floor();warm(renderer_mode);you.set_moves(10000);camera(-ncmm_graphics_camera::pi*.5f,0);native_redraw();
+                std::vector<SDL_Event> events;
+                if(!recovery){SDL_Event lost{},gained{};lost.type=SDL_EVENT_WINDOW_FOCUS_LOST;lost.window.windowID=window;
+                    gained.type=SDL_EVENT_WINDOW_FOCUS_GAINED;gained.window.windowID=window;
+                    auto alt=key_event(SDL_SCANCODE_LALT,SDLK_LALT,true);alt.key.mod=SDL_KMOD_ALT;
+                    events={alt,lost,gained,key_event(SDL_SCANCODE_LALT,SDLK_LALT,false)};}
+                else{
+                    const auto modal=graphics_snapshot_lease.begin("DEBUG");ncmm::graphics_note_input_context("DEBUG");
+                    graphics_input_router.native_wait(false);graphics_fps_sync();
+                    you.setpos(here,point_at(2,2),false);graphics_locomotion_sync();
+                    graphics_snapshot_lease.end(modal,"QUIT");
+                }
+                const auto position=you.pos_abs();const int before=you.get_moves();const auto serial=graphics_attack_serial;
+                events.push_back(key_event(SDL_SCANCODE_W,SDLK_W,true));
+                dispatch(std::move(events),1,12000,false,false,false,true);
+                require(you.pos_abs()==position+tripoint_rel_ms(0,-1,0)&&you.get_moves()<before&&graphics_attack_serial==serial,
+                        recovery?"fps_debug_teleport_did_not_resume_walking":"fps_alt_tab_did_not_resume_walking");
+                samples.push_back({recovery?"teleport_walk_recovery":"focus_walk_recovery",mode,renderer_mode,1,before-you.get_moves()});
             }
             floor();
             warm(renderer_mode);
@@ -579,6 +602,7 @@
                     " cost="+std::to_string(before-you.get_moves())).c_str());
                 require(!modal&&!you.activity&&graphics_input_router.captured(),"fps_gun_opened_selector_or_lost_capture");
                 const int shots=ammo-you.get_wielded_item()->ammo_remaining();
+                if(shooting==1){require(std::any_of(graphics_projectile_records.begin(),graphics_projectile_records.end(),[](const auto &entry){return entry.value.serial&&entry.value.kind==NCMM_PROJECTILE_BULLET&&entry.value.count>=2;}),"fps_native_confirmed_bullet_path_missing");}
                 require(shooting==3?(shots==0&&graphics_attack_serial==serial&&you.get_moves()==before):
                         (shots==1&&graphics_attack_serial==serial+1&&you.get_moves()<before),"fps_gun_ammo_or_native_cost_wrong");
                 if(shooting==2){SDL_Event up=release;up.button.button=SDL_BUTTON_RIGHT;dispatch({up});require(!graphics_fps_ads_impl(),"fps_rmb_release_kept_ads");}

@@ -1,0 +1,27 @@
+#pragma once
+/* Optional owned copies of confirmed Native projectile paths. Presentation
+ * never fires a shot, rolls dispersion, changes damage or reads game pointers. */
+#include "ncmm_graphics_v2.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+#define NCMM_GRAPHICS_PROJECTILES_ID "ncmm.host_api.v1.projectile_presentation"
+#define NCMM_PROJECTILE_LIMIT 32u
+#define NCMM_PROJECTILE_POINTS 64u
+enum { NCMM_PROJECTILE_BULLET=1,NCMM_PROJECTILE_ARROW,NCMM_PROJECTILE_BOLT,
+       NCMM_PROJECTILE_PELLET,NCMM_PROJECTILE_LASER,NCMM_PROJECTILE_PLASMA,NCMM_PROJECTILE_FLAME,NCMM_PROJECTILE_THROWN };
+typedef struct ncmm_projectile_point_v1 { int32_t x,y,z; } ncmm_projectile_point_v1;
+typedef struct ncmm_graphics_projectile_v1 {
+    uint64_t serial,world_epoch;
+    double seconds;
+    uint32_t kind,count;
+    char weapon[128];
+    ncmm_projectile_point_v1 path[NCMM_PROJECTILE_POINTS];
+} ncmm_graphics_projectile_v1;
+typedef struct ncmm_host_graphics_projectiles_v1 {
+    uint32_t abi_version,struct_size,major,minor;
+    int (*get_paths)(ncmm_graphics_projectile_v1 *,size_t);
+} ncmm_host_graphics_projectiles_v1;
+#ifdef __cplusplus
+}
+#endif

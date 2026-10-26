@@ -28,7 +28,9 @@ public:
     uint64_t begin(const std::string &category)noexcept{
         const bool delegated=native_loop_token&&depth==1&&tokens[0]==native_loop_token&&category=="DEFAULTMODE";
         if((depth&&!delegated)||category!="DEFAULTMODE"){invalidate();allowed=false;}
-        else if(!depth)allowed=true;
+        // A modal may have revoked the outer loop. Its next actual default
+        // input wait is a fresh, safe read lifetime; revocation is not a latch.
+        else if(!depth||delegated)allowed=true;
         if(depth==tokens.size()){reset();return 0;}
         if(++next_token==0)++next_token;
         tokens[depth++]=next_token;return next_token;
@@ -41,6 +43,7 @@ public:
         if(!outer){invalidate();allowed=false;}
         const auto token=begin("DEFAULTMODE");
         if(outer)native_loop_token=token;
+        else allowed=false; // A recursive loop is not an ordinary delegated poll.
         return token;
     }
     static bool camera_action(const std::string &action)noexcept{

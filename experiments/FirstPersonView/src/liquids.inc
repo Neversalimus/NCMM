@@ -48,3 +48,20 @@
             if(visible(j)&&!(base.cells[j].flags&NCMM_GFX_NO_FLOOR)&&!terrain_liquid(j))banks|=1u<<n;}
         return banks;
     }
+    void puddle(int i,uint32_t kind,float height){
+        constexpr std::array<std::array<int,2>,8> offsets{{{-1,0},{1,0},{0,-1},{0,1},{-1,-1},{1,-1},{-1,1},{1,1}}};
+        uint32_t mask=0;
+        for(size_t n=0;n<offsets.size();++n){const int j=neighbor(i,offsets[n][0],offsets[n][1]);
+            if(!visible(j)||(base.cells[j].flags&(NCMM_GFX_WALL|NCMM_GFX_NO_FLOOR))||
+               (world_data&&!(world_flags(j)&NCMM_WORLD_BODY_VISIBLE)))continue;
+            const auto &e=extra(j);
+            if((s.details[j].field_shape==NCMM_SHAPE_FLAT&&e.field_liquid==kind)||e.item_liquid==kind)mask|=1u<<n;
+        }
+        material m{nullptr,liquid_color(kind),1,false,false,false,i,surface::water};m.liquid=kind;
+        const vec at=cell_origin(i),normal{0,0,1},lit=gpu_sink?vec{1,1,1}:light(i,normal);
+        const float wx=world_data?float(world_data->coordinates[i].x):at.x,wy=world_data?float(world_data->coordinates[i].y):at.y;
+        liquid_surface::spill_mesh(mask,wx,wy,[&](auto a,auto b,auto c){
+            triangle t{{vertex{at+vec{a.x,a.y,height},a.x,a.y,lit},vertex{at+vec{b.x,b.y,height},b.x,b.y,lit},vertex{at+vec{c.x,c.y,height},c.x,c.y,lit}},m,normal};
+            if(gpu_sink)gpu_sink->emit(t);else opaque.push_back(t);
+        });
+    }

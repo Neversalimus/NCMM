@@ -49,6 +49,19 @@ backdrop where supported. Returning to FPS needs a viewport click; that click
 only captures and cannot attack. Esc, focus loss, resize/DPI changes, F6,
 renderer failure and unload clear held intents and release relative mode.
 Modal return can resume a previous gameplay capture, with all held keys fenced.
+Alt+Tab also resumes a previously captured FPS viewport on focus regain. Keys
+still held outside the window remain fenced until released. A fresh W press
+works immediately, including after a debug teleport or a modal that consumed
+its key-up event. An explicitly released cursor stays released.
+
+The newer Native blocking event wait wakes at the next presentation deadline
+(16 ms during walking/attacks), without returning an artificial game timeout.
+Confirmed projectile paths use bounded world geometry for bullets, pellets,
+arrows, bolts, laser/plasma and flame effects. The Native collision result owns
+the endpoint; the visual is shortened for readability and never changes damage.
+FPS replaces the blocking 2D bullet/hit delay; Native menus and 2D retain it.
+Compatible visible liquid cells form one connected contour with rounded banks;
+unknown cells, walls and different liquid materials do not extend the pool.
 
 E reuses the existing centre ray, including transparent glass as an interaction
 occluder. It retains owned absolute coordinates and entity identity, never an
@@ -97,7 +110,7 @@ Tab возвращает оригинальные команды CDDA, F5 отк
 проверяет CDDA. Стены не расходуют ходы от одного удерживания клавиши.
 
 Automated router and renderer checks are separate from real Native gameplay.
-The opt-in Native FPS audit prepares 172 controlled cases and writes
+The opt-in Native FPS audit prepares 180 controlled cases and writes
 `first-person-fps-input.json`; the retained
 firing audit checks 196 normal trials, including four forced Native misfires,
 plus the historical negative control and

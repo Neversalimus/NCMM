@@ -52,6 +52,8 @@ uint64_t aim_epoch=0;
 first_person::animation::timeline hand_timeline;
 first_person::viewmodel::animator hand_animator;
 first_person::weapon_fx::timeline weapon_effects;
+const ncmm_host_graphics_projectiles_v1 *projectile_api=nullptr;
+first_person::projectile_assets::mounts projectile_mounts;
 std::vector<uint32_t> weapon_effect_pixels,weapon_composed_pixels;
 std::vector<ncmm_graphics_quad_v1> commands;
 first_person::hybrid::frame pixels;
@@ -181,6 +183,15 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     const auto weapon_camera=first_person::weapon_fx::make_camera(weapon_eye,float(yaw),pitch,
         first_person::weapon::hud_scale(float(scene->base.pixel_height)/scene->base.pixel_width,has_metadata?metadata.view.body_scale:1.f),
         has_metadata?std::clamp(metadata.view.body_scale,.70f,1.25f):1.f);
+    metadata.projectiles.clear();
+    if(has_metadata&&active_world&&projectile_api){
+        std::array<ncmm_graphics_projectile_v1,NCMM_PROJECTILE_LIMIT> paths{};
+        const int count=projectile_api->get_paths(paths.data(),paths.size());
+        auto muzzle=weapon_camera.world(first_person::weapon::muzzle(pose,weapon_profile));
+        muzzle=muzzle-first_person::viewmodel::point{float(active_world->origin_x),float(active_world->origin_y),active_world->origin_z*active_world->level_height};
+        if(count>=0&&size_t(count)<=paths.size())for(int n=0;n<count;++n){auto flight=projectile_mounts.prepare(paths[n],active_world->origin_x,active_world->origin_y,active_world->origin_z,active_world->level_height,muzzle,scene->environment.held_item);
+            if(flight.serial)metadata.projectiles.push_back(std::move(flight));}
+    }
     weapon_effects.observe(state,pose,weapon_profile,weapon_camera,scene->environment.held_item,epoch);
     const bool weapon_effect_active=weapon_effects.active(seconds);
     const auto weapon_light=eye_cell>=0&&size_t(eye_cell)<scene->detail_count?
@@ -359,6 +370,8 @@ int init(const ncmm_host_api_v1 *api) {
         if(multilevel){if(!multilevel->register_view(id,render_multilevel,input,nullptr))return 0;}
         else if(!candidate->register_view(id,render_hybrid,input,nullptr))return 0;
         hybrid=candidate;yaw=-first_person::pi*.5;pitch=0;
+        const auto *paths=static_cast<const ncmm_host_graphics_projectiles_v1 *>(api->query_interface(NCMM_GRAPHICS_PROJECTILES_ID,1,0));
+        if(paths&&paths->abi_version==1&&paths->major==1&&paths->struct_size>=sizeof(*paths)&&paths->get_paths)projectile_api=paths;
         const auto *f=static_cast<const ncmm_host_graphics_focus_v1 *>(api->query_interface(NCMM_GRAPHICS_FOCUS_ID,1,0));
         if(f&&f->abi_version==1&&f->major==1&&f->struct_size>=sizeof(*f)&&f->set_focus)focus=f;
         auto *g=static_cast<const ncmm_host_graphics_gpu_v1 *>(api->query_interface(NCMM_GRAPHICS_GPU_ID,1,0));
@@ -389,6 +402,7 @@ int init(const ncmm_host_api_v1 *api) {
     return 1;
 }
 void shutdown() {
+    projectile_api=nullptr;projectile_mounts.reset();
     aim_blend=0;aim_seconds=0;aim_epoch=0;
     hand_timeline.reset();hand_animator.reset();
     held_api=nullptr;held_state.reset();
@@ -409,6 +423,7 @@ const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View"
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}
 extern "C" NCMM_EXPORT void ncmm_open_ui_v1(const ncmm_host_api_v1 *) {
+    projectile_mounts.reset();
     hand_timeline.reset();hand_animator.reset();
     if(multilevel){frame_valid=world_valid=false;const bool enabled=!multilevel->is_enabled(id);multilevel->set_enabled(id,enabled);if(!enabled&&gpu_world){gpu_frame.reset(true);gpu_world->clear();gait={};}}
     else if(hybrid){frame_valid=world_valid=false;const bool enabled=!hybrid->is_enabled(id);hybrid->set_enabled(id,enabled);if(!enabled&&gpu_world){gpu_frame.reset(true);gpu_world->clear();gait={};}}

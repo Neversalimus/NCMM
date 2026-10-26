@@ -23,7 +23,7 @@ bool graphics_locomotion_sync(bool consume){
         const int64_t dx=int64_t(absolute.x())-before.x(),dy=int64_t(absolute.y())-before.y();
         if(graphics_walk.issued&&absolute.z()==before.z()&&std::abs(dx)<=1&&std::abs(dy)<=1&&
            graphics_walk.motion.acknowledge(int(dx),int(dy)))graphics_walk.committed=absolute;
-        else{graphics_walk.motion.reset(SDL_GetTicks());graphics_walk.committed.reset();graphics_input_router.cancel_boundary();}
+        else{graphics_walk.motion.reset(SDL_GetTicks());graphics_walk.committed.reset();graphics_input_router.cancel_boundary();graphics_projectiles_reset();}
         graphics_walk.origin=absolute;graphics_walk.issued=false;graphics_walk.lease=0;
     }
     const bool committed=graphics_walk.committed&&*graphics_walk.committed==absolute;

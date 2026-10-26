@@ -133,6 +133,7 @@ bool graphics_verify_world_sources(size_t &checked,size_t *tile_checked=nullptr)
 }
 void graphics_clear_world()
 {
+    graphics_projectiles_reset();
     graphics_locomotion_reset();
     graphics_snapshot_lease.invalidate();graphics_camera_cache.clear();
     graphics_world_candidate_storage.clear();graphics_world_cell_storage.clear();graphics_world_position_storage.clear();

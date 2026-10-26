@@ -30,11 +30,15 @@ def prepare(root,updates,bridge):
     loader=once(loader,'    return graphics_draw( x, y, width, height );',
         '    const bool result=graphics_draw(x,y,width,height);graphics_fps_rendered(result);return result;')
     loader=once(loader,'    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {',
+        '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PROJECTILES_ID ) {\n'
+        '        return min_major<=1&&min_minor==0?&graphics_projectiles_api:nullptr;\n    }\n'
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_FOCUS_ID ) {\n'
         '        return min_major<=1&&min_minor==0?&graphics_focus_api:nullptr;\n    }\n'
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {')
     loader=loader.replace('    graphics_context.reset();','    graphics_fps_reset();\n    graphics_context.reset();')
     updates['ncmm_loader.cpp']=loader
+    updates['ncmm_loader.cpp']=once(updates['ncmm_loader.cpp'],'#include "ncmm_graphics_focus.h"',
+        '#include "ncmm_graphics_focus.h"\n#include "ncmm_graphics_projectiles.h"')
     loader=once(loader,'std::string graphics_click_action()\n{',
         'bool graphics_cursor_captured()\n{\n    return graphics_mouse_drag;\n}\n'
         'bool graphics_take_reach_target(std::optional<tripoint_bub_ms> &target)\n{\n'
@@ -56,6 +60,9 @@ def prepare(root,updates,bridge):
     header=updates['ncmm_loader.h']
     header=once(header,'#include <cstdint>','#include <cstdint>\n#include <optional>\n#include "coordinates.h"\nunion SDL_Event;')
     header=once(header,'void initialize();',
+        'int graphics_input_wait_timeout(int);\n'
+        'bool graphics_projectile_presentation();\n'
+        'void graphics_note_projectile(Creature *,const map &,const projectile &,const tripoint_bub_ms &,const tripoint_bub_ms &,const std::vector<tripoint_bub_ms> &);\n'
         'bool graphics_cursor_captured();\n'
         'bool graphics_take_reach_target(std::optional<tripoint_bub_ms> &);\n'
         'bool graphics_take_fps_gunshot(std::optional<tripoint_bub_ms> &,int &);\n'
@@ -83,6 +90,13 @@ public:
 };
 void initialize();''')
     updates['ncmm_loader.h']=header
+    updates['ncmm_loader.h']='class Creature;\nclass map;\nstruct projectile;\n#include <vector>\n'+updates['ncmm_loader.h']
+    updates['ncmm_loader.cpp']=once(updates['ncmm_loader.cpp'],'void graphics_fps_poll()\n{',
+        'bool graphics_projectile_presentation()\n{\n    return graphics_projectile_presentation_impl();\n}\n'
+        'void graphics_note_projectile(Creature *who,const map &here,const projectile &p,const tripoint_bub_ms &from,const tripoint_bub_ms &end,const std::vector<tripoint_bub_ms> &path)\n{\n'
+        '    graphics_note_projectile_impl(who,here,p,from,end,path);\n}\nvoid graphics_fps_poll()\n{')
+    updates['ncmm_loader.cpp']=once(updates['ncmm_loader.cpp'],'void graphics_fps_poll()\n{',
+        'int graphics_input_wait_timeout(int native_ms)\n{\n    return graphics_input_wait_limit(native_ms);\n}\nvoid graphics_fps_poll()\n{')
     native_input=updates['input.cpp'] if 'input.cpp' in updates else (root/'src/input.cpp').read_text(encoding='utf-8')
     if '#include "ncmm_loader.h"' not in native_input:
         native_input=once(native_input,'#include "input.h"',
@@ -107,6 +121,10 @@ void initialize();''')
         '            if(const auto *fps=ncmm::graphics_fps_take_action(category)){result=fps;break;}')
     updates['input_context.cpp']=context
     sdl=updates['sdltiles.cpp']
+    # The newer Native pin blocks for its full 125 ms input timeout. Wake the
+    # same event loop for presentation without returning a gameplay TIMEOUT.
+    if 'static int input_wait_ms(' in sdl:
+        sdl=once(sdl,'    return input_wait_timeout_ms( s );','    return ncmm::graphics_input_wait_timeout( input_wait_timeout_ms( s ) );')
     # A private diagnostic acknowledgement after Native's pre-poll redraw,
     # without another shared-header dependency or another SDL loop.
     sdl='namespace ncmm { void graphics_fps_poll(); }\n'+sdl
@@ -226,6 +244,15 @@ void initialize();''')
         '                return;\n            }\n'
         '            static_popup popup;')
     updates['animation.cpp']=animation
-    for name in ('ncmm_graphics_input.hpp','ncmm_graphics_locomotion.hpp','ncmm_graphics_locomotion.inc','ncmm_graphics_grass.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
+    animation=once(animation,'        void progress() const {\n            draw();\n\n            // Skip artificial animation delay',
+        '        void progress() const {\n            if(ncmm::graphics_projectile_presentation())return;\n            draw();\n\n            // Skip artificial animation delay')
+    updates['animation.cpp']=animation
+    ballistic=updates['ballistics.cpp']
+    ballistic=once(ballistic,'    const bool do_animation = get_option<bool>( "ANIMATION_PROJECTILES" );',
+        '    const bool do_animation = get_option<bool>( "ANIMATION_PROJECTILES" ) && !ncmm::graphics_projectile_presentation();')
+    ballistic=once(ballistic,'        // Done with the trajectory!',
+        '        if(first)ncmm::graphics_note_projectile(origin,*here,proj_arg,source,tp,t_copy);\n        // Done with the trajectory!')
+    updates['ballistics.cpp']=ballistic
+    for name in ('ncmm_graphics_projectiles.h','ncmm_graphics_projectiles.inc','ncmm_graphics_input.hpp','ncmm_graphics_locomotion.hpp','ncmm_graphics_locomotion.inc','ncmm_graphics_grass.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
         if (root/'src'/name).exists():raise ValueError('FPS experimental source already exists: '+name)
         updates[name]=(bridge/name).read_text(encoding='utf-8')

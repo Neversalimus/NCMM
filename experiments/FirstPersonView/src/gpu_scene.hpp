@@ -233,9 +233,9 @@ class scene_cache {
             frame.draw(cache.horizon_mesh,identity(),UINT32_MAX,NCMM_GPU_OPAQUE);
         }
         void finish(){for(auto &[key,builder]:builders){std::shared_ptr<const owned_mesh> mesh;
-                if(key.second==NCMM_GPU_HELD){builder.mesh.key=0xfefd48454c445631ull;builder.mesh.flags=NCMM_GPU_DYNAMIC_MESH;mesh=std::make_shared<owned_mesh>(std::move(builder.mesh));}
+                if(key.second==NCMM_GPU_HELD||key.first==-2){builder.mesh.key=key.first==-2?0xfefd50524f4a5631ull:0xfefd48454c445631ull;builder.mesh.flags=NCMM_GPU_DYNAMIC_MESH;mesh=std::make_shared<owned_mesh>(std::move(builder.mesh));}
                 else mesh=cache.assets.mesh(std::move(builder.mesh));
-                if(!mesh){fail("GPU dynamic scene mesh cache budget exceeded");continue;}frame.draw(mesh,place(origin(key.first)),key.first<0?UINT32_MAX:uint32_t(key.first),key.second);}}
+                if(!mesh){fail("GPU dynamic scene mesh cache budget exceeded");continue;}frame.draw(mesh,place(origin(key.first)),key.first==-2&&!levels?0u:key.first<0?UINT32_MAX:uint32_t(key.first),key.second);}}
         bool item(const held::submission &value)override{
             auto &observed=value.value;const auto &model=*observed.geometry;const auto &source=model.geometry;
             auto found=cache.item_meshes.find(model.identity);

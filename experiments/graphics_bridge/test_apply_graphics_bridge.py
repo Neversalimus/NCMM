@@ -55,11 +55,11 @@ class ApplyTests(unittest.TestCase):
         with (root / "src/handle_action.cpp").open('a') as f:f.write('\n        if( act == ACTION_INTERACT ) {}\nplayer_character.assign_activity( open_tile_activity_actor( std::nullopt ) );\n')
         with (root / "src/handle_action.cpp").open('a') as f:f.write('\nstatic void reach_attack( avatar &you )\n{\n}\n')
         (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
-        (root / "src/animation.cpp").write_text('#include "animation.h"\nclass basic_animation {\n        void draw() const {\n            static_popup popup;\n        }\n};\n')
+        (root / "src/animation.cpp").write_text('#include "animation.h"\nclass basic_animation {\n        void draw() const {\n            static_popup popup;\n        }\n};\nclass bullet_animation {\n        void progress() const {\n            draw();\n\n            // Skip artificial animation delay\n        }\n};\n')
         (root / "src/avatar_action.cpp").write_text('#include "avatar_action.h"\nvoid avatar_action::fire_wielded_weapon( avatar &you )\n{\n    const item_location weapon = ncmm::select_ranged_weapon( you, ncmm::ranged_weapon_action::fire, "select", "select" );\n    if( weapon == you.get_wielded_item() ) {\n        you.assign_activity( aim_activity_actor::use_wielded() );\n    } else {\n        you.assign_activity( aim_activity_actor::use_item_location( weapon ) );\n    }\n}\n')
         (root / "src/ranged.cpp").write_text('target_handler::trajectory target_ui::run()\n{\n}\n        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
         (root / "src/creature.cpp").write_text("int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n}\n    apply_damage( source, bp, total_damage );")
-        (root / "src/ballistics.cpp").write_text('#include "ballistics.h"\n    const bool do_animation = get_option<bool>( "ANIMATION_PROJECTILES" );')
+        (root / "src/ballistics.cpp").write_text('#include "ballistics.h"\n    const bool do_animation = get_option<bool>( "ANIMATION_PROJECTILES" );\n        // Done with the trajectory!')
         (root / "src/monster.cpp").write_text("    // We were carrying a creature, deposit the rider")
         (root / "src/npc.cpp").write_text("    prevent_death_reminder = false;\n    dialogue d( get_talker_for( this ),")
         (root / "src/cata_tiles.h").write_text("        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );")
@@ -242,6 +242,23 @@ bool cata_tiles::draw_sprite_at() {
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root);(root/'src/debug.cpp').write_text('changed Native report helper')
             before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+    def test_blocking_native_wait_has_presentation_deadline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root);sdl=root/'src/sdltiles.cpp'
+            sdl.write_text(sdl.read_text()+'\nstatic int input_wait_ms( const std::optional<uint32_t> &input_ms ) {\n    return input_wait_timeout_ms( s );\n}\n')
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):bridge.apply(root)
+            self.assertIn('return ncmm::graphics_input_wait_timeout( input_wait_timeout_ms( s ) );',sdl.read_text())
+            ballistic=(root/'src/ballistics.cpp').read_text()
+            self.assertIn('&& !ncmm::graphics_projectile_presentation()',ballistic)
+            self.assertIn('graphics_note_projectile(origin,*here,proj_arg,source,tp,t_copy)',ballistic)
+            self.assertIn('if(ncmm::graphics_projectile_presentation())return;', (root/'src/animation.cpp').read_text())
+    def test_changed_blocking_wait_anchor_is_atomic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root);sdl=root/'src/sdltiles.cpp'
+            sdl.write_text(sdl.read_text()+'\nstatic int input_wait_ms( int changed ) { return changed; }\n');before=self.fingerprint(root)
             with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
             self.assertEqual(before,self.fingerprint(root))

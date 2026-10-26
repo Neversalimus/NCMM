@@ -19,7 +19,7 @@ class FpsEvidenceTests(unittest.TestCase):
     def run_report(self):
         (self.root/'first-person-fps-input.json').write_text(json.dumps(self.report))
         return verify(self.root)
-    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],172)
+    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],180)
     def test_packaged_runner_and_verifier_require_the_same_matrix_size(self):
         runner=(Path(__file__).resolve().parents[1]/'Run-FirstPersonBenchmark.ps1').read_text(encoding='utf-8-sig')
         counts=re.findall(r'@\(\$audit\.samples\)\.Count -ne (\d+)',runner)
