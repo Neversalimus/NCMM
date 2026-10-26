@@ -42,7 +42,8 @@ private:
         if(!step)return false;
         amount=std::clamp(amount,0.f,1.f);
         to={from.x+(to.x-from.x)*amount,from.y+(to.y-from.y)*amount};
-        if(step.x)to.x=.5f*step.x;if(step.y)to.y=.5f*step.y;
+        if(step.x)to.x=.5f*step.x;
+        if(step.y)to.y=.5f*step.y;
         boundary_=step;return true;
     }
 public:

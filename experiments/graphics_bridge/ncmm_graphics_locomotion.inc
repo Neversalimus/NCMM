@@ -27,7 +27,8 @@ bool graphics_locomotion_sync(bool consume){
         graphics_walk.origin=absolute;graphics_walk.issued=false;graphics_walk.lease=0;
     }
     const bool committed=graphics_walk.committed&&*graphics_walk.committed==absolute;
-    if(consume)graphics_walk.committed.reset();return committed;
+    if(consume)graphics_walk.committed.reset();
+    return committed;
 }
 bool graphics_locomotion_moving(){return graphics_locomotion_continuous()&&graphics_walk.motion.moving();}
 float graphics_locomotion_movement(){
