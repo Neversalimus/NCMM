@@ -57,7 +57,7 @@
             const auto &e=extra(j);
             if((s.details[j].field_shape==NCMM_SHAPE_FLAT&&e.field_liquid==kind)||e.item_liquid==kind)mask|=1u<<n;
         }
-        material m{nullptr,liquid_color(kind),1,false,false,false,i,surface::water};m.liquid=kind;
+        material m{nullptr,liquid_color(kind),1,false,false,false,i,kind==NCMM_LIQ_BLOOD?surface::resin:surface::water};m.liquid=kind;
         const vec at=cell_origin(i),normal{0,0,1},lit=gpu_sink?vec{1,1,1}:light(i,normal);
         const float wx=world_data?float(world_data->coordinates[i].x):at.x,wy=world_data?float(world_data->coordinates[i].y):at.y;
         liquid_surface::spill_mesh(mask,wx,wy,[&](auto a,auto b,auto c){

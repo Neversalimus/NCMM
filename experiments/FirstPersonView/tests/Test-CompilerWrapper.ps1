@@ -11,8 +11,10 @@ using System.IO;
 public static class MockCompiler {
     public static int Main() {
         bool cache=Path.GetFileNameWithoutExtension(Environment.GetCommandLineArgs()[0])=="sccache";
+        int code=int.Parse(Environment.GetEnvironmentVariable(cache?"NCMM_TEST_CACHE_EXIT":"NCMM_TEST_COMPILER_EXIT"));
         Console.WriteLine(cache?"MOCK_CACHE":"MOCK_DIRECT_DIAGNOSTIC");
-        return int.Parse(Environment.GetEnvironmentVariable(cache?"NCMM_TEST_CACHE_EXIT":"NCMM_TEST_COMPILER_EXIT"));
+        if(cache && code!=0)Console.WriteLine("sccache : error : Server startup failed: ServerBusy egress limit");
+        return code;
     }
 }
 '@ | Set-Content -LiteralPath (Join-Path $scratch 'mock.cs') -Encoding UTF8
@@ -30,6 +32,7 @@ try {
             $env:NCMM_TEST_CACHE_EXIT=[string]$case.cache;$env:NCMM_TEST_COMPILER_EXIT=[string]$case.direct
             $output=(& $env:ComSpec /d /c '.\cl.bat /c fixture.cpp' 2>&1 | Out-String);$code=$LASTEXITCODE
             if($code -ne $case.expected -or $output.Contains('MOCK_DIRECT_DIAGNOSTIC') -ne $case.retry){throw "Compiler wrapper changed the exit/diagnostic contract: $code"}
+            if($case.retry -and $code -eq 0 -and $output.Contains('sccache : error :')){throw 'Recovered cache failure still becomes an MSBuild error'}
         }
     } finally {Pop-Location}
     $failures=@(Get-ChildItem -LiteralPath (Join-Path $scratch 'logs') -Filter '*.failed.log' -File)

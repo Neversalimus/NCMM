@@ -59,13 +59,13 @@ template<class Emit> void draw(const flight &f,double now,Emit emit,float minimu
     const auto tip=along(f,head),tail=along(f,std::max(0.f,head-span));const auto delta=tip-tail;const float d=length(delta);if(d<.002f)return;
     const auto forward=delta*(1/d);point right=viewmodel::cross(forward,{0,0,1});if(length(right)<.001f)right={1,0,0};else right=right*(1/length(right));
     const auto up=viewmodel::cross(right,forward);
-    auto ribbon=[&](point a,point b,float width,point color){width=std::max(width,minimum_width);emit(a-right*width,b-right*width,b+right*width,a+right*width,color);emit(a-up*width,b-up*width,b+up*width,a+up*width,color);};
+    auto ribbon=[&](point a,point b,float width,point color,float minimum_scale=1){width=std::max(width,minimum_width*minimum_scale);emit(a-right*width,b-right*width,b+right*width,a+right*width,color);emit(a-up*width,b-up*width,b+up*width,a+up*width,color);};
     if(f.kind==NCMM_PROJECTILE_ARROW||f.kind==NCMM_PROJECTILE_BOLT){ribbon(tail,tip,.009f,{.48f,.31f,.16f});
         ribbon(tip-forward*std::min(.09f,d*.25f),tip,.024f,{.75f,.77f,.79f});
         ribbon(tail,tail+forward*std::min(.15f,d*.3f),.032f,{.68f,.67f,.54f});return;}
     const bool laser=f.kind==NCMM_PROJECTILE_LASER,plasma=f.kind==NCMM_PROJECTILE_PLASMA,flame=f.kind==NCMM_PROJECTILE_FLAME;
     const point color=laser?point{2.5f,.06f,.025f}:plasma?point{.08f,1.8f,2.5f}:flame?point{2.4f,.66f,.04f}:f.kind==NCMM_PROJECTILE_THROWN?point{.5f,.48f,.43f}:point{1.9f,1.15f,.35f};
     const float width=plasma?.045f:flame?.08f:f.kind==NCMM_PROJECTILE_THROWN?.035f:f.kind==NCMM_PROJECTILE_PELLET?.008f:.014f;
-    ribbon(tail,tip,width,color);if(!flame)ribbon(tail,tip,width*.3f,{2.4f,2.2f,1.7f});
+    ribbon(tail,tip,width,color);if(!flame)ribbon(tail,tip,width*.3f,{2.4f,2.2f,1.7f},.25f);
 }
 }

@@ -97,6 +97,8 @@
                 range.appearance.projectiles.clear();const auto before=render_flight("projectile-base-"+std::to_string(kind));
                 range.appearance.projectiles={flight};const auto after=render_flight("projectile-"+std::to_string(kind));size_t changed=0;
                 for(size_t p=0;p<before.size();++p)changed+=before[p]!=after[p];require(changed>=4,"each projectile family is visible on the actual GPU");
+                if(kind==NCMM_PROJECTILE_LASER){size_t red=0;for(size_t p=0;p<after.size();++p)if(after[p]!=before[p])red+=((after[p]>>24)&255)>2*((after[p]>>16)&255);
+                    require(red>=2,"laser pulse retains its red body around the narrow bright core");}
                 require(packet.draws.size()<256,"projectile draw budget stays bounded");
             }
             range.object((range.size-4)*range.size+range.size/2,"t_wall",true);range.cells[range.sample()].flags|=NCMM_GFX_WALL;
