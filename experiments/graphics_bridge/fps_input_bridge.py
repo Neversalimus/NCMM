@@ -37,7 +37,7 @@ def prepare(root,updates,bridge):
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {')
     loader=loader.replace('    graphics_context.reset();','    graphics_fps_reset();\n    graphics_context.reset();')
     updates['ncmm_loader.cpp']=loader
-    updates['ncmm_loader.cpp']=once(updates['ncmm_loader.cpp'],'#include "ncmm_graphics_focus.h"',
+    loader=once(loader,'#include "ncmm_graphics_focus.h"',
         '#include "ncmm_graphics_focus.h"\n#include "ncmm_graphics_projectiles.h"')
     loader=once(loader,'std::string graphics_click_action()\n{',
         'bool graphics_cursor_captured()\n{\n    return graphics_mouse_drag;\n}\n'

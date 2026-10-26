@@ -255,6 +255,7 @@ bool cata_tiles::draw_sprite_at() {
             self.assertIn('&& !ncmm::graphics_projectile_presentation()',ballistic)
             self.assertIn('graphics_note_projectile(origin,*here,proj_arg,source,tp,t_copy)',ballistic)
             self.assertIn('if(ncmm::graphics_projectile_presentation())return;', (root/'src/animation.cpp').read_text())
+            self.assertEqual((root/'src/ncmm_loader.cpp').read_text(encoding='utf-8').count('#include "ncmm_graphics_projectiles.h"'),1)
     def test_changed_blocking_wait_anchor_is_atomic(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root);sdl=root/'src/sdltiles.cpp'
