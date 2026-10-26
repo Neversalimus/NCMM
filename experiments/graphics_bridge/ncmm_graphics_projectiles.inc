@@ -39,7 +39,7 @@ void graphics_note_projectile_impl(Creature *origin,const map &here,const projec
         append(p);if(p==end)break;
     }
     if(value.count<2)return;
-    auto &record=graphics_projectile_records[graphics_projectile_cursor++%graphics_projectile_records.size()];record={value,SDL_GetTicks()/1000.0};
+    auto &record=graphics_projectile_records[graphics_projectile_cursor++%graphics_projectile_records.size()];record={value,SDL_GetTicks()/1000.0,{}};
     graphics_mouse_dirty=true;
 #else
     (void)origin;(void)here;(void)projectile;(void)source;(void)end;(void)path;
