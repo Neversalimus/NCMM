@@ -35,6 +35,13 @@ Free horizontal shots retain eye height; turning/walking cannot drag a stored
 muzzle or impact. Point-blank impacts behind the visible barrel never generate
 a backwards flight. Native damage, dispersion and collision remain in charge.
 
+The muzzle is computed directly in the small local render window. A regression
+was first reproduced in the actual shared module by translating the complete
+scene by twenty million world units: adding/subtracting absolute float origins
+rounded away barrel offsets. The corrected scene has identical projectile
+pixels after translation. Free-fire ray samples also reuse unchanged voxel
+facts, avoiding eight repeated Native queries per travelled metre.
+
 Ground transitions have a wider, less uniform shared feather. A world-random
 texture variant was rejected by the actual GPU draw-budget check: it produced
 73 grass-field draws instead of 45. The shared profile preserves batching and

@@ -192,8 +192,13 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         else{std::array<ncmm_graphics_projectile_v1,NCMM_PROJECTILE_LIMIT> legacy{};
             count=projectile_api->get_paths(legacy.data(),legacy.size());
             if(count>=0&&size_t(count)<=legacy.size())for(int n=0;n<count;++n)paths[n].base=legacy[n];}
-        auto muzzle=weapon_camera.world(first_person::weapon::muzzle(pose,weapon_profile));
-        muzzle=muzzle-first_person::viewmodel::point{float(active_world->origin_x),float(active_world->origin_y),active_world->origin_z*active_world->level_height};
+        // Projectiles and world meshes use the small window-local coordinates.
+        // Adding/subtracting a large absolute float origin first can round a
+        // barrel's centimetre offsets away, even though the gun renders locally.
+        auto flight_camera=weapon_camera;
+        flight_camera.eye={scene->base.camera_x+active_world->camera_dx,scene->base.camera_y+active_world->camera_dy,
+            metadata.view.eye_height+active_world->camera_dz};
+        const auto muzzle=flight_camera.world(first_person::weapon::muzzle(pose,weapon_profile));
         if(count>=0&&size_t(count)<=paths.size())for(int n=0;n<count;++n){auto flight=projectile_mounts.prepare(paths[n].base,active_world->origin_x,active_world->origin_y,active_world->origin_z,active_world->level_height,muzzle,scene->environment.held_item,&paths[n].aim,weapon_camera.forward);
             if(flight.serial)metadata.projectiles.push_back(std::move(flight));}
     }

@@ -13,6 +13,7 @@ namespace {
 int checks=0,world_registrations=0,legacy_registrations=0,frames=0;
 bool enabled=false;uint64_t pixels=0;
 bool projectile_fixture=false,show_projectile=false;unsigned v2_reads=0,legacy_reads=0;
+int32_t projectile_origin_x=1000000,projectile_origin_y=-1000000;uint64_t projectile_serial=41;
 ncmm_gpu_cpu_metrics_v1 cpu_metrics{};
 ncmm_graphics_render_multilevel_v1 callback=nullptr;
 ncmm_graphics_input_v1 input=nullptr;
@@ -43,8 +44,8 @@ int present_cells(ncmm_graphics_detail_v1 *out,size_t n){for(size_t i=0;i<n;++i)
 int target(int32_t,float,float){return 1;}int effects(const uint32_t *,uint32_t,uint32_t,uint32_t){return 1;}
 ncmm_host_graphics_presentation_v1 presentation{1,sizeof(presentation),1,0,present_scene,present_cells,target,effects};
 int paths2(ncmm_graphics_projectile_v2 *out,size_t n){check(n==NCMM_PROJECTILE_LIMIT,"bounded v2 projectile read");++v2_reads;if(!show_projectile)return 0;
-    *out={};auto &p=out->base;p.serial=41;p.world_epoch=1;p.seconds=10;p.kind=NCMM_PROJECTILE_BULLET;p.count=9;std::strcpy(p.weapon,"m27");
-    for(unsigned i=0;i<p.count;++i)p.path[i]={1000001,-999999-int(i),0};
+    *out={};auto &p=out->base;p.serial=projectile_serial;p.world_epoch=1;p.seconds=10;p.kind=NCMM_PROJECTILE_BULLET;p.count=9;std::strcpy(p.weapon,"m27");
+    for(unsigned i=0;i<p.count;++i)p.path[i]={projectile_origin_x+1,projectile_origin_y+1-int(i),0};
     out->aim={1,0,0,1.55f,-1.5707963268f,0};return 1;}
 int paths1(ncmm_graphics_projectile_v1 *,size_t){++legacy_reads;return 0;}
 ncmm_host_graphics_projectiles_v2 projectiles2{1,sizeof(projectiles2),2,0,paths2};
@@ -100,6 +101,10 @@ int main(){try{
     world.appearance.environment.animation_seconds=10.01;
     check(callback(&world,nullptr),"projectile module baseline");const auto clear=pixels;
     show_projectile=true;check(callback(&world,nullptr)&&pixels!=clear&&cpu_metrics.raster_calls>0,"new projectile changes actual shared-module pixels at the same animation timestamp");
+    const auto local_flight=pixels;
+    projectile_origin_x=world.origin_x+=20000000;projectile_origin_y=world.origin_y-=20000000;++projectile_serial;
+    for(auto &p:coordinates){p.x+=20000000;p.y-=20000000;}
+    check(callback(&world,nullptr)&&pixels==local_flight,"moving the whole scene to distant world coordinates cannot move a bullet away from its visible barrel");
     show_projectile=false;check(callback(&world,nullptr)&&pixels==clear,"expired/removed projectile cannot remain in retained CPU pixels");
     check(v2_reads>=3&&legacy_reads==0,"current shared module uses the v2 firing ray instead of the legacy table");mod->shutdown();
     projectiles2.struct_size=sizeof(projectiles2)-1;check(mod->init(&api),"truncated optional v2 table falls back safely");ncmm_open_ui_v1(&api);

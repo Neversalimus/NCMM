@@ -69,6 +69,9 @@ int main(){
         require(wall&&wall->x==5&&wall->y==0,"reticle ray stops at a physical wall instead of targeting the ground below it");
         const auto loaded=ncmm_projectile::free_target({.5f,.5f,1.6f},0,0,30,2.6f,[](int x,int,int){return x>=8?uint32_t(NCMM_WORLD_UNKNOWN):0u;});
         require(loaded&&loaded->x==7,"free fire never requests an unloaded target");
+        unsigned queries=0;
+        const auto distant=ncmm_projectile::free_target({.5f,.5f,1.6f},0,0,128,2.6f,[&](int,int,int){++queries;return uint32_t(NCMM_WORLD_FLOOR);});
+        require(distant&&queries<=130,"long free-fire ray queries each unchanged Native voxel once, not eight times");
     }
     for(unsigned kind=NCMM_PROJECTILE_BULLET;kind<=NCMM_PROJECTILE_THROWN;++kind){flight.kind=kind;size_t vertices=0;
         draw(flight,flight.started+duration(flight)*.55,[&](point a,point b,point c,point d,point color){vertices+=4;for(auto p:{a,b,c,d,color})require(std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z),"projectile asset vertices are finite");});
