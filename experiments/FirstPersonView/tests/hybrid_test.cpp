@@ -101,10 +101,9 @@ int main(int argc,char **argv){try{
     world.shape(7,7,NCMM_SHAPE_WINDOW_BROKEN);draw();check(f.vertical_windows>0,"broken window remains vertical");
     world.shape(7,7,NCMM_SHAPE_FENCE);draw();check(f.vertical_fences>0,"wire fence vertical geometry");world.shape(7,7,NCMM_SHAPE_GATE_OPEN);draw();check(f.vertical_fences>0,"open gate stays vertical");
     world.shape(7,7,NCMM_SHAPE_PLANT);draw();check(f.plants>0,"plant has upright geometry");check(std::isfinite(f.depth[450*800+400]),"plant retains ground substrate");
-    int leaf_bottom=-1;for(int y=0;y<500;++y)for(int x=395;x<=405;++x){vec color=unpack(f.pixels[size_t(y)*800+x]);
-        if(color.y>color.x*1.3f&&color.y>color.z*1.5f)leaf_bottom=std::max(leaf_bottom,y);}
-    const float ground_y=250+800/(2*std::tan(70*pi/360))*1.55f/4;
-    check(std::abs(leaf_bottom-ground_y)<3,"transparent sprite padding does not lift a plant above the ground");
+    const auto rooted_plant=digest(f);const auto original_leaf=world.leaf;
+    std::fill(world.leaf.begin(),world.leaf.end(),0u);world.leaf[16*32+16]=0x456b2cff;draw();
+    check(digest(f)==rooted_plant,"transparent source padding cannot move or resize the rooted 3D plant");world.leaf=original_leaf;
     world.shape(7,7,NCMM_SHAPE_FLAT);for(int x=5;x<=9;++x){int i=7*15+x;world.cells[i].flags|=NCMM_GFX_VEHICLE;std::strcpy(world.cells[i].furniture,"vp_roof");auto &d=world.details[i];
         d.vehicle_group=1;d.vehicle_features=NCMM_VEH_FRAME|NCMM_VEH_ROOF|NCMM_VEH_BOARD|NCMM_VEH_WINDOW|NCMM_VEH_SEAT;d.mount_x=x-7;d.mount_y=0;d.vehicle_x=7.5f;d.vehicle_y=7.5f;d.vehicle_health=1;
         if(x==5||x==9)d.vehicle_features|=NCMM_VEH_WHEEL;}

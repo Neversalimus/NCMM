@@ -3072,9 +3072,9 @@ static const material materials[]={
 {{0.839215749f,0.670588235f,0.172549039f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"pistol",14791841195022867111ull,family::pistol,
+1,"pistol",8830632005503086466ull,family::pistol,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{9,{5.59864184e-09f,-0.0719912124f,-0.0234824053f}},{9,{0.0220000075f,-0.0669912139f,-0.0314824014f}},{0,{6.99182212e-10f,0.00850881648f,-0.00293258317f}},{8,{0.0f,0.0f,0.0f}},{6,{0.0f,0.0f,0.0f}},{9,{5.59864184e-09f,-0.0719912124f,-0.0234824053f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.9701425f,0.242535625f}},
+vertex_material,triangle_part,materials,std::size(materials),{{9,{5.59864184e-09f,-0.0719912124f,-0.0234824053f}},{9,{0.0220000075f,-0.0669912139f,-0.0314824014f}},{0,{6.99182212e-10f,0.00850881648f,-0.00293258317f}},{8,{0.0f,0.0f,0.0f}},{9,{-8.0289941e-09f,-0.0652037096f,0.0336760427f}},{9,{5.59864184e-09f,-0.0719912124f,-0.0234824053f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.9701425f,0.242535625f}},
 6,8,7,-1,0,2,{-7.89194506e-16f,-0.0206021103f,4.17843593e-09f},0.233f,false
 };
 const model &asset_pistol() noexcept {return value;}

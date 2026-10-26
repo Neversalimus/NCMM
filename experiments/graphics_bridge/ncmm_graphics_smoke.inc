@@ -636,7 +636,12 @@ bool graphics_scene_smoke()
         graphics_effect_pixels.assign(4,0x20408040u);graphics_effect_width=graphics_effect_height=2;
         graphics_effect_failed=true;const auto fallback_count=graphics_effect_cpu_frames;
         const SDL_FRect full={0,0,640,480};
+        const bool saved_gpu_frame=graphics_gpu_frame;graphics_gpu_frame=false;
         require(graphics_present_effects(renderer,graphics_stream_texture,full)&&graphics_effect_cpu_frames==fallback_count+1,"atmosphere_cpu_recovery_failed");
+        graphics_gpu_frame=true;
+        SDL_Texture *recovery_frame=saved_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->output():graphics_stream_texture;
+        require(recovery_frame&&graphics_present_effects(renderer,recovery_frame,full)&&graphics_effect_cpu_frames==fallback_count+1,"atmosphere_gpu_world_not_preserved");
+        graphics_gpu_frame=saved_gpu_frame;
         graphics_effect_failed=false;here.clear_fields(sample);draw();
         item rifle(itype_id("modular_m27_assault_rifle"),calendar::turn);
         rifle.force_insert_item(item(itype_id("rifle_scope"),calendar::turn),pocket_type::MOD);

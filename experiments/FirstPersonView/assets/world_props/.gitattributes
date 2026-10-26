@@ -1,0 +1,4 @@
+/source/** -text linguist-vendored=true
+/source/kenney/License.txt binary
+/generated/** text eol=lf linguist-generated=true
+/selection.json text eol=lf

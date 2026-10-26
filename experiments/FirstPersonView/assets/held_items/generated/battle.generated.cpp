@@ -6628,9 +6628,9 @@ static const material materials[]={
 {{0.839215749f,0.670588235f,0.172549039f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"battle",5596012861114157213ull,family::battle,
+1,"battle",15945298503245087967ull,family::battle,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{16,{-9.51964607e-17f,-0.197235582f,-0.0649253178f}},{16,{1.26741241e-16f,0.154964921f,-0.026332329f}},{4,{2.46448934e-18f,0.0089999991f,-9.71982923e-09f}},{12,{0.0f,0.0f,0.0f}},{10,{0.0f,0.0f,0.0f}},{16,{-9.51964607e-17f,-0.197235582f,-0.0649253178f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{16,{-9.51964607e-17f,-0.197235582f,-0.0649253178f}},{16,{1.26741241e-16f,0.154964921f,-0.026332329f}},{4,{2.46448934e-18f,0.0089999991f,-9.71982923e-09f}},{12,{0.0f,0.0f,0.0f}},{16,{-5.81214768e-17f,-0.0978738726f,0.0847999168f}},{16,{-9.51964607e-17f,-0.197235582f,-0.0649253178f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f}},
 10,12,11,15,4,1,{-0.0170345422f,2.28874708e-09f,-1.11273589e-08f},1.09f,true
 };
 const model &asset_battle() noexcept {return value;}

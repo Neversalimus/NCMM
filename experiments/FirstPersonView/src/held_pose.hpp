@@ -5,6 +5,7 @@
 namespace first_person::held {
 struct posed {
     const model *geometry=nullptr;viewmodel::pose_buffer bones;viewmodel::matrix local=viewmodel::identity();bool magazine=true,round=false;
+    viewmodel::point mount{};float riser=0;
     bool visible(part kind)const noexcept {return (kind!=part::magazine||magazine)&&(kind!=part::round||round);}
     uint32_t static_builds=0,static_reuses=0,draws=0,palette_matrices=0;
 };
@@ -16,7 +17,7 @@ struct prepared {
     bool prepare(const ncmm_held_item_v1 &item,const animation::pose &action) noexcept {
         reset();selected=select(item);if(!selected.body)return false;
         auto &body=entries[0];body.geometry=selected.body;body.magazine=selected.magazine;body.round=(item.flags&NCMM_HELD_AMMO_LOADED)!=0;
-        body.static_builds=body.static_reuses=body.draws=body.palette_matrices=0;
+        body.static_builds=body.static_reuses=body.draws=body.palette_matrices=0;body.riser=0;
         if(!viewmodel::bind_pose(body.geometry->geometry,body.bones)){selected.body=nullptr;selected.reason=failure::invalid_metadata;return false;}
         const auto &model=*body.geometry;
         // There are no invented reload/use clips. Authored action nodes move
@@ -38,7 +39,7 @@ struct prepared {
         if(model.kind==family::gas_can)grip={.23f,.08f,.62f};
         body.local=viewmodel::transform({grip,{}, {selected.scale,selected.scale,selected.scale}});count=1;
         for(size_t i=0;i<selected.attachment_count;++i){const auto &source=selected.attachments[i];auto &out=entries[count];out.geometry=source.geometry;out.magazine=true;out.round=false;
-            out.static_builds=out.static_reuses=out.draws=out.palette_matrices=0;
+            out.static_builds=out.static_reuses=out.draws=out.palette_matrices=0;out.riser=0;
             if(!viewmodel::bind_pose(out.geometry->geometry,out.bones)){selected.body=nullptr;count=0;selected.reason=failure::invalid_metadata;return false;}
             auto socket=viewmodel::multiply(body.local,body.bones.global[size_t(source.socket)]);
             // Socket orientation belongs to the author's rig. Its scale is
@@ -57,7 +58,27 @@ struct prepared {
             const auto mating=viewmodel::transform({{},out.geometry->mount_rotation,{1,1,1}});
             out.local=viewmodel::multiply(socket,viewmodel::multiply(mating,viewmodel::multiply(undo_rotation,
                 viewmodel::transform({{}, {}, {source.scale,source.scale,source.scale}}))));
+            if(out.geometry->kind==family::optic){
+                // The author's gun scope sockets disagree about their local
+                // bone axes. The imported sight is already normalized to the
+                // barrel's +Z / upright +Y frame; retain the actual socket
+                // position without rotating its bore sideways on an MP5.
+                out.local=viewmodel::transform({{socket.columns[12],socket.columns[13],socket.columns[14]}, {}, {source.scale,source.scale,source.scale}});
+            }
             const auto offset=viewmodel::direction(out.local,at);out.local.columns[12]-=offset.x;out.local.columns[13]-=offset.y;out.local.columns[14]-=offset.z;++count;
+            if(out.geometry->kind==family::optic){
+                out.mount={out.local.columns[12],out.local.columns[13],out.local.columns[14]};
+                const auto &c=out.geometry->grips.sight;
+                const auto sight=viewmodel::position(out.local,viewmodel::position(out.bones.global[c.node],c.point));
+                float obstruction=sight.y-.008f;
+                const auto &body_mesh=body.geometry->geometry;
+                for(size_t n=0;n<body_mesh.vertex_count;++n){const auto &v=body_mesh.vertices[n];
+                    const auto p=viewmodel::position(body.local,viewmodel::position(body.bones.palette[v.palette],v.position));
+                    if(p.z>sight.z&&std::abs(p.x-sight.x)<.03f)obstruction=std::max(obstruction,p.y);}
+                // Low authored sockets need a visible physical riser so the
+                // receiver/iron hood cannot completely cover the optic bore.
+                out.riser=std::clamp(obstruction+.008f-sight.y,0.f,.12f);out.local.columns[13]+=out.riser;
+            }
         }
         return true;
     }

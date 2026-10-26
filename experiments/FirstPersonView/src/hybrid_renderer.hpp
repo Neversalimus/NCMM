@@ -8,6 +8,8 @@
 #include "animation.hpp"
 #include "viewmodel.hpp"
 #include "held_pose.hpp"
+#include "weapon_view.hpp"
+#include "world_props.generated.hpp"
 #include "creature_scene.hpp"
 #include "effects.hpp"
 #include "liquid_surface.hpp"
@@ -188,7 +190,7 @@ inline surface ground_surface(const char *id){
 struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float alpha=1;
     bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;bool creature=false,spill=false;uint32_t liquid=0,banks=0;
     bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;
-    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false,distance_lod=false,grass=false;};
+    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false,distance_lod=false,grass=false,gpu_local=false;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
 
 // Geometry-only destination. The shared generator preserves the existing art
@@ -198,6 +200,7 @@ struct geometry_sink {
     virtual bool dirty(int cell)const=0;
     virtual bool any_dirty()const{return true;}
     virtual bool collects_grass()const{return true;}
+    virtual bool local_geometry()const{return false;}
     virtual void emit(const triangle &value)=0;
     virtual void world_complete(){}
     virtual bool horizon_dirty()const{return true;}
@@ -701,9 +704,12 @@ class renderer {
         }});
     }
     #include "architecture.inc"
+    #include "terrain_edges.inc"
+    #include "world_objects.inc"
     void architecture(int i,uint32_t shape,uint32_t layer){
         if(world_data&&layer==NCMM_GFX_TERRAIN&&(world_flags(i)&(NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP)))return; // World flags own the complete transition geometry.
         if(special_architecture(i,shape,layer))return;
+        if(world_object(i,shape,layer))return;
         if(!ncmm_graphics_shapes::vertical(shape))return;
         vec center=cell_center(i);float angle=s.details[i].orientation?pi*.5f:0;
         material m=mat(i,layer,{.43f,.40f,.35f});material trim{nullptr,{.35f,.32f,.28f},1,false,false,false,i};
@@ -1051,7 +1057,7 @@ class renderer {
         for(int pass=0;pass<2;++pass)for(int i:order){const vec at=cell_origin(i);const int x=int(at.x),y=int(at.y);const auto &c=base.cells[i];const auto &d=s.details[i];
             if(pass==1){
             if(world_data)world_slab(i);
-            else if(!(c.flags&NCMM_GFX_NO_FLOOR)&&in_view({float(x),float(y),0},{float(x+1),float(y+1),0})){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
+            else if(!(c.flags&NCMM_GFX_NO_FLOOR)&&in_view({float(x),float(y),0},{float(x+1),float(y+1),0})){auto floor=ground_edges(i,mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f}));floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
                 if(ncmm_rail::bed(c.terrain))floor=rail_bed(i);
                 const uint32_t liquid=terrain_liquid(i);
                 if(liquid){floor.texture=nullptr;floor.color=liquid_color(liquid);floor.finish=surface::water;floor.liquid=liquid;floor.banks=liquid_banks(i);}
@@ -1124,22 +1130,11 @@ class renderer {
         // Wide and 4:3 viewports retain their exact former scale.
         const float hud_scale=std::max(1.0f,aspect/.75f)*std::min(1.0f,aspect*1.6f)*
             (metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f);
-        vec aim_offset{-.30f,.18f,-.24f};
-        if(pose.grip==NCMM_GRIP_GUN&&pose.prepared_item&&pose.prepared_item->selected.body&&pose.prepared_item->count){
-            const auto &prepared=*pose.prepared_item;const held::posed *sighted=&prepared.entries[0];
-            for(size_t i=1;i<prepared.count;++i)if(prepared.entries[i].geometry->kind==held::family::optic)sighted=&prepared.entries[i];
-            const auto &sight=sighted->geometry->grips.sight;
-            const auto point=viewmodel::position(sighted->local,viewmodel::position(sighted->bones.global[sight.node],sight.point));
-            aim_offset={-point.x,-point.y,-.24f};
-        }
+        const auto gun_profile=weapon::fallback(metadata?metadata->view.gun_kind:uint32_t(NCMM_GUN_RIFLE),
+            metadata?metadata->view.gunmods:0,metadata?metadata->view.held_length:pose.length,s.environment.held_item);
+        const auto aligned=weapon::aim_offset(pose,gun_profile);
         auto animate=[&](vec p){
-            // Empty strikes already move the source rig. Applying the former
-            // primitive-hand swing again exposes the upper-arm root in view.
-            if(empty)return p+vec{pose.sway_x,pose.sway_y-.20f*(1-pose.equip_phase),-.06f*(1-pose.equip_phase)};
-            const vec pivot{.27f,-.28f,.84f};p=p-pivot;
-            const float a=pose.swing,co=std::cos(a),sn=std::sin(a);
-            p={p.x*co-p.y*sn,p.x*sn+p.y*co,p.z};
-            return p+pivot+vec{-.12f*pose.swing+pose.sway_x,.04f*pose.swing+pose.sway_y-.20f*(1-pose.equip_phase),pose.thrust-pose.recoil-.06f*(1-pose.equip_phase)}+aim_offset*pose.aim;};
+            const auto value=weapon::animate({p.x,p.y,p.z},pose,aligned,empty);return vec{value.x,value.y,value.z};};
         auto held_view=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return p;};
         auto hud=[&](vec p){return local(held_view(p));};
         auto face=[&](vec a,vec b,vec c,vec d,material m){a=hud(a);b=hud(b);c=hud(c);d=hud(d);quad(a,b,c,d,m,normalize(cross(b-a,d-a)));};
@@ -1236,6 +1231,13 @@ class renderer {
                 if(both)hand({secondary.x,secondary.y,secondary.z},true,nullptr,&prepared.hands[1]);
                 else hand({-.23f,-.76f*lower_view_slope*.74f,.74f},true);
                 for(size_t entry_index=0;entry_index<prepared.count;++entry_index){auto &entry=prepared.entries[entry_index];const auto &source=entry.geometry->geometry;
+                    if(entry.riser>.001f){const auto p=entry.mount;const vec lo{p.x-.014f,p.y,p.z-.013f},hi{p.x+.014f,p.y+entry.riser,p.z+.013f};
+                        material rail{nullptr,{.08f,.09f,.09f},1,false,false,true,-1,surface::metal};
+                        face({lo.x,lo.y,lo.z},{hi.x,lo.y,lo.z},{hi.x,hi.y,lo.z},{lo.x,hi.y,lo.z},rail);
+                        face({hi.x,lo.y,hi.z},{lo.x,lo.y,hi.z},{lo.x,hi.y,hi.z},{hi.x,hi.y,hi.z},rail);
+                        face({lo.x,lo.y,hi.z},{lo.x,lo.y,lo.z},{lo.x,hi.y,lo.z},{lo.x,hi.y,hi.z},rail);
+                        face({hi.x,lo.y,lo.z},{hi.x,lo.y,hi.z},{hi.x,hi.y,hi.z},{hi.x,hi.y,lo.z},rail);
+                        face({lo.x,hi.y,lo.z},{hi.x,hi.y,lo.z},{hi.x,hi.y,hi.z},{lo.x,hi.y,hi.z},rail);}
                     const auto world=viewmodel::multiply(model_to_world,entry.local);
                     if(gpu_sink&&gpu_sink->item({entry,world}))continue;
                     ++entry.draws;entry.palette_matrices+=uint32_t(source.palette_count);

@@ -511,6 +511,7 @@
                 gun.set_flag(flag_id("WATERPROOF_GUN"));gun.set_flag(flag_id("NEVER_JAMS"));
                 if(shooting!=3)gun.ammo_set(itype_id("38_special"),7);
                 you.set_wielded_item(gun);
+                graphics_prepare_held();require(graphics_held_ready&&(graphics_held_item.flags&NCMM_HELD_COMBUSTION),"fps_powder_ammunition_metadata_missing");
                 if(shooting==0)require(g->place_critter_at(mtype_id("mon_zombie"),you.pos_bub()+tripoint_rel_ms(0,-5,0))!=nullptr,"fps_gun_target_fixture");
                 camera(-ncmm_graphics_camera::pi*.5f,shooting==0?-.1f:0.f);warm(renderer_mode);native_redraw();
                 const int before=you.get_moves(),ammo=you.get_wielded_item()->ammo_remaining();const auto serial=graphics_attack_serial;
@@ -551,6 +552,7 @@
                 you.mod_str_bonus(std::max(0,12-you.get_str()));
                 floor();you.set_moves(10000);you.recoil=0;you.set_stamina(you.get_stamina_max());you.set_wielded_item(item(itype_id("shortbow"),calendar::turn));
                 const auto bow=you.get_wielded_item();const auto bow_mode=bow->gun_current_mode();
+                graphics_prepare_held();require(graphics_held_ready&&!(graphics_held_item.flags&NCMM_HELD_COMBUSTION),"fps_bow_gained_combustion_effect");
                 std::vector<std::string> bow_reasons;
                 const bool bow_common=gunmode_checks_common(you,here,bow_reasons,bow_mode);
                 const bool bow_ready=gunmode_checks_weapon(you,here,bow_reasons,bow_mode);

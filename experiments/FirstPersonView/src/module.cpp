@@ -4,6 +4,7 @@
 #include "scene_hash.hpp"
 #include "gpu_scene.hpp"
 #include "held_pose.hpp"
+#include "weapon_effects.hpp"
 #include "ncmm_graphics_focus.h"
 #include <cstdlib>
 #include <chrono>
@@ -48,6 +49,8 @@ double aim_seconds=0;
 uint64_t aim_epoch=0;
 first_person::animation::timeline hand_timeline;
 first_person::viewmodel::animator hand_animator;
+first_person::weapon_fx::timeline weapon_effects;
+std::vector<uint32_t> weapon_effect_pixels,weapon_composed_pixels;
 std::vector<ncmm_graphics_quad_v1> commands;
 first_person::hybrid::frame pixels;
 first_person::hybrid::frame world_pixels;
@@ -144,9 +147,31 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
         pose.sway_y=std::sin(t*2.2f)*.0032f+std::abs(std::sin(t*10))*metadata.view.movement*.010f+look_sway_y*lag;}
     pose.prepared_frame=&hand_animator.prepare(pose,!scene->environment.held_item[0],pose.grip==NCMM_GRIP_GUN&&(!has_metadata||metadata.view.gun_kind!=NCMM_GUN_BOW));
-    if(held_api&&held_state&&held_assets_enabled){ncmm_held_item_v1 item{};item.struct_size=sizeof(item);
-        if(held_api->get_item(&item))held_state->prepare(item,pose);else held_state->reset();pose.prepared_item=held_state.get();}
+    if(held_api&&held_state){ncmm_held_item_v1 item{};item.struct_size=sizeof(item);
+        if(held_api->get_item(&item)){
+            pose.combustion=(item.flags&NCMM_HELD_COMBUSTION)!=0;pose.ammo_loaded=(item.flags&NCMM_HELD_AMMO_LOADED)!=0;
+            if(held_assets_enabled)held_state->prepare(item,pose);else held_state->reset();
+        }else held_state->reset();pose.prepared_item=held_state.get();}
     else if(held_state)held_state->reset();
+    const auto weapon_profile=first_person::weapon::fallback(has_metadata?metadata.view.gun_kind:uint32_t(NCMM_GUN_NONE),
+        has_metadata?metadata.view.gunmods:0,has_metadata?metadata.view.held_length:pose.length,scene->environment.held_item);
+    first_person::viewmodel::point weapon_eye{scene->base.camera_x,scene->base.camera_y,has_metadata?metadata.view.eye_height:1.55f};
+    int eye_cell=-1;
+    if(active_world){weapon_eye=weapon_eye+first_person::viewmodel::point{float(active_world->origin_x)+active_world->camera_dx,
+            float(active_world->origin_y)+active_world->camera_dy,active_world->origin_z*active_world->level_height+active_world->camera_dz};
+        const int x=int(std::floor(weapon_eye.x)),y=int(std::floor(weapon_eye.y)),z=active_world->origin_z+int(std::floor(active_world->camera_dz/active_world->level_height));
+        const auto *begin=active_world->coordinates,*end=begin+active_world->cell_count;
+        const auto *found=std::lower_bound(begin,end,std::make_tuple(z,y,x),[](const auto &a,const auto &b){return std::make_tuple(a.z,a.y,a.x)<b;});
+        if(found!=end&&found->x==x&&found->y==y&&found->z==z)eye_cell=int(found-begin);
+    }else{const int x=int(std::floor(weapon_eye.x)),y=int(std::floor(weapon_eye.y));
+        if(x>=0&&y>=0&&x<int(scene->base.grid_width)&&y<int(scene->base.grid_height))eye_cell=y*scene->base.grid_width+x;}
+    const auto weapon_camera=first_person::weapon_fx::make_camera(weapon_eye,float(yaw),pitch,
+        first_person::weapon::hud_scale(float(scene->base.pixel_height)/scene->base.pixel_width,has_metadata?metadata.view.body_scale:1.f));
+    weapon_effects.observe(state,pose,weapon_profile,weapon_camera,scene->environment.held_item,epoch);
+    const bool weapon_effect_active=weapon_effects.active(seconds);
+    const auto weapon_light=eye_cell>=0&&size_t(eye_cell)<scene->detail_count?
+        first_person::viewmodel::point{scene->details[eye_cell].light_r,scene->details[eye_cell].light_g,scene->details[eye_cell].light_b}:first_person::viewmodel::point{.3f,.3f,.3f};
+    const first_person::viewmodel::point weapon_wind{scene->environment.wind_x,scene->environment.wind_y,0};
     held_metrics_guard held_report;
     if(settings){const char *value=settings->world_setting_get_string("NCMM_FIRST_PERSON_RENDERER","auto");
         const std::string selected=value?value:"auto";if(selected!=last_setting){last_setting=selected;mode_override=false;}
@@ -169,6 +194,12 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
                     submitted=multilevel&&multilevel->submit_gpu(&world);}
                 else submitted=gpu->submit_scene(&base);}
             if(submitted){
+                if(presentation&&weapon_effect_active){
+                    const float scale=std::min({1.f,640.f/width,480.f/height});const int fx_width=std::max(1,int(width*scale)),fx_height=std::max(1,int(height*scale));
+                    weapon_effect_pixels.assign(size_t(fx_width)*fx_height,0);
+                    weapon_effects.paint(weapon_effect_pixels,fx_width,fx_height,weapon_camera,seconds,scene->environment.daylight,weapon_light,weapon_wind);
+                    presentation->submit_effects(weapon_effect_pixels.data(),fx_width,fx_height,fx_width);
+                }
                 ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);
                 const bool current_pick=gpu->metrics(&result)&&result.active&&result.frame_serial==packet.scene.frame_serial;
                 if(presentation)presentation->set_target(current_pick?result.target_cell:-1,result.label_x,result.label_y);
@@ -222,13 +253,19 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(presentation){presentation->set_target(pixels.aimed,pixels.label_x,pixels.label_y);
         if(!pixels.effects.empty()&&!presentation->submit_effects(pixels.effects.data(),pixels.effect_width,pixels.effect_height,pixels.effect_width)){
             ncmm_graphics_composite::blend(pixels.pixels,pixels.width,pixels.height,pixels.effects,pixels.effect_width,pixels.effect_height);frame_valid=false;}}
-    const int submitted=hybrid->submit_frame(pixels.pixels.data(),uint32_t(pixels.width),uint32_t(pixels.height),uint32_t(pixels.width));
+    const uint32_t *frame_pixels=pixels.pixels.data();double weapon_effect_ms=0;
+    if(weapon_effect_active){const auto effect_begun=std::chrono::steady_clock::now();weapon_composed_pixels=pixels.pixels;
+        weapon_effects.paint(weapon_composed_pixels,pixels.width,pixels.height,weapon_camera,seconds,scene->environment.daylight,weapon_light,weapon_wind);
+        weapon_effect_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-effect_begun).count();
+        frame_pixels=weapon_composed_pixels.data();}
+    const int submitted=hybrid->submit_frame(frame_pixels,uint32_t(pixels.width),uint32_t(pixels.height),uint32_t(pixels.width));
     if(!submitted&&diagnostic_log)diagnostic_log(NCMM_LOG_ERROR,("First Person CPU submission rejected: pixels="+
         std::to_string(pixels.width)+"x"+std::to_string(pixels.height)+" viewport="+
         std::to_string(scene->base.pixel_width)+"x"+std::to_string(scene->base.pixel_height)).c_str());
     if(gpu&&gpu->struct_size>=offsetof(ncmm_host_graphics_gpu_v1,submit_cpu_metrics)+sizeof(gpu->submit_cpu_metrics)&&gpu->submit_cpu_metrics){ncmm_gpu_cpu_metrics_v1 metrics{};metrics.struct_size=sizeof(metrics);metrics.width=pixels.width;metrics.height=pixels.height;
         metrics.frame_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-frame_begun).count();
         if(cpu_built){metrics.raster_calls=pixels.raster_calls;metrics.triangles=pixels.submitted_triangles;metrics.geometry_ms=pixels.geometry_ms;metrics.raster_ms=pixels.raster_ms;metrics.effects_ms=pixels.effects_ms;}
+        metrics.effects_ms+=weapon_effect_ms;
         metrics.cache_bytes=(pixels.pixels.capacity()+world_pixels.pixels.capacity())*sizeof(uint32_t)+(pixels.depth.capacity()+world_pixels.depth.capacity()+pixels.held_depth.capacity()+world_pixels.held_depth.capacity())*sizeof(float)+
             (pixels.owners.capacity()+world_pixels.owners.capacity()+pixels.creatures.capacity()+world_pixels.creatures.capacity())*sizeof(int32_t);gpu->submit_cpu_metrics(&metrics);}
     return submitted;
@@ -262,6 +299,7 @@ void input(uint32_t action,void *) {
 }
 int init(const ncmm_host_api_v1 *api) {
     hand_timeline.reset();hand_animator.reset();
+    weapon_effects.reset();weapon_effect_pixels.clear();weapon_composed_pixels.clear();
     held_api=nullptr;held_state.reset();const char *held_switch=std::getenv("NCMM_FP_HELD_ASSETS");held_assets_enabled=!held_switch||std::strcmp(held_switch,"0")!=0;
     first_person::viewmodel::clear_textures();
     graphics=nullptr;

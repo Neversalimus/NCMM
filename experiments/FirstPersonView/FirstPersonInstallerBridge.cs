@@ -71,7 +71,10 @@ internal static partial class SetupCore
             !bundle.files.ContainsKey("code_mods/FirstPersonView/ncmm_mod.dll") ||
             !bundle.files.ContainsKey("code_mods/FirstPersonView/mod.json") ||
             !bundle.files.ContainsKey("code_mods/FirstPersonView/held-assets.manifest.json") ||
-            !bundle.files.ContainsKey("code_mods/FirstPersonView/held-assets-licenses.txt"))
+            !bundle.files.ContainsKey("code_mods/FirstPersonView/held-assets-licenses.txt") ||
+            !bundle.files.ContainsKey("code_mods/FirstPersonView/world-assets.manifest.json") ||
+            !bundle.files.ContainsKey("code_mods/FirstPersonView/world-assets-license.txt") ||
+            !bundle.files.ContainsKey("code_mods/FirstPersonView/weapon-effects.references.json"))
             throw new InvalidOperationException("First Person View package inventory is incomplete.");
         return bundle;
     }

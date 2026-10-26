@@ -127,3 +127,17 @@ gun and attachment files contain zero authored animation clips; their authored
 nodes, joint influences, material groups, UVs and mechanism nodes are retained.
 The red-dot lens transmission material is adapted to tinted alpha blending;
 the renderer does not claim physical refraction.
+
+First Person View world furniture
+--------------------------------
+Kenney Furniture Kit: https://kenney.nl/assets/furniture-kit
+License: CC0 1.0 Universal. The original author's License.txt and 43 selected
+static GLB meshes are retained under experiments/FirstPersonView/assets/world_props.
+Original archive SHA256:
+e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0
+Authored node transforms are baked offline; coordinates are converted from
+Y-up to Z-up and placed on the Native floor. Source material colors are retained
+with mild runtime weathering. No runtime model importer or network access.
+Installed modules include world-assets.manifest.json and world-assets-license.txt.
+Weapon gas/flash sprites are original procedural art; reference links in
+weapon-effects.references.json do not redistribute source footage or audio.

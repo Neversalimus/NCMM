@@ -9109,9 +9109,9 @@ static const material materials[]={
 {{0.839215749f,0.670588235f,0.172549039f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"assault",15266056218449587673ull,family::assault,
+1,"assault",4035468035065303597ull,family::assault,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{18,{-8.67505034e-17f,-0.153745829f,-0.0571850922f}},{18,{1.10280606e-16f,0.109576664f,-0.0555984384f}},{1,{6.55382968e-24f,0.00899999758f,2.4184585e-09f}},{14,{0.0f,0.0f,0.0f}},{12,{0.0f,0.0f,0.0f}},{18,{-8.67505034e-17f,-0.153745829f,-0.0571850922f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{18,{-8.67505034e-17f,-0.153745829f,-0.0571850922f}},{18,{1.10280606e-16f,0.109576664f,-0.0555984384f}},{1,{6.55382968e-24f,0.00899999758f,2.4184585e-09f}},{14,{0.0f,0.0f,0.0f}},{18,{-4.59685548e-17f,-0.0660281522f,0.0555145646f}},{18,{-8.67505034e-17f,-0.153745829f,-0.0571850922f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f}},
 12,14,13,17,1,8,{-4.26894607e-18f,-0.0192256168f,-2.58313139e-09f},0.798f,true
 };
 const model &asset_assault() noexcept {return value;}

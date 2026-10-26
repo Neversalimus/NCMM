@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "references": [
+    {"author": "SureFire", "title": "SureFire Flash Test: Suppressors, Muzzle Devices & Ammo", "page": "https://www.surefire.com/videos/", "video": "https://www.youtube.com/watch?v=xtgzgyw4vaA", "used_for": "Qualitative variation by ammunition, muzzle device, suppressor and ambient light."},
+    {"author": "SilencerCo", "title": "How Do Suppressors Work?", "page": "https://silencerco.com/blog/how-do-suppressors-work", "used_for": "Expanding muzzle gases and reduced flash with suppression."}
+  ],
+  "art": "Original procedural alpha sprites; no source photographs, footage or audio redistributed.",
+  "calibration": "Stylized presentation profiles, not measured weapon-specific photometry. Brief warm flash followed by a softer dissipating gas plume. Suppressors reduce flash and move emission to the actual exit. Bows, pneumatic and energy ammunition receive no combustion flash. Native ammunition properties gate emission; confirmed Native shot serials gate spawning.",
+  "budgets": {"retained_shots": 8, "effect_lifetime_seconds": 0.95, "maximum_gpu_overlay_width": 640, "maximum_gpu_overlay_height": 480},
+  "scope": "Presentation only; no changes to projectiles, damage, ammunition or simulation timing."
+}

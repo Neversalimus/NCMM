@@ -1,0 +1,8 @@
+{
+  "author": "Kenney",
+  "source": "https://kenney.nl/assets/furniture-kit",
+  "license": "CC0-1.0",
+  "license_file": "source/kenney/License.txt",
+  "archive_sha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0",
+  "adaptation": "43 original static GLB meshes, authored node transforms baked offline, Y-up converted to Z-up, original material colors retained with runtime weathering. Bounded world models are compiled into the module; no runtime GLB loading."
+}

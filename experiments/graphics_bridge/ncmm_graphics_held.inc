@@ -55,6 +55,12 @@ void graphics_prepare_held()
         if(!held->magazine_compatible().empty())out.flags|=NCMM_HELD_DETACHABLE;
         if(held->magazine_current())out.flags|=NCMM_HELD_MAGAZINE_PRESENT;
         if(held->ammo_remaining()>0)out.flags|=NCMM_HELD_AMMO_LOADED;
+        // Publish a physical ammunition property, not a guessed translated
+        // weapon name. The default round also covers the just-emptied gun.
+        const itype *round=held->ammo_data();
+        if(!round){const auto fallback=held->ammo_default();if(fallback.is_valid())round=&fallback.obj();}
+        if(round&&round->ammo&&((round->ammo->casing&&*round->ammo->casing!=itype_id::NULL_ID())||round->ammo->ammo_effects.count(ammo_effect_str_id("COOKOFF"))||
+            round->ammo->ammo_effects.count(ammo_effect_str_id("BLACKPOWDER"))))out.flags|=NCMM_HELD_COMBUSTION;
         if(held->has_flag(flag_id("RELOAD_ONE")))out.flags|=NCMM_HELD_RELOAD_ONE;
         if(held->has_flag(flag_id("RELOAD_EJECT")))out.flags|=NCMM_HELD_RELOAD_EJECT;
         if(held->has_flag(flag_id("PUMP_ACTION")))out.flags|=NCMM_HELD_PUMP_ACTION|NCMM_HELD_MANUAL_ACTION;

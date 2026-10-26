@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "converter": "import_held_items.py/v1",
-  "selection_sha256": "452f87c439f45f677c563ecd811a53121c1ba0b1406e592d6b613829fdc058bf",
+  "selection_sha256": "c195bb41bdab46696e4e98e71b47815c573f271b502346d3ebfe747728863334",
   "models": [
     {
       "id": "pistol",
-      "identity": 14791841195022867111,
+      "identity": 8830632005503086466,
       "vertices": 2688,
       "triangles": 1434,
       "source_nodes": 12,
@@ -35,11 +35,11 @@
         1
       ],
       "generated": "pistol.generated.cpp",
-      "sha256": "07b23832a31bbde18e951f225e39edca840d0ab2de4a2a27f5ba1e910b91057c"
+      "sha256": "0b34ca314501a5f3e1e90c6ec208acb2a3e45c8286f96f9f686459b1bfa12544"
     },
     {
       "id": "revolver",
-      "identity": 10357991337156990005,
+      "identity": 4750408720560073041,
       "vertices": 1594,
       "triangles": 1046,
       "source_nodes": 0,
@@ -69,11 +69,11 @@
         1
       ],
       "generated": "revolver.generated.cpp",
-      "sha256": "ecf296dd28ddca92665a44495be47fb4b2813f1f0d9e676c0ce570fc233bcbe0"
+      "sha256": "5f4210f136bd553fd5779a4deed4626c1116785952141d110a844da11fc5d6ad"
     },
     {
       "id": "smg",
-      "identity": 9790193404746488640,
+      "identity": 8183360400193038715,
       "vertices": 3714,
       "triangles": 2030,
       "source_nodes": 18,
@@ -103,11 +103,11 @@
         1
       ],
       "generated": "smg.generated.cpp",
-      "sha256": "140d201c8f618652a22f55771a06f144d3fc5ea74c783812f27db5ca0d5298d8"
+      "sha256": "961d8aaad82268577567c2f6e6a2100b3a32b64db176c4fe9908a1dfa0353195"
     },
     {
       "id": "assault",
-      "identity": 15266056218449587673,
+      "identity": 4035468035065303597,
       "vertices": 8045,
       "triangles": 4353,
       "source_nodes": 21,
@@ -137,11 +137,11 @@
         1
       ],
       "generated": "assault.generated.cpp",
-      "sha256": "9a7b14b8656ad1c6931f06d0c38dba674a40055f7215944a82b3ea35f3dd84ad"
+      "sha256": "effefd7bd3ff1c89053ae580a5e9aee70cfc9d71faf6079d9e8b97b1a6785231"
     },
     {
       "id": "battle",
-      "identity": 5596012861114157213,
+      "identity": 15945298503245087967,
       "vertices": 5836,
       "triangles": 3173,
       "source_nodes": 19,
@@ -171,11 +171,11 @@
         1
       ],
       "generated": "battle.generated.cpp",
-      "sha256": "bb34fde828b6f8189ea42b5d0fc2370cbcdda36a717a343834becb4ddaf1477c"
+      "sha256": "3f826d35ebc46d7bd7b5cdd87c9cf2406d109c27054a9ba199e97c92c7cba7ae"
     },
     {
       "id": "pump",
-      "identity": 8709306422760533965,
+      "identity": 9149065801229156753,
       "vertices": 2009,
       "triangles": 1071,
       "source_nodes": 8,
@@ -205,11 +205,11 @@
         1
       ],
       "generated": "pump.generated.cpp",
-      "sha256": "a3dcdb661aa47728ce10e50bd0ac038bcebe2a542b7cbd81a5efd11bfaa28775"
+      "sha256": "7b103c9ffac6772c710d764d53de975bc756613cd9d8fae4f220f37021084bdf"
     },
     {
       "id": "auto_shotgun",
-      "identity": 5300571656978910302,
+      "identity": 13207503474332792062,
       "vertices": 2881,
       "triangles": 1540,
       "source_nodes": 15,
@@ -239,7 +239,7 @@
         1
       ],
       "generated": "auto_shotgun.generated.cpp",
-      "sha256": "b9795160d52c6c814a98f2cbcedbd20404995604e0d36ae2c31981be7a6bf7d5"
+      "sha256": "19be3e2c31714ff3bdc23d68118b72e1edde5ef4dcf3cc91ea74dc276a1d2242"
     },
     {
       "id": "knife",
@@ -889,7 +889,7 @@
     },
     {
       "id": "red_dot",
-      "identity": 5523840342812353754,
+      "identity": 1058731751879297164,
       "vertices": 1243,
       "triangles": 436,
       "source_nodes": 1,
@@ -926,7 +926,7 @@
         1
       ],
       "generated": "red_dot.generated.cpp",
-      "sha256": "9a7721c76ed9131886a3867cbeaa8ac1a75acde814fb85815d587b077f5d71f6"
+      "sha256": "8e9aae39db05e8a10ab2f3e22d9ab95a7f12d1c95ef00d173a6adda23667470d"
     },
     {
       "id": "suppressor",
@@ -1032,10 +1032,10 @@
     }
   ],
   "files": {
-    "assault.generated.cpp": "9a7b14b8656ad1c6931f06d0c38dba674a40055f7215944a82b3ea35f3dd84ad",
-    "auto_shotgun.generated.cpp": "b9795160d52c6c814a98f2cbcedbd20404995604e0d36ae2c31981be7a6bf7d5",
+    "assault.generated.cpp": "effefd7bd3ff1c89053ae580a5e9aee70cfc9d71faf6079d9e8b97b1a6785231",
+    "auto_shotgun.generated.cpp": "19be3e2c31714ff3bdc23d68118b72e1edde5ef4dcf3cc91ea74dc276a1d2242",
     "bat.generated.cpp": "5cfb144869ad482bfe6d24ed7c2354228526df4c760fa296dfa0f1fb8fac8746",
-    "battle.generated.cpp": "bb34fde828b6f8189ea42b5d0fc2370cbcdda36a717a343834becb4ddaf1477c",
+    "battle.generated.cpp": "3f826d35ebc46d7bd7b5cdd87c9cf2406d109c27054a9ba199e97c92c7cba7ae",
     "bottle.generated.cpp": "1422b31cda4f3c4d2a1ad31074b81ac0e68a376a2c5189f67f79c1582e3dc888",
     "crowbar.generated.cpp": "ee0af7dfd1b737c6e8118484d6e1987b14c8a49118020f07f0a40e27915445ab",
     "fire_axe.generated.cpp": "d3309ab12071ef4e25ea394b30f3311051e8830c4d89a8198ae2da77fe3546b9",
@@ -1050,16 +1050,16 @@
     "machete.generated.cpp": "58049cf8fdc4a989ed592da03a5fc4473c560433541789b0a0f955bc04b5b7bf",
     "medical.generated.cpp": "34c3a1855e504ea8a5570179f74b52b341af7082aae995cbe3509884c201c339",
     "pickaxe.generated.cpp": "4fdf459358c985999279a9d62fd9ee6f13932730754b58885991547422d4f879",
-    "pistol.generated.cpp": "07b23832a31bbde18e951f225e39edca840d0ab2de4a2a27f5ba1e910b91057c",
+    "pistol.generated.cpp": "0b34ca314501a5f3e1e90c6ec208acb2a3e45c8286f96f9f686459b1bfa12544",
     "pliers.generated.cpp": "ae617a6766a2cdf93c6e74bb5433ecb310387d9dc15d0ca45f7b8124585e81bd",
-    "pump.generated.cpp": "a3dcdb661aa47728ce10e50bd0ac038bcebe2a542b7cbd81a5efd11bfaa28775",
-    "red_dot.generated.cpp": "9a7721c76ed9131886a3867cbeaa8ac1a75acde814fb85815d587b077f5d71f6",
-    "revolver.generated.cpp": "ecf296dd28ddca92665a44495be47fb4b2813f1f0d9e676c0ce570fc233bcbe0",
+    "pump.generated.cpp": "7b103c9ffac6772c710d764d53de975bc756613cd9d8fae4f220f37021084bdf",
+    "red_dot.generated.cpp": "8e9aae39db05e8a10ab2f3e22d9ab95a7f12d1c95ef00d173a6adda23667470d",
+    "revolver.generated.cpp": "5f4210f136bd553fd5779a4deed4626c1116785952141d110a844da11fc5d6ad",
     "saw.generated.cpp": "35bf05c32c27f375e22c619dc0da7f8f908f17a7ccee93b67c8ba56c76986fca",
     "screwdriver.generated.cpp": "995432ded34c7cd571253718bb087990e3f3a87a980e9fda72ac58bb90868c08",
     "shovel.generated.cpp": "44c1bc00594baf87c313ffc2b390608aa383cd4c017e7b5f02d3f3008ccfbf32",
     "sledge.generated.cpp": "830712aca039fc2697c262c0b67123cfae1fb0ae47c16dd3e6199c36d2933ca9",
-    "smg.generated.cpp": "140d201c8f618652a22f55771a06f144d3fc5ea74c783812f27db5ca0d5298d8",
+    "smg.generated.cpp": "961d8aaad82268577567c2f6e6a2100b3a32b64db176c4fe9908a1dfa0353195",
     "spear.generated.cpp": "1e2edfa459f65333332a1c5110d2eb3ebaec455aa6cbc3254944b89cafc87f52",
     "suppressor.generated.cpp": "421d3e7fb4cf280b1b80eaa05eb30fcc2289debb07bef5b30df2daeaafc2469e",
     "textures.generated.cpp": "6db07dfd7619dbbd8f1f18aa37a101a04b582565c02a005a237bad9bcbc85f83",

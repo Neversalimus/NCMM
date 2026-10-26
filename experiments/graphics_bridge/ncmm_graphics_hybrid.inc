@@ -629,7 +629,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     ok = SDL_SetRenderClipRect( renderer, &clip ) && ok;
     const SDL_FRect destination = { float( x ), float( y ), float( base.pixel_width ), float( base.pixel_height ) };
     ok = SDL_RenderTexture( renderer, frame, nullptr, &destination ) && ok;
-    if( ok && !graphics_gpu_frame ) ok = graphics_present_effects( renderer,frame,destination );
+    if( ok ) ok = graphics_present_effects( renderer,frame,destination );
     if( ok ) {
         Uint8 r=0,g=0,b=0,a=0;SDL_GetRenderDrawColor( renderer,&r,&g,&b,&a );
         SDL_SetRenderDrawColor( renderer,216,224,224,255 );

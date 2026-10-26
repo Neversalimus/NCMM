@@ -1,6 +1,7 @@
 #include "ncmm_graphics_performance.hpp"
 #include "ncmm_gpu_backend.hpp"
 #include "gpu_scene.hpp"
+#include "world_visual_fixture.hpp"
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -414,6 +415,7 @@ int main(int argc,char **argv){
             const auto &submission=packet.finish(&api);
             if(n)require(!submission.generated_cells&&!submission.mesh_count&&!submission.texture_count,"wind reuses every GPU lawn mesh and texture");
             require(engine.submit(submission),engine.metrics().reason);
+            std::printf("GPU grass field draws: %llu\n",(unsigned long long)engine.metrics().draw_calls);
             require(engine.metrics().draw_calls<=48,"grass field uses instanced three-shade models, not thousands of material draws");
             if(n)require(engine.resources().static_upload_bytes()==0&&engine.metrics().generated_meshes==0&&engine.metrics().cpu_raster_calls==0,"real GPU lawn animation uploads only dynamic transforms");
             capture(n?"-grass-wind":"-grass-rest");
@@ -577,6 +579,7 @@ int main(int argc,char **argv){
             require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"queue SDL sampling before teardown");}
         engine.clear();require(!engine.metrics().active&&engine.resources().bytes()==0&&engine.recording().frame_upload_capacity_bytes==0&&engine.recording().cell_cache_bytes==0,"in-flight teardown drains and clears resources including staging and source cells");
     }
+    #include "world_visual_gpu_test.inc"
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();
     SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();

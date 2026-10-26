@@ -27,7 +27,13 @@ bool graphics_present_effects( SDL_Renderer *renderer, SDL_Texture *frame, const
     if( accelerated ) { ++graphics_effect_gpu_frames; return true; }
     // Failed effects never discard a valid world frame. Redraw the full opaque
     // frame after CPU composition, also replacing any partially queued effect.
-    graphics_effect_failed=true; graphics_clear_effect_texture(); ++graphics_effect_cpu_frames;
+    graphics_effect_failed=true; graphics_clear_effect_texture();
+    if(graphics_gpu_frame){
+        // Preserve the already rendered hardware world if only the small
+        // optional overlay upload fails. There is no CPU world image to mix.
+        return SDL_RenderTexture(renderer,frame,nullptr,&destination);
+    }
+    ++graphics_effect_cpu_frames;
     if( !ncmm_graphics_composite::blend( graphics_hybrid_pixels,graphics_hybrid_width,graphics_hybrid_height,
         graphics_effect_pixels,graphics_effect_width,graphics_effect_height ) ) return false;
     return SDL_UpdateTexture( frame,nullptr,graphics_hybrid_pixels.data(),int( graphics_hybrid_width*4 ) ) &&

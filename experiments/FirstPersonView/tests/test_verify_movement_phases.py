@@ -47,6 +47,7 @@ class FramePhaseTests(unittest.TestCase):
 
 class PayloadMatrixTests(unittest.TestCase):
     held='experiments/FirstPersonView/assets/held_items/selection.json'
+    world='experiments/FirstPersonView/assets/world_props/selection.json'
     nvtx='experiments/graphics_bridge/third_party/nvtx3/LICENSE.txt'
     def entries(self,files):
         return {'payload/'+name for name in files}|{'payload/first-person-bundle.json'}
@@ -59,6 +60,14 @@ class PayloadMatrixTests(unittest.TestCase):
     def test_missing_asset_metadata_and_license_rejected(self):
         paths=[self.held,self.nvtx];expected=expected_payload_files(paths)
         for name in ('held-assets.manifest.json','held-assets-licenses.txt','NVTX-LICENSE.txt'):
+            files=expected-{'code_mods/FirstPersonView/'+name}
+            with self.subTest(name=name),self.assertRaisesRegex(ValueError,'trusted source'):
+                verify_payload_file_matrix(files,self.entries(files),paths)
+    def test_world_assets_license_and_effect_references_are_required(self):
+        paths=[self.held,self.world,self.nvtx];expected=expected_payload_files(paths)
+        self.assertEqual(len(expected),38)
+        verify_payload_file_matrix(expected,self.entries(expected),paths)
+        for name in ('world-assets.manifest.json','world-assets-license.txt','weapon-effects.references.json'):
             files=expected-{'code_mods/FirstPersonView/'+name}
             with self.subTest(name=name),self.assertRaisesRegex(ValueError,'trusted source'):
                 verify_payload_file_matrix(files,self.entries(files),paths)

@@ -17,6 +17,26 @@ inline uint32_t seed(int32_t x,int32_t y,int32_t z){return hash(uint32_t(x)*3747
 inline float random(uint32_t n){return float(hash(n)&0xffffffu)/16777216.f;}
 inline unsigned band(float distance){return distance<5?0u:distance<12?1u:distance<22?2u:3u;}
 inline unsigned tufts(unsigned lod){return lod==0?64u:lod==1?16u:lod==2?4u:0u;}
+inline unsigned shade(unsigned lod,unsigned source){return lod>=2?1u:lod==1?std::min(source,1u):source;}
+struct layout {unsigned mask=0,turns=0,variant=0;};
+inline layout patch(unsigned mask,unsigned lod,uint32_t seed){
+    // Edge taper is subpixel at the outer LODs. Rotate one canonical near
+    // fringe instead of multiplying all four patterns by sixteen masks.
+    if(lod)return {0,lod==2?seed&3u:0,lod==2?0u:seed&3u};
+    if(!mask)return {0,0,seed&3u};
+    layout result{mask,0,0};unsigned rotated=mask;
+    for(unsigned turn=1;turn<4;++turn){rotated=((rotated<<1)|(rotated>>3))&15u;
+        if(rotated<result.mask)result={rotated,(4-turn)&3u,0};}
+    return result;
+}
+struct xy {float x,y;};
+inline xy turn(xy p,unsigned n){switch(n&3u){case 1:return {-p.y,p.x};case 2:return {-p.x,-p.y};case 3:return {p.y,-p.x};default:return p;}}
+inline float edge_scale(unsigned mask,float x,float y){
+    float distance=1;
+    if(mask&1)distance=std::min(distance,1-x);if(mask&2)distance=std::min(distance,1-y);
+    if(mask&4)distance=std::min(distance,x);if(mask&8)distance=std::min(distance,y);
+    const float t=std::clamp(distance/.28f,0.f,1.f);return .06f+.94f*t*t*(3-2*t);
+}
 inline float height(const char *id){
     return std::strstr(id,"golf")||std::strstr(id,"grazed")?.055f:
            std::strstr(id,"tall")?.65f:std::strstr(id,"long")?.44f:.30f;

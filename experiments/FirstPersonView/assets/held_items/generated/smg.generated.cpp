@@ -4246,9 +4246,9 @@ static const material materials[]={
 {{0.839215749f,0.670588235f,0.172549039f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"smg",9790193404746488640ull,family::smg,
+1,"smg",8183360400193038715ull,family::smg,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{15,{-6.62544603e-17f,-0.135509272f,-0.0502364125f}},{15,{1.53998494e-17f,0.0257077261f,-0.0622074668f}},{0,{-2.54261337e-24f,0.0089999991f,-3.65068612e-09f}},{11,{0.0f,0.0f,0.0f}},{9,{0.0f,0.0f,0.0f}},{15,{-6.62544603e-17f,-0.135509272f,-0.0502364125f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{15,{-6.62544603e-17f,-0.135509272f,-0.0502364125f}},{15,{1.53998494e-17f,0.0257077261f,-0.0622074668f}},{0,{-2.54261337e-24f,0.0089999991f,-3.65068612e-09f}},{11,{0.0f,0.0f,0.0f}},{15,{-1.22504457e-16f,-0.0672792461f,0.0473804051f}},{15,{-6.62544603e-17f,-0.135509272f,-0.0502364125f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f}},
 9,11,10,14,0,3,{-4.01660816e-18f,-0.0180891941f,-2.43044311e-09f},0.682f,true
 };
 const model &asset_smg() noexcept {return value;}

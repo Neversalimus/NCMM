@@ -1,5 +1,9 @@
 # First Person View 0.13.1 — FPS controls (development)
 
+The latest TEST pass adds blended natural terrain edges, calibrated ADS for
+authored and fallback weapons, confirmed-shot flash/smoke and 43 CC0 world prop
+models with round connected pipes. See the [scope and validation report](reports/world-visuals-20261026.md).
+
 The Host now owns one physical-key input router: continuous relative mouse
 look, WASD chords and bounded held movement, centre-reticle interaction, and
 an explicit Native command mode. Every gameplay intent goes through CDDA's

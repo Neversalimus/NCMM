@@ -83,6 +83,27 @@ $heldRuntime=$heldRuntimePrefix.Substring(0,$heldRuntimePrefix.Length-1)+',"sele
 [IO.File]::WriteAllText((Join-Path $fp 'held-assets-licenses.txt'),($heldLicenseParts -join "`n"),(New-Object Text.UTF8Encoding($false)))
 $hostDest=Join-Path $payload 'host'
 New-Item -ItemType Directory -Force $hostDest | Out-Null
+$worldRoot=Join-Path $PSScriptRoot 'assets/world_props'
+$worldSelectionPath=Join-Path $worldRoot 'selection.json'
+$worldSelectionText=Get-Content -LiteralPath $worldSelectionPath -Raw -Encoding UTF8
+$worldImportText=Get-Content -LiteralPath (Join-Path $worldRoot 'generated/manifest.json') -Raw -Encoding UTF8
+$worldSourceText=Get-Content -LiteralPath (Join-Path $worldRoot 'SOURCE.json') -Raw -Encoding UTF8
+$worldSelection=$worldSelectionText | ConvertFrom-Json
+$worldImport=$worldImportText | ConvertFrom-Json
+if($worldSelection.schema -ne 1 -or $worldSelection.license -ne 'CC0-1.0' -or $worldImport.schema -ne 1 -or
+    $worldSelection.models.Count -ne 43 -or $worldImport.models.Count -ne 43 -or
+    $worldImport.source_selection_sha256 -ne (Get-FileHash -LiteralPath $worldSelectionPath -Algorithm SHA256).Hash.ToLowerInvariant()){
+    throw 'World resource provenance differs from the validated inventory.'
+}
+foreach($entry in $worldSelection.files.PSObject.Properties){
+    if($entry.Name -notmatch '^source/kenney/[A-Za-z0-9_. /-]+$' -or $entry.Name.Contains('..')){throw 'Unsafe world source path.'}
+    if((Get-FileHash -LiteralPath (Join-Path $worldRoot $entry.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.Value){throw 'Pinned world source changed.'}
+}
+$worldRuntime='{"schema":1,"runtime_importer":false,"selection":'+$worldSelectionText.Trim()+',"imported":'+$worldImportText.Trim()+',"source":'+$worldSourceText.Trim()+'}'
+[IO.File]::WriteAllText((Join-Path $fp 'world-assets.manifest.json'),$worldRuntime,(New-Object Text.UTF8Encoding($false)))
+Copy-Item -LiteralPath (Join-Path $worldRoot 'source/kenney/License.txt') -Destination (Join-Path $fp 'world-assets-license.txt')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'assets/fire_effects/references.json') -Destination (Join-Path $fp 'weapon-effects.references.json')
+# End offline world resource packaging.
 Copy-Item (Join-Path $HostRoot 'cataclysm-tiles.exe') (Join-Path $hostDest 'cataclysm-tiles.ncmm.exe')
 Copy-Item (Join-Path $HostRoot 'first-person-source.json') $hostDest
 Copy-Item (Join-Path $HostRoot 'LICENSE.txt') (Join-Path $stage 'CDDA-LICENSE.txt')
@@ -177,7 +198,15 @@ See THIRD_PARTY_NOTICES.txt for the original archive hash and author's license.
 This preview includes 30 licensed held models for supported guns, tools,
 containers and accessories, using the original PSX hands. Items outside the
 supported authored families keep the established fallback.
-FPS controls: continuous mouse look, WASD walking, LMB attack, RMB Native aim,
+This preview adds 43 original CC0 Kenney Furniture Kit meshes, compiled offline,
+round connected pipes and volume fallbacks for unmapped furniture. Native floor
+positions, visibility and collisions remain authoritative. Natural ground edges
+use narrow shared alpha feathers and shorter grass at the boundary. All fallback
+gun sights, including M27, align with the centre reticle; optic bores stay open.
+Confirmed combustion shots emit brief muzzle flash and world-anchored smoke.
+Suppressors reduce the flash; bows and energy/pneumatic rounds do not emit it.
+See world-assets.manifest.json and weapon-effects.references.json for provenance.
+FPS controls: continuous mouse look, WASD walking, LMB attack, hold RMB to aim,
 E interact, R reload, G pickup, I inventory, U use wielded item, Shift/Ctrl run/
 crouch, Space wait. Tab restores Native commands; Esc releases the cursor;
 F5 opens control settings and F6 returns to the map. Vehicle controls remain

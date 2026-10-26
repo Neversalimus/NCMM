@@ -106,7 +106,9 @@ int main(){
     if(!shared_opening){std::cerr<<"A stair hint hid the adjacent wall face\n";return 1;}
     const int tree=scene.idx(4,10,2);scene.detail[tree].terrain_shape=NCMM_SHAPE_TREE;scene.cells[tree].flags=NCMM_WORLD_BODY_VISIBLE;std::strcpy(scene.appearance[tree].terrain,"t_tree");
     count_sink upper_tree;renderer(scene.w.appearance,0,.15f,{},statistics,{},nullptr,{},nullptr,&scene.w).collect(upper_tree,400,260);
-    bool found_tree=false;for(const auto &tri:upper_tree.triangles)if(tri.m.cell==tree&&tri.m.cutout){found_tree=true;for(const auto &v:tri.v)if(v.p.z<2*NCMM_WORLD_LEVEL_HEIGHT+.74f){std::cerr<<"Upper-storey tree fell to ground level\n";return 1;}}
-    if(!found_tree)return 1;
+    bool found_tree=false;float lowest=1e9f,highest=-1e9f;
+    for(const auto &tri:upper_tree.triangles)if(tri.m.cell==tree){found_tree=true;for(const auto &v:tri.v){lowest=std::min(lowest,v.p.z);highest=std::max(highest,v.p.z);}}
+    if(!found_tree||std::abs(lowest-2*NCMM_WORLD_LEVEL_HEIGHT)>.001f||highest<2*NCMM_WORLD_LEVEL_HEIGHT+2){
+        std::cerr<<"Upper-storey 3D tree lost its Native root or crown height\n";return 1;}
 
 }

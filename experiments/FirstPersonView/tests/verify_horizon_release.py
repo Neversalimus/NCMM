@@ -40,6 +40,10 @@ def expected_payload_files(source_paths):
     if "experiments/FirstPersonView/assets/held_items/selection.json" in source_paths:
         expected.update(("code_mods/FirstPersonView/held-assets.manifest.json",
                          "code_mods/FirstPersonView/held-assets-licenses.txt"))
+    if "experiments/FirstPersonView/assets/world_props/selection.json" in source_paths:
+        expected.update(("code_mods/FirstPersonView/world-assets.manifest.json",
+                         "code_mods/FirstPersonView/world-assets-license.txt",
+                         "code_mods/FirstPersonView/weapon-effects.references.json"))
     if "experiments/graphics_bridge/third_party/nvtx3/LICENSE.txt" in source_paths:
         expected.add("code_mods/FirstPersonView/NVTX-LICENSE.txt")
     return expected

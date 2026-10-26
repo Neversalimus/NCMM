@@ -1850,9 +1850,9 @@ static const material materials[]={
 {{0.359591974f,0.297532204f,0.259407736f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"revolver",10357991337156990005ull,family::revolver,
+1,"revolver",4750408720560073041ull,family::revolver,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.1f,0.0f}},{0,{0.0f,-0.13f,0.18f}},{0,{0.34f,-0.045f,0.0f}},{0,{1.739905f,0.34f,0.0f}},{0,{1.689905f,0.47f,0.0f}},{0,{0.0f,-0.1f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.1f,0.0f}},{0,{0.0f,-0.13f,0.18f}},{0,{0.34f,-0.045f,0.0f}},{0,{1.739905f,0.34f,0.0f}},{0,{1.689905f,0.580245313f,0.0f}},{0,{0.0f,-0.1f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.3f,false
 };
 const model &asset_revolver() noexcept {return value;}

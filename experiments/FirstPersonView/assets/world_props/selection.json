@@ -1,0 +1,228 @@
+{
+  "schema": 1,
+  "author": "Kenney",
+  "license": "CC0-1.0",
+  "source": "https://kenney.nl/assets/furniture-kit",
+  "download": "https://kenney.nl/media/pages/assets/furniture-kit/440e0608a4-1677580847/kenney_furniture-kit.zip",
+  "archive_sha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0",
+  "files": {
+    "source/kenney/License.txt": "bc0de1a0742cb490f9ed4bae0bd284286ebb27e23149b9917c7d8c0d590b8b29",
+    "source/kenney/bathroomCabinet.glb": "9db540227acaaedbbadc6a085f4a00460b73944e608afaad4770e53238a3b7f8",
+    "source/kenney/bathroomSink.glb": "39d4f19608cab7e0fed52303b2c689f5f51fae1bad9b6913cb53d838875e797e",
+    "source/kenney/bathtub.glb": "54c405c7035aab63dc41e709dc3c50fc5bcfbc4cddc91ffc54188075a6d25d01",
+    "source/kenney/bedBunk.glb": "a3eccbc4a04340dd84878d959e15eede76f517fb8d4de6862ca46877c88d764e",
+    "source/kenney/bedDouble.glb": "c49b33e7d797d2ba1111895587dba7ff63b17a712eb9b4ceeb40a598f73e476c",
+    "source/kenney/bedSingle.glb": "ca00c63f9a12da3138d902b2f5f18e0360fb6e8a5ac42ccb4bc3f185724b65d1",
+    "source/kenney/bench.glb": "ba05a6d23a5a5a44da016757632070e47ff7587ce10e2f6d6d52328b4cf5489b",
+    "source/kenney/bookcaseClosed.glb": "9d210448de5e1179541da895450bbc7a39f4cd673d677654cd6b134e4ea0e047",
+    "source/kenney/bookcaseOpen.glb": "750702218d68c062b15dfef6ab06a4014d1cfa8bd05f02e57c53b7e13bec157c",
+    "source/kenney/books.glb": "b8dc56e5d29f6fc1f4727fccb1b9642627fee9942c48060a00034e98df02701c",
+    "source/kenney/cabinetBed.glb": "b651fafb9e2c8e4adcb8cad3d10dc94404b46fe039b26e66b2c9020df4e5301d",
+    "source/kenney/cardboardBoxClosed.glb": "4af079dca52960912764574950f0549ff2ae1224b3db1528718629473a2d5d81",
+    "source/kenney/cardboardBoxOpen.glb": "960da412564774c75e7b32f9af0100895e1edb877fc1e70dd34ee2422a2196d4",
+    "source/kenney/chair.glb": "c8a11eec93e89e31250ba91afc1b8d56c3bec7ae86640fd1239f595ff4180883",
+    "source/kenney/chairDesk.glb": "46406619186034cbe92b19b79a5f1a8e3f442a17a70a7524ef2c0ad0f35095c6",
+    "source/kenney/coatRackStanding.glb": "d8231c22dab63ceb9fc8678f6c8ceafc62afa8726b51a73b4ce349043d3cdc91",
+    "source/kenney/computerScreen.glb": "5942cbad29a2d2b956619569926e81d50a4174403d592fece6556e57632dc643",
+    "source/kenney/desk.glb": "0164fe828f028b321730fb8c74502e353583f751be74da1682d42fff7d3c5a42",
+    "source/kenney/dryer.glb": "d8b727612fdfc141c0b56360f75b897f1b71d3420c8c0942b5ec626bd3c8303c",
+    "source/kenney/kitchenCabinet.glb": "7238c57778935ae25db5e57e9f7af3ba7068c71b005ff7cfbff3b6f3b1a13200",
+    "source/kenney/kitchenCoffeeMachine.glb": "063f582c6fa0f00a9f24e3393dac2295491c4becdaf5513c893ab1a2826b6ec3",
+    "source/kenney/kitchenFridge.glb": "8af4f4bbb1b5525ad8226e97926a5af60fa8fb20a3cb74dbda5328a9d320dbab",
+    "source/kenney/kitchenFridgeSmall.glb": "35dab7f63711623be321bfd82072f4ab29fe8006aac9371c6e6b78df2e02f5ed",
+    "source/kenney/kitchenMicrowave.glb": "dd6a6c919f4bebc6e2080fe419262cf97a0d6461ead3f3998aa3c9edf4d2bd27",
+    "source/kenney/kitchenSink.glb": "7b9610277d71f00dcf1bba49cf4d98d77ce5177e84bf76c7da2f8893e542f743",
+    "source/kenney/kitchenStove.glb": "3239edb36295dfca9530a9b9a6ad0aff98ce62e7cf8d13ca2a5a1a6b2a904656",
+    "source/kenney/lampRoundFloor.glb": "50fe1b5b588edf15bfa9cc880f71a02a4fda6036350b24733d0ef4de5cc5e908",
+    "source/kenney/lampRoundTable.glb": "75bb644caaa3da003b4fcad7a931722dd61cd2858aab70cf660021d5061fa1b2",
+    "source/kenney/laptop.glb": "5fa8a1f4a71ab8d82ef64da77a6973ffd350c6d4557516069a4ffd4bb8d808af",
+    "source/kenney/loungeChair.glb": "ddfe6bc4b3451bca61666d7b614552d6ed2a03d82fc76244b72ae3155874dc6c",
+    "source/kenney/loungeSofa.glb": "1886b811c0d3ad0d8525a4fd43adf4112c497c8e0ed906f06877ca3517f4c7dd",
+    "source/kenney/pottedPlant.glb": "5b760eda2766f75fda36b2c5df652a1662f82981ef64cd8fa7fe7bcd386b3a15",
+    "source/kenney/radio.glb": "1ba93d6ba6f049750853b4652b92f286f2898e527695a0705b75cc7615897fed",
+    "source/kenney/shower.glb": "25c1cebad681fe369dc04839a8f08f5da2ccbd99b3a70aa83fe2e4d1590c6951",
+    "source/kenney/sideTable.glb": "8227810584f7d37582e4e9ec821c56f1dc54b99c88a8dc74242ea3b7402bc472",
+    "source/kenney/speaker.glb": "78230b9fb382a937cb19e4bf7556ee9402d33ac80b1baaee2d2eb89493cfa1fc",
+    "source/kenney/stoolBar.glb": "a86167a9f92401a61fec7e509ad089ecc552d0f299743add3aeb919acb24e341",
+    "source/kenney/table.glb": "ff1a94498d023957f4bc3ff6f55a7a82977d336dbf01a573b3364f03afe5ff61",
+    "source/kenney/tableCoffee.glb": "e38bea760fbd514efbb75528d09b4752c91af44677bbb97e6d4386c263525179",
+    "source/kenney/televisionVintage.glb": "eb144cc8fb1e7f761e3665226e4266c8868679421d21d6548f24d2abad7c67cf",
+    "source/kenney/toilet.glb": "16165cfd03c56c2cb443b800570810a22ef770f65e7a468f6761d9dc14eaaeae",
+    "source/kenney/trashcan.glb": "e0ccc1fe50cbd05386477fdff527171d1cf7c0de2ba7ff3233f8d9561feb2561",
+    "source/kenney/washer.glb": "0c9704df1817d2699b72305b96cde097c9558bacabaef2fd5ab1ff4c03b81abf"
+  },
+  "models": [
+    {
+      "id": "bathroomCabinet",
+      "source": "source/kenney/bathroomCabinet.glb"
+    },
+    {
+      "id": "bathroomSink",
+      "source": "source/kenney/bathroomSink.glb"
+    },
+    {
+      "id": "bathtub",
+      "source": "source/kenney/bathtub.glb"
+    },
+    {
+      "id": "bedBunk",
+      "source": "source/kenney/bedBunk.glb"
+    },
+    {
+      "id": "bedDouble",
+      "source": "source/kenney/bedDouble.glb"
+    },
+    {
+      "id": "bedSingle",
+      "source": "source/kenney/bedSingle.glb"
+    },
+    {
+      "id": "bench",
+      "source": "source/kenney/bench.glb"
+    },
+    {
+      "id": "bookcaseClosed",
+      "source": "source/kenney/bookcaseClosed.glb"
+    },
+    {
+      "id": "bookcaseOpen",
+      "source": "source/kenney/bookcaseOpen.glb"
+    },
+    {
+      "id": "books",
+      "source": "source/kenney/books.glb"
+    },
+    {
+      "id": "cabinetBed",
+      "source": "source/kenney/cabinetBed.glb"
+    },
+    {
+      "id": "cardboardBoxClosed",
+      "source": "source/kenney/cardboardBoxClosed.glb"
+    },
+    {
+      "id": "cardboardBoxOpen",
+      "source": "source/kenney/cardboardBoxOpen.glb"
+    },
+    {
+      "id": "chair",
+      "source": "source/kenney/chair.glb"
+    },
+    {
+      "id": "chairDesk",
+      "source": "source/kenney/chairDesk.glb"
+    },
+    {
+      "id": "coatRackStanding",
+      "source": "source/kenney/coatRackStanding.glb"
+    },
+    {
+      "id": "computerScreen",
+      "source": "source/kenney/computerScreen.glb"
+    },
+    {
+      "id": "desk",
+      "source": "source/kenney/desk.glb"
+    },
+    {
+      "id": "dryer",
+      "source": "source/kenney/dryer.glb"
+    },
+    {
+      "id": "kitchenCabinet",
+      "source": "source/kenney/kitchenCabinet.glb"
+    },
+    {
+      "id": "kitchenCoffeeMachine",
+      "source": "source/kenney/kitchenCoffeeMachine.glb"
+    },
+    {
+      "id": "kitchenFridge",
+      "source": "source/kenney/kitchenFridge.glb"
+    },
+    {
+      "id": "kitchenFridgeSmall",
+      "source": "source/kenney/kitchenFridgeSmall.glb"
+    },
+    {
+      "id": "kitchenMicrowave",
+      "source": "source/kenney/kitchenMicrowave.glb"
+    },
+    {
+      "id": "kitchenSink",
+      "source": "source/kenney/kitchenSink.glb"
+    },
+    {
+      "id": "kitchenStove",
+      "source": "source/kenney/kitchenStove.glb"
+    },
+    {
+      "id": "lampRoundFloor",
+      "source": "source/kenney/lampRoundFloor.glb"
+    },
+    {
+      "id": "lampRoundTable",
+      "source": "source/kenney/lampRoundTable.glb"
+    },
+    {
+      "id": "laptop",
+      "source": "source/kenney/laptop.glb"
+    },
+    {
+      "id": "loungeChair",
+      "source": "source/kenney/loungeChair.glb"
+    },
+    {
+      "id": "loungeSofa",
+      "source": "source/kenney/loungeSofa.glb"
+    },
+    {
+      "id": "pottedPlant",
+      "source": "source/kenney/pottedPlant.glb"
+    },
+    {
+      "id": "radio",
+      "source": "source/kenney/radio.glb"
+    },
+    {
+      "id": "shower",
+      "source": "source/kenney/shower.glb"
+    },
+    {
+      "id": "sideTable",
+      "source": "source/kenney/sideTable.glb"
+    },
+    {
+      "id": "speaker",
+      "source": "source/kenney/speaker.glb"
+    },
+    {
+      "id": "stoolBar",
+      "source": "source/kenney/stoolBar.glb"
+    },
+    {
+      "id": "table",
+      "source": "source/kenney/table.glb"
+    },
+    {
+      "id": "tableCoffee",
+      "source": "source/kenney/tableCoffee.glb"
+    },
+    {
+      "id": "toilet",
+      "source": "source/kenney/toilet.glb"
+    },
+    {
+      "id": "trashcan",
+      "source": "source/kenney/trashcan.glb"
+    },
+    {
+      "id": "washer",
+      "source": "source/kenney/washer.glb"
+    },
+    {
+      "id": "televisionVintage",
+      "source": "source/kenney/televisionVintage.glb"
+    }
+  ]
+}
