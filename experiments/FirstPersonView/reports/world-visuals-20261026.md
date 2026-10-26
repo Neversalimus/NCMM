@@ -129,6 +129,14 @@ warm frame. The riser now uses one retained immutable unit mesh and ordinary
 draw transforms; the regression test requires zero warm mesh/texture uploads.
 The Native gate is retained, rather than allowing extra dynamic geometry.
 
+The Linux appearance sweep also exposed a fixture obstruction: its solid
+RGB control lamp at (1,-1) stood on a diagonal camera ray and completely hid
+the low snake in its blue-night case. The preserved Native image confirms
+the obstruction. The lamp now stands at (3,-1), outside the eight camera rays
+and the subject's half-step. Visibility, depth tests and the nonzero-creature
+pixel requirement remain enabled. Completed Native held galleries are also
+published immediately, while the remaining qualification runs continue.
+
 The protected GPU backend, resource lifetime policy, geometry ABI and shipping
 shaders are unchanged. Strict readback comparisons and sanitizer gates remain
 enabled, including the earlier intermittent llvmpipe comparison limitation;

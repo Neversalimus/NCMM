@@ -191,7 +191,8 @@ jobs:
             'experiments/FirstPersonView/tests/grip_alignment_test.cpp':'8352ca887328165ba4341f8425f6b3dbbfa2d42ea1e331916f7a7d93c95360bb',
             'experiments/FirstPersonView/tests/test_calibrate_grips.py':'1926005a0c4788073455243b406aa74806960c78e474df4447b7ca64cb6e0388',
             'experiments/FirstPersonView/tools/calibrate_grips.py':'06d38f08fdf7dea4e2ff0a58eb1006c5ff438c4cd7acd4c86d68a56143d858f4',
-            'experiments/FirstPersonView/tools/import_held_items.py':'b94295267f41f52b9b7f71fe87208f137b68fce46c9994cc8d2e7c9232048ecf'}
+            'experiments/FirstPersonView/tools/import_held_items.py':'b94295267f41f52b9b7f71fe87208f137b68fce46c9994cc8d2e7c9232048ecf',
+            'experiments/graphics_bridge/ncmm_graphics_appearance_smoke.inc':'edd1fdb0c339cddaf34bc6c788cf8d2d1ebb5def3ca55501a681b2a579e744a5'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')

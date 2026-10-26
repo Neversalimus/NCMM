@@ -82,7 +82,10 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
             clear_monsters(); graphics_creature_records.clear();
             graphics_smoke_seconds = 2.0; calendar::turn = lighting ? start_time + 12_hours : start_time;
             lamp->light_emitted = 60; lamp->light_color = { .05f, .25f, 1.f };
-            const tripoint_bub_ms light_position( center.x() + 1, center.y() - 1, 0 );
+            // Keep the solid control lamp clear of all eight camera rays,
+            // including the moving subject's half-step. A diagonal lamp at
+            // (1,-1) correctly occluded the small snake in its night fixture.
+            const tripoint_bub_ms light_position( center.x() + 3, center.y() - 1, 0 );
             here.furn_set( light_position, lighting ? lamp->id : furn_id( "f_null" ) );
             if( data.flags & NCMM_CR_AQUATIC ) here.ter_set( center, ter_id( "t_water_sh" ) );
             shared_ptr_fast<monster> subject;

@@ -525,6 +525,16 @@ jobs:
               Get-ChildItem -LiteralPath $evidence -File | Where-Object {$_.Name -like 'first-person-held-*' -or $_.Name -eq 'first-person-process-result.json'} | Copy-Item -Destination $dest
             }
           }
+      # Review exact grip evidence while the remaining qualification continues.
+      - name: Publish completed Native held gallery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-person-held-gallery-${{ matrix.build }}
+          path: installer-result/held-gallery/**
+          compression-level: 9
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Native target HP, visibility, large and flying creatures, wide viewport
         timeout-minutes: 15
         shell: powershell
