@@ -75,9 +75,13 @@ int main(){
         using namespace ncmm_graphics_input;router input;environment e;e.enabled=e.available=e.fps=e.gameplay=true;
         input.native_wait(true);input.update(e);require(input.capture(),"pure router capture");input.continuous_walk(true);
         input.key(button::forward,true,false,0);require(!input.ready(10000)&&input.walking().forward==1,"held continuous walking does not manufacture tile actions");
+        input.boundary(1,0);input.native_wait(false);
+        require(!input.walking_owned()&&!input.walking_suspended(),"a busy Native action preserves FPS walking ownership without advancing it");
+        input.native_wait(true);input.cancel_boundary();
+        require(!input.ready(10000),"a reset or changed obstacle cancels a queued boundary without reissuing held walking");
         input.boundary(1,0);require(input.take(10000).action==command::move&&!input.ready(10001),"one boundary yields exactly one Native intent");
         input.boundary(0,1);e.gameplay=false;input.update(e);
-        require(input.take(20000).action==command::none&&!input.walking().forward,"menus cancel queued boundaries and held motion");
+        require(input.walking_suspended()&&input.take(20000).action==command::none&&!input.walking().forward,"menus cancel queued boundaries and held motion");
         e.gameplay=true;input.update(e);input.capture();input.key(button::attack,true,false,20001);input.automatic_fire(true,120);
         require(input.take(20001).action==command::attack,"fresh click still has immediate priority");
         input.boundary(1,0);require(input.take(21000).action==command::move,"an overdue automatic shot cannot starve a tile crossing");

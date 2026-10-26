@@ -12,8 +12,8 @@ struct graphics_locomotion_state {
     ncmm_graphics_camera::locomotion::point presented{};
 } graphics_walk;
 bool graphics_locomotion_continuous(){return graphics_input_router.continuous_walk();}
-void graphics_locomotion_reset(){graphics_walk={};}
-void graphics_locomotion_pause(uint64_t now){graphics_walk.motion.pause(now);}
+void graphics_locomotion_reset(){graphics_walk={};graphics_input_router.cancel_boundary();}
+void graphics_locomotion_pause(uint64_t now){graphics_walk.motion.pause(now);graphics_input_router.cancel_boundary();}
 bool graphics_locomotion_sync(bool consume){
     if(!character_state_available()){graphics_locomotion_reset();return false;}
     const auto absolute=get_avatar().pos_abs();
@@ -23,7 +23,7 @@ bool graphics_locomotion_sync(bool consume){
         const int64_t dx=int64_t(absolute.x())-before.x(),dy=int64_t(absolute.y())-before.y();
         if(graphics_walk.issued&&absolute.z()==before.z()&&std::abs(dx)<=1&&std::abs(dy)<=1&&
            graphics_walk.motion.acknowledge(int(dx),int(dy)))graphics_walk.committed=absolute;
-        else{graphics_walk.motion.reset(SDL_GetTicks());graphics_walk.committed.reset();}
+        else{graphics_walk.motion.reset(SDL_GetTicks());graphics_walk.committed.reset();graphics_input_router.cancel_boundary();}
         graphics_walk.origin=absolute;graphics_walk.issued=false;graphics_walk.lease=0;
     }
     const bool committed=graphics_walk.committed&&*graphics_walk.committed==absolute;
@@ -56,7 +56,11 @@ void graphics_locomotion_tick(uint64_t now){
         return;
     }
     if(!graphics_input_router.walking_owned()){
-        if(!graphics_walk.issued)walk.pause(now);else walk.clock(now);return;
+        // Native may be resolving a shot or another costed action while FPS
+        // still owns gameplay. Freeze time; do not erase velocity/crossing.
+        if(graphics_input_router.walking_suspended()&&!graphics_walk.issued)graphics_locomotion_pause(now);
+        else walk.clock(now);
+        return;
     }
     // Simulation processing, nested Native UI and legacy stairs never accrue
     // catch-up time or query mutable terrain between owned input lifetimes.
@@ -88,7 +92,9 @@ void graphics_locomotion_tick(uint64_t now){
     const float stance=you.is_prone()?.3f:you.is_crouching()?.55f:you.is_running()?1.65f:1.f;
     graphics_walk.walking_speed=base*stance*std::clamp(2.f/std::max(2,here.move_cost(you.pos_bub())),.25f,1.f);
     if(walk.advance(now,graphics_camera_yaw,intent.forward,intent.right,graphics_walk.walking_speed,blocked))graphics_mouse_dirty=true;
-    const auto step=walk.pending();if(step)graphics_input_router.boundary(step.x,step.y);
+    const auto step=walk.pending();
+    if(step)graphics_input_router.boundary(step.x,step.y);
+    else graphics_input_router.cancel_boundary();
 }
 void graphics_locomotion_completed(bool changed){
     graphics_locomotion_sync();

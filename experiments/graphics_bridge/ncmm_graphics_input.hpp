@@ -94,7 +94,9 @@ class router {
     context owner() const { return context_; }
     bool captured() const { return captured_; }
     bool command_mode() const { return command_mode_; }
-    bool walking_owned()const{return waiting_&&captured_&&context_==context::gameplay;}
+    bool walking_suspended()const{return !captured_||context_!=context::gameplay;}
+    bool walking_owned()const{return waiting_&&!walking_suspended();}
+    void cancel_boundary(){boundary_={};}
     void continuous_walk(bool value){continuous_walk_=value;if(!value)boundary_={};}
     bool continuous_walk()const{return continuous_walk_;}
     intent walking(){
