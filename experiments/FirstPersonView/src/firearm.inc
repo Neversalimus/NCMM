@@ -9,7 +9,8 @@
                 tube(previous,draw,.0015f,.0015f,string);}
             if(pose.ammo_loaded){material arrow{nullptr,{.39f,.31f,.18f},1,false,false,true,-1,surface::wood};
                 tube(draw,pivot+vec{.014f,.026f,.62f},.003f,.003f,arrow);}
-            hand(pivot,false);hand(draw,true);f.held_pixels=1;return;
+            const viewmodel::point bow_axis{0,1,0};
+            hand(pivot,true,nullptr,nullptr,&bow_axis);hand(draw,false,nullptr,nullptr,&bow_axis);f.held_pixels=1;return;
         }
         if(pose.grip==NCMM_GRIP_GUN && (!metadata||metadata->view.gun_kind!=NCMM_GUN_BOW)){
             const uint32_t kind=gun_profile.kind;
@@ -21,8 +22,8 @@
             const vec pivot{gun_profile.pivot.x,gun_profile.pivot.y,gun_profile.pivot.z};
             const float muzzle=pistol?length:length-.16f;
             const float support=std::clamp(muzzle*.55f,.18f,.38f);
-            const auto primary=pivot+vec{0,-.052f,pistol?.020f:-.012f};
-            const auto secondary=pivot+(pistol?vec{-.035f,-.065f,.030f}:vec{0,mods&NCMM_MOD_FOREGRIP?-.09f:-.037f,support});
+            const auto primary=pivot+vec{0,-.079f,pistol?.020f:-.012f};
+            const auto secondary=pivot+(pistol?vec{-.035f,-.087f,.030f}:vec{0,mods&NCMM_MOD_FOREGRIP?-.09f:-.037f,support});
             const auto trigger=pivot+vec{.007f,-.046f,pistol?.075f:.045f},sight=pivot+vec{0,.055f,muzzle-.022f};
             const viewmodel::anchors contacts{{primary.x,primary.y,primary.z},{secondary.x,secondary.y,secondary.z},
                 {trigger.x,trigger.y,trigger.z},{pivot.x,pivot.y,pivot.z},{sight.x,sight.y,sight.z}};
@@ -94,7 +95,9 @@
                 cylinder({x,y,muzzle*.735f},{x,y,muzzle*.74f},radius*.72f,bulb);}
             if(mods&NCMM_MOD_BAYONET){const vec a=origin+vec{-.014f,-.026f,muzzle-.06f},b=origin+vec{.014f,-.026f,muzzle-.06f},tip=origin+vec{0,-.018f,muzzle+.25f};face(a,b,tip,tip,rail);}
             if(mods&NCMM_MOD_UNDERBARREL)cylinder({0,-.077f,muzzle*.30f},{0,-.077f,muzzle*.88f},.034f,metal);
-            hand({contacts.primary.x,contacts.primary.y,contacts.primary.z},false,&contacts.trigger);
-            hand({contacts.secondary.x,contacts.secondary.y,contacts.secondary.z},true);
+            const viewmodel::point primary_axis{0,1,pistol?.25f:.20f},secondary_axis=pistol?primary_axis:
+                mods&NCMM_MOD_FOREGRIP?viewmodel::point{0,1,0}:viewmodel::point{0,0,1};
+            hand({contacts.primary.x,contacts.primary.y,contacts.primary.z},false,&contacts.trigger,nullptr,&primary_axis);
+            hand({contacts.secondary.x,contacts.secondary.y,contacts.secondary.z},true,nullptr,nullptr,&secondary_axis);
             f.held_pixels=valid?uint32_t((img->right-img->left)*(img->bottom-img->top)):1u;return;
         }

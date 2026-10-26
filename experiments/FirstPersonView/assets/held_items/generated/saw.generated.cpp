@@ -909,9 +909,9 @@ static const material materials[]={
 {{0.906331753f,0.906331753f,0.906331753f,1.0f},0,texture_9443df615ff59f272d37d90c,4,4,10683628350367702823ull},
 };
 static const model value={
-1,"saw",4702366251015858714ull,family::saw,
+1,"saw",17488477024226177098ull,family::saw,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.063091f,0.14161442f}},{0,{0.0f,0.0907f,-0.10245259f}},{0,{0.0f,0.0907f,-0.3465196f}},{0,{0.0f,0.063091f,0.245158f}},{0,{0.0f,0.063091f,0.245158f}},{0,{0.0f,0.063091f,0.14161442f}},{0.0f,1.0f,0.0f},{0.0f,0.0f,-1.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.063091f,0.14161442f}},{0,{0.0f,0.0907f,-0.10245259f}},{0,{0.0f,0.0907f,-0.3465196f}},{0,{0.0f,0.063091f,0.245158f}},{0,{0.0f,0.063091f,0.245158f}},{0,{0.0f,0.063091f,0.14161442f}},{0.0f,1.0f,0.0f},{0.0f,0.0f,-1.0f},0.012f,0.012f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.46f,false
 };
 const model &asset_saw() noexcept {return value;}

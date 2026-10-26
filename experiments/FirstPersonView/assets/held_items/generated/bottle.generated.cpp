@@ -168,9 +168,9 @@ static const material materials[]={
 {{1.0f,1.0f,1.0f,1.0f},0,texture_e104f3becaaf8de045461428,512,512,16214352559210466784ull},
 };
 static const model value={
-1,"bottle",14476422746113840264ull,family::bottle,
+1,"bottle",16198448785869588053ull,family::bottle,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.03077372f,0.0f}},{0,{0.0f,0.081550358f,0.0f}},{0,{0.0f,0.03077372f,0.0f}},{0,{0.0f,0.1538686f,0.0f}},{0,{0.0f,0.1538686f,0.0f}},{0,{0.0f,0.03077372f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.03077372f,0.0f}},{0,{0.0f,0.081550358f,0.0f}},{0,{0.0f,0.03077372f,0.0f}},{0,{0.0f,0.1538686f,0.0f}},{0,{0.0f,0.1538686f,0.0f}},{0,{0.0f,0.03077372f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f},0.04f,0.04f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.22f,false
 };
 const model &asset_bottle() noexcept {return value;}

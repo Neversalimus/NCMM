@@ -1098,9 +1098,9 @@ static const material materials[]={
 {{0.906331753f,0.906331753f,0.906331753f,1.0f},0,texture_9443df615ff59f272d37d90c,4,4,10683628350367702823ull},
 };
 static const model value={
-1,"pliers",11755233863327615023ull,family::pliers,
+1,"pliers",6207445478555001868ull,family::pliers,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.0270174f,2.65e-05f}},{0,{0.0f,0.09222606f,2.65e-05f}},{0,{0.0f,0.0270174f,2.65e-05f}},{0,{0.0f,0.185099f,2.65e-05f}},{0,{0.0f,0.185099f,2.65e-05f}},{0,{0.0f,0.0270174f,2.65e-05f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.0270174f,2.65e-05f}},{0,{0.0f,0.09222606f,2.65e-05f}},{0,{0.0f,0.0270174f,2.65e-05f}},{0,{0.0f,0.185099f,2.65e-05f}},{0,{0.0f,0.185099f,2.65e-05f}},{0,{0.0f,0.0270174f,2.65e-05f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f},0.014f,0.014f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.17f,false
 };
 const model &asset_pliers() noexcept {return value;}

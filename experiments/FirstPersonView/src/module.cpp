@@ -166,7 +166,8 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     }else{const int x=int(std::floor(weapon_eye.x)),y=int(std::floor(weapon_eye.y));
         if(x>=0&&y>=0&&x<int(scene->base.grid_width)&&y<int(scene->base.grid_height))eye_cell=y*scene->base.grid_width+x;}
     const auto weapon_camera=first_person::weapon_fx::make_camera(weapon_eye,float(yaw),pitch,
-        first_person::weapon::hud_scale(float(scene->base.pixel_height)/scene->base.pixel_width,has_metadata?metadata.view.body_scale:1.f));
+        first_person::weapon::hud_scale(float(scene->base.pixel_height)/scene->base.pixel_width,has_metadata?metadata.view.body_scale:1.f),
+        has_metadata?std::clamp(metadata.view.body_scale,.70f,1.25f):1.f);
     weapon_effects.observe(state,pose,weapon_profile,weapon_camera,scene->environment.held_item,epoch);
     const bool weapon_effect_active=weapon_effects.active(seconds);
     const auto weapon_light=eye_cell>=0&&size_t(eye_cell)<scene->detail_count?

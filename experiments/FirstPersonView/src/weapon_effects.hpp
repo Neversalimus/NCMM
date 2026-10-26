@@ -7,13 +7,13 @@ using point=viewmodel::point;
 inline uint32_t hash(uint32_t n){n^=n>>16;n*=0x7feb352du;n^=n>>15;n*=0x846ca68bu;return n^(n>>16);}
 inline float random(uint32_t n){return float(hash(n)&0xffffu)/65535.f;}
 struct camera {
-    point eye,right,up,forward;float scale=1;
-    point world(point p)const{return eye+right*(p.x*scale)+up*(p.y*scale)+forward*p.z;}
+    point eye,right,up,forward;float scale=1,depth_scale=1;
+    point world(point p)const{return eye+right*(p.x*scale)+up*(p.y*scale)+forward*(p.z*depth_scale);}
     point view(point p)const{const auto d=p-eye;return {viewmodel::dot(d,right),viewmodel::dot(d,up),viewmodel::dot(d,forward)};}
 };
-inline camera make_camera(point eye,float yaw,float pitch,float scale){
+inline camera make_camera(point eye,float yaw,float pitch,float scale,float depth_scale=1){
     const float cy=std::cos(yaw),sy=std::sin(yaw),cp=std::cos(pitch),sp=std::sin(pitch);
-    return {eye,{-sy,cy,0},{-cy*sp,-sy*sp,cp},{cy*cp,sy*cp,sp},scale};
+    return {eye,{-sy,cy,0},{-cy*sp,-sy*sp,cp},{cy*cp,sy*cp,sp},scale,depth_scale};
 }
 struct shot {uint64_t serial=0;double when=0;point at,forward;float radius=.1f,smoke=.18f;bool suppressed=false;};
 class timeline {
@@ -32,6 +32,7 @@ public:
         out.at=view.world(weapon::muzzle(pose,profile));out.forward=view.forward;out.suppressed=(profile.mods&NCMM_MOD_SUPPRESSOR)!=0;
         out.radius=profile.kind==NCMM_GUN_SHOTGUN?.15f:profile.kind==NCMM_GUN_PISTOL||profile.kind==NCMM_GUN_REVOLVER?.09f:.12f;
         out.smoke=out.suppressed?.10f:.19f;if(out.suppressed)out.radius*=.20f;
+        out.radius*=view.depth_scale;out.smoke*=view.depth_scale;
     }
     bool active(double now)const{for(const auto &s:shots)if(s.serial&&now>=s.when&&now-s.when<.95)return true;return false;}
     static uint32_t blend(uint32_t old,point color,float alpha){

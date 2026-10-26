@@ -414,9 +414,9 @@ static const material materials[]={
 {{1.0f,1.0f,1.0f,1.0f},0,texture_4b237314143dd48ee66ca29e,8,8,5414297707105604750ull},
 };
 static const model value={
-1,"sledge",143785557103343446ull,family::sledge,
+1,"sledge",9739088376507131370ull,family::sledge,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{-8.38190317e-09f,-0.389698493f,4.65661287e-09f}},{0,{-8.38190317e-09f,-0.14113611f,4.65661287e-09f}},{0,{-8.38190317e-09f,-0.389698493f,4.65661287e-09f}},{0,{7.4505806e-09f,0.27313453f,-1.49011612e-08f}},{0,{7.4505806e-09f,0.27313453f,-1.49011612e-08f}},{0,{-8.38190317e-09f,-0.389698493f,4.65661287e-09f}},{0.0f,0.696706709f,0.717356091f},{0.0f,0.696706709f,0.717356091f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{-8.38190317e-09f,-0.389698493f,4.65661287e-09f}},{0,{-8.38190317e-09f,-0.14113611f,4.65661287e-09f}},{0,{-8.38190317e-09f,-0.389698493f,4.65661287e-09f}},{0,{7.4505806e-09f,0.27313453f,-1.49011612e-08f}},{0,{7.4505806e-09f,0.27313453f,-1.49011612e-08f}},{0,{-8.38190317e-09f,-0.389698493f,4.65661287e-09f}},{0.0f,0.696706709f,0.717356091f},{0.0f,0.696706709f,0.717356091f},0.019f,0.019f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.8f,true
 };
 const model &asset_sledge() noexcept {return value;}

@@ -302,9 +302,9 @@ static const material materials[]={
 {{1.0f,1.0f,1.0f,1.0f},0,texture_4b237314143dd48ee66ca29e,8,8,5414297707105604750ull},
 };
 static const model value={
-1,"crowbar",11750311570703702789ull,family::crowbar,
+1,"crowbar",15233885661910423499ull,family::crowbar,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{-3.7252903e-09f,-0.304166168f,-0.0834256597f}},{0,{-3.7252903e-09f,-0.0835864216f,-0.0834256597f}},{0,{-3.7252903e-09f,-0.304166168f,-0.0834256597f}},{0,{-3.7252903e-09f,0.230572611f,0.00766288489f}},{0,{-3.7252903e-09f,0.230572611f,0.00766288489f}},{0,{-3.7252903e-09f,-0.304166168f,-0.0834256597f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{-3.7252903e-09f,-0.304166168f,-0.0834256597f}},{0,{-3.7252903e-09f,-0.0835864216f,-0.0834256597f}},{0,{-3.7252903e-09f,-0.304166168f,-0.0834256597f}},{0,{-3.7252903e-09f,0.230572611f,0.00766288489f}},{0,{-3.7252903e-09f,0.230572611f,0.00766288489f}},{0,{-3.7252903e-09f,-0.304166168f,-0.0834256597f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f},0.012f,0.012f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.46f,false
 };
 const model &asset_crowbar() noexcept {return value;}

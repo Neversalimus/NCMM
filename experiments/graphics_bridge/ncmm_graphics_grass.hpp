@@ -33,8 +33,10 @@ struct xy {float x,y;};
 inline xy turn(xy p,unsigned n){switch(n&3u){case 1:return {-p.y,p.x};case 2:return {-p.x,-p.y};case 3:return {p.y,-p.x};default:return p;}}
 inline float edge_scale(unsigned mask,float x,float y){
     float distance=1;
-    if(mask&1)distance=std::min(distance,1-x);if(mask&2)distance=std::min(distance,1-y);
-    if(mask&4)distance=std::min(distance,x);if(mask&8)distance=std::min(distance,y);
+    if(mask&1)distance=std::min(distance,1-x);
+    if(mask&2)distance=std::min(distance,1-y);
+    if(mask&4)distance=std::min(distance,x);
+    if(mask&8)distance=std::min(distance,y);
     const float t=std::clamp(distance/.28f,0.f,1.f);return .06f+.94f*t*t*(3-2*t);
 }
 inline float height(const char *id){

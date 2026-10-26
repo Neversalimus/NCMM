@@ -225,3 +225,16 @@ ordinary frame-time acceptance.
 Local numerical/rendering tests are development evidence. Native selection,
 screenshots, both engine pins, final performance and long GPU-debug qualification
 remain separate required checks; this change does not declare them passed.
+
+The 0.13.1 grip correction uses a complete palm frame, a measured closed-grab
+centre and per-contact handle radii. A wrist-driven arm chain retains source
+lengths, limits wrist deviation, and keeps the shoulder outside the camera.
+Source grab samples adapt finger closure; unarmed finger bases and all three
+trigger phalanges have explicit pose bounds. `tools/calibrate_grips.py --check`
+requires the six rigged trigger contacts on their actual source surfaces.
+Declared radial sections adapt the two oversized static tool shafts offline;
+their originals remain unchanged. Uniform XYZ body scaling is shared with the
+muzzle origin. Optic risers use one immutable GPU mesh with pose-only warm reuse.
+`first_person_grip_alignment` independently audits all renderer grip paths,
+including fallback items and unarmed clips. The counts, limits and Native
+validation boundary are recorded in `reports/world-visuals-20261026.md`.

@@ -127,6 +127,12 @@ int main(){try{
         gpu::packet accessory;require(cache.build(scene,0,0,provider,accessory,stats,host,action,&appearance,nullptr,640,480,NCMM_GPU_FORCE),"attached item packet");
         require(prepared->selected.body&&prepared->selected.attachment_count==1&&!stats.viewmodel_errors,"accessory contact and original PSX rig remain compatible");
         const auto &packet=accessory.finish(nullptr);require(!ncmm_gpu::validate(packet),"accessory material/palette packet satisfies the same ABI");
+        if(source.kind==held::family::optic){
+            for(uint32_t i=0;i<packet.mesh_count;++i)meshes.insert(packet.meshes[i].key);
+            for(uint32_t i=0;i<packet.texture_count;++i)textures.insert(packet.textures[i].key);
+            gpu::packet warm;require(cache.build(scene,0,0,provider,warm,stats,host,action,&appearance,nullptr,640,480,NCMM_GPU_FORCE),"warm optic mount packet");
+            const auto &resident=warm.finish(&api);require(!resident.mesh_count&&!resident.texture_count,"physical optic riser uploads no warm static or dynamic triangles");
+        }
     }
     rifle.mod_count=1;
     for(size_t i=0;i<std::size(ids);++i)for(float phase:{-1.f,.12f,.5f,.9f})for(float equip:{0.f,1.f}){

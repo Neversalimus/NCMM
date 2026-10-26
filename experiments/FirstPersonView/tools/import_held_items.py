@@ -240,6 +240,31 @@ def prepare(inputs, profile):
     require(isinstance(mating, list) and len(mating) == 4 and finite(mating) and
             abs(sum(v*v for v in mating)-1) < 1e-5, 'Invalid rigid mating rotation')
     path = profile['source']; data = read_glb(inputs, path) if path.endswith('.glb') else read_obj(inputs, path)
+    radii = profile.get('grip_radii', [.016, .016])
+    require(isinstance(radii, list) and len(radii) == 2 and finite(radii) and
+            all(.004 <= r <= .047 for r in radii), 'Invalid physical grip radii')
+    sections = profile.get('handle_sections', [])
+    if sections:
+        # These toy-proportioned static OBJ handles would become 10-12 cm
+        # thick when the complete tool is scaled to Native's real length.
+        # Bake the declared smooth radial correction offline. Keep originals,
+        # topology, UVs, author materials and the full-sized tool head.
+        require(path.endswith('.obj') and len(data['nodes']) == 1 and profile['length_axis'] == 1,
+                'Handle correction requires an unrigged upright OBJ')
+        require(isinstance(sections, list) and 2 <= len(sections) <= 16 and
+                all(isinstance(row, list) and len(row) == 3 and finite(row) and
+                    .1 <= row[1] <= 1 and .1 <= row[2] <= 1 for row in sections) and
+                all(a[0] < b[0] for a, b in zip(sections, sections[1:])), 'Invalid handle sections')
+        def fit(p, n):
+            a = b = sections[0] if p[1] < sections[0][0] else sections[-1]
+            for lo, hi in zip(sections, sections[1:]):
+                if lo[0] <= p[1] <= hi[0]:a, b = lo, hi;break
+            t = (p[1]-a[0])/(b[0]-a[0]) if a is not b else 0
+            sx, sz = a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t
+            dx, dz = ((b[1]-a[1])/(b[0]-a[0]), (b[2]-a[2])/(b[0]-a[0])) if a is not b else (0, 0)
+            normal = unit((n[0]/sx, n[1]-dx*p[0]*n[0]/sx-dz*p[2]*n[2]/sz, n[2]/sz))
+            return (p[0]*sx, p[1], p[2]*sz), normal
+        data['vertices'] = [(*fit(p, n), uv, palette, material) for p, n, uv, palette, material in data['vertices']]
     vs, ids, nodes = data['vertices'], data['indices'], data['nodes']
     require(0 < len(vs) <= 16384 and 0 < len(ids) <= 98304 and len(data['palettes']) <= 1024, 'Mesh exceeds shared bounded rig contract')
     require(all(finite((*v[0], *v[1], *v[2])) and all(abs(uv) <= 1000000 for uv in v[2]) for v in vs), 'Invalid position, normal or UV')
@@ -268,10 +293,15 @@ def prepare(inputs, profile):
     contacts = {}
     for name in ['primary', 'secondary', 'trigger', 'muzzle', 'sight', 'pivot']:
         spec = profile['contacts'].get(name, profile['contacts']['primary'])
-        if isinstance(spec, list): node = default_node; local = transform(inverse(globals_[node]), spec)
+        if isinstance(spec, list):
+            require(len(spec) == 3 and finite(spec), 'Invalid contact point: '+name)
+            node = default_node; local = transform(inverse(globals_[node]), spec)
         else:
+            require(isinstance(spec, dict) and isinstance(spec.get('node'), str), 'Invalid contact node: '+name)
             require(spec['node'] in names, 'Missing contact node: '+spec['node']); node = names[spec['node']]
-            local = transform(inverse(globals_[node]), spec['world']) if 'world' in spec else tuple(spec.get('point', [0, 0, 0]))
+            point = spec.get('world', spec.get('point', [0, 0, 0]))
+            require(isinstance(point, list) and len(point) == 3 and finite(point), 'Invalid contact point: '+name)
+            local = transform(inverse(globals_[node]), point) if 'world' in spec else tuple(point)
         contacts[name] = (node, local)
     primary_node, primary_point = contacts['primary']; primary = transform(root, transform(globals_[primary_node], primary_point))
     root = list(root); root[12:15] = [-v for v in primary]; root = tuple(root)
@@ -339,6 +369,7 @@ def emit_model(data, identity):
     contacts = ['{'+str(data['contacts'][n][0])+','+aggregate(data['contacts'][n][1])+'}' for n in ['primary', 'secondary', 'trigger', 'muzzle', 'sight', 'pivot']]
     for name in ['primary_axis', 'secondary_axis']:
         contacts.append(aggregate(unit(transform(data['root_matrix'], p.get(name, [0, 1, 0]), True))))
+    if 'grip_radii' in p:contacts.extend(number(v) for v in p['grip_radii'])
     out.extend(['static const model value={',f'1,{json.dumps(symbol)},{identity}ull,family::{p["family"]},',
         '{vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},',
         'vertex_material,triangle_part,materials,std::size(materials),{'+','.join(contacts)+'},',

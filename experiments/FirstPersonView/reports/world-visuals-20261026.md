@@ -76,12 +76,58 @@ fixtures, actual GPU flash/smoke composition, world anchoring, emission gating,
 all 43 source bounds, deterministic conversion and hostile input rejection.
 Additional checks enforce hidden/open-floor isolation, rotated grass-edge parity,
 shared furniture meshes, distance LOD invalidation and zero warm static uploads.
-Local results: **47/47 explicitly inventoried autonomous CTest cases, 178 Python
+Local results: **48/48 explicitly inventoried autonomous CTest cases, 182 Python
 tests and 22 atomic bridge tests pass**. The GPU visual gate includes 21 fallback
 ADS frames, 12 authored ADS frames, 32 object views and two actual SDL/GPU muzzle
 composites. No Native game process was launched locally.
 Native CPU/GPU input/action and game gallery checks run remotely for both pins;
 they must be bound to the resulting commit and installer bytes before delivery.
+
+## Grip audit added after the visual reports
+
+The previous one-axis constraint left palm roll undefined. Its fixed elbow
+pole produced reversed support wrists, and its two-link trigger solver forced
+the final phalanx to world-forward. Matching an anchor alone did not detect
+these errors. The new solver uses the knuckle row and palm direction, the
+measured centre of the closed source grab, and the actual handle radius. Arms
+follow the wrist while preserving both source bone lengths and hiding the
+shoulder below the transformed camera edge. Longitudinal handles also choose
+an incoming forearm direction from below. Unarmed finger bases are bounded.
+
+All six independently weighted authored triggers are calibrated to their real
+triangle surfaces by `tools/calibrate_grips.py`. The three-phalanx index solve
+preserves bone lengths and limits curl and extension. The unrigged revolver
+retains its declared mechanical contact. Thicker handles select a more open
+original grab pose from an immutable bounded cache. Original skin weights,
+textures and animation resources remain intact.
+
+Primary grips sit below the trigger finger; support contacts are on the actual
+fore-end, with longer rifles/shotguns supported nearer its rear. The gas can
+contact moves from its handle opening into the solid upper bar. Shovel and
+pickaxe handles were toy-proportioned at Native's real length: declared offline
+radial sections thin their shafts, preserve the head, topology, UVs and materials,
+and transform normals with the deformation. Original source OBJ files remain
+byte-identical. The shovel's primary contact is its crossbar. Body-size scaling
+is uniform in XYZ, including the muzzle effect origin, so a small character no
+longer squashes the gun or pushes the forward hand out of reach. Bow support/draw
+handedness and all procedural handle axes are corrected.
+
+The independent grip test examines **5,760 renderer frames / 11,496 submitted
+hands** across all 26 body models, all supported authored accessories, seven
+procedural firearm/bow families, poles, generic/missing sprites and unarmed
+poses. It includes idle, equip, confirmed-attack animation, ADS, portrait/4:3/wide
+viewports and body scales 0.7/1/1.25. It checks submitted joints and palettes,
+bone lengths, finger-base angles, hinge direction and silent fallback. Maximum
+wrist deviation is **29.651 degrees** inside the 35-degree pose envelope;
+maximum finger-joint flexion is **112.287 degrees** inside the configured
+middle/distal limits. These are practical rendering constraints, not anatomical
+measurements or a manual playthrough. All 26 independent CPU previews were
+visually inspected; the exact Native CPU/GPU gallery is a separate remote gate.
+
+The first remote Native gallery exposed streamed optic-riser triangles on a
+warm frame. The riser now uses one retained immutable unit mesh and ordinary
+draw transforms; the regression test requires zero warm mesh/texture uploads.
+The Native gate is retained, rather than allowing extra dynamic geometry.
 
 The protected GPU backend, resource lifetime policy, geometry ABI and shipping
 shaders are unchanged. Strict readback comparisons and sanitizer gates remain

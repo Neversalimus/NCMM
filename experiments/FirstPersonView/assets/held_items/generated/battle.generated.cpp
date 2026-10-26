@@ -6578,7 +6578,7 @@ static const viewmodel::node nodes[]={
 {"Body",18,{{-8.53057138e-17f,0.0120534822f,-0.0864920393f},{-0.707106829f,9.45353951e-17f,9.45353951e-17f,0.707106829f},{1.0f,1.0f,1.0f}}},
 {"Rifle_Battle_West",18,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
 {"Rifle_Battle_West.Rig",19,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
-{"NCMM_units_axes_grip",-1,{{-1.65006384e-16f,0.068283589f,0.143024569f},{0.0f,1.0f,0.0f,0.0f},{1.29149312f,1.29149312f,1.29149312f}}},
+{"NCMM_units_axes_grip",-1,{{-1.65006384e-16f,0.091567009f,0.148845424f},{0.0f,1.0f,0.0f,0.0f},{1.29149312f,1.29149312f,1.29149312f}}},
 };
 static const uint16_t order[]={
 19,18,16,0,2,1,3,4,5,6,7,8,9,10,11,12,13,14,15,17,
@@ -6628,9 +6628,9 @@ static const material materials[]={
 {{0.839215749f,0.670588235f,0.172549039f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"battle",15945298503245087967ull,family::battle,
+1,"battle",6116291186110758297ull,family::battle,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{16,{-9.51964607e-17f,-0.197235582f,-0.0649253178f}},{16,{1.26741241e-16f,0.154964921f,-0.026332329f}},{4,{2.46448934e-18f,0.0089999991f,-9.71982923e-09f}},{12,{0.0f,0.0f,0.0f}},{16,{-5.81214768e-17f,-0.0978738726f,0.0847999168f}},{16,{-9.51964607e-17f,-0.197235582f,-0.0649253178f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{16,{-9.64015905e-17f,-0.201742652f,-0.0829536118f}},{16,{9.9684558e-17f,0.0537755068f,-0.0216865578f}},{4,{-0.00217806734f,0.00615617853f,0.00620971129f}},{12,{0.0f,0.0f,0.0f}},{16,{-5.81214768e-17f,-0.0978738726f,0.0847999168f}},{16,{-9.64015905e-17f,-0.201742652f,-0.0829536118f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f},0.015f,0.021f},
 10,12,11,15,4,1,{-0.0170345422f,2.28874708e-09f,-1.11273589e-08f},1.09f,true
 };
 const model &asset_battle() noexcept {return value;}

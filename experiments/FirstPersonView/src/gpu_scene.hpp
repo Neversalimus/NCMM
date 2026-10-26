@@ -107,6 +107,7 @@ class scene_cache {
     struct item_chunk {std::shared_ptr<const owned_mesh> mesh;std::vector<uint16_t> palettes;held::part part=held::part::body;};
     struct item_entry {std::vector<item_chunk> chunks;};
     std::unordered_map<uint64_t,item_entry> item_meshes;
+    std::shared_ptr<const owned_mesh> sight_mount;
     uint64_t horizon_signature=0;std::shared_ptr<const owned_mesh> horizon_mesh;
     uint64_t world_epoch=0,tileset_epoch=0,frame_serial=0;
     static uint64_t model_key(const creature::model &model){uint64_t h=hash_bytes(1469598103934665603ull,&model.colors.fingerprint,sizeof(model.colors.fingerprint));
@@ -250,6 +251,29 @@ class scene_cache {
                 for(size_t i=0;i<chunk.palettes.size();++i)matrices[i]=observed.bones.palette[chunk.palettes[i]];
                 frame.draw_skinned(chunk.mesh,value.world,UINT32_MAX,NCMM_GPU_HELD,matrices.data(),chunk.palettes.size());
                 ++observed.draws;observed.palette_matrices+=uint32_t(chunk.palettes.size());}
+            if(observed.riser>.001f){
+                // One immutable unit mount serves every authored optic. Only
+                // its ordinary draw transform changes; no streamed triangles
+                // or repeated mesh uploads on a warm Native gallery frame.
+                if(!cache.sight_mount){owned_mesh mesh;ncmm_gpu_material_v1 material{};
+                    material.color[0]=.08f;material.color[1]=material.color[2]=.09f;material.color[3]=1;
+                    material.flags=NCMM_GPU_HELD_MATERIAL;material.finish=uint32_t(hybrid::surface::metal);mesh.materials.push_back(material);
+                    const std::array<std::array<vec,4>,5> faces={{{{{-.5f,-.5f,-.5f},{.5f,-.5f,-.5f},{.5f,.5f,-.5f},{-.5f,.5f,-.5f}}},
+                        {{{.5f,-.5f,.5f},{-.5f,-.5f,.5f},{-.5f,.5f,.5f},{.5f,.5f,.5f}}},
+                        {{{-.5f,-.5f,.5f},{-.5f,-.5f,-.5f},{-.5f,.5f,-.5f},{-.5f,.5f,.5f}}},
+                        {{{.5f,-.5f,-.5f},{.5f,-.5f,.5f},{.5f,.5f,.5f},{.5f,.5f,-.5f}}},
+                        {{{-.5f,.5f,-.5f},{.5f,.5f,-.5f},{.5f,.5f,.5f},{-.5f,.5f,.5f}}}}};
+                    for(const auto &face:faces){const auto normal=hybrid::normalize(hybrid::cross(face[1]-face[0],face[3]-face[0]));const auto base=uint32_t(mesh.vertices.size());
+                        for(auto p:face){ncmm_gpu_vertex_v1 v{};v.position[0]=p.x;v.position[1]=p.y;v.position[2]=p.z;
+                            for(auto dst:{v.normal,v.face_normal}){dst[0]=normal.x;dst[1]=normal.y;dst[2]=normal.z;}mesh.vertices.push_back(v);}
+                        for(uint32_t index:{0u,1u,2u,2u,3u,0u})mesh.indices.push_back(base+index);}
+                    cache.sight_mount=cache.assets.mesh(std::move(mesh));if(!cache.sight_mount){fail("GPU sight mount cache budget exceeded");return true;}
+                }
+                viewmodel::matrix undo{};if(!viewmodel::inverse(observed.local,undo)){fail("GPU invalid sight mount transform");return true;}
+                const auto base=viewmodel::multiply(value.world,undo);const auto p=observed.mount;
+                const auto local=viewmodel::transform({{p.x,p.y+observed.riser*.5f,p.z},{},{.028f,observed.riser,.026f}});
+                frame.draw(cache.sight_mount,viewmodel::multiply(base,local),UINT32_MAX,NCMM_GPU_HELD);++observed.draws;
+            }
             return true;
         }
         bool arms(const viewmodel::submission &value)override{
@@ -506,7 +530,7 @@ public:
     uint64_t signature_neighbor_queries=0,signature_reused_cells=0,signature_neighborhood_marks=0;
     uint64_t signature_content_reuses=0,signature_content_hashes=0,signature_content_updates=0,signature_content_allocation_bytes=0;
     std::string last_reason;
-    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};item_meshes.clear();lawns={};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
+    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};item_meshes.clear();sight_mount.reset();lawns={};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
         signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_positions=std::vector<signature_position>{};signature_dirty_slots=std::vector<uint8_t>{};signature_reuses=0;
         clear_normalized();
         signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;}

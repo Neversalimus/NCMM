@@ -1128,14 +1128,18 @@ class renderer {
         // viewports. With a fixed horizontal FOV, a distant pole grip otherwise
         // becomes physically unreachable from a shoulder below the lower edge.
         // Wide and 4:3 viewports retain their exact former scale.
+        const float body_scale=metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f;
         const float hud_scale=std::max(1.0f,aspect/.75f)*std::min(1.0f,aspect*1.6f)*
-            (metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f);
+            body_scale;
         const auto gun_profile=weapon::fallback(metadata?metadata->view.gun_kind:uint32_t(NCMM_GUN_RIFLE),
             metadata?metadata->view.gunmods:0,metadata?metadata->view.held_length:pose.length,s.environment.held_item);
         const auto aligned=weapon::aim_offset(pose,gun_profile);
         auto animate=[&](vec p){
             const auto value=weapon::animate({p.x,p.y,p.z},pose,aligned,empty);return vec{value.x,value.y,value.z};};
-        auto held_view=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return p;};
+        // Body size is uniform in all three axes. Scaling only XY crushed
+        // the authored handles and made small-character support grips farther
+        // away than their arms could reach in portrait viewports.
+        auto held_view=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;p.z*=body_scale;return p;};
         auto hud=[&](vec p){return local(held_view(p));};
         auto face=[&](vec a,vec b,vec c,vec d,material m){a=hud(a);b=hud(b);c=hud(c);d=hud(d);quad(a,b,c,d,m,normalize(cross(b-a,d-a)));};
         auto tube=[&](vec a,vec b,float ra,float rb,material m){
@@ -1154,7 +1158,7 @@ class renderer {
         viewmodel::matrix model_to_world{};
         const auto zero=hud({0,0,0});const vec columns[]={hud({1,0,0})-zero,hud({0,1,0})-zero,hud({0,0,1})-zero,zero};
         for(int column=0;column<4;++column){model_to_world.columns[column*4]=columns[column].x;model_to_world.columns[column*4+1]=columns[column].y;model_to_world.columns[column*4+2]=columns[column].z;}model_to_world.columns[15]=1;
-        const float lower_view_slope=float(f.height)/f.width*std::tan(70*pi/360)/std::max(.1f,hud_scale);
+        const float lower_view_slope=float(f.height)/f.width*std::tan(70*pi/360)/std::max(.1f,hud_scale/body_scale);
         // Transform the actual lower camera plane back into attachment space,
         // including item swing, equip motion, sway and body scaling.
         const auto view_zero=held_view({0,0,0});const vec view_columns[]={held_view({1,0,0})-view_zero,held_view({0,1,0})-view_zero,held_view({0,0,1})-view_zero};
@@ -1162,8 +1166,8 @@ class renderer {
         const std::array<float,4> lower_plane={(view_columns[0].y+screen_slope*view_columns[0].z)/hud_scale,
             (view_columns[1].y+screen_slope*view_columns[1].z)/hud_scale,(view_columns[2].y+screen_slope*view_columns[2].z)/hud_scale,
             (view_zero.y+screen_slope*view_zero.z)/hud_scale};
-        auto hand=[&](vec grip,bool left,const viewmodel::point *trigger=nullptr,const viewmodel::hand_pose *prepared=nullptr){
-            if(!prepared&&!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,fallback_arm_pose,trigger,&lower_plane)){++f.viewmodel_errors;return;}
+        auto hand=[&](vec grip,bool left,const viewmodel::point *trigger=nullptr,const viewmodel::hand_pose *prepared=nullptr,const viewmodel::point *axis=nullptr){
+            if(!prepared&&!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,fallback_arm_pose,trigger,&lower_plane,axis)){++f.viewmodel_errors;return;}
             const auto &arm_pose=prepared?*prepared:fallback_arm_pose;
             const int side=left?0:1;
             viewmodel::appearance appearance;
@@ -1218,19 +1222,23 @@ class renderer {
             auto contact=[&](const held::posed &entry,const held::contact &point){return viewmodel::position(entry.local,viewmodel::position(entry.bones.global[point.node],point.point));};
             const auto primary=contact(body,model.grips.primary),trigger=contact(body,model.grips.trigger);
             auto secondary=contact(body,model.grips.secondary);
+            float secondary_radius=model.grips.secondary_radius*prepared.selected.scale;
             auto primary_axis=viewmodel::unit(viewmodel::direction(body.local,model.grips.primary_axis));
             auto secondary_axis=viewmodel::unit(viewmodel::direction(body.local,model.grips.secondary_axis));
             bool both=model.two_handed||model.kind==held::family::pistol;
             for(size_t i=1;i<prepared.count;++i)if(prepared.entries[i].geometry->kind==held::family::foregrip){const auto &entry=prepared.entries[i];
-                secondary=contact(entry,entry.geometry->grips.primary);secondary_axis=viewmodel::unit(viewmodel::direction(entry.local,entry.geometry->grips.primary_axis));both=true;}
+                secondary=contact(entry,entry.geometry->grips.primary);secondary_axis=viewmodel::unit(viewmodel::direction(entry.local,entry.geometry->grips.primary_axis));
+                secondary_radius=entry.geometry->grips.primary_radius*prepared.selected.attachments[i-1].scale;both=true;}
             const auto *trigger_contact=pose.grip==NCMM_GRIP_GUN?&trigger:nullptr;
-            bool attached=arms.attach(primary,false,lower_view_slope,prepared.hands[0],trigger_contact,&lower_plane,&primary_axis);
-            if(both)attached=attached&&arms.attach(secondary,true,lower_view_slope,prepared.hands[1],nullptr,&lower_plane,&secondary_axis);
+            bool attached=arms.attach(primary,false,lower_view_slope,prepared.hands[0],trigger_contact,&lower_plane,&primary_axis,model.grips.primary_radius*prepared.selected.scale);
+            if(both)attached=attached&&arms.attach(secondary,true,lower_view_slope,prepared.hands[1],nullptr,&lower_plane,&secondary_axis,secondary_radius);
             if(attached){
                 hand({primary.x,primary.y,primary.z},false,trigger_contact,&prepared.hands[0]);
                 if(both)hand({secondary.x,secondary.y,secondary.z},true,nullptr,&prepared.hands[1]);
                 else hand({-.23f,-.76f*lower_view_slope*.74f,.74f},true);
                 for(size_t entry_index=0;entry_index<prepared.count;++entry_index){auto &entry=prepared.entries[entry_index];const auto &source=entry.geometry->geometry;
+                    const auto world=viewmodel::multiply(model_to_world,entry.local);
+                    if(gpu_sink&&gpu_sink->item({entry,world}))continue;
                     if(entry.riser>.001f){const auto p=entry.mount;const vec lo{p.x-.014f,p.y,p.z-.013f},hi{p.x+.014f,p.y+entry.riser,p.z+.013f};
                         material rail{nullptr,{.08f,.09f,.09f},1,false,false,true,-1,surface::metal};
                         face({lo.x,lo.y,lo.z},{hi.x,lo.y,lo.z},{hi.x,hi.y,lo.z},{lo.x,hi.y,lo.z},rail);
@@ -1238,8 +1246,6 @@ class renderer {
                         face({lo.x,lo.y,hi.z},{lo.x,lo.y,lo.z},{lo.x,hi.y,lo.z},{lo.x,hi.y,hi.z},rail);
                         face({hi.x,lo.y,lo.z},{hi.x,lo.y,hi.z},{hi.x,hi.y,hi.z},{hi.x,hi.y,lo.z},rail);
                         face({lo.x,hi.y,lo.z},{hi.x,hi.y,lo.z},{hi.x,hi.y,hi.z},{lo.x,hi.y,hi.z},rail);}
-                    const auto world=viewmodel::multiply(model_to_world,entry.local);
-                    if(gpu_sink&&gpu_sink->item({entry,world}))continue;
                     ++entry.draws;entry.palette_matrices+=uint32_t(source.palette_count);
                     for(size_t material_index=0;material_index<entry.geometry->material_count;++material_index){const auto &material=entry.geometry->materials[material_index];
                         auto &image=item_images[entry_index*16+material_index];if(material.pixels){image.data={sizeof(image.data),material.width,material.height,material.width,material.pixels};image.prepared=image.data.rgba;image.right=int(material.width);image.bottom=int(material.height);}}
@@ -1284,11 +1290,13 @@ class renderer {
             for(int n=0;n<5;++n){const int j=(n+1)%5;face(outline[n],outline[j],base,base,steel);
                 face(outline[j]+vec{0,0,.012f},outline[n]+vec{0,0,.012f},base+vec{0,0,.012f},base+vec{0,0,.012f},steel);
                 face(outline[n],outline[n]+vec{0,0,.012f},outline[j]+vec{0,0,.012f},outline[j],steel);}
-            hand(butt+axis*.31f,false);hand(butt+axis*std::min(.50f,pose.length*.45f),true);
+            const viewmodel::point haft{axis.x,axis.y,axis.z};
+            hand(butt+axis*.31f,false,nullptr,nullptr,&haft);hand(butt+axis*std::min(.50f,pose.length*.45f),true,nullptr,nullptr,&haft);
             f.held_pixels=valid?uint32_t((img->right-img->left)*(img->bottom-img->top)):1u;
             return;
         }
-        if(!valid){hand({.27f,-.28f,.83f},false);material fallback{nullptr,{.50f,.52f,.52f},1,false,false,true,-1,surface::metal};
+        const viewmodel::point upright{0,1,0};
+        if(!valid){hand({.27f,-.28f,.83f},false,nullptr,nullptr,&upright);material fallback{nullptr,{.50f,.52f,.52f},1,false,false,true,-1,surface::metal};
             face({.24f,-.30f,.84f},{.29f,-.30f,.84f},{.15f,.08f,.94f},{.10f,.08f,.94f},fallback);return;}
         const float w=float(img->right-img->left),h=float(img->bottom-img->top);float angle=-.15f;
         if(s.environment.held_kind==2&&img->elongation>1.5f){float axis=img->axis_angle;if(std::sin(axis)<0)axis+=pi;angle=pi*.58f-axis;}
@@ -1305,7 +1313,8 @@ class renderer {
                 const vec p=point(x+.5f,y+.5f);const float score=std::abs(p.y-target)*3+std::abs(p.x-.29f);
                 if(score<best){best=score;chosen=p;}}
             return chosen;};
-        hand(grip(.13f),false);if(pose.grip==NCMM_GRIP_GUN)hand(grip(.43f),true);
+        const viewmodel::point item_axis=viewmodel::unit({-sa,ca,.12f*ca});
+        hand(grip(.13f),false,nullptr,nullptr,&item_axis);if(pose.grip==NCMM_GRIP_GUN)hand(grip(.43f),true,nullptr,nullptr,&item_axis);
         material item{img,{.4f,.4f,.4f},1,true,false,true,-1};
         const int step=std::max(1,(std::max(int(img->data.width),int(img->data.height))+63)/64);
         auto opaque=[&](int x,int y){return x>=0&&y>=0&&x<int(img->data.width)&&y<int(img->data.height)&&(img->data.rgba[size_t(y)*img->data.pitch_pixels+x]&255)>=150;};

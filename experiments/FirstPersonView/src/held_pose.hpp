@@ -32,6 +32,9 @@ struct prepared {
             if(!viewmodel::evaluate(model.geometry,body.bones)){selected.body=nullptr;selected.reason=failure::invalid_metadata;return false;}
         }
         viewmodel::point grip=uint32_t(model.kind)<=uint32_t(family::auto_shotgun)?viewmodel::point{.185f,-.267f,.67f}:viewmodel::point{.27f,-.28f,.84f};
+        // A long tool's second handle must remain inside the same arm reach,
+        // rather than pushing its support wrist beyond the shoulder span.
+        if(model.two_handed&&uint32_t(model.kind)>uint32_t(family::auto_shotgun))grip={.25f,-.30f,.65f};
         // These real handles sit above their body. A generic low tool grip
         // placed almost the entire container outside the frame. Reposition the
         // intact model and solve the same bounded PSX arm rig; never stretch it.

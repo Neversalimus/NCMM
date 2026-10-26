@@ -123,9 +123,9 @@ static const material materials[]={
 {{1.0f,1.0f,1.0f,1.0f},0,texture_e104f3becaaf8de045461428,512,512,16214352559210466784ull},
 };
 static const model value={
-1,"hammer",2603846430190304322ull,family::hammer,
+1,"hammer",832741441155019000ull,family::hammer,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0016f,0.030696f,0.0016f}},{0,{0.0016f,0.0813444f,0.0016f}},{0,{0.0016f,0.030696f,0.0016f}},{0,{0.0f,0.15348f,0.0f}},{0,{0.0f,0.15348f,0.0f}},{0,{0.0016f,0.030696f,0.0016f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0016f,0.030696f,0.0016f}},{0,{0.0016f,0.0813444f,0.0016f}},{0,{0.0016f,0.030696f,0.0016f}},{0,{0.0f,0.15348f,0.0f}},{0,{0.0f,0.15348f,0.0f}},{0,{0.0016f,0.030696f,0.0016f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f},0.015f,0.015f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.25f,false
 };
 const model &asset_hammer() noexcept {return value;}

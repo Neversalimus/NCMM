@@ -17,8 +17,8 @@ inline profile fallback(uint32_t kind,uint32_t mods,float length,const char *id)
     const bool pistol=p.kind==NCMM_GUN_PISTOL||p.kind==NCMM_GUN_REVOLVER;
     p.length=std::clamp(length,pistol?.16f:.42f,pistol?.48f:1.8f);p.muzzle=pistol?p.length:p.length-.16f;
     p.support=std::clamp(p.muzzle*.55f,.18f,.38f);
-    p.primary=p.pivot+point{0,-.052f,pistol?.020f:-.012f};
-    p.secondary=p.pivot+(pistol?point{-.035f,-.065f,.030f}:point{0,mods&NCMM_MOD_FOREGRIP?-.09f:-.037f,p.support});
+    p.primary=p.pivot+point{0,-.079f,pistol?.020f:-.012f};
+    p.secondary=p.pivot+(pistol?point{-.035f,-.087f,.030f}:point{0,mods&NCMM_MOD_FOREGRIP?-.09f:-.037f,p.support});
     p.trigger=p.pivot+point{.007f,-.046f,pistol?.075f:.045f};
     p.sight=p.pivot+point{0,mods&NCMM_MOD_OPTIC?.094f:.061f,mods&NCMM_MOD_OPTIC?.044f:p.muzzle-.022f};
     p.tip=p.pivot+point{0,.016f,p.muzzle+(mods&NCMM_MOD_SUPPRESSOR?.18f:.026f)};

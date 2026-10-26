@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "converter": "import_held_items.py/v1",
-  "selection_sha256": "c195bb41bdab46696e4e98e71b47815c573f271b502346d3ebfe747728863334",
+  "selection_sha256": "ae1cd3fe2ece7ebd021e4e28a915380021469ea594ace90daa26121a88ca4403",
   "models": [
     {
       "id": "pistol",
-      "identity": 8830632005503086466,
+      "identity": 3231519454163068963,
       "vertices": 2688,
       "triangles": 1434,
       "source_nodes": 12,
@@ -29,17 +29,17 @@
         0.0,
         -1.0678518087108737,
         0,
-        -1.7271151921541987e-16,
-        0.018052148187900165,
-        0.028937563298778973,
+        -1.7271151826347568e-16,
+        0.04133556819138813,
+        0.03475841829965096,
         1
       ],
       "generated": "pistol.generated.cpp",
-      "sha256": "0b34ca314501a5f3e1e90c6ec208acb2a3e45c8286f96f9f686459b1bfa12544"
+      "sha256": "453ddff3e381ad12e179f9a065ad9571beeeb7cd9cf8a806adf87a9af0ff338a"
     },
     {
       "id": "revolver",
-      "identity": 4750408720560073041,
+      "identity": 1943351021540259914,
       "vertices": 1594,
       "triangles": 1046,
       "source_nodes": 0,
@@ -64,16 +64,16 @@
         -3.361097085793155e-17,
         0,
         -0.0,
-        0.015137035583134112,
+        0.039137035583134104,
         -0.0,
         1
       ],
       "generated": "revolver.generated.cpp",
-      "sha256": "5f4210f136bd553fd5779a4deed4626c1116785952141d110a844da11fc5d6ad"
+      "sha256": "c1dbc7878980712afafc091f663b7e099919019fd7a9c7cb1ddf7dfbda970503"
     },
     {
       "id": "smg",
-      "identity": 8183360400193038715,
+      "identity": 12908085974507739031,
       "vertices": 3714,
       "triangles": 2030,
       "source_nodes": 18,
@@ -98,16 +98,16 @@
         -1.2161955301906573,
         0,
         -5.577100935423177e-17,
-        0.0392705180529229,
-        0.09682360650451195,
+        0.06255393805641085,
+        0.10264446150538398,
         1
       ],
       "generated": "smg.generated.cpp",
-      "sha256": "961d8aaad82268577567c2f6e6a2100b3a32b64db176c4fe9908a1dfa0353195"
+      "sha256": "83ab4743dcb5691ae94090298d73c77ab4fa4f198a4568df31c677acda5a25c2"
     },
     {
       "id": "assault",
-      "identity": 4035468035065303597,
+      "identity": 2519410326844886461,
       "vertices": 8045,
       "triangles": 4353,
       "source_nodes": 21,
@@ -132,16 +132,16 @@
         -1.14430650238667,
         0,
         -1.5855711010218752e-16,
-        0.045940880540861706,
-        0.11340025978478824,
+        0.06922430054434967,
+        0.11922111478566023,
         1
       ],
       "generated": "assault.generated.cpp",
-      "sha256": "effefd7bd3ff1c89053ae580a5e9aee70cfc9d71faf6079d9e8b97b1a6785231"
+      "sha256": "6028dd096ee05a0418cd247765bf5a2b6d706b6d10d2b1f7d9bc047d6e18a805"
     },
     {
       "id": "battle",
-      "identity": 15945298503245087967,
+      "identity": 6116291186110758297,
       "vertices": 5836,
       "triangles": 3173,
       "source_nodes": 19,
@@ -166,16 +166,16 @@
         -1.291493121210175,
         0,
         -1.6500638383447384e-16,
-        0.06828358903715354,
-        0.14302456853470608,
+        0.09156700904064152,
+        0.14884542353557817,
         1
       ],
       "generated": "battle.generated.cpp",
-      "sha256": "3f826d35ebc46d7bd7b5cdd87c9cf2406d109c27054a9ba199e97c92c7cba7ae"
+      "sha256": "c5957f153a1d8b380286e44937bc122d79d1e346bbfae39547eca1d24a1c3bb3"
     },
     {
       "id": "pump",
-      "identity": 9149065801229156753,
+      "identity": 5206371155896709347,
       "vertices": 2009,
       "triangles": 1071,
       "source_nodes": 8,
@@ -200,16 +200,16 @@
         -2.0112753446383844,
         0,
         -0.006033826033915142,
-        0.05440897295025216,
-        0.3843078549557789,
+        0.03440897295025216,
+        0.409308007489634,
         1
       ],
       "generated": "pump.generated.cpp",
-      "sha256": "7b103c9ffac6772c710d764d53de975bc756613cd9d8fae4f220f37021084bdf"
+      "sha256": "00b91633ca9ce20b1c428fc192c077fe7b20420005b856bf9da930566fb06c92"
     },
     {
       "id": "auto_shotgun",
-      "identity": 13207503474332792062,
+      "identity": 4110842519919895988,
       "vertices": 2881,
       "triangles": 1540,
       "source_nodes": 15,
@@ -233,17 +233,17 @@
         0.0,
         -1.3678578669566603,
         0,
-        -2.3947243249020727e-17,
-        0.06126482589183655,
-        0.21129269014008933,
+        -2.3947243249020742e-17,
+        0.0845482458953245,
+        0.21711354514096132,
         1
       ],
       "generated": "auto_shotgun.generated.cpp",
-      "sha256": "19be3e2c31714ff3bdc23d68118b72e1edde5ef4dcf3cc91ea74dc276a1d2242"
+      "sha256": "59bd8e9e13061cbd05ca7d5c626095cef3f4196ec2005b23c8ac911eb4be7e80"
     },
     {
       "id": "knife",
-      "identity": 18071480864885201267,
+      "identity": 13132142768703645487,
       "vertices": 1072,
       "triangles": 536,
       "source_nodes": 1,
@@ -273,11 +273,11 @@
         1
       ],
       "generated": "knife.generated.cpp",
-      "sha256": "fd7d6a9e6f0f5ccc53b592f8274cad0b80a67a8dfea6b5499fa49c1eb38c106c"
+      "sha256": "a26fae27ea19edabcdfcf01203fc80f8e74a4ea370fcd2464e6cf6effa6202db"
     },
     {
       "id": "machete",
-      "identity": 9327558358049767452,
+      "identity": 1254887322785759570,
       "vertices": 736,
       "triangles": 362,
       "source_nodes": 1,
@@ -307,11 +307,11 @@
         1
       ],
       "generated": "machete.generated.cpp",
-      "sha256": "58049cf8fdc4a989ed592da03a5fc4473c560433541789b0a0f955bc04b5b7bf"
+      "sha256": "ca487265efb499fe9e8f586ab3df5bebeabba88a8fb268f4e9cd54f23e0831e1"
     },
     {
       "id": "bat",
-      "identity": 14937736584689959638,
+      "identity": 11314871061206408929,
       "vertices": 336,
       "triangles": 172,
       "source_nodes": 1,
@@ -341,11 +341,11 @@
         1
       ],
       "generated": "bat.generated.cpp",
-      "sha256": "5cfb144869ad482bfe6d24ed7c2354228526df4c760fa296dfa0f1fb8fac8746"
+      "sha256": "3c69006251e35354e4e15f245c68923aa198a2947801f6cda8151bd0ea1b8a5f"
     },
     {
       "id": "fire_axe",
-      "identity": 7467074548469480106,
+      "identity": 6128009709961325514,
       "vertices": 280,
       "triangles": 146,
       "source_nodes": 1,
@@ -375,11 +375,11 @@
         1
       ],
       "generated": "fire_axe.generated.cpp",
-      "sha256": "d3309ab12071ef4e25ea394b30f3311051e8830c4d89a8198ae2da77fe3546b9"
+      "sha256": "6e7583a4443d4fdf081dfb92b2f449bfc65ce16e29476c751a515d4a2a8c804b"
     },
     {
       "id": "sledge",
-      "identity": 143785557103343446,
+      "identity": 9739088376507131370,
       "vertices": 343,
       "triangles": 176,
       "source_nodes": 1,
@@ -409,11 +409,11 @@
         1
       ],
       "generated": "sledge.generated.cpp",
-      "sha256": "830712aca039fc2697c262c0b67123cfae1fb0ae47c16dd3e6199c36d2933ca9"
+      "sha256": "45b09e4e514b94e7b159d759664c76f57af1e656f39ca0d98dbf324730a381db"
     },
     {
       "id": "crowbar",
-      "identity": 11750311570703702789,
+      "identity": 15233885661910423499,
       "vertices": 244,
       "triangles": 120,
       "source_nodes": 1,
@@ -443,11 +443,11 @@
         1
       ],
       "generated": "crowbar.generated.cpp",
-      "sha256": "ee0af7dfd1b737c6e8118484d6e1987b14c8a49118020f07f0a40e27915445ab"
+      "sha256": "59f3e1160dacec6b01d29a30a7161e119fc87226e3c508e82fafa3efc4972672"
     },
     {
       "id": "hatchet",
-      "identity": 7057878770381050835,
+      "identity": 16676660470902715021,
       "vertices": 128,
       "triangles": 168,
       "source_nodes": 0,
@@ -477,11 +477,11 @@
         1
       ],
       "generated": "hatchet.generated.cpp",
-      "sha256": "69139f9717bd0cdb79f8bfb90ca9b3436838a5010703075f159cb9c8e92f39a3"
+      "sha256": "97aee423b5eb78946518942b195bf56ed705997f89cd51b998499b655e1a69af"
     },
     {
       "id": "hammer",
-      "identity": 2603846430190304322,
+      "identity": 832741441155019000,
       "vertices": 72,
       "triangles": 104,
       "source_nodes": 0,
@@ -511,11 +511,11 @@
         1
       ],
       "generated": "hammer.generated.cpp",
-      "sha256": "9985b5bc5006328455bde2e55597c7efc2569ae7cf2c6bac298e7036649bb5ce"
+      "sha256": "3494d70d36368f209fbca8bbf1dbf8eddb6dff95d84528e58c616575d2497d43"
     },
     {
       "id": "shovel",
-      "identity": 9163690224761277331,
+      "identity": 11811934552182892642,
       "vertices": 160,
       "triangles": 244,
       "source_nodes": 0,
@@ -540,16 +540,16 @@
         3.3634117002966604,
         0,
         -0.0,
-        -0.03413862875801111,
-        -0.03515044845407662,
+        -0.021307213121379346,
+        -0.02193872817306161,
         1
       ],
       "generated": "shovel.generated.cpp",
-      "sha256": "44c1bc00594baf87c313ffc2b390608aa383cd4c017e7b5f02d3f3008ccfbf32"
+      "sha256": "922e95be005cbcbc70e02f6f4a14716b4d586ce62268061bff51d55e643089c2"
     },
     {
       "id": "pickaxe",
-      "identity": 4085062735124936021,
+      "identity": 17356181764902643615,
       "vertices": 120,
       "triangles": 148,
       "source_nodes": 0,
@@ -579,11 +579,11 @@
         1
       ],
       "generated": "pickaxe.generated.cpp",
-      "sha256": "4fdf459358c985999279a9d62fd9ee6f13932730754b58885991547422d4f879"
+      "sha256": "09366d8e0989dd28c5dd20f66764a415a0c4e6f0e39b75b5141214bafbf47ec5"
     },
     {
       "id": "bottle",
-      "identity": 14476422746113840264,
+      "identity": 16198448785869588053,
       "vertices": 102,
       "triangles": 188,
       "source_nodes": 0,
@@ -613,11 +613,11 @@
         1
       ],
       "generated": "bottle.generated.cpp",
-      "sha256": "1422b31cda4f3c4d2a1ad31074b81ac0e68a376a2c5189f67f79c1582e3dc888"
+      "sha256": "dde8caf778d06a532dd985e586433d99a5758f094e1e3c81dd02cca74973b703"
     },
     {
       "id": "saw",
-      "identity": 4702366251015858714,
+      "identity": 17488477024226177098,
       "vertices": 778,
       "triangles": 455,
       "source_nodes": 0,
@@ -647,11 +647,11 @@
         1
       ],
       "generated": "saw.generated.cpp",
-      "sha256": "35bf05c32c27f375e22c619dc0da7f8f908f17a7ccee93b67c8ba56c76986fca"
+      "sha256": "82ae5665607f1e981ce818a01a880a63470b839f0a106749d2724f20b761813e"
     },
     {
       "id": "wrench",
-      "identity": 13008749699309814206,
+      "identity": 470628396021007833,
       "vertices": 606,
       "triangles": 382,
       "source_nodes": 0,
@@ -681,11 +681,11 @@
         1
       ],
       "generated": "wrench.generated.cpp",
-      "sha256": "19aa259e4556d064baf40d2ba5490f91cbe82fdb2a89de4b0df53725dc059318"
+      "sha256": "c945c12dfa7df4e49f2954d815a9a31537e7b519664698b9f5edd1755ec0799f"
     },
     {
       "id": "screwdriver",
-      "identity": 3541058369447047562,
+      "identity": 253467977929710291,
       "vertices": 688,
       "triangles": 366,
       "source_nodes": 0,
@@ -715,11 +715,11 @@
         1
       ],
       "generated": "screwdriver.generated.cpp",
-      "sha256": "995432ded34c7cd571253718bb087990e3f3a87a980e9fda72ac58bb90868c08"
+      "sha256": "005257c5d8d58b98009d52d6a6960b93762793a4c33ed1a0a05234db222244fd"
     },
     {
       "id": "pliers",
-      "identity": 11755233863327615023,
+      "identity": 6207445478555001868,
       "vertices": 950,
       "triangles": 526,
       "source_nodes": 0,
@@ -749,11 +749,11 @@
         1
       ],
       "generated": "pliers.generated.cpp",
-      "sha256": "ae617a6766a2cdf93c6e74bb5433ecb310387d9dc15d0ca45f7b8124585e81bd"
+      "sha256": "4d49851bfcc3fb3a3d79115f6af7e6c9b3fdf7c49b5371f5ef54dd5949f46ea2"
     },
     {
       "id": "gas_can",
-      "identity": 5816343015445798450,
+      "identity": 6207088838951090897,
       "vertices": 1268,
       "triangles": 788,
       "source_nodes": 0,
@@ -778,16 +778,16 @@
         0.13344424032418056,
         0,
         -0.005037520072237817,
-        -0.2998369484860751,
+        -0.31870694848607517,
         -0.0,
         1
       ],
       "generated": "gas_can.generated.cpp",
-      "sha256": "ecd25c00e36b2368aa566a0f8e7159224285194a7e7f4d23315a679f4ed55241"
+      "sha256": "5298d4c2f5c0400a001aa955cc4fef4c1dedaae4e9343a1351593e858c98ff57"
     },
     {
       "id": "medical",
-      "identity": 16171324316762266495,
+      "identity": 1063651055600412959,
       "vertices": 1404,
       "triangles": 754,
       "source_nodes": 0,
@@ -817,11 +817,11 @@
         1
       ],
       "generated": "medical.generated.cpp",
-      "sha256": "34c3a1855e504ea8a5570179f74b52b341af7082aae995cbe3509884c201c339"
+      "sha256": "7bcba5dcf6faf872093c3037a8ab8f34cd829ebba73ee95eaea65671d0c3ca53"
     },
     {
       "id": "spear",
-      "identity": 8961889635243886872,
+      "identity": 4474467806653627200,
       "vertices": 134,
       "triangles": 126,
       "source_nodes": 0,
@@ -851,11 +851,11 @@
         1
       ],
       "generated": "spear.generated.cpp",
-      "sha256": "1e2edfa459f65333332a1c5110d2eb3ebaec455aa6cbc3254944b89cafc87f52"
+      "sha256": "7cfe322a21bff880ae6de055b8a528ada8f16fe368e95fe41add03c34ae0943b"
     },
     {
       "id": "flashlight",
-      "identity": 7838059375411801497,
+      "identity": 6702580829728782218,
       "vertices": 283,
       "triangles": 259,
       "source_nodes": 0,
@@ -885,7 +885,7 @@
         1
       ],
       "generated": "flashlight.generated.cpp",
-      "sha256": "99f17cded2a3ee2fb1d49a6021118e4ec15f8e2d5ba45b6f48ce62166969d83a"
+      "sha256": "f81a094931e3a737875dd111887c70e9bdc148ee71e8d99191e4d0c51c8241dc"
     },
     {
       "id": "red_dot",
@@ -964,7 +964,7 @@
     },
     {
       "id": "foregrip",
-      "identity": 6065361000996856070,
+      "identity": 18000097593366930616,
       "vertices": 565,
       "triangles": 196,
       "source_nodes": 1,
@@ -994,7 +994,7 @@
         1
       ],
       "generated": "foregrip.generated.cpp",
-      "sha256": "640e464c96c8ec9b3a314f02e1dfe4b588560f62dfa200d48d98374a32d0e856"
+      "sha256": "743b13663c02664a749c6432886adaea318920abd3461102adebfb210080ae61"
     },
     {
       "id": "gun_light",
@@ -1032,38 +1032,38 @@
     }
   ],
   "files": {
-    "assault.generated.cpp": "effefd7bd3ff1c89053ae580a5e9aee70cfc9d71faf6079d9e8b97b1a6785231",
-    "auto_shotgun.generated.cpp": "19be3e2c31714ff3bdc23d68118b72e1edde5ef4dcf3cc91ea74dc276a1d2242",
-    "bat.generated.cpp": "5cfb144869ad482bfe6d24ed7c2354228526df4c760fa296dfa0f1fb8fac8746",
-    "battle.generated.cpp": "3f826d35ebc46d7bd7b5cdd87c9cf2406d109c27054a9ba199e97c92c7cba7ae",
-    "bottle.generated.cpp": "1422b31cda4f3c4d2a1ad31074b81ac0e68a376a2c5189f67f79c1582e3dc888",
-    "crowbar.generated.cpp": "ee0af7dfd1b737c6e8118484d6e1987b14c8a49118020f07f0a40e27915445ab",
-    "fire_axe.generated.cpp": "d3309ab12071ef4e25ea394b30f3311051e8830c4d89a8198ae2da77fe3546b9",
-    "flashlight.generated.cpp": "99f17cded2a3ee2fb1d49a6021118e4ec15f8e2d5ba45b6f48ce62166969d83a",
-    "foregrip.generated.cpp": "640e464c96c8ec9b3a314f02e1dfe4b588560f62dfa200d48d98374a32d0e856",
-    "gas_can.generated.cpp": "ecd25c00e36b2368aa566a0f8e7159224285194a7e7f4d23315a679f4ed55241",
+    "assault.generated.cpp": "6028dd096ee05a0418cd247765bf5a2b6d706b6d10d2b1f7d9bc047d6e18a805",
+    "auto_shotgun.generated.cpp": "59bd8e9e13061cbd05ca7d5c626095cef3f4196ec2005b23c8ac911eb4be7e80",
+    "bat.generated.cpp": "3c69006251e35354e4e15f245c68923aa198a2947801f6cda8151bd0ea1b8a5f",
+    "battle.generated.cpp": "c5957f153a1d8b380286e44937bc122d79d1e346bbfae39547eca1d24a1c3bb3",
+    "bottle.generated.cpp": "dde8caf778d06a532dd985e586433d99a5758f094e1e3c81dd02cca74973b703",
+    "crowbar.generated.cpp": "59f3e1160dacec6b01d29a30a7161e119fc87226e3c508e82fafa3efc4972672",
+    "fire_axe.generated.cpp": "6e7583a4443d4fdf081dfb92b2f449bfc65ce16e29476c751a515d4a2a8c804b",
+    "flashlight.generated.cpp": "f81a094931e3a737875dd111887c70e9bdc148ee71e8d99191e4d0c51c8241dc",
+    "foregrip.generated.cpp": "743b13663c02664a749c6432886adaea318920abd3461102adebfb210080ae61",
+    "gas_can.generated.cpp": "5298d4c2f5c0400a001aa955cc4fef4c1dedaae4e9343a1351593e858c98ff57",
     "gun_light.generated.cpp": "b1f43ff22081f89570ec39273f1c8c5d262a11427deb4c6e96e2c745f280779f",
-    "hammer.generated.cpp": "9985b5bc5006328455bde2e55597c7efc2569ae7cf2c6bac298e7036649bb5ce",
-    "hatchet.generated.cpp": "69139f9717bd0cdb79f8bfb90ca9b3436838a5010703075f159cb9c8e92f39a3",
+    "hammer.generated.cpp": "3494d70d36368f209fbca8bbf1dbf8eddb6dff95d84528e58c616575d2497d43",
+    "hatchet.generated.cpp": "97aee423b5eb78946518942b195bf56ed705997f89cd51b998499b655e1a69af",
     "inventory.generated.cpp": "07d1d36871106818cf0e31e809ccee5e1c9e91aa086ae2e57d9914db6cbab986",
-    "knife.generated.cpp": "fd7d6a9e6f0f5ccc53b592f8274cad0b80a67a8dfea6b5499fa49c1eb38c106c",
-    "machete.generated.cpp": "58049cf8fdc4a989ed592da03a5fc4473c560433541789b0a0f955bc04b5b7bf",
-    "medical.generated.cpp": "34c3a1855e504ea8a5570179f74b52b341af7082aae995cbe3509884c201c339",
-    "pickaxe.generated.cpp": "4fdf459358c985999279a9d62fd9ee6f13932730754b58885991547422d4f879",
-    "pistol.generated.cpp": "0b34ca314501a5f3e1e90c6ec208acb2a3e45c8286f96f9f686459b1bfa12544",
-    "pliers.generated.cpp": "ae617a6766a2cdf93c6e74bb5433ecb310387d9dc15d0ca45f7b8124585e81bd",
-    "pump.generated.cpp": "7b103c9ffac6772c710d764d53de975bc756613cd9d8fae4f220f37021084bdf",
+    "knife.generated.cpp": "a26fae27ea19edabcdfcf01203fc80f8e74a4ea370fcd2464e6cf6effa6202db",
+    "machete.generated.cpp": "ca487265efb499fe9e8f586ab3df5bebeabba88a8fb268f4e9cd54f23e0831e1",
+    "medical.generated.cpp": "7bcba5dcf6faf872093c3037a8ab8f34cd829ebba73ee95eaea65671d0c3ca53",
+    "pickaxe.generated.cpp": "09366d8e0989dd28c5dd20f66764a415a0c4e6f0e39b75b5141214bafbf47ec5",
+    "pistol.generated.cpp": "453ddff3e381ad12e179f9a065ad9571beeeb7cd9cf8a806adf87a9af0ff338a",
+    "pliers.generated.cpp": "4d49851bfcc3fb3a3d79115f6af7e6c9b3fdf7c49b5371f5ef54dd5949f46ea2",
+    "pump.generated.cpp": "00b91633ca9ce20b1c428fc192c077fe7b20420005b856bf9da930566fb06c92",
     "red_dot.generated.cpp": "8e9aae39db05e8a10ab2f3e22d9ab95a7f12d1c95ef00d173a6adda23667470d",
-    "revolver.generated.cpp": "5f4210f136bd553fd5779a4deed4626c1116785952141d110a844da11fc5d6ad",
-    "saw.generated.cpp": "35bf05c32c27f375e22c619dc0da7f8f908f17a7ccee93b67c8ba56c76986fca",
-    "screwdriver.generated.cpp": "995432ded34c7cd571253718bb087990e3f3a87a980e9fda72ac58bb90868c08",
-    "shovel.generated.cpp": "44c1bc00594baf87c313ffc2b390608aa383cd4c017e7b5f02d3f3008ccfbf32",
-    "sledge.generated.cpp": "830712aca039fc2697c262c0b67123cfae1fb0ae47c16dd3e6199c36d2933ca9",
-    "smg.generated.cpp": "961d8aaad82268577567c2f6e6a2100b3a32b64db176c4fe9908a1dfa0353195",
-    "spear.generated.cpp": "1e2edfa459f65333332a1c5110d2eb3ebaec455aa6cbc3254944b89cafc87f52",
+    "revolver.generated.cpp": "c1dbc7878980712afafc091f663b7e099919019fd7a9c7cb1ddf7dfbda970503",
+    "saw.generated.cpp": "82ae5665607f1e981ce818a01a880a63470b839f0a106749d2724f20b761813e",
+    "screwdriver.generated.cpp": "005257c5d8d58b98009d52d6a6960b93762793a4c33ed1a0a05234db222244fd",
+    "shovel.generated.cpp": "922e95be005cbcbc70e02f6f4a14716b4d586ce62268061bff51d55e643089c2",
+    "sledge.generated.cpp": "45b09e4e514b94e7b159d759664c76f57af1e656f39ca0d98dbf324730a381db",
+    "smg.generated.cpp": "83ab4743dcb5691ae94090298d73c77ab4fa4f198a4568df31c677acda5a25c2",
+    "spear.generated.cpp": "7cfe322a21bff880ae6de055b8a528ada8f16fe368e95fe41add03c34ae0943b",
     "suppressor.generated.cpp": "421d3e7fb4cf280b1b80eaa05eb30fcc2289debb07bef5b30df2daeaafc2469e",
     "textures.generated.cpp": "6db07dfd7619dbbd8f1f18aa37a101a04b582565c02a005a237bad9bcbc85f83",
-    "wrench.generated.cpp": "19aa259e4556d064baf40d2ba5490f91cbe82fdb2a89de4b0df53725dc059318"
+    "wrench.generated.cpp": "c945c12dfa7df4e49f2954d815a9a31537e7b519664698b9f5edd1755ec0799f"
   },
   "runtime_importer": false,
   "authored_clip_count": 0,
