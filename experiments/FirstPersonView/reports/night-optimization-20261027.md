@@ -180,6 +180,31 @@ Do not merge or release before the user's separate finalization request.
    No local Native compile tree was available; both pinned Host builds and
    actual callback/snapshot memory qualification remain pending in remote CI.
 
+9. **Separate a stationary-world boundary from origin-only stress.** The old
+   `tile_boundary` producer case moved the snapshot origin but kept content at
+   fixed array indices, moving physical objects too. Its earlier paired numbers
+   are valid for that wider invalidation workload, not an ordinary static-world
+   step. The new case reindexes the same absolute-world contents: 148992 exact
+   overlapping-cell comparisons over 16 steps, each regenerating 291 cells,
+   compared with 1220 in the original stress. Every first changed packet is
+   checked against a fresh original generator outside the timed interval.
+
+   The initial exact cold hash failed with floor templates already disabled:
+   world-to-local float subtraction changes a few local vertex bits across XY
+   shifts. The cold oracle permits only <=1e-6 local XYZ difference, observed
+   9.53674e-7, and corresponding derived mesh keys; all other vertex fields,
+   topology, materials, transforms, cells/light, poses, camera and textures are
+   exact. No production arithmetic or global cache reset was changed. All five
+   full packet digests, regenerated counts and atlas reads match exactly between
+   the floor-template off/on paths.
+
+   Same compiled producer, 16 consecutive stationary-world updates: first
+   2.5233 -> 2.9792 ms (worse), median 3.3933 -> 2.9931 ms, p95 3.9305 ->
+   3.8159 ms. Background load remains uncontrolled. This does not establish a
+   first-frame speedup or ordinary gameplay latency. Raw scope and samples are
+   in `night-static-boundary-preparation-20261027.json`. Only the manual CPU
+   benchmark changed in this stage; its Release build and paired modes pass.
+
 ## Working queue
 
 1. Audit repeated Native distance/range queries within one XYZ's visibility
@@ -188,9 +213,12 @@ Do not merge or release before the user's separate finalization request.
    the existing light-range cache was rejected as a priority: recorded frames
    already make only 2-15 sight-range evaluations for 1400-3000 cache hits.
 2. Distant radio towers are still classified as generic BUILDING horizon
-   patches and become wide boxes. Near towers already use lattice geometry.
-   A separate compatible skyline representation is needed; do not silently
-   repurpose the existing kind or hide the object as a performance change.
+   patches and become wide boxes. Pinned standard mapgen and near lattice
+   confirm a 5.81 m envelope / 17.5 m top instead of the current 18x18x5 m box.
+   An additive, optional minor-2 typed skyline is being implemented separately;
+   legacy V1 bytes/kinds remain intact. Only fully disclosed exact standard
+   radio terrain may use its authored profile; vague/outline discovery and
+   generic/mod towers must not reveal the radio identity.
 3. Normal-vision static stairs may be withheld with BODY permissions. This is
    a hypothesis, not a confirmed current game defect: existing Native fixtures
    enable night vision. First obtain a causal normal/night-vision pair before
@@ -219,6 +247,15 @@ The details stage adds only its affected 5201-check pure storage suite and the
 195 Python / 24 atomic bridge checks; it is not qualified by the older Native
 results. Accurate inclusion of details memory must also pass the existing
 remote snapshot-memory gate.
+
+Pushed checkpoint `fc2ada738ca9cf0d0ca2a33582461cba562658cf` has fresh passing
+[GPU Windows/Linux/Clang ASan/UBSan/Vulkan](https://github.com/Neversalimus/NCMM/actions/runs/40425289227),
+[source/package](https://github.com/Neversalimus/NCMM/actions/runs/40425289234)
+and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40425289284) runs.
+In [module/Native run](https://github.com/Neversalimus/NCMM/actions/runs/40425289251),
+the Windows module passes; Linux module and both pinned Hosts are still in
+progress. These results do not qualify the subsequent local benchmark or the
+unfinished skyline stage. The older Native run was superseded by this push.
 
 CI update: GPU Windows/Linux/Clang ASan/UBSan/Vulkan run 40418690852 passes.
 Windows module checks pass. Linux module job 121909444832 in run 40418690848

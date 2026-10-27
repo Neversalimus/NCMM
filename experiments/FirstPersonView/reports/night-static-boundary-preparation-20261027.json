@@ -1,0 +1,148 @@
+{
+  "schema": 1,
+  "production_revision": "fc2ada738ca9cf0d0ca2a33582461cba562658cf",
+  "scope": "Diagnostic benchmark addition only. Same compiled CPU producer with floor templates disabled/enabled; 97x97 mixed floor/wall/table, 1280x800. Each sample is the first updated packet after an axial origin shift; overlapping contents are reindexed by absolute world coordinates. No Native extraction/gameplay, device execution, upload, raster or presentation.",
+  "fixture_and_cold_oracle_work_timed": false,
+  "background_load_controlled": false,
+  "timing_is_player_frame_or_latency": false,
+  "original_origin_only_case": "Retained for comparability as tile_boundary. It keeps contents at fixed array indices as origin moves, thereby moving physical objects too. It is a broader invalidation stress case, not a stationary-world step.",
+  "first_sample_improved": false,
+  "limits": "The first stationary-world sample worsened, despite lower median and p95 in this consecutive pair. No proven first-frame speedup or 15 ms game-frame claim. Cold-vs-retained local XYZ rounding predates floor templates; the exact cold hash initially failed with the shortcut disabled. The cold oracle allows only <=1e-6 local position delta (observed 9.53674e-7) and corresponding derived mesh keys. Topology, all non-position vertex fields, materials, transforms, lights/cells, poses, camera and texture contents are exact. Between the two ablated paths, all five full packet digests match exactly.",
+  "all_action_packet_identities": [
+    {
+      "scene": "cold",
+      "exact_ablation_packet_digest": "6513154018363993432",
+      "atlas_reads": 151216,
+      "regenerated_cells_equal": true
+    },
+    {
+      "scene": "camera_turn",
+      "exact_ablation_packet_digest": "2418781070539302099",
+      "atlas_reads": 0,
+      "regenerated_cells_equal": true
+    },
+    {
+      "scene": "tile_boundary",
+      "exact_ablation_packet_digest": "6513154018363993432",
+      "atlas_reads": 20192,
+      "regenerated_cells_equal": true
+    },
+    {
+      "scene": "local_mutation",
+      "exact_ablation_packet_digest": "929401650227054110",
+      "atlas_reads": 143,
+      "regenerated_cells_equal": true
+    },
+    {
+      "scene": "tile_boundary_static_world",
+      "exact_ablation_packet_digest": "12899411276149330331",
+      "atlas_reads": 4680,
+      "regenerated_cells_equal": true
+    }
+  ],
+  "before": {
+    "scene": "tile_boundary_static_world",
+    "first_ms": 2.5233,
+    "median_ms": 3.3933,
+    "p95_ms": 3.9305,
+    "p99_ms": 3.94226,
+    "digest": "12899411276149330331",
+    "sprite_reads": 4680,
+    "samples_ms": [
+      2.5233,
+      3.2081,
+      3.7718,
+      3.3175,
+      3.546,
+      3.9256,
+      3.7118,
+      2.6551,
+      3.7093,
+      3.4691,
+      2.9925,
+      3.31,
+      3.2009,
+      3.4773,
+      3.9452,
+      3.2685
+    ],
+    "generated_cells": [
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291
+    ],
+    "static_overlap_cells_checked": 148992,
+    "cold_rebuilds_checked": 16,
+    "cold_rebuild_max_position_delta": 9.53674e-07
+  },
+  "after": {
+    "scene": "tile_boundary_static_world",
+    "first_ms": 2.9792,
+    "median_ms": 2.9931,
+    "p95_ms": 3.81588,
+    "p99_ms": 3.85637,
+    "digest": "12899411276149330331",
+    "sprite_reads": 4680,
+    "samples_ms": [
+      2.9792,
+      3.8665,
+      3.3181,
+      3.799,
+      3.4403,
+      2.4012,
+      3.2693,
+      2.5977,
+      2.6959,
+      2.967,
+      3.1486,
+      2.6936,
+      2.7622,
+      3.007,
+      2.7107,
+      3.0935
+    ],
+    "generated_cells": [
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291,
+      291
+    ],
+    "static_overlap_cells_checked": 148992,
+    "cold_rebuilds_checked": 16,
+    "cold_rebuild_max_position_delta": 9.53674e-07
+  },
+  "benchmark_source_sha256": "e2bb8b92dc8198aa2724d5906d54d777f042c44914ee1772413266fad5b88c50",
+  "benchmark_executable_sha256": "4194ff0ae9b0cccb199351ad381598672e3da2dd7494c64cfc4b9e314a236762",
+  "evidence_sha256": {
+    "night-static-boundary-reference.json": "295ba8aef15a4284dd20ed0c9f54adcac916c6b5e6f78493f0da9d0dd1c895bf",
+    "night-static-boundary-shared.json": "872474d10b703452269cb5641207d02cc8cecedbb1703aad34b54751d4180b1b",
+    "night-static-boundary-reference.log": "803c904a072bdbea16bd1eefc1fde6c4186d3efd7fafa747e2f9d93c66ca7b58",
+    "night-static-boundary-shared.log": "10e36b68a3245c63a360657f5bb49821fab4a5f8a922579ca8c0955ede3e8d12",
+    "night-static-boundary-diagnosis.log": "32189a85f989ec9623f643a3c4cbc3febac7bd5a559656b98e509907291f90cf"
+  }
+}

@@ -227,12 +227,13 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_ballistic_aim.hpp':'5e62d0a60fd889f1f5e25b8b58e54c2c925b05278653cc5111d9c6e4afed860d',
             'experiments/FirstPersonView/tests/gpu_geometry_test.cpp':'62a8921f0a46205c6059c5cbc721959d440d8d26cf49db56421a9f72bc8905dd',
             'experiments/FirstPersonView/reports/night-gpu-preparation-20261027.json':'cabaa6ae7340c273e7cab5014bc11902ce00c0547124ecf65f1dfe60e410b60b',
-            'experiments/FirstPersonView/tests/renderer_benchmark.cpp':'76cb9a4121e0d23a070fc102c9798f1a6a72ff534b031b1f7a50c27d07870693',
+            'experiments/FirstPersonView/tests/renderer_benchmark.cpp':'e2bb8b92dc8198aa2724d5906d54d777f042c44914ee1772413266fad5b88c50',
             'experiments/FirstPersonView/tests/multilevel_gpu_cache_test.cpp':'b634888a686ecc7b07b527a0595c7447351e451ac540955417d8ccc96a7439f5',
             'experiments/FirstPersonView/src/architecture.inc':'5c031bb8ea4555a3686637942ef1ed8fea6143c9f86597240e0de1310e9036d0',
             'experiments/FirstPersonView/tests/multilevel_render_test.cpp':'3ba5b47e70d8d378239117a1a11bb9820f99fd7116c1f73b6c8ad41870889aed',
             'experiments/FirstPersonView/reports/night-floor-preparation-20261027.json':'5d4afcd594806e387299b8914c676a8fc652b5cc2dec3e657f48984b95450dc3',
-            'experiments/FirstPersonView/tests/snapshot_storage_test.cpp':'1ff172b451c00510e105fdf56aefc7cf5aa0af1217ab8134ad21746aa5d427af'}
+            'experiments/FirstPersonView/tests/snapshot_storage_test.cpp':'1ff172b451c00510e105fdf56aefc7cf5aa0af1217ab8134ad21746aa5d427af',
+            'experiments/FirstPersonView/reports/night-static-boundary-preparation-20261027.json':'08a7888ac121a67ce4eecda0231242f309148cb643127d8c7bad3b31edc1029e'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')
