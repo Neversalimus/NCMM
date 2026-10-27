@@ -897,6 +897,135 @@ template<class Check> void unperceived_terrain_stair_checks(Check check){
     std::cout<<"Terrain-only static stairs: normal161 -> "<<restored<<", four facings, mixed hidden nav, source bounds and noneligible legacy masks passed\n";
 }
 
+// Compile the actual Host extraction with callback-counting Native proxies.
+// The frozen oracle below is independent of that include and retains the old
+// full block. These counts are logical component reads, not Native frame time.
+namespace static_detail_fixture {
+using key=std::tuple<int,int,int>;
+struct tripoint_bub_ms {int x=0,y=0,z=0;key position()const{return {x,y,z};}};
+struct read_event {
+    char kind=0;key position{};uint32_t argument=0;
+    bool operator==(const read_event &other)const{return kind==other.kind&&position==other.position&&argument==other.argument;}
+};
+inline std::vector<read_event> reads;
+struct ter_t {uint32_t identity=0,shape=NCMM_SHAPE_FLAT;bool transparent=true;float body_value=0;};
+struct furn_t {uint32_t identity=0,shape=NCMM_SHAPE_FLAT;float body_value=0;};
+template<class T> struct definition_id {const T *value;const T &obj()const{return *value;}};
+struct tile {ter_t terrain;furn_t furniture;std::array<float,3> top{};};
+struct map {
+    std::map<key,tile> cells;tile fallback{};
+    const tile &at(const tripoint_bub_ms &p)const{const auto found=cells.find(p.position());return found==cells.end()?fallback:found->second;}
+    definition_id<ter_t> ter(const tripoint_bub_ms &p){const auto &t=at(p).terrain;reads.push_back({'T',p.position(),t.identity});return {&t};}
+    definition_id<furn_t> furn(const tripoint_bub_ms &p){const auto &f=at(p).furniture;reads.push_back({'F',p.position(),f.identity});return {&f};}
+};
+inline map world_map;
+inline std::array<float,3> graphics_sample_rgb(const tripoint_bub_ms &p){reads.push_back({'R',p.position(),0});return world_map.at(p).top;}
+template<class TerrainShape> uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,uint32_t &orientation,TerrainShape terrain_shape){
+    reads.push_back({'C',p.position(),shape});orientation=(shape+1u)%4u;uint32_t result=NCMM_SURFACE_CONNECTIONS;
+    for(const auto other:std::array<tripoint_bub_ms,2>{{{p.x+1,p.y,p.z},{p.x,p.y+1,p.z}}}){
+        const auto &definition=world_map.ter(other).obj();if(terrain_shape(definition)==shape)result|=other.x!=p.x?NCMM_SURFACE_CONNECT_E:NCMM_SURFACE_CONNECT_S;
+    }
+    return result;
+}
+#include "../../graphics_bridge/ncmm_graphics_static_detail.inc"
+
+inline void finish_body(const tripoint_bub_ms &p,ncmm_graphics_cell_v2 &d,const ter_t &ter,const furn_t &furn){
+    reads.push_back({'B',p.position(),ter.identity^furn.identity});d.terrain_shape=ter.shape;d.furniture_shape=furn.shape;d.emission=ter.body_value+furn.body_value;
+}
+// BEGIN FROZEN STATIC DETAIL
+template<class TerrainShape,class CopyId>
+bool frozen_static_detail(map &here,const tripoint_bub_ms &p,ncmm_graphics_cell_v2 &d,
+    const ncmm_graphics_multilevel_scene_v1 *world,const std::vector<std::array<float,3>> *facade_lights,
+    size_t i,TerrainShape terrain_shape,CopyId copy_id)
+{
+    const ter_t &ter = here.ter( p ).obj(); const furn_t &furn = here.furn( p ).obj();
+    if(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)){
+        d.terrain_shape=d.furniture_shape=NCMM_SHAPE_FLAT;
+        // A neutral structural surface carries no hidden room texture.
+        // The shared slab collector uses its untextured fallback material.
+        const auto top_rgb=graphics_sample_rgb(p);const auto &lower=world->coordinates[i].lower_light;
+        const bool surface=(world->coordinates[i].flags&(NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_STRUCTURE_VISIBLE))!=0;
+        d.light_r=surface?top_rgb[0]:lower[0];d.light_g=surface?top_rgb[1]:lower[1];d.light_b=surface?top_rgb[2]:lower[2];
+        if(facade_lights&&(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)){const auto &rgb=(*facade_lights)[i];d.light_r=rgb[0];d.light_g=rgb[1];d.light_b=rgb[2];}
+        if(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE){
+            d.terrain_shape=terrain_shape(ter);
+            // Opaque furniture/gas in this voxel is not an opaque window
+            // panel. The terrain itself owns its opening and cover state.
+            d.terrain_flags=ter.transparent?uint32_t(NCMM_SURFACE_TRANSPARENT):0u;
+            d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation,terrain_shape);
+            copy_id(d.ground,"t_floor");
+        }
+        return true;
+    }
+    finish_body(p,d,ter,furn);
+    return false;
+}
+// END FROZEN STATIC DETAIL
+
+struct result {ncmm_graphics_cell_v2 detail{};std::vector<read_event> trace;bool handled=false;};
+inline result run(bool actual,const tripoint_bub_ms &p,const ncmm_graphics_multilevel_scene_v1 *world,const std::vector<std::array<float,3>> *facades,unsigned char initial){
+    reads.clear();result out;std::memset(&out.detail,initial,sizeof(out.detail));
+    auto shape=[](const ter_t &t){reads.push_back({'S',{int(t.identity),0,0},t.shape});return t.shape;};
+    auto copy=[&](char (&dest)[128],const std::string &id){reads.push_back({'D',p.position(),uint32_t(id.size())});if(id.size()<sizeof(dest))std::copy(id.begin(),id.end(),dest);};
+    if(actual){out.handled=graphics_populate_static_detail(world_map,p,out.detail,world,facades,1,shape,copy);
+        if(!out.handled){const auto &ter=world_map.ter(p).obj();const auto &furn=world_map.furn(p).obj();finish_body(p,out.detail,ter,furn);}}
+    else out.handled=frozen_static_detail(world_map,p,out.detail,world,facades,1,shape,copy);
+    out.trace=reads;return out;
+}
+inline std::array<size_t,3> own_counts(const result &r,const tripoint_bub_ms &p){
+    std::array<size_t,3> out{};for(const auto &event:r.trace)if(event.position==p.position()){
+        if(event.kind=='T')++out[0];if(event.kind=='F')++out[1];if(event.kind=='R')++out[2];}
+    return out;
+}
+inline float float_bits(uint32_t bits){float out;std::memcpy(&out,&bits,sizeof(out));return out;}
+}
+
+template<class Check> void static_detail_checks(Check check){
+    namespace host=static_detail_fixture;
+    auto require=[&](bool value,const char *message){if(!value)std::cerr<<"Static detail: "<<message<<'\n';check(value);};
+    constexpr bool lazy_reads=true; // Stage A baseline is saved; the frozen oracle never changes.
+    constexpr std::array<uint32_t,4> flags{{NCMM_WORLD_FLOOR_TOP,NCMM_WORLD_FLOOR_BOTTOM,NCMM_WORLD_STRUCTURE_VISIBLE,NCMM_WORLD_BODY_VISIBLE}};
+    constexpr std::array<std::array<uint32_t,3>,4> palettes{{{{0u,0x80000000u,1u}},{{0x3d4ccccdu,0x3f000001u,0x3f7fffffu}},{{0x7fc12345u,0x3e800001u,0x80000000u}},{{1u,2u,3u}}}};
+    size_t cases=0;std::array<size_t,3> before_totals{},after_totals{};
+    std::array<size_t,4> category_cases{};std::array<std::array<size_t,3>,4> category_after{};
+    for(unsigned mask=0;mask<16;++mask)for(bool has_world:{false,true})for(bool facade:{false,true})for(bool transparent:{false,true})
+        for(unsigned char initial:{static_cast<unsigned char>(0),static_cast<unsigned char>(0x5a)})for(size_t palette=0;palette<palettes.size();++palette){
+            const host::tripoint_bub_ms p{int(1000000+palette),-1000000,-2};uint32_t semantic=NCMM_WORLD_FLOOR|NCMM_WORLD_UP|NCMM_WORLD_ROOFED;
+            for(unsigned bit=0;bit<flags.size();++bit)if(mask&(1u<<bit))semantic|=flags[bit];
+            std::array<ncmm_world_cell_v1,3> coordinates{};coordinates[1].flags=semantic;
+            std::vector<std::array<float,3>> facades(3);std::array<float,3> top{};
+            for(unsigned channel=0;channel<3;++channel){coordinates[1].lower_light[channel]=host::float_bits(palettes[palette][channel]);
+                facades[1][channel]=host::float_bits(palettes[(palette+1)%palettes.size()][channel]);top[channel]=host::float_bits(palettes[(palette+2)%palettes.size()][channel]);}
+            ncmm_graphics_multilevel_scene_v1 scene{};scene.coordinates=coordinates.data();scene.cell_count=uint32_t(coordinates.size());
+            host::world_map={};host::world_map.cells[p.position()]={{17,NCMM_SHAPE_WALL,transparent,2.f},{29,NCMM_SHAPE_STORAGE,3.f},top};
+            host::world_map.cells[{p.x+1,p.y,p.z}]={{31,NCMM_SHAPE_WALL,!transparent,0.f},{},top};
+            host::world_map.cells[{p.x,p.y+1,p.z}]={{43,NCMM_SHAPE_WINDOW,!transparent,0.f},{},top};
+            const auto *world=has_world?&scene:nullptr;const auto *facade_lights=facade?&facades:nullptr;
+            const auto oracle=host::run(false,p,world,facade_lights,initial),actual=host::run(true,p,world,facade_lights,initial);
+            require(actual.handled==oracle.handled&&actual.handled==(has_world&&!(semantic&NCMM_WORLD_BODY_VISIBLE)),"actual helper keeps the legacy/world-null and BODY continuations");
+            require(std::memcmp(&actual.detail,&oracle.detail,sizeof(actual.detail))==0,"every detail byte, RGB float bit and untouched field matches the frozen pre-extraction block");
+            const auto before=host::own_counts(oracle,p),after=host::own_counts(actual,p);
+            auto expected_trace=oracle.trace;
+            if(lazy_reads&&actual.handled){
+                const bool structure=(semantic&NCMM_WORLD_STRUCTURE_VISIBLE)!=0,surface=(semantic&(NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_STRUCTURE_VISIBLE))!=0;
+                expected_trace.erase(std::remove_if(expected_trace.begin(),expected_trace.end(),[&](const auto &event){return event.position==p.position()&&
+                    ((event.kind=='T'&&!structure)||event.kind=='F'||(event.kind=='R'&&(!surface||(facade&&structure))));}),expected_trace.end());
+                require(after==std::array<size_t,3>{{size_t(structure),0,size_t(surface&&!(facade&&structure))}},"only unused terrain/furniture/top-RGB callbacks disappear");
+            }else require(after==before,"baseline and BODY/legacy reads retain their exact callback counts");
+            require(actual.trace==expected_trace,"all retained definition, RGB, shape, neighbour, connection and copy reads keep their arguments and order");
+            if(actual.handled){require(before==std::array<size_t,3>{{1,1,1}},"frozen actual-source baseline has one own terrain, furniture and top-RGB read per static cell");
+                const size_t category=(semantic&NCMM_WORLD_STRUCTURE_VISIBLE)?(facade?2:3):(semantic&NCMM_WORLD_FLOOR_TOP)?1:0;
+                ++category_cases[category];for(unsigned i=0;i<3;++i){before_totals[i]+=before[i];after_totals[i]+=after[i];category_after[category][i]+=after[i];}}
+            ++cases;
+        }
+    std::cout<<"Static detail actual-source component "<<(lazy_reads?"after":"baseline")<<": "<<cases<<" paired byte/read cases, own T/F/R "
+             <<before_totals[0]<<'/'<<before_totals[1]<<'/'<<before_totals[2]<<" -> "<<after_totals[0]<<'/'<<after_totals[1]<<'/'<<after_totals[2]<<" (not Native timing)\n";
+    constexpr std::array<const char*,4> names{{"lower-only","top-only","structure+facade","structure+sample"}};
+    for(size_t category=0;category<names.size();++category){require(category_cases[category]!=0,"all static light/definition consumption branches are exercised");
+        std::cout<<"Static detail "<<names[category]<<": "<<category_cases[category]<<" cases, own callbacks T/F/R 1/1/1 -> "
+                 <<category_after[category][0]/category_cases[category]<<'/'<<category_after[category][1]/category_cases[category]<<'/'<<category_after[category][2]/category_cases[category]<<'\n';}
+}
+
 int main(){try{
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
@@ -905,6 +1034,7 @@ int main(){try{
     sealed_ring_checks(check);
     geometry_border_checks(check);
     unperceived_terrain_stair_checks(check);
+    static_detail_checks(check);
     {
         int identities[2]{};
         const auto *a=reinterpret_cast<const map *>(&identities[0]);

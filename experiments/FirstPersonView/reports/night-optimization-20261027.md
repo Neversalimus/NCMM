@@ -204,6 +204,32 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     rejection, and 162 environment-isolation checks pass without a game launch.
     **Actual post-fix Native receipt and ordinary performance remain pending.**
 
+18. **Avoid unused static-detail Native reads.** Non-BODY details always read
+    terrain, furniture and top RGB, even for a lower-only slab or an already
+    resolved facade RGB. First extracted the unchanged production block into
+    a callback-scoped helper; an independent frozen 1759-byte baseline (SHA256
+    `f4013a7f84a0163079fb9fd73881459707da474e82587b732ede4f8440a0317d`)
+    established all three reads per static cell. The lazy-read regression then
+    failed before optimization. After, terrain/furniture/RGB calls are:
+    lower-only 0/0/0, top-only 0/0/1, facade 1/0/0, structure without facade
+    1/0/1, instead of 1/1/1 in each case. Across 256 static cases, totals
+    256/256/256 -> 128/0/128. BODY/world-null extraction stays unchanged.
+
+    All 1024 paired cases preserve every detail byte, float bit (including
+    signed zero/subnormal/NaN payload forwarding) and the order of all required
+    shape/connection/neighbor/copy reads. The Native RGB formula is unchanged.
+    Explicit source copying/receipts and both-pin atomic rejection tests cover
+    the new include. Full Release, 1416420 source/cache checks, all 50 inventoried
+    CTests (13.97 s), 34 atomic bridge tests pass. The module SHA256 remains
+    `83cabfb09bc1553f4eb11def5e00209e4953e6949348aabaf695b350c9465bc1`, so the
+    preceding real GPU readbacks still apply; no redundant GPU run. Fresh pure
+    binary old-Host/new-module, new-Host/old-module and new/new controls pass
+    37/55/86 checks. Evidence `night-static-detail-*` and
+    `night-static-stair-abi-receipt.json`. These counts are not Native timings;
+    actual new Host compilation/performance remains required. Removing lower
+    range queries is separate: their direct-mapped cache can shift later hits,
+    so it requires sequence/collision controls before any production change.
+
 ## Actual remote evidence and next priorities
 
 **Stair evidence at exact `2ce404d`, run 40441923163.** Packaged runtime merge
@@ -256,15 +282,25 @@ recurrence in a current ordinary session is not established.
 
 ## Qualification boundary
 
-At `2ce404d`, [main run](https://github.com/Neversalimus/NCMM/actions/runs/40441923163)
-has passing Windows/Linux module jobs and both pinned Windows/Linux Host
-compilations; actual Native qualification remains running.
+At preceding `2ce404d`, [main run](https://github.com/Neversalimus/NCMM/actions/runs/40441923163)
+passed Windows/Linux module jobs, both pinned Windows/Linux Host compilations
+and both actual Linux Native functional jobs. Windows qualification was
+superseded/cancelled, so no full Native pass is claimed.
 [GPU Windows/Linux/Vulkan/sanitizers](https://github.com/Neversalimus/NCMM/actions/runs/40441923119),
 [source/package](https://github.com/Neversalimus/NCMM/actions/runs/40441923114),
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40441923116) pass.
-These results do not qualify subsequent stage15/17 Host or renderer bytes. The failed
+These results do not qualify subsequent stage15/17/18 Host or renderer bytes. The failed
 `21b3878` Native compile and its repair are retained above; older ddfa/fc2
 passes also do not qualify new bytes.
+
+Pushed `1a951e156562478ae1632857c207f5768ca5084e` has passing
+[GPU Windows/Linux/Vulkan/sanitizers](https://github.com/Neversalimus/NCMM/actions/runs/40448928683),
+[source/package](https://github.com/Neversalimus/NCMM/actions/runs/40448928654),
+and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40448928727).
+Its [main run](https://github.com/Neversalimus/NCMM/actions/runs/40448928678)
+has compiled both Windows Hosts; fresh Native actions/stairs/movement are
+pending. Stage18 is held locally while that useful early evidence completes;
+it will need its own exact-source Host qualification after publishing.
 
 The freshly rebuilt hidden render-only RTX 4090 controls retain
 45 grass draws, zero CPU world raster, zero warm static uploads and 21108 open

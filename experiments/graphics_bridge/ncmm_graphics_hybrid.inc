@@ -372,6 +372,8 @@ template<class Shape> uint32_t graphics_structure_connections(const tripoint_bub
     return connections|NCMM_SURFACE_CONNECTIONS;
 }
 
+#include "ncmm_graphics_static_detail.inc"
+
 bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector<tripoint_bub_ms> &positions, int x, int y,
                            ncmm_graphics_multilevel_scene_v1 *world=nullptr,const std::vector<std::array<float,3>> *facade_lights=nullptr )
 {
@@ -413,25 +415,8 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
             ~store_detail(){if(!owned)return;if(owned->detail_ready&&cache.verify){++cache.totals.verification_checks;if(std::memcmp(&owned->detail,&value,sizeof(value)))++cache.totals.verification_mismatches;}
                 owned->detail=value;owned->detail_ready=true;}
         } save_detail{owned,graphics_camera_cache,d};
+        if(graphics_populate_static_detail(here,p,d,world,facade_lights,i,terrain_shape,copy_id))continue;
         const ter_t &ter = here.ter( p ).obj(); const furn_t &furn = here.furn( p ).obj();
-        if(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)){
-            d.terrain_shape=d.furniture_shape=NCMM_SHAPE_FLAT;
-            // A neutral structural surface carries no hidden room texture.
-            // The shared slab collector uses its untextured fallback material.
-            const auto top_rgb=graphics_sample_rgb(p);const auto &lower=world->coordinates[i].lower_light;
-            const bool surface=(world->coordinates[i].flags&(NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_STRUCTURE_VISIBLE))!=0;
-            d.light_r=surface?top_rgb[0]:lower[0];d.light_g=surface?top_rgb[1]:lower[1];d.light_b=surface?top_rgb[2]:lower[2];
-            if(facade_lights&&(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)){const auto &rgb=(*facade_lights)[i];d.light_r=rgb[0];d.light_g=rgb[1];d.light_b=rgb[2];}
-            if(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE){
-                d.terrain_shape=terrain_shape(ter);
-                // Opaque furniture/gas in this voxel is not an opaque window
-                // panel. The terrain itself owns its opening and cover state.
-                d.terrain_flags=ter.transparent?uint32_t(NCMM_SURFACE_TRANSPARENT):0u;
-                d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation,terrain_shape);
-                copy_id(d.ground,"t_floor");
-            }
-            continue;
-        }
         d.terrain_shape = terrain_shape(ter);
         if(world&&(world->coordinates[i].flags&NCMM_WORLD_RAMP))d.terrain_shape=NCMM_SHAPE_FLAT;
         d.terrain_flags = ter.transparent ? static_cast<uint32_t>(NCMM_SURFACE_TRANSPARENT) : 0u;

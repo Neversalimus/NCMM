@@ -117,6 +117,59 @@ bool cata_tiles::draw_sprite_at() {
             with patch.object(bridge.subprocess, "check_output", return_value="a" * 40):
                 with self.assertRaisesRegex(ValueError, "Unqualified"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
+    def test_static_detail_frozen_oracle_is_independent_and_unchanged(self):
+        frozen = (REPO / "experiments/FirstPersonView/tests/multilevel_cache_test.cpp").read_text(encoding="utf-8")
+        begin, end = "// BEGIN FROZEN STATIC DETAIL\n", "// END FROZEN STATIC DETAIL\n"
+        self.assertEqual(frozen.count(begin), 1)
+        self.assertEqual(frozen.count(end), 1)
+        original = frozen.split(begin, 1)[1].split(end, 1)[0]
+        self.assertEqual(len(original.encode("utf-8")), 1759)
+        self.assertEqual(hashlib.sha256(original.encode("utf-8")).hexdigest(), "f4013a7f84a0163079fb9fd73881459707da474e82587b732ede4f8440a0317d")
+        self.assertNotIn("graphics_populate_static_detail", original)
+    def test_static_detail_both_pins_and_source_receipt(self):
+        helper = Path(bridge.__file__).with_name("ncmm_graphics_static_detail.inc")
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                    bridge.apply(root)
+                self.assertEqual((root / "src" / helper.name).read_bytes(), helper.read_bytes())
+                hybrid = (root / "src/ncmm_graphics_hybrid.inc").read_text(encoding="utf-8")
+                self.assertEqual(hybrid.count('#include "ncmm_graphics_static_detail.inc"'), 1)
+                call = "if(graphics_populate_static_detail(here,p,d,world,facade_lights,i,terrain_shape,copy_id))continue;"
+                self.assertEqual(hybrid.count(call), 1)
+                self.assertIn(call + "\n        const ter_t &ter = here.ter( p ).obj(); const furn_t &furn = here.furn( p ).obj();", hybrid)
+                receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))
+                self.assertEqual(receipt["source_commit"], pin)
+                for name in (helper.name, "ncmm_graphics_hybrid.inc"):
+                    self.assertEqual(receipt["inputs"][name], hashlib.sha256((root / "src" / name).read_bytes()).hexdigest())
+    def test_static_detail_existing_include_failure_is_atomic(self):
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                (root / "src/ncmm_graphics_static_detail.inc").write_text("existing extraction\n", encoding="utf-8")
+                (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                before = self.fingerprint(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                    with self.assertRaisesRegex(ValueError, "Experimental source already exists: ncmm_graphics_static_detail.inc"):
+                        bridge.apply(root)
+                self.assertEqual(before, self.fingerprint(root))
+    def test_static_detail_missing_helper_failure_is_atomic(self):
+        helper = Path(bridge.__file__).with_name("ncmm_graphics_static_detail.inc")
+        original_read = Path.read_text
+        def read(path, *args, **kwargs):
+            if path == helper:
+                raise FileNotFoundError("missing static-detail source")
+            return original_read(path, *args, **kwargs)
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                before = self.fingerprint(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
+                    with self.assertRaisesRegex(FileNotFoundError, "missing static-detail source"):
+                        bridge.apply(root)
+                self.assertEqual(before, self.fingerprint(root))
     def test_native_apparent_light_adaptation_retains_both_primary_pin_bodies(self):
         original = apparent_light_original()
         digest = "7e570456c43c6dcf6b02d29bd4ef8a25a63a0889006855f28483870dd6a70a14"
