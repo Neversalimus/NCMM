@@ -204,17 +204,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
        !graphics_world_roofs.prepare(ox,oy,0,0,side,side,graphics_world_epoch)||
        !graphics_world_sealed.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch,graphics_world_planes_revision))return false;
     if(graphics_world_previous_position&&graphics_world_previous_position->xy()!=absolute.xy()){
-        // A retained edge may gain or lose a neighbour when the bounded
-        // source window shifts. Recompute both old and new perimeters even
-        // for a same-realm teleport with a large canonical overlap.
-        auto border=[&](int64_t left,int64_t top){
-            graphics_world_derived.invalidate(left,top,loaded.front(),loaded.back(),side,1);
-            graphics_world_derived.invalidate(left,top+side-1,loaded.front(),loaded.back(),side,1);
-            graphics_world_derived.invalidate(left,top,loaded.front(),loaded.back(),1,side);
-            graphics_world_derived.invalidate(left+side-1,top,loaded.front(),loaded.back(),1,side);
-        };
-        border(int64_t(graphics_world_previous_position->x())-radius,int64_t(graphics_world_previous_position->y())-radius);
-        border(ox,oy);
+        ncmm_world::invalidate_shifted_geometry_borders(graphics_world_derived,
+            int64_t(graphics_world_previous_position->x())-radius,int64_t(graphics_world_previous_position->y())-radius,
+            ox,oy,loaded.front(),loaded.back(),side);
     }
     graphics_world_metrics={};graphics_world_metrics.struct_size=sizeof(graphics_world_metrics);
     graphics_world_metrics.available_slices=uint32_t(loaded.size());

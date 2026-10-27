@@ -196,6 +196,24 @@ public:
     }
     size_t bytes()const{return facts.capacity()*sizeof(uint32_t)+revisions.capacity()*sizeof(uint64_t);}
 };
+// Only radius-one horizontal stair partners depend on the bounded source
+// window's XY edges. Entering strips are already cold after prepare(); the
+// retained old/new edges can gain or lose a neighbour on each shifted axis.
+// A perpendicular border's middle keeps exactly the same real/UNKNOWN samples.
+inline void invalidate_shifted_geometry_borders(geometry_cache &cache,int64_t old_left,int64_t old_top,
+        int64_t left,int64_t top,int low,int high,int side){
+    auto border=[&](int64_t x,int64_t y){
+        if(old_top!=top){
+            cache.invalidate(x,y,low,high,side,1);
+            cache.invalidate(x,y+side-1,low,high,side,1);
+        }
+        if(old_left!=left){
+            cache.invalidate(x,y,low,high,1,side);
+            cache.invalidate(x+side-1,y,low,high,1,side);
+        }
+    };
+    border(old_left,old_top);border(left,top);
+}
 /* Main-thread private source facts; canonical intersections survive a shifted
  * viewport. No engine pointer, ID, item or entity is retained. */
 class source_cache {

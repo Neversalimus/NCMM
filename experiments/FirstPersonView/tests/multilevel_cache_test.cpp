@@ -244,11 +244,131 @@ template<class Check> void sealed_ring_checks(Check check){
     require(bounded.bytes()<=NCMM_WORLD_MAX_SLICES,"clear releases slab facts, prefixes and proof state");
 }
 
+// Exercise the actual Host border helper with both real caches and the
+// ordinary-stair branch's actual neighbour policy. All other terrain is flat:
+// the oracle reads the same fixed physical map through a fresh bounded view.
+struct geometry_border_fixture {
+    ncmm_world::source_cache source;ncmm_world::geometry_cache derived;
+    std::map<std::tuple<int,int,int>,uint32_t> physical;
+    int left=0,top=0,side=9;bool prepared=false;size_t native_reads=0,computations=0;
+    static constexpr int low=0,high=2;
+    static constexpr uint64_t revision=7,realm=11;
+    uint32_t raw(int x,int y,int z)const{
+        const auto found=physical.find({x,y,z});return found==physical.end()?uint32_t(NCMM_WORLD_FLOOR):found->second;
+    }
+    bool inside(int x,int y,int z)const{return int64_t(x)>=left&&int64_t(y)>=top&&int64_t(x)<int64_t(left)+side&&int64_t(y)<int64_t(top)+side&&z>=low&&z<=high;}
+    void seed(ncmm_world::voxel p,uint32_t flags){physical[{p.x,p.y,p.z}]=NCMM_WORLD_FLOOR|flags;}
+    template<class Sample> static uint32_t connect(int x,int y,int z,Sample sample){
+        uint32_t value=sample(x,y,z);
+        if((value&NCMM_WORLD_UP)&&ncmm_world::stair_partner(x,y,z,1,sample))value|=NCMM_WORLD_CONNECTED_UP;
+        if((value&NCMM_WORLD_DOWN)&&ncmm_world::stair_partner(x,y,z,-1,sample))value|=NCMM_WORLD_CONNECTED_DOWN;
+        return value;
+    }
+    uint32_t base(int x,int y,int z){
+        if(z<low||z>high)return NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE;
+        return source.get(x,y,z,revision,[&]{++native_reads;return raw(x,y,z);});
+    }
+    uint32_t get(int x,int y,int z){return derived.get(x,y,z,revision,[&]{++computations;return connect(x,y,z,[&](int a,int b,int c){return base(a,b,c);});});}
+    uint32_t oracle(int x,int y,int z)const{
+        if(!inside(x,y,z))return NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE|NCMM_WORLD_ROOFED;
+        return connect(x,y,z,[&](int a,int b,int c){return inside(a,b,c)?raw(a,b,c):uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);});
+    }
+    bool prepare(int x,int y){
+        const int old_left=left,old_top=top;left=x;top=y;
+        if(!source.prepare(left,top,low,high,side,side,realm)||!derived.prepare(left,top,low,high,side,side,realm))return false;
+        if(prepared&&(old_left!=left||old_top!=top))ncmm_world::invalidate_shifted_geometry_borders(derived,old_left,old_top,left,top,low,high,side);
+        prepared=true;return true;
+    }
+    template<class Check> void visit(Check require){
+        for(int z=low;z<=high;++z)for(int y=0;y<side;++y)for(int x=0;x<side;++x){
+            const uint32_t expected=oracle(left+x,top+y,z);
+            require(get(left+x,top+y,z)==expected,"retained absolute flags equal a completely fresh bounded-window oracle");
+            require(derived.get_relative(x,y,z-low,revision,[]{throw std::runtime_error("border relative alias");return 0u;})==expected,
+                "relative ring lookup retains the same exact absolute flags");
+        }
+    }
+};
+
+template<class Check> void geometry_border_checks(Check check){
+    using namespace ncmm_world;
+    auto require=[&](bool value,const char *message){if(!value)std::cerr<<"Geometry border: "<<message<<'\n';check(value);};
+    size_t dependency_cases=0;
+    // Forward neighbours enter; backward neighbours leave. Both UP and DOWN
+    // targets occupy the perpendicular window borders, including old corners.
+    for(int origin:{3,-14})for(bool x_axis:{false,true})for(int step:{-3,-1,1,3}){
+        geometry_border_fixture f;const int direction=step>0?1:-1;
+        const int forward=origin+(direction>0?f.side-1:0),backward=origin+step+(direction>0?0:f.side-1);
+        auto point=[&](int along,int across,int z){return x_axis?voxel{along,across,z}:voxel{across,along,z};};
+        std::array<voxel,2> gain{},loss{};
+        for(unsigned down=0;down<2;++down){const int across=origin+(down?f.side-1:0),z=down?1:0;
+            const uint32_t flag=down?NCMM_WORLD_DOWN:NCMM_WORLD_UP,partner=down?NCMM_WORLD_UP:NCMM_WORLD_DOWN;
+            gain[down]=point(forward,across,z);loss[down]=point(backward,across,z);
+            f.seed(gain[down],flag);f.seed(point(forward+direction,across,1-z),partner);
+            f.seed(loss[down],flag);f.seed(point(backward-direction,across,1-z),partner);
+        }
+        require(f.prepare(origin,origin),"old source and geometry windows prepare");f.visit(require);
+        for(unsigned down=0;down<2;++down){const uint32_t bit=down?NCMM_WORLD_CONNECTED_DOWN:NCMM_WORLD_CONNECTED_UP;
+            require(!(f.get(gain[down].x,gain[down].y,gain[down].z)&bit)&&bool(f.get(loss[down].x,loss[down].y,loss[down].z)&bit),
+                "old edge has exactly one known exiting partner and no entering partner");}
+        f.native_reads=0;require(f.prepare(origin+(x_axis?step:0),origin+(x_axis?0:step)),"translated window prepares");
+        for(unsigned down=0;down<2;++down){const auto a=gain[down],b=loss[down];const uint32_t bit=down?NCMM_WORLD_CONNECTED_DOWN:NCMM_WORLD_CONNECTED_UP;
+            require(bool(f.get(a.x,a.y,a.z)&bit)&&!(f.get(b.x,b.y,b.z)&bit),"edge and corner UP/DOWN facts change when a real partner enters or leaves");}
+        f.visit(require);
+        require(f.native_reads==size_t(std::abs(step))*f.side*(f.high-f.low+1),"source reads remain the full entering strip, independent of derived invalidation");
+        // Directions are not retained in geometry_cache. Their real +/-2
+        // probes must still see the same new-window facts as a cold query.
+        for(const auto p:gain)require(stair_direction(p.x,p.y,p.z,[&](int x,int y,int z){return f.get(x,y,z);})==
+            stair_direction(p.x,p.y,p.z,[&](int x,int y,int z){return f.oracle(x,y,z);}),"fresh stair direction agrees after translating the ring");
+        ++dependency_cases;
+    }
+    // A diagonally entering second connector removes a formerly unique
+    // cardinal partner; an OMT boundary must never invent a new connection.
+    for(bool down:{false,true})for(int mode=0;mode<3;++mode){
+        geometry_border_fixture f;const int origin=mode==2?15:-14,z=down?1:0;
+        const voxel target{origin+f.side-1,origin+f.side-1,z};
+        const uint32_t flag=down?NCMM_WORLD_DOWN:NCMM_WORLD_UP,other=down?NCMM_WORLD_UP:NCMM_WORLD_DOWN,bit=down?NCMM_WORLD_CONNECTED_DOWN:NCMM_WORLD_CONNECTED_UP;
+        f.seed(target,flag);if(mode!=2)f.seed({target.x-1,target.y,1-z},other);
+        f.seed({target.x+1,target.y+(mode==2?0:mode==1?1:-1),1-z},other);
+        require(f.prepare(origin,origin),"corner ambiguity window prepares");f.visit(require);
+        require(bool(f.get(target.x,target.y,z)&bit)==(mode!=2),"old corner has the authored unique partner, or rejects the cross-OMT endpoint");
+        require(f.prepare(origin+1,origin+(mode==1?1:0)),"axis or diagonal corner shift prepares");f.visit(require);
+        require(!(f.get(target.x,target.y,z)&bit),"entering diagonal ambiguity and cross-OMT endpoints stay disconnected");++dependency_cases;
+    }
+    // Teleports discard the non-overlap without mutating source revisions.
+    for(const auto delta:std::array<std::pair<int,int>,4>{{{9,0},{0,-9},{13,12},{-21,-17}}}){
+        geometry_border_fixture f;require(f.prepare(-14,-14),"teleport old window prepares");f.visit(require);f.native_reads=0;
+        require(f.prepare(-14+delta.first,-14+delta.second),"non-overlap teleport prepares");f.visit(require);
+        require(f.native_reads==size_t(f.side)*f.side*(f.high-f.low+1),"a non-overlap teleport reads every actual new source cell");++dependency_cases;
+    }
+    std::cout<<"Geometry border dependency controls: "<<dependency_cases<<" causal/oracle cases passed before protected-hit checks\n";
+    // At full Native radius an X-only shift cannot alter the raw +/-1
+    // neighbours of a top/bottom midpoint; Y-only has the transposed proof.
+    // The old all-four-perimeters rule recomputes these unchanged facts.
+    for(const auto delta:std::array<std::pair<int,int>,4>{{{1,0},{-1,0},{0,1},{0,-1}}}){
+        geometry_border_fixture f;f.side=97;require(f.prepare(-1000000,1000000),"full97x97 window prepares");f.visit(require);
+        require(f.native_reads==97u*97u*3u,"the complete source window is read before testing retained work");
+        const int old_left=f.left,old_top=f.top;require(f.prepare(old_left+delta.first,old_top+delta.second),"full-radius axial window prepares");
+        const std::array<voxel,2> protected_cells=delta.first?
+            std::array<voxel,2>{{{old_left+48,old_top,1},{old_left+48,old_top+96,1}}}:
+            std::array<voxel,2>{{{old_left,old_top+48,1},{old_left+96,old_top+48,1}}};
+        const size_t before=f.computations,reads=f.native_reads;const uint64_t hits=f.derived.hits;
+        for(const auto p:protected_cells)require(f.get(p.x,p.y,p.z)==f.oracle(p.x,p.y,p.z),"protected perpendicular border midpoint retains exact flags");
+        std::cout<<"Geometry border97 axial ("<<delta.first<<','<<delta.second<<"): protected callbacks="<<f.computations-before<<" (expected0)\n";
+        require(f.computations==before&&f.derived.hits==hits+2,"an axial shift retains cached top/bottom (or left/right) middle facts whose full neighbourhood is unchanged");
+        require(f.native_reads==reads,"protected border hits do not add source reads");
+        f.visit(require);
+        require(f.native_reads==97u*97u*3u+97u*3u,"the optimized derived border does not reduce new source coverage");
+        std::cout<<"Geometry border97 axial ("<<delta.first<<','<<delta.second<<"): complete-window derived misses="<<f.derived.misses
+                 <<", new source callbacks="<<f.native_reads-97u*97u*3u<<", cold cells="<<97u*97u*3u<<"; exact oracle preserved\n";
+    }
+}
+
 int main(){try{
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
     native_range_checks(check);
     sealed_ring_checks(check);
+    geometry_border_checks(check);
     {
         int identities[2]{};
         const auto *a=reinterpret_cast<const map *>(&identities[0]);

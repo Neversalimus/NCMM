@@ -347,6 +347,33 @@ Do not merge or release before the user's separate finalization request.
     synchronous wall scopes include clock-probe overhead and possible waits;
     they do not measure on-core CPU or GPU execution or ordinary game latency.
 
+14. **Invalidate geometry borders only on the shifted axis.** A pure XY step
+    invalidated all four old/new perimeters, including middle cells whose full
+    real/UNKNOWN neighbourhood was unchanged. Cached derive_flags reads the
+    same XYZ and vertical neighbours; only ordinary-stair partner lookup adds
+    radius-one XY dependencies. Directions are computed afresh, including their
+    radius-two probes. Entering strips were already invalidated by prepare().
+
+    Extracted the original eight invalidations unchanged into a shared Host
+    helper. Its new regression first passed 26 causal/oracle cases, then failed
+    the protected perpendicular-border hit assertion on the old rule. The fix
+    keeps old/new horizontal invalidations for Y changes, vertical ones for X
+    changes and both for diagonals. No source/visibility/ray/range/scene-window
+    policy changed. Corner UP/DOWN partner gain/loss, ambiguous diagonal pairs,
+    OMT rejection, negative coordinates, multi-cell shifts, teleports and all
+    relative aliases still match a cold bounded source oracle. Existing cache
+    revision, Z-window and realm controls remain in the same suite.
+
+    After fix: all four axial 97x97x3 fixtures perform zero protected-cell
+    callbacks, 873 total derived computations and 291 entering source reads;
+    cold coverage remains all 28227 cells. These are exact component counts,
+    not predicted Native misses or frame milliseconds. Full Release build,
+    1381157-check source/range/border suite, 25 atomic bridge tests and all 50
+    inventoried autonomous CTests pass (15.65 s). Before/after evidence:
+    `night-border-baseline*`, `night-border-after*`, `night-border-bridge.log`.
+    No local Native game or input test ran; pinned Host qualification and the
+    actual first-frame timing gain remain pending.
+
 ## Fresh profile evidence and working queue
 
 Bounded HTTP-range reads of selected program JSON from run 40425289251 used
@@ -371,9 +398,9 @@ Windows1807's older gameplay JSON is truncated and excluded.
 
 1. Run the stage13 adjacent Native action/refresh receipt on the same matrix;
    keep render bookkeeping separate and use measured phases to select the next
-   production bottleneck. Audit axis-specific Host border invalidation with a
-   cold source oracle: the reported median 1419 is Host derived-cache misses,
-   not GPU mesh regeneration. Repeated candidate distances are already removed
+   production bottleneck. The axis-specific border change passes a cold source
+   oracle; qualify its actual Host effect rather than treating the old median
+   1419 Host derived-cache misses as GPU mesh regeneration. Repeated candidate distances are already removed
    and callback counts verified. Enlarging the existing light-range cache remains
    rejected as a priority: recorded frames already make only 2-15 sight-range
    evaluations for 1400-3000 cache hits.
