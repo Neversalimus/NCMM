@@ -5,14 +5,15 @@
 #include <cstring>
 #include <initializer_list>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
-// Private, unbuilt draft. Actual Native control flow is compiled against owned
-// definitions below. Read counts are component evidence, never elapsed Native
+// Actual Native control flow is compiled against owned definitions below.
+// Read counts are component evidence, never elapsed Native
 // time or FPS, and do not establish what an optimizing Native compiler hoists.
 // Frozen code: Cataclysm: DDA contributors, CC-BY-SA-3.0.
 // https://creativecommons.org/licenses/by-sa/3.0/
@@ -58,6 +59,7 @@ struct observations {
     std::uint64_t terrain_reads = 0, furniture_reads = 0;
     std::uint64_t invalid_terrain = 0, invalid_furniture = 0, invalid_null_conversions = 0;
     bool f_null_registered = true;
+    int invalid_terrain_id = 1;
     observations() { required.reserve( 4096 ); }
     void note( read_kind kind, int x, int y, int z, int sx = 0, int sy = 0, int flag = 0 )
     { required.push_back( {int( kind ), x, y, z, sx, sy, flag, 0} ); }
@@ -116,6 +118,7 @@ struct definition {
     }
 };
 struct ter_t : definition {
+    static std::size_t count() noexcept { return 1; }
     bool has_flag( ter_furn_flag value ) const { return flag( value, terrain_flag ); }
 };
 struct furn_t : definition {
@@ -130,11 +133,13 @@ template<class Definition, read_kind InvalidKind> struct native_id {
     native_id( const Definition *v, const Definition *f, observations *o, int x, int y,
                int level, point_sm_ms p, bool present ) : value( v ), fallback( f ), owner( o ),
         gx( x ), gy( y ), z( level ), sx( p.x() ), sy( p.y() ), valid( present ) {}
-    // ID validity is quiet. Native invalid obj() has a diagnostic on each call.
-    bool is_valid() const noexcept { return valid && value != nullptr; }
+    // Match the pinned link surface: terrain is_valid() has no external body.
+    // Furniture is_valid() is separately defined and linkable in Native.
+    bool is_valid() const noexcept;
+    int to_i() const noexcept { return valid && value ? 0 : owner ? owner->invalid_terrain_id : -1; }
     const Definition &obj() const
     {
-        if( is_valid() ) return *value;
+        if( valid && value != nullptr ) return *value;
         if( owner ) {
             if constexpr( InvalidKind == invalid_terrain_debug ) ++owner->invalid_terrain;
             else ++owner->invalid_furniture;
@@ -145,6 +150,10 @@ template<class Definition, read_kind InvalidKind> struct native_id {
         return dummy;
     }
 };
+template<> bool native_id<furn_t, invalid_furniture_debug>::is_valid() const noexcept
+{
+    return valid && value != nullptr;
+}
 using ter_id = native_id<ter_t, invalid_terrain_debug>;
 using furn_id = native_id<furn_t, invalid_furniture_debug>;
 struct submap {
@@ -421,9 +430,10 @@ struct outcome {
     std::uint64_t terrain_reads = 0, furniture_reads = 0;
     std::uint64_t invalid_terrain = 0, invalid_furniture = 0, conversions = 0;
 };
-template<class Map> outcome run( const scenario &s, bool frozen_source )
+template<class Map> outcome run( const scenario &s, bool frozen_source, int invalid_terrain_id )
 {
     auto m = std::make_unique<Map>( s );
+    m->observed.invalid_terrain_id = invalid_terrain_id;
     const auto expected_terrain = m->original_terrain_count(), expected_furniture = m->original_furniture_count();
     observation_guard guard( m->observed );
     m->build_outside_cache( s.z );
@@ -460,9 +470,10 @@ template<class Map> outcome run( const scenario &s, bool frozen_source )
     result.conversions = m->observed.invalid_null_conversions;
     return result;
 }
-std::pair<outcome, outcome> paired( const scenario &s )
+std::pair<outcome, outcome> paired( const scenario &s, int invalid_terrain_id = 1 )
 {
-    auto a = run<frozen::map>( s, true ), b = run<actual::map>( s, false ); ++cases;
+    auto a = run<frozen::map>( s, true, invalid_terrain_id );
+    auto b = run<actual::map>( s, false, invalid_terrain_id ); ++cases;
     require( a.bits == b.bits && a.dirty == b.dirty, "actual complete outside-cache and dirty flag equal the frozen Native oracle" );
     require( a.required == b.required,
              "required ordered lookups, nonuniform reads, flags and diagnostics equal the primary Native source" );
@@ -514,6 +525,13 @@ std::vector<scenario> scenarios()
 void run_cases()
 {
     checks = cases = 0;
+    for( int id : {std::numeric_limits<int>::min(), -1, 1, std::numeric_limits<int>::max()} )
+        for( int width : {1, 3} ) {
+            scenario s; s.width = width; s.invalid_uniform_terrain = true;
+            const auto result = paired( s, id );
+            require( result.first.invalid_terrain == std::uint64_t( width * width * 144 ),
+                     "negative and out-of-table IDs keep all original outside-cache diagnostics" );
+        }
     const auto matrix = scenarios();
     for( const auto &s : matrix ) paired( s );
     std::cout << "Native outside-cache semantic matrix: " << cases << " pairs passed before uniform getter acceptance\n";

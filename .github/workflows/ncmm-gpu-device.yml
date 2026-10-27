@@ -256,14 +256,14 @@ jobs:
             'experiments/FirstPersonView/tests/trace_platform_test.cpp':'d996d66359bf06afccac0a268343936b65c88317cb0cdca8a0b92eb9ccca3159',
             'experiments/graphics_bridge/ncmm_graphics_move_diagnostics.hpp':'40b02411b63cc8cedb5aae987ae33866e666cd2c82b5cde582a89b46c9004d74',
             'experiments/graphics_bridge/ncmm_graphics_update_map.inc':'296426cd87644e9cad5ea639ab3ce0a738ed4b99393fcb0244739337d02998fc',
-            'experiments/FirstPersonView/tests/native_floor_cache_fixture.cpp':'7865baa2ff41b5231bb9c545c60d50b97c8bbdeb923fed37e61abd727e1c3a0f',
-            'experiments/graphics_bridge/ncmm_graphics_floor_cache.inc':'b7c77218f68e02862c156b9dadb744fe090a43022b5daedd1ef3a6d73d2d2a9f',
+            'experiments/FirstPersonView/tests/native_floor_cache_fixture.cpp':'bdf60487219a71fb3495eb0fc1dd2050be5147b94c32d15ebe17b6c1f7fb9202',
+            'experiments/graphics_bridge/ncmm_graphics_floor_cache.inc':'1bd4d23281b322c7104ac0d4ceb817269753e9679542309c502bd2fe436d4fe4',
             'experiments/FirstPersonView/tests/native_item_reconciliation_fixture.cpp':'917910cb9de8a76fc867a148c51cf58de8db3203b2b9875e19bd767e8d1cf666',
             'experiments/graphics_bridge/ncmm_graphics_reconcile_items.inc':'f8b6eb862fbea86954d68c6b6b67ea7bbb8a19b48f1dbec80bdfa06a92811e77',
-            'experiments/FirstPersonView/tests/native_vision_transparency_fixture.cpp':'6048c8f94658d03ee512e36d4350f04273656c3a09bf6fe41527ac61feb091f1',
-            'experiments/graphics_bridge/ncmm_graphics_vision_transparency.inc':'85123343aeedf8e41374f3765ec2bcd20d3affbc615ac5981dde14bbb369abaf',
-            'experiments/FirstPersonView/tests/native_outside_cache_fixture.cpp':'c314ad9f7177a96d6d30e20fb40a89dc463af34a61c06b386254e5174cc3e3d5',
-            'experiments/graphics_bridge/ncmm_graphics_outside_cache.inc':'8b00b47b368b98f07b0f0caccc20c7634a346159ede8b67d1a2fc213cb3cfedb'}
+            'experiments/FirstPersonView/tests/native_vision_transparency_fixture.cpp':'d4547989025a9ab76f5a1c2ac4bd4e021dd675dac05772fb089228e598de8342',
+            'experiments/graphics_bridge/ncmm_graphics_vision_transparency.inc':'e6a443f66d63e0158d0097b919fb920a07ef4ef746f842ec9c10f46664a4e1f4',
+            'experiments/FirstPersonView/tests/native_outside_cache_fixture.cpp':'523747ce4df72fc9fdf2bb22d087143e50ae8e63a66939f3f2ef9cd5646ef03f',
+            'experiments/graphics_bridge/ncmm_graphics_outside_cache.inc':'ecf282248ffacf39d127e3075123a56d143913bb458e18650504d8a27cea055a'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')

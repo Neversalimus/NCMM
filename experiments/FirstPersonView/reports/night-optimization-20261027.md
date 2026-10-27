@@ -11,6 +11,8 @@ profilers are prohibited. Background games stay running. Local checks use
 Release pure/model/shared-module tests and an inventoried SDL_WINDOW_HIDDEN
 render-only GPU suite. No full game copy or new checkout was made. No main
 merge, release or feed publication before the user's finalization request.
+The user's subsequent instruction disables all subagents until reauthorized;
+remaining investigation, implementation and validation are performed solo.
 
 This journal replaces repetitive checkpoint detail; the complete stage 1-15
 record remains [in its prior revision](https://github.com/Neversalimus/NCMM/blob/f6f706bf986503c25b89835e4aa425282a25e9ff/experiments/FirstPersonView/reports/night-optimization-20261027.md).
@@ -435,6 +437,30 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     block remain exact. New Native compilation/runtime and any first-frame
     gain still require remote qualification.
 
+26. **Repair the pinned terrain-ID link contract.** Actual `191d881` CI
+    rejects both Windows Hosts with LNK2019/LNK2001 and Linux1807 with undefined
+    references to `int_id<ter_t>::is_valid()`. The specialization is inline in
+    Native mapdata.cpp without an externally usable definition; the earlier
+    local fake supplied a body and hid this integration defect. All three
+    uniform terrain gates now use `static_cast<std::size_t>(id.to_i()) <
+    ter_t::count()`, the exact quiet bounds predicate from generic_factory.
+    Retained primary blobs `65ae31e67f8e5632ea67c2944329f98f247a45f4`
+    (generic_factory.h, lines519-520) and
+    `415150870af4a2954eba5c40879ea4681605f301` (mapdata.cpp, lines1150-1153)
+    were independently hashed: count() returns that same factory's size.
+    Furniture validity remains its separately linkable Native specialization.
+
+    Red: leave only the terrain validity declaration in all three fixtures;
+    the unchanged includes reproduce three unresolved terrain symbols locally.
+    Green: full Release and the same 50 autonomous CTests pass (14.90 s), with
+    all 66 atomic bridge tests. Each fixture adds INT_MIN/-1/upper-bound/INT_MAX
+    invalid-ID pairs at widths1/3. Complete frozen bodies and ordered diagnostics
+    remain exact: floor461 cases / 8981133 checks, vision455 / 18919245,
+    outside176 pairs / 13615282; eligible uniform getter counts stay17424 ->121.
+    Evidence `night-terrain-link-*`. Unchanged Python verifier coverage remains
+    the stage22 263-test pass. New Native linkage and gameplay require remote
+    qualification; no new latency gain is inferred from this repair.
+
 ## Actual remote evidence and next priorities
 
 **Submap attribution at exact `7f0ea25`, run 40481073067.** Both Windows
@@ -632,12 +658,19 @@ diagnostics were read only through Code Review; the log view is truncated,
 so complete job conclusions and twelve reported process results establish
 this bounded claim. Both Windows pins also pass longer gameplay/UDP and eight
 focused clean-teardown checks. Windows appearance and subsequent full
-qualification were still running at this checkpoint. No full main-run pass is
-claimed. The independent
+qualification were still running at that checkpoint and were subsequently
+cancelled when stages22-25 were pushed. No full main-run pass is claimed. The independent
 [GPU Windows/Linux/Vulkan/sanitizers](https://github.com/Neversalimus/NCMM/actions/runs/40481073086),
 [source/package](https://github.com/Neversalimus/NCMM/actions/runs/40481073024)
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40481072968) pass.
 Subsequent stages22-25 Host bytes require their own remote qualification.
+
+At `191d881`, [main run40497497118](https://github.com/Neversalimus/NCMM/actions/runs/40497497118)
+passes both module jobs but fails Native linkage on both Windows pins and
+Linux1807 as described in stage26; Linux1040 was still running when the repair
+was prepared. Windows job IDs122168779629/122168779487 and Linux1807
+job122168779729 were read through Code Review only. No new game run, movement
+receipt or full Native pass exists for this failed source revision.
 
 The freshly rebuilt hidden render-only RTX 4090 controls retain
 45 grass draws, zero CPU world raster, zero warm static uploads and 21108 open

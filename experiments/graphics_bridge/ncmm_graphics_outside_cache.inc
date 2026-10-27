@@ -40,7 +40,7 @@ void map::build_outside_cache( const int zlev )
             // Preserve terrain-first short circuit, including missing f_null.
             if( cur_submap->is_uniform() ) {
                 const ter_id uniform_terrain = cur_submap->get_ter( point_sm_ms::zero );
-                if( uniform_terrain.is_valid() ) {
+                if( static_cast<std::size_t>( uniform_terrain.to_i() ) < ter_t::count() ) {
                     bool uniform_indoors = uniform_terrain.obj().has_flag( ter_furn_flag::TFLAG_INDOORS );
                     bool resolved = uniform_indoors;
                     if( !uniform_indoors && furn_str_id::NULL_ID().is_valid() ) {

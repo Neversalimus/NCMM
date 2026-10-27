@@ -5,6 +5,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -52,6 +53,7 @@ struct observations {
     std::uint64_t terrain_reads = 0, furniture_reads = 0, invalid_terrain = 0, invalid_furniture = 0;
     std::uint64_t invalid_null_conversions = 0;
     bool f_null_registered = true;
+    int invalid_terrain_id = 1;
     observations() { required.reserve( 4096 ); }
     void note( read_kind kind, int x, int y, int z, int sx = 0, int sy = 0, int flag = 0 )
     { required.push_back( {int( kind ), x, y, z, sx, sy, flag, 0} ); }
@@ -84,7 +86,10 @@ struct definition {
         return ( flags & ( 1u << unsigned( value ) ) ) != 0;
     }
 };
-struct ter_t : definition { bool has_flag( ter_furn_flag f ) const { return flag( f, terrain_flag ); } };
+struct ter_t : definition {
+    static std::size_t count() noexcept { return 1; }
+    bool has_flag( ter_furn_flag f ) const { return flag( f, terrain_flag ); }
+};
 struct furn_t : definition { bool has_flag( ter_furn_flag f ) const { return flag( f, furniture_flag ); } };
 template<class Definition, read_kind InvalidKind> struct native_id {
     const Definition *value = nullptr, *fallback = nullptr;
@@ -95,12 +100,14 @@ template<class Definition, read_kind InvalidKind> struct native_id {
     native_id( const Definition *v, const Definition *f, observations *o, int x, int y,
                int level, point_sm_ms p, bool present ) : value( v ), fallback( f ), owner( o ),
         gx( x ), gy( y ), z( level ), sx( p.x() ), sy( p.y() ), valid( present ) {}
-    // Native validity is a pure ID-table query. Invalid obj() is deliberately
-    // different: each call diagnoses the invalid ID before returning its dummy.
-    bool is_valid() const noexcept { return valid && value != nullptr; }
+    // These pinned engines define terrain is_valid() inline in mapdata.cpp,
+    // without an externally linkable body. Deliberately leave it undefined;
+    // only the furniture specialization below is available to the include.
+    bool is_valid() const noexcept;
+    int to_i() const noexcept { return valid && value ? 0 : owner ? owner->invalid_terrain_id : -1; }
     const Definition &obj() const
     {
-        if( is_valid() ) return *value;
+        if( valid && value != nullptr ) return *value;
         if( owner ) {
             if constexpr( InvalidKind == invalid_terrain_debug ) ++owner->invalid_terrain;
             else ++owner->invalid_furniture;
@@ -111,6 +118,10 @@ template<class Definition, read_kind InvalidKind> struct native_id {
         return dummy;
     }
 };
+template<> bool native_id<furn_t, invalid_furniture_debug>::is_valid() const noexcept
+{
+    return valid && value != nullptr;
+}
 using ter_id = native_id<ter_t, invalid_terrain_debug>;
 using furn_id = native_id<furn_t, invalid_furniture_debug>;
 struct submap {
@@ -323,9 +334,10 @@ struct outcome {
     std::uint64_t terrain_reads, furniture_reads, invalid_terrain, invalid_furniture;
     std::uint64_t invalid_null_conversions;
 };
-template<class Map> outcome run( const scenario &s )
+template<class Map> outcome run( const scenario &s, int invalid_terrain_id )
 {
     auto map = std::make_unique<Map>( s );
+    map->observed.invalid_terrain_id = invalid_terrain_id;
     observation_guard observe( map->observed );
     const bool returned = map->build_floor_cache( s.z );
     return {map->cache.floor_cache.bits, returned, map->cache.floor_cache_dirty, map->cache.no_floor_gaps,
@@ -333,9 +345,10 @@ template<class Map> outcome run( const scenario &s )
             map->observed.furniture_reads, map->observed.invalid_terrain, map->observed.invalid_furniture,
             map->observed.invalid_null_conversions};
 }
-std::pair<outcome, outcome> paired( const scenario &s )
+std::pair<outcome, outcome> paired( const scenario &s, int invalid_terrain_id = 1 )
 {
-    auto original = run<frozen::map>( s ); auto observed = run<actual::map>( s ); ++cases;
+    auto original = run<frozen::map>( s, invalid_terrain_id );
+    auto observed = run<actual::map>( s, invalid_terrain_id ); ++cases;
     for( std::size_t i = 0; i < tile_count; ++i ) require( original.floor[i] == observed.floor[i], "every floor-cache bit equals the frozen Native oracle" );
     require( original.returned == observed.returned && original.dirty == observed.dirty && original.no_floor_gaps == observed.no_floor_gaps,
              "Native return, dirty flag and no_floor_gaps equal the oracle" );
@@ -349,6 +362,13 @@ std::pair<outcome, outcome> paired( const scenario &s )
 void run_cases()
 {
     checks = cases = 0;
+    for( int id : {std::numeric_limits<int>::min(), -1, 1, std::numeric_limits<int>::max()} )
+        for( int width : {1, 3} ) {
+            scenario s; s.width = width; s.uniform_flags = 1; s.invalid_uniform_terrain = true;
+            const auto result = paired( s, id );
+            require( result.first.invalid_terrain == std::uint64_t( width * width * 144 ),
+                     "negative and out-of-table integer IDs keep every original floor diagnostic" );
+        }
     for( unsigned mask = 0; mask < 16; ++mask ) for( bool roof : {false, true} )
         for( bool zlevels : {false, true} ) for( bool lowest : {false, true} ) for( int width : {1, 3} ) {
             scenario s; s.uniform_flags = mask; s.f_null_sun = roof; s.zlevels = zlevels;

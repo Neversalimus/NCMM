@@ -41,7 +41,9 @@ bool map::build_floor_cache( const int zlev )
             // loop for every mixed or invalid definition and its diagnostics.
             if( cur_submap->is_uniform() && ( !below_submap || below_submap->is_uniform() ) ) {
                 const ter_id uniform_terrain = cur_submap->get_ter( point_sm_ms::zero );
-                if( uniform_terrain.is_valid() ) {
+                // The pinned terrain is_valid() has no external definition.
+                // This is generic_factory's exact quiet integer bounds test.
+                if( static_cast<std::size_t>( uniform_terrain.to_i() ) < ter_t::count() ) {
                     const ter_t &terrain = uniform_terrain.obj();
                     const bool has_gap = terrain.has_flag( ter_furn_flag::TFLAG_NO_FLOOR ) ||
                                          terrain.has_flag( ter_furn_flag::TFLAG_NO_FLOOR_WATER ) ||

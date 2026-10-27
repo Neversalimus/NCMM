@@ -12,9 +12,8 @@
 #include <utility>
 #include <vector>
 
-// PRIVATE DRAFT: no main and no build integration. Copy into tests/ only after
-// the stage is accepted. The actual include is found through first_person_target's
-// existing graphics_bridge include directory, as for the floor-cache fixture.
+// Compile the complete frozen Native body and the actual include against the
+// same owned definitions; the terrain ID retains the pinned link surface.
 // This is a bounded value/ordered-read oracle, not a Native iterator, lightmap
 // timing, visibility-discovery, or gameplay qualification.
 // Frozen code: Cataclysm: DDA contributors, CC-BY-SA-3.0.
@@ -79,6 +78,7 @@ using read_event = std::array<int, 8>;
 struct observations {
     std::vector<read_event> required;
     std::uint64_t terrain_reads = 0, object_reads = 0, flag_reads = 0, invalid_terrain = 0;
+    int invalid_terrain_id = 1;
     void note( read_kind kind, int x = 0, int y = 0, int z = 0, int sx = 0, int sy = 0, int detail = 0 )
     { required.push_back( {int( kind ), x, y, z, sx, sy, detail, 0} ); }
 };
@@ -117,6 +117,7 @@ void debugmsg( const char *format, int x, int y, int z )
     active_observations->note( unloaded_debug, x, y, z );
 }
 struct ter_t {
+    static std::size_t count() noexcept { return 1; }
     bool translucent = false, uniform = true;
     observations *owner = nullptr;
     int gx = 0, gy = 0, z = 0, sx = 0, sy = 0;
@@ -133,13 +134,14 @@ struct ter_id {
     observations *owner = nullptr;
     bool valid = false;
     int gx = 0, gy = 0, z = 0, sx = 0, sy = 0;
-    // Native int_id validity is a quiet bounds/query. Invalid obj() diagnoses
-    // on EVERY call; it cannot be skipped or hoisted into a single diagnostic.
-    bool is_valid() const noexcept { return valid && value != nullptr; }
+    // The pinned terrain specialization is inline in mapdata.cpp only. A test
+    // definition here would hide the actual Native unresolved-symbol failure.
+    bool is_valid() const noexcept;
+    int to_i() const noexcept { return valid && value ? 0 : owner ? owner->invalid_terrain_id : -1; }
     const ter_t &obj() const
     {
         ++owner->object_reads;
-        if( is_valid() ) return *value;
+        if( valid && value != nullptr ) return *value;
         ++owner->invalid_terrain;
         owner->note( invalid_terrain_debug, gx, gy, z, sx, sy );
         return *fallback;
@@ -414,9 +416,10 @@ struct outcome {
     std::vector<read_event> required;
     std::uint64_t terrain_reads = 0, object_reads = 0, flag_reads = 0, invalid_terrain = 0;
 };
-template<class Map> outcome execute( const scenario &s )
+template<class Map> outcome execute( const scenario &s, int invalid_terrain_id )
 {
     auto map = std::make_unique<Map>( s );
+    map->observed.invalid_terrain_id = invalid_terrain_id;
     const auto source_before = grid_bits( map->cache.transparency_cache );
     const auto protected_before = map->protected_content();
     outcome result;
@@ -436,12 +439,12 @@ template<class Map> outcome execute( const scenario &s )
     result.invalid_terrain = map->observed.invalid_terrain;
     return result;
 }
-std::pair<outcome, outcome> paired( const scenario &s )
+std::pair<outcome, outcome> paired( const scenario &s, int invalid_terrain_id = 1 )
 {
     case_name = "case " + std::to_string( cases ) + " width=" + std::to_string( s.width ) + " z=" + std::to_string( s.z ) +
                 " shape=" + std::to_string( s.terrain_shape ) + " dirty=" + std::to_string( s.dirty_mode );
-    auto original = execute<frozen::map>( s );
-    auto observed = execute<actual::map>( s );
+    auto original = execute<frozen::map>( s, invalid_terrain_id );
+    auto observed = execute<actual::map>( s, invalid_terrain_id );
     require( original.returned == observed.returned, "dirty return matches the independent primary oracle" );
     require( original.dirty_before == observed.dirty_before && original.dirty_after == observed.dirty_after, "all 121 dirty bits and reset remain exact" );
     require( original.protected_bytes == observed.protected_bytes, "the two owned scenarios have identical protected content" );
@@ -472,6 +475,13 @@ std::pair<outcome, outcome> paired( const scenario &s )
 void run_cases()
 {
     checks = cases = 0;
+    for( int id : {std::numeric_limits<int>::min(), -1, 1, std::numeric_limits<int>::max()} )
+        for( int width : {1, 3} ) {
+            scenario s; s.width = width; s.invalid = 1; s.dirty_mode = 1;
+            const auto result = paired( s, id );
+            require( result.first.invalid_terrain == std::uint64_t( width * width * 144 ),
+                     "negative and out-of-table IDs keep every original vision-cache diagnostic" );
+        }
     for( int width : {1, 3, 11} ) for( int z : {-10, 0, 10} )
         for( int dirty : {0, 1, 2, 3} ) for( bool translucent : {false, true} ) {
             scenario s; s.width = width; s.z = z; s.dirty_mode = dirty; s.uniform_translucent = translucent;

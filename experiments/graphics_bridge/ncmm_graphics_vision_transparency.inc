@@ -65,7 +65,7 @@ bool map::build_vision_transparency_cache( int zlev )
             // any tile in the original loop. Keep all other cases verbatim.
             if( cur_submap->is_uniform() ) {
                 const ter_id uniform_terrain = cur_submap->get_ter( point_sm_ms::zero );
-                if( uniform_terrain.is_valid() &&
+                if( static_cast<std::size_t>( uniform_terrain.to_i() ) < ter_t::count() &&
                     !uniform_terrain.obj().has_flag( ter_furn_flag::TFLAG_TRANSLUCENT ) ) {
                     continue;
                 }
