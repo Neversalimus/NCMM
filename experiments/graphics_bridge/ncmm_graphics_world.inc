@@ -42,9 +42,10 @@ ncmm_graphics_scratch::vector_storage<ncmm_world_cell_v1,NCMM_WORLD_MAX_CELLS> g
 ncmm_graphics_scratch::vector_storage<ncmm_world_slice_v1,NCMM_WORLD_MAX_SLICES> graphics_world_slice_storage;
 ncmm_graphics_scratch::vector_storage<std::array<float,3>,NCMM_WORLD_MAX_CELLS> graphics_world_facade_storage;
 uint64_t graphics_world_snapshot_growths=0,graphics_world_snapshot_reuses=0,graphics_world_snapshot_candidates=0;
-uint64_t graphics_world_snapshot_storage_bytes(){
+uint64_t graphics_world_snapshot_storage_bytes(bool include_details=true){
     return graphics_world_candidate_storage.bytes()+graphics_world_cell_storage.bytes()+graphics_world_position_storage.bytes()+
-        graphics_world_coordinate_storage.bytes()+graphics_world_slice_storage.bytes()+graphics_world_facade_storage.bytes();
+        graphics_world_coordinate_storage.bytes()+graphics_world_slice_storage.bytes()+graphics_world_facade_storage.bytes()+
+        (include_details?graphics_hybrid_detail_storage.bytes():0);
 }
 ncmm_world::source_cache graphics_world_sources;
 void graphics_world_geometry_region_changed(int32_t,int32_t,int,int,int);
@@ -151,6 +152,7 @@ void graphics_clear_world()
     graphics_snapshot_lease.invalidate();graphics_camera_cache.clear();
     graphics_world_candidate_storage.clear();graphics_world_cell_storage.clear();graphics_world_position_storage.clear();
     graphics_world_coordinate_storage.clear();graphics_world_slice_storage.clear();graphics_world_facade_storage.clear();
+    graphics_hybrid_detail_storage.clear();
     graphics_world_snapshot_growths=graphics_world_snapshot_reuses=graphics_world_snapshot_candidates=0;
     graphics_world_sources.clear();graphics_world_roofs.clear();graphics_world_derived.clear();graphics_world_sealed.clear();graphics_world_map_identity=nullptr;graphics_world_realm.clear();
     graphics_world_previous_position.reset();graphics_world_ray_position.reset();graphics_world_camera_motion.reset();
@@ -565,7 +567,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
     graphics_world_metrics.source_cache_hits=graphics_world_sources.hits;graphics_world_metrics.source_cache_misses=graphics_world_sources.misses;
     // Count every owned snapshot array, including the candidate and facade
     // arrays omitted from the previous estimate. This is capacity, not VRAM.
-    graphics_world_metrics.snapshot_bytes=candidate_loan.bytes()+cell_loan.bytes()+position_loan.bytes()+coordinate_loan.bytes()+slice_loan.bytes()+facade_loan.bytes()+graphics_world_snapshot_storage_bytes()+graphics_camera_cache.bytes();
+    // Hybrid adds its active+retained details capacity when that loan exists;
+    // do not also count its previous retained capacity before acquisition.
+    graphics_world_metrics.snapshot_bytes=candidate_loan.bytes()+cell_loan.bytes()+position_loan.bytes()+coordinate_loan.bytes()+slice_loan.bytes()+facade_loan.bytes()+graphics_world_snapshot_storage_bytes(false)+graphics_camera_cache.bytes();
     graphics_world_snapshot_growths=candidate_loan.growths()+cell_loan.growths()+position_loan.growths()+coordinate_loan.growths()+slice_loan.growths()+facade_loan.growths();
     graphics_world_snapshot_reuses=uint64_t(candidate_loan.reused())+cell_loan.reused()+position_loan.reused()+coordinate_loan.reused()+slice_loan.reused()+facade_loan.reused();
     graphics_world_metrics.extraction_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
@@ -587,7 +591,7 @@ bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_
 #else
 void graphics_world_region_changed_impl(const map *,int32_t,int32_t,int,int,int){}
 int graphics_get_lod(ncmm_graphics_lod_scene_v1 *){return 0;}
-void graphics_clear_world(){graphics_multilevel_frame=nullptr;}
+void graphics_clear_world(){graphics_hybrid_detail_storage.clear();graphics_multilevel_frame=nullptr;}
 #endif
 bool graphics_world_needs_redraw(){
 #if defined(TILES)
@@ -601,9 +605,15 @@ int graphics_register_world(const char *id,ncmm_graphics_render_multilevel_v1 re
     if(graphics_render_active||!active_module_matches(id)||!module_ids.count(id)||!render||(!graphics_view.owner.empty()&&graphics_view.owner!=id))return 0;
     graphics_clear_world();graphics_view={id,nullptr,input,data,false,nullptr,render};return 1;
 }
-void graphics_world_extracted(double total){
+void graphics_world_extracted(double total,size_t active_detail_bytes,size_t detail_growths,bool detail_reused){
     graphics_world_metrics.extraction_ms=std::max(0.0,total-graphics_world_metrics.visibility_ms);
-    graphics_world_metrics.snapshot_bytes+=graphics_presentation_cells.capacity()*sizeof(graphics_presentation_cells[0])+graphics_creature_snapshots.capacity()*sizeof(graphics_creature_snapshots[0]);
+    graphics_world_metrics.snapshot_bytes+=active_detail_bytes+graphics_hybrid_detail_storage.bytes()+
+        graphics_presentation_cells.capacity()*sizeof(graphics_presentation_cells[0])+graphics_creature_snapshots.capacity()*sizeof(graphics_creature_snapshots[0]);
+#if defined(TILES)
+    graphics_world_snapshot_growths+=detail_growths;graphics_world_snapshot_reuses+=uint64_t(detail_reused);
+#else
+    (void)detail_growths;(void)detail_reused;
+#endif
 }
 int graphics_get_world_metrics(ncmm_multilevel_metrics_v1 *out)
 {

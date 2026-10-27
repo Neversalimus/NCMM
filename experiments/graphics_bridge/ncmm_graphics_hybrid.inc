@@ -2,7 +2,8 @@
 // is exposed to a module; submitted pixels are validated and copied atomically.
 const ncmm_graphics_scene_v2 *graphics_hybrid_frame = nullptr;
 const ncmm_graphics_multilevel_scene_v1 *graphics_multilevel_frame = nullptr;
-void graphics_world_extracted(double);
+void graphics_world_extracted(double,size_t,size_t,bool);
+ncmm_graphics_scratch::vector_storage<ncmm_graphics_cell_v2,NCMM_WORLD_MAX_CELLS> graphics_hybrid_detail_storage;
 const std::vector<tripoint_bub_ms> *graphics_hybrid_positions = nullptr;
 std::vector<uint32_t> graphics_hybrid_pixels;
 uint32_t graphics_hybrid_width = 0, graphics_hybrid_height = 0;
@@ -376,7 +377,11 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
 {
     ncmm_graphics_trace::cpu_zone snapshot_zone("Snapshot");
     avatar &you = get_avatar(); map &here = get_map();
-    std::vector<ncmm_graphics_cell_v2> details( base.cell_count );
+    // Keep the callback's array private even during nested draws or resets.
+    // Empty retained capacity avoids repeated allocation; resize still fully
+    // value-initializes every cell, including invisible and cached cells.
+    auto detail_loan=graphics_hybrid_detail_storage.acquire();auto &details=detail_loan.get();
+    detail_loan.reserve(base.cell_count);detail_loan.resize(base.cell_count);
     std::map<const vehicle *, uint32_t> groups;
     std::map<const vehicle *, std::pair<float, float>> vehicle_anchors;
     const ncmm_world::coordinates world_coordinates(world,true);
@@ -583,7 +588,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     }
     graphics_prepare_creatures( base, positions,world );
     graphics_snapshot_ms = std::chrono::duration<double,std::milli>( std::chrono::steady_clock::now() - graphics_snapshot_begun ).count();
-    if(world)graphics_world_extracted(graphics_snapshot_ms);
+    if(world)graphics_world_extracted(graphics_snapshot_ms,detail_loan.bytes(),detail_loan.growths(),detail_loan.reused());
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
     graphics_resolved_textures = graphics_resolved_vehicle_textures = 0;
     graphics_frame_invalid = false; graphics_gpu_frame = false; graphics_hybrid_frame = world?&world->appearance:&scene; graphics_hybrid_positions = &positions;

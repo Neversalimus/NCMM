@@ -159,13 +159,34 @@ Do not merge or release before the user's separate finalization request.
    game frames or resolved player-visible freezes. Raw pairs and conditions are
    in `night-floor-preparation-20261027.json`.
 
+8. **Retain the Host details array between callbacks.** The current
+   `graphics_draw_hybrid` still constructed a fresh `vector<cell_v2>`; the
+   saved Native city stack independently records this same allocation path.
+   Details now borrow a separate existing-style `vector_storage` loan, bounded
+   to 65536 retained cells (20.25 MiB logical capacity). The array remains owned
+   for the complete callback, is fully value-initialized again, and cannot be
+   invalidated by a nested callback. A world reset releases retained capacity
+   and retires active loans. Active/retained details now count once in snapshot
+   memory and growth/reuse metrics; the existing 80 MiB snapshot gate is intact.
+
+   The pure storage-pattern comparison uses actual allocation hooks and full
+   byte equality against fresh vectors, not a Native Host invocation or timing:
+   cold/warm allocation counts 1/1 -> 1/0; at 9409 cells, repeated allocated
+   bytes 3048555 -> 0, and at 65536 cells 21233703 -> 0 (MSVC includes 39 bytes
+   of alignment overhead). All 5201 storage checks pass, including shrink/grow,
+   stale/omitted fields and IDs, invisible cells, nested callbacks, exceptions,
+   reset and bounds. All 195 Python and 24 atomic bridge tests pass. Full
+   initialization work remains; this is not proof that Native pauses are gone.
+   No local Native compile tree was available; both pinned Host builds and
+   actual callback/snapshot memory qualification remain pending in remote CI.
+
 ## Working queue
 
-1. The Host still allocates a fresh `cell_v2` details vector on every callback;
-   the current line matches an allocation stack in the saved Native profile.
-   Reuse the existing bounded callback-loan mechanism while preserving complete
-   value initialization, nested callback lifetime and memory accounting. Pure
-   allocation counts can qualify storage behaviour, not Native frame time.
+1. Audit repeated Native distance/range queries within one XYZ's visibility
+   processing. Old profiles contain this work, but no current millisecond
+   benefit or paired callback-count baseline has been established. Enlarging
+   the existing light-range cache was rejected as a priority: recorded frames
+   already make only 2-15 sight-range evaluations for 1400-3000 cache hits.
 2. Distant radio towers are still classified as generic BUILDING horizon
    patches and become wide boxes. Near towers already use lattice geometry.
    A separate compatible skyline representation is needed; do not silently
@@ -194,6 +215,10 @@ still required for that header.
 The subsequent floor stage passed a fresh full local build, the same 50
 autonomous CTests and the hidden render-only GPU suite. Fresh remote module,
 GPU and Native qualification is still required for the new producer bytes.
+The details stage adds only its affected 5201-check pure storage suite and the
+195 Python / 24 atomic bridge checks; it is not qualified by the older Native
+results. Accurate inclusion of details memory must also pass the existing
+remote snapshot-memory gate.
 
 CI update: GPU Windows/Linux/Clang ASan/UBSan/Vulkan run 40418690852 passes.
 Windows module checks pass. Linux module job 121909444832 in run 40418690848
