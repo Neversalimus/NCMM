@@ -687,6 +687,37 @@ lossless readback previews: `night-static-stair-1bdb0cd/`; independent summary
 SHA256 `c7aefa84844a9547aecd01d8d0d8ae6c903424cd5735ee59f431ad5144cedf79`.
 No local Native game was launched and no renderer suite was rerun.
 
+**Completed Linux qualification at exact `1bdb0cd`.** Both actual Native jobs
+[1040/122299656818](https://github.com/Neversalimus/NCMM/actions/runs/40534567570/job/122299656818)
+and [1807/122299656905](https://github.com/Neversalimus/NCMM/actions/runs/40534567570/job/122299656905)
+pass in full. Controls, camera, FPS, held, target and gameplay each exit0
+without timeout: all12 reported process rows were read through Code Review,
+whose120000-character job views are truncated. The successful full job
+conclusions are separate from that bounded log coverage.
+
+Four selected program JSON files per artifact12753581519/12752868249 reserve
+2197611 bytes /8 MiB;740/781 MB archives were not downloaded in full. Both
+completion summaries name runtime`e5641e79f4e9d398468a5cb8e014eade4560a138`
+and the correct engine pin; their six process records match the Code Review
+rows exactly. Both share the already-proved source tree. All99 copied shared
+inputs per pin, including actualize/phase/support/cache wrappers, match exact
+`1bdb0cd` Git objects after the bridge's universal-newline handling. Patched
+Native translation units were not independently reconstructed by this check.
+Private completion/source receipts: `night-linux-1bdb0cd/`; summary SHA256
+`727d5b08ec1c897b4e9628d13b0fd90e87c966cc3011ded2cd56cc90d708962f`.
+This is software-Vulkan functional qualification through stage30, not a
+hardware timing or new-stage31 pass. Windows1040's longer gameplay/UDP step
+also reports success; full Windows/main qualification is still pending.
+
+Stage31 diagnostics and the following stair-evidence note are separately
+committed as`493c175`/`043fb4d`. An isolated integration dispatch
+[40547452414](https://github.com/Neversalimus/NCMM/actions/runs/40547452414)
+at exact`043fb4d` runs on branch`codex/fpv-night-cache-attribution-20261027`
+to obtain cache child receipts while the full PR run remains undisturbed.
+The requested integration tier is insufficient for final full qualification;
+its diagnostic output must not be represented as a full required-tier pass.
+Its new Native compilation/measurements remain pending at this checkpoint.
+
 **Actual underground-loop revision `aff7dd7`, run40525583050.** Both early
 Windows programs exit0 without wrapper/debugger error or dumps. Runtime
 `ce3d5328b61c3906ffd15e04306a934f08eb72bc` shares the saved source tree
