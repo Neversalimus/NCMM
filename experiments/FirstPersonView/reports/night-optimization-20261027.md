@@ -360,7 +360,7 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     Unchanged extraction: 72 semantic pairs plus four whole-bubble oracle
     comparisons pass, then the final repeated-getter assertion fails. After:
     76 pairs / 1080060 checks pass. Per pin, fully empty uniform no-Z getters
-    17424 -> 121; all21-Z getters 365904 -> 2541. Separate private compiled
+    17424 -> 121; all 21 Z-levels 365904 -> 2541. Separate private compiled
     negative controls using the wrong const sentinel or uniform-only skipping
     both fail on callback/state equivalence, before the cardinality gate.
     They are pure owned std::list-backed models, not plf performance models.
@@ -406,6 +406,34 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     invalid-f_null eligibility check: negative CID caching makes later find_id
     return false without another lookup, but convert still emits its warning
     after every false result. The check does not consume fallback diagnostics.
+
+25. **Batch identical uniform outside-cache stamps.** Complete Native
+    `map::build_outside_cache` is identical at both pins: 2217 bytes, SHA256
+    `99181cb92ff370313fa5870684f513ee0dad010dcc0798f6aa9587b085a66abc`.
+    After the unchanged null guards, valid uniform terrain/furniture resolve
+    the original INDOORS OR once. Terrain remains first: an indoor terrain
+    never queries furniture, even when f_null is missing. Mixed, invalid or
+    missing-null definitions retain every old loop and diagnostic. Outdoor
+    blocks have no stamps; indoor blocks fill the exact 14x14 union of all 144
+    original 3x3 stamps as fourteen rows with padded stride 134, retaining the
+    one-cell halo, adjacent/corner interactions and final active copy extents.
+    Underground keeps its original early return and dirty-flag behavior.
+
+    Red: all 164 semantic pairs and four full-grid OR combinations agree, then
+    the getter-count gate fails. Green: 168 pairs / 13289378 checks pass,
+    including complete bool caches, untouched tails/guards, both dirty states,
+    widths 1/3/11, negative Z, null blocks, modded f_null, invalid integer IDs
+    and missing null-string conversion diagnostics. At 11x11, terrain getters
+    17424 -> 121 in all four OR cases; furniture 17424 -> 121 only when terrain
+    is outdoor, otherwise 0 -> 0. Red/green counts are component evidence, not
+    Native execution timings.
+
+    Full Release, the same 50 inventoried autonomous CTests (15.24 s), all 66
+    atomic bridge tests and independent read-only source review pass. Unchanged
+    verifier coverage remains the stage22 263-test pass. Evidence
+    `night-outside-*`. All original function bytes outside the bounded fast
+    block remain exact. New Native compilation/runtime and any first-frame
+    gain still require remote qualification.
 
 ## Actual remote evidence and next priorities
 
@@ -602,14 +630,14 @@ target and gameplay each exit0
 without timeout, including the previously failing multilevel control. CI
 diagnostics were read only through Code Review; the log view is truncated,
 so complete job conclusions and twelve reported process results establish
-this bounded claim. Windows1040 also passes the longer gameplay/UDP and eight
-focused clean-teardown checks. Windows appearance and remaining1807
+this bounded claim. Both Windows pins also pass longer gameplay/UDP and eight
+focused clean-teardown checks. Windows appearance and subsequent full
 qualification were still running at this checkpoint. No full main-run pass is
 claimed. The independent
 [GPU Windows/Linux/Vulkan/sanitizers](https://github.com/Neversalimus/NCMM/actions/runs/40481073086),
 [source/package](https://github.com/Neversalimus/NCMM/actions/runs/40481073024)
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40481072968) pass.
-Subsequent stages22-24 Host bytes require their own remote qualification.
+Subsequent stages22-25 Host bytes require their own remote qualification.
 
 The freshly rebuilt hidden render-only RTX 4090 controls retain
 45 grass draws, zero CPU world raster, zero warm static uploads and 21108 open
