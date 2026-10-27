@@ -276,6 +276,11 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     test-contract contradiction; whether it explains the observed Linux exit191
     still requires the new exact-source remote Native run.
 
+    First remote module build at `866fe99` exposed a test-only portability
+    error: GCC requires the explicit `<utility>` declaration for `std::as_const`
+    in this fixture. Added that header globally; no helper or game-body change.
+    Diagnostics were obtained through Code Review, job122109104755.
+
 21. **Adjacent submap-shift diagnostics, opt-in only.** Earlier receipts mix
     fast in-submap actions with 40-66 ms crossings. The exact 3205-byte Native
     `game::update_map` body, identical at both pins (SHA256

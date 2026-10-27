@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 #include "skyline_host_fixture.hpp"
 using namespace first_person::hybrid;
 namespace {
