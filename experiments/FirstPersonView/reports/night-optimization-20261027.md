@@ -684,6 +684,36 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     frame time or the15 ms target. Evidence `night-sight-*` and source receipts
     `night-visibility-source-audit/`; no local game/input or subagent was used.
 
+33. **Keep queued movement chords independent of event-processing latency.**
+    Exact043 program reports from Windows1040 FPS and Linux1807 gameplay both
+    fail `fps_audit_chord_not_one_native_diagonal` (exit191, no timeout/dump).
+    Linux1807's other five processes pass. These are real failures, despite
+    earlier passing1b two-pin Linux and Windows functional/appearance gates.
+    Original CI logs remain unavailable through Code Review while PR head is
+    still1b; only selected application JSON/provenance was read, never stdout.
+
+    A pure router/solver composition reproduces a concrete timing defect:
+    advancing between queued W and D turns handler CPU delay into one-axis
+    travel. Atomic SDL queue insertion cannot prevent that. Integrate preceding
+    held state at Native's existing pre-poll hook instead of between keyboard
+    events. The existing post-drain pending/take path samples the full chord;
+    Native keys/modal ownership and action/collision rules remain unchanged.
+    Fourteen delay/order cases (0–100 ms, both key orders) retain one diagonal
+    request; a separately compiled old-order control fails that assertion.
+    The actual cause of both remote failures remains unconfirmed until a new
+    Native run passes. No local SDL/input/game reproduction is claimed.
+
+    Both affected pure CTests pass (.06 s): locomotion338 checks and router3560.
+    The25 FPS-report verifier tests pass. On the same unchanged remote diagonal
+    assertion's failure path, retain a `success:false` program JSON containing
+    actual displacement, action count/cost, yaw, fractional position and last
+    action. Incomplete evidence still fails; there is no retry or relaxed gate.
+    Evidence `night-chord-*`, `night-fps-043fb4d/12756303634/` (JSON hashes
+    `8b9cd0169e737df994aba32d6a9770d9e4f743474fd5fb8c3d5482bc8a8a3f0f`,
+    `1b86bfc27fc1d67fdab334e3e02457e358d69e3cac5a71661278263a80f33a2b`)
+    and `night-linux-043fb4d/12757734002/`; the process-list hash is
+    `393c21ecbd46bb0efe7902668d08d6ebd8ce575ea4eee51da93b068bf56ceee5`.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both

@@ -292,6 +292,27 @@
                           " cost=" + std::to_string(moves - you.get_moves()) +
                           " last=" + graphics_fps_action)
                              .c_str());
+                // Retain actual program state even though the complete audit
+                // cannot write its success report. This is never a pass or a
+                // substitute for the unchanged diagonal assertion below.
+                std::ofstream failure_output(game_root()/"ncmm"/"first-person-fps-input.json");
+                JsonOut failure(failure_output);
+                failure.start_object();
+                failure.member("schema",1);
+                failure.member("actual_cdda_sdl",true);
+                failure.member("success",false);
+                failure.member("reason","fps_audit_chord_not_one_native_diagonal");
+                failure.member("keyboard_mode",mode);
+                failure.member("renderer",renderer_mode);
+                failure.member("actual_x",actual.x());
+                failure.member("actual_y",actual.y());
+                failure.member("native_actions",graphics_input_router.movements-actions);
+                failure.member("native_move_cost",moves-you.get_moves());
+                failure.member("yaw",graphics_camera_yaw);
+                failure.member("fractional_x",graphics_walk.motion.position().x);
+                failure.member("fractional_y",graphics_walk.motion.position().y);
+                failure.member("last_action",graphics_fps_action);
+                failure.end_object();
             }
             require(you.pos_abs() == origin + tripoint_rel_ms(1, -1, 0) &&
                         graphics_input_router.movements == actions + 1 && you.get_moves() < moves,

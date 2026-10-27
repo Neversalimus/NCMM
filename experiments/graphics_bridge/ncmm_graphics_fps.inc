@@ -42,6 +42,11 @@ void graphics_fps_publish_wait() {
                 : graphics_fire_wait_pending | (graphics_input_router.command_mode() ? 8u : 0u));
 }
 void graphics_fps_poll_impl() {
+    // Integrate the preceding held state once before Native drains this SDL
+    // batch. Integrating between W and D would turn event-processing latency
+    // into real one-axis travel, even when both were queued together. The
+    // existing post-drain pending/take path samples the completed chord.
+    graphics_locomotion_tick(SDL_GetTicks());
     // Only the opt-in event producer needs this acknowledgement. Native's
     // pre-poll redraw can itself pump/discard queued diagnostic keys.
     if (graphics_fps_audit_active || graphics_fire_capture.active) {
@@ -261,7 +266,6 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
     graphics_fps_ui_claimed = !allowed;
     graphics_fps_sync();
     if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
-        graphics_locomotion_tick(SDL_GetTicks());
         if (event.type == SDL_EVENT_KEY_DOWN && (event.key.mod & (SDL_KMOD_ALT | SDL_KMOD_GUI))) {
             graphics_fps_focus_resume=graphics_input_router.captured();
             graphics_fps_initial_capture = false;
