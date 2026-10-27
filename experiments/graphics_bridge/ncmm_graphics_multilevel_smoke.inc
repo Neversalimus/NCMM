@@ -2,6 +2,7 @@
 // definitions and flags through the ordinary graphics callback, never meshes.
 {
     using clock=std::chrono::steady_clock;
+    #include "ncmm_graphics_multilevel_observer.inc"
     const bool before=std::getenv("NCMM_FP_MULTILEVEL_BEFORE")!=nullptr;
     const auto original_position=you.pos_abs();const auto original_time=calendar::turn;
     const auto original_bubble_origin=here.get_abs_sub();
@@ -11,13 +12,19 @@
     struct observation {
         ncmm_graphics_render_multilevel_v1 provider=nullptr;void *user=nullptr;
         std::vector<int> levels,rock_levels,facade_levels;uint32_t floors=0,bottoms=0,actors=0,neutral_tops=0,facades=0;float eye=0;
+        std::string inspection_failure;
         std::function<void(const ncmm_graphics_multilevel_scene_v1 &)> inspect;
-        static int render(const ncmm_graphics_multilevel_scene_v1 *world,void *data){auto &self=*static_cast<observation *>(data);self.inspect(*world);return self.provider(world,self.user);}
+        std::function<int(const ncmm_graphics_multilevel_scene_v1 *)> dispatch;
+        static int render(const ncmm_graphics_multilevel_scene_v1 *world,void *data){return static_cast<observation *>(data)->dispatch(world);}
     } observed;
     observed.provider=graphics_view.world_render;observed.user=graphics_view.user_data;
     struct callback_scope {observation &value;~callback_scope(){graphics_view.world_render=value.provider;graphics_view.user_data=value.user;}} callback_guard{observed};
     observed.inspect=[&](const ncmm_graphics_multilevel_scene_v1 &world){
         require(ncmm_world::valid(world),"multilevel_real_world_contract_invalid");observed.levels.clear();observed.rock_levels.clear();observed.facade_levels.clear();observed.floors=observed.bottoms=observed.actors=observed.neutral_tops=observed.facades=0;
+        const int maximum=std::max(you.sight_range(default_daylight_level()),you.sight_range(0));
+        const bool no_sight=you.has_effect(efftype_id("no_sight"));
+        auto terrain_only=[&](int ax,int ay,int z){return graphics_world_terrain_stair_flags(here,ax,ay,z,
+            world.origin_x,world.origin_y,int(world.appearance.base.grid_width),int(world.appearance.base.grid_height),world.loaded_min_z,world.loaded_max_z);};
         observed.eye=graphics_eye_height()+world.camera_dz;
         for(uint32_t z=0;z<world.slice_count;++z)if(world.slices[z].cell_count)observed.levels.push_back(world.slices[z].z);
         for(uint32_t i=0;i<world.cell_count;++i){const auto &c=world.coordinates[i];const auto &a=world.appearance.base.cells[i];
@@ -27,7 +34,14 @@
             if(c.flags&NCMM_WORLD_FLOOR_BOTTOM)++observed.bottoms;
             if((c.flags&NCMM_WORLD_FLOOR_TOP)&&!(c.flags&NCMM_WORLD_BODY_VISIBLE))++observed.neutral_tops;
             if(c.flags&NCMM_WORLD_STRUCTURE_VISIBLE){++observed.facades;observed.facade_levels.push_back(c.z);
-                require(ncmm_graphics_shapes::structural_surface(world.appearance.details[i].terrain_shape),"multilevel_facade_permission_has_no_architecture");
+                const auto &detail=world.appearance.details[i];ncmm_world::terrain_stair_proof stair;std::string physical;
+                if(!(c.flags&NCMM_WORLD_BODY_VISIBLE)&&!ncmm_graphics_shapes::structural_surface(detail.terrain_shape)){
+                    const auto surface=here.get_bub(tripoint_abs_ms(c.x,c.y,c.z));
+                    const bool in_range=rl_dist(you.pos_bub(),surface)<=(no_sight?1:maximum);
+                    stair=ncmm_world::unperceived_terrain_stair(c.x,c.y,c.z,c.flags,c.flags,in_range,terrain_only);
+                    physical=here.ter(surface).id().str();
+                }
+                require(ncmm_multilevel_observer_structure(c,a,detail,stair,physical.c_str()),"multilevel_facade_permission_has_no_architecture");
                 if(!(c.flags&NCMM_WORLD_BODY_VISIBLE)){const auto surface=here.get_bub(tripoint_abs_ms(c.x,c.y,c.z));
                     require(std::strcmp(a.terrain,here.ter(surface).id().str().c_str())==0&&!world.appearance.details[i].field[0],"multilevel_facade_changed_physical_identity");}}
             const auto p=here.get_bub(tripoint_abs_ms(c.x,c.y,c.z));
@@ -37,6 +51,7 @@
         }
         std::sort(observed.facade_levels.begin(),observed.facade_levels.end());observed.facade_levels.erase(std::unique(observed.facade_levels.begin(),observed.facade_levels.end()),observed.facade_levels.end());
     };
+    observed.dispatch=[&](const ncmm_graphics_multilevel_scene_v1 *world){return ncmm_multilevel_observer_invoke(world,observed.inspect,observed.provider,observed.user,observed.inspection_failure);};
     if(observed.provider){graphics_view.world_render=observation::render;graphics_view.user_data=&observed;}
     auto camera=[&](float yaw,float pitch){graphics_mouse_dx=std::remainder(yaw-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;graphics_mouse_dy=(graphics_camera_pitch-pitch)/.003f;
         require(graphics_action("ncmm.view.mouse_look"),"multilevel_camera_input_failed");graphics_mouse_dx=graphics_mouse_dy=0;};
@@ -95,7 +110,9 @@
     report.member("world_api",observed.provider!=nullptr);report.member("gpu_timing_is_execution",false);report.member("frames");report.start_array();
     SDL_Texture *canvas=nullptr;
     auto render=[&](point resolution){require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderLogicalPresentation(renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&SDL_SetRenderScale(renderer,1,1)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"multilevel_canvas_rebind_failed");
-        require(graphics_draw(0,0,resolution.x,resolution.y),"multilevel_real_sdl_render_failed");require(SDL_FlushRenderer(renderer),"multilevel_sdl_flush_failed");++frames;};
+        const bool rendered=graphics_draw(0,0,resolution.x,resolution.y);
+        if(!observed.inspection_failure.empty())throw std::runtime_error(observed.inspection_failure);
+        require(rendered,"multilevel_real_sdl_render_failed");require(SDL_FlushRenderer(renderer),"multilevel_sdl_flush_failed");++frames;};
     auto present=[&](){require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"multilevel_window_target_failed");require(SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"multilevel_actual_present_failed");graphics_world_frame_presented();};
     auto capture=[&](const std::string &filename,bool save_image){
         auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *image=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;require(image!=nullptr,"multilevel_capture_failed");if(raw)SDL_DestroySurface(raw);

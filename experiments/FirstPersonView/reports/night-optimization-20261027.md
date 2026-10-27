@@ -254,6 +254,27 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     (14.17 s) and 38 atomic bridge tests pass. Logs `night-lower-range-*`.
     These callback counts do not establish a Native millisecond gain.
 
+20. **Align the multilevel test observer with proven terrain stairs.** The
+    old diagnostic accepted only structural shape enums, contradicting stage17's
+    permitted non-BODY ordinary terrain stairs with FLAT shape. A pure actual-
+    predicate regression builds but fails before the correction. Its replacement
+    requires the bounded terrain proof's exact navigation/direction/opacity,
+    physical terrain ID and empty hidden contents/field/vehicle/shapes. Existing
+    architectural acceptance and subsequent privacy guards remain unchanged.
+    A shared terrain sampler is a mechanical extraction of the original 1577-
+    byte body (SHA256 `7afcd0f9d8edb77431a91883846355752fe6b677f6bbce89029e79d80192521c`);
+    520 frozen-oracle value/ordered-read controls cover limits, loaded cells,
+    both floor regimes, excluded navigation, opacity and partial supports.
+    Test-only inspection errors now reach the outer report with their precise
+    reason. Exceptions from the actual module provider still reach the unchanged
+    production quarantine. No production permission or renderer rule changes.
+
+    After: 183637 pure multilevel-render checks, full Release, the same 50 CTests
+    (13.99 s) and 42 atomic bridge tests pass. Evidence
+    `night-observer-contract-{red,after,full-build,final}*`. This repairs a proven
+    test-contract contradiction; whether it explains the observed Linux exit191
+    still requires the new exact-source remote Native run.
+
 ## Actual remote evidence and next priorities
 
 **Stair evidence at exact `2ce404d`, run 40441923163.** Packaged runtime merge
@@ -334,6 +355,21 @@ are .0026-.0031 ms in these records, not the earlier unmeasured large gap.
 Independent phase medians need not sum to the median total. Actual actions and
 Native visibility are justified next investigation points; 15 ms is unproved.
 
+**Boundary attribution from these receipts.** All 24 records have two action
+populations. GPU640 even/no-shift vs odd/crossing medians: 1040 street
+.372/40.489 ms, horde .391/55.780, city .374/57.032; 1807 street .369/55.867,
+horde .364/66.219, city .379/59.392. The 19-28 ms pooled medians above lie
+between those populations. Exact fixture origin/route and Native `[60,72)`
+central bubble bounds imply an alternating submap shift at Y=59/60; internal
+shift timings have not yet been captured. AUTOPEEK is disabled in this fixture.
+The action contains shift, actor rebasing, all-Z invalidation, cache build,
+spawn and overmap discovery. Private analysis of 288 steps:
+`movement-native-parity-analysis.json`, SHA256
+`d129581615146fa2128bd02fa15378b91136c7f89c35bc28acd9ec8c645f3ff3`.
+Next: adjacent scopes around those unchanged calls, then choose an optimization.
+Do not skip actualization, item reconciliation, spawn or discovery from source
+inspection alone; they have Native gameplay side effects.
+
 **Earlier timing priority, not new-byte performance.** Selected program JSON
 from `fc2ada7`'s exact-tree package used 5133467 bytes instead of full multi-GB
 artifacts; all 102 frozen Git sources/27 shared Native inputs match. Win1040,
@@ -372,15 +408,18 @@ Pushed `1a951e156562478ae1632857c207f5768ca5084e` has passing
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40448928727).
 Its [main run](https://github.com/Neversalimus/NCMM/actions/runs/40448928678)
 compiled all four actual Hosts. Both Windows early actions/stairs/movement
-steps passed; longer gameplay/final gates remain pending. Linux1040 controls
-failed (exit191, no timeout): program smoke reports
+steps passed; longer gameplay/final gates remain pending. Both Linux controls
+failed (exit191, no timeout): their program smoke reports
 `multilevel_real_sdl_render_failed`, after 12 complete multilevel records through
 stairs CPU/GPU and before stairs_down. Selected program JSON receipts are in
-`night-linux-1a951e1/12710699779/`; CI logs were read only through Code Review.
-The old observer's blanket structural-shape assertion may reject the newly
-permitted ordinary terrain stairs; this is under causal investigation, not yet
-declared the established reason. No full Native pass is claimed. Stage18
-`d9f9fba` remains local and requires its own exact-source Host qualification.
+`night-linux-1a951e1/{12710699779,12711496525}/`; CI logs were read only through
+Code Review. The 1040 source receipt independently matches 84 copied shared
+inputs at exact `1a951e1` with the bridge's universal-newline handling; patched
+Native bodies were not independently reconstructed by that comparison.
+Stage20 fixes the demonstrated observer contradiction and adds precise failure
+forwarding; its connection to those exits remains a hypothesis until rerun.
+No full Native pass is claimed. Local stages18-20 require their own exact-source
+Host qualification after publishing.
 
 The freshly rebuilt hidden render-only RTX 4090 controls retain
 45 grass draws, zero CPU world raster, zero warm static uploads and 21108 open

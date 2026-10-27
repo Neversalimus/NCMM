@@ -170,6 +170,63 @@ bool cata_tiles::draw_sprite_at() {
                     with self.assertRaisesRegex(FileNotFoundError, "missing static-detail source"):
                         bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))
+    def test_terrain_stair_sampler_frozen_oracle_is_independent_and_unchanged(self):
+        frozen = (REPO / "experiments/FirstPersonView/tests/multilevel_render_test.cpp").read_text(encoding="utf-8")
+        begin, end = "// BEGIN FROZEN TERRAIN STAIR SAMPLER\n", "// END FROZEN TERRAIN STAIR SAMPLER\n"
+        self.assertEqual(frozen.count(begin), 1)
+        self.assertEqual(frozen.count(end), 1)
+        original = frozen.split(begin, 1)[1].split(end, 1)[0]
+        self.assertEqual(len(original.encode("utf-8")), 1682)
+        self.assertEqual(hashlib.sha256(original.encode("utf-8")).hexdigest(), "8678d4be60bcb162394c0353dff16fc90949d7e9c7a37b6bca6d2fc2a3322b3a")
+        self.assertNotIn("graphics_world_terrain_stair_flags", original)
+    def test_multilevel_observer_sources_both_pins_and_receipt(self):
+        names = ("ncmm_graphics_terrain_stair.inc", "ncmm_graphics_multilevel_observer.inc")
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                    bridge.apply(root)
+                for name in names:
+                    self.assertEqual((root / "src" / name).read_bytes(), Path(bridge.__file__).with_name(name).read_bytes())
+                world = (root / "src/ncmm_graphics_world.inc").read_text(encoding="utf-8")
+                observer = (root / "src/ncmm_graphics_multilevel_smoke.inc").read_text(encoding="utf-8")
+                self.assertEqual(world.count('#include "ncmm_graphics_terrain_stair.inc"'), 1)
+                self.assertEqual(observer.count('#include "ncmm_graphics_multilevel_observer.inc"'), 1)
+                self.assertIn("graphics_world_terrain_stair_flags(here,ax,ay,z,ox,oy,side,side,loaded.front(),loaded.back())", world)
+                self.assertIn("world.loaded_min_z,world.loaded_max_z", observer)
+                receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))
+                self.assertEqual(receipt["source_commit"], pin)
+                for name in names + ("ncmm_graphics_world.inc", "ncmm_graphics_multilevel_smoke.inc"):
+                    self.assertEqual(receipt["inputs"][name], hashlib.sha256((root / "src" / name).read_bytes()).hexdigest())
+    def test_multilevel_observer_existing_source_failure_is_atomic(self):
+        for pin in bridge.SOURCES:
+            for name in ("ncmm_graphics_terrain_stair.inc", "ncmm_graphics_multilevel_observer.inc"):
+                with self.subTest(pin=pin, source=name), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root)
+                    (root / "src" / name).write_text("existing observer source\n", encoding="utf-8")
+                    (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                    before = self.fingerprint(root)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                        with self.assertRaisesRegex(ValueError, "Experimental source already exists: " + re.escape(name)):
+                            bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+    def test_multilevel_observer_missing_source_failure_is_atomic(self):
+        original_read = Path.read_text
+        for pin in bridge.SOURCES:
+            for name in ("ncmm_graphics_terrain_stair.inc", "ncmm_graphics_multilevel_observer.inc"):
+                helper = Path(bridge.__file__).with_name(name)
+                def read(path, *args, **kwargs):
+                    if path == helper:
+                        raise FileNotFoundError("missing observer source")
+                    return original_read(path, *args, **kwargs)
+                with self.subTest(pin=pin, source=name), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root)
+                    (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                    before = self.fingerprint(root)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
+                        with self.assertRaisesRegex(FileNotFoundError, "missing observer source"):
+                            bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
     def test_candidate_range_frozen_oracle_is_independent_and_unchanged(self):
         frozen = (REPO / "experiments/FirstPersonView/tests/multilevel_cache_test.cpp").read_text(encoding="utf-8")
         begin, end = "// BEGIN FROZEN CANDIDATE RANGE\n", "// END FROZEN CANDIDATE RANGE\n"

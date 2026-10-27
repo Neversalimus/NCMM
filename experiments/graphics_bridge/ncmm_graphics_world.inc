@@ -32,6 +32,7 @@ void graphics_world_changed_impl(const map *source,int z)
 }
 #if defined(TILES)
 #include "ncmm_graphics_lod.inc"
+#include "ncmm_graphics_terrain_stair.inc"
 struct graphics_world_candidate {
     ncmm_world_cell_v1 world{};tripoint_bub_ms pos;uint32_t permission=0;float distance=0;std::array<float,3> facade_light{};
 };
@@ -221,22 +222,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     // or vehicle navigation. This const view is bounded to the same source
     // window and owns no Native data beyond the individual terrain read.
     auto terrain_stair_flags=[&](int ax,int ay,int z){
-        const int64_t x=int64_t(ax)-ox,y=int64_t(ay)-oy;
-        if(x<0||y<0||x>=side||y>=side||z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
-        const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));
-        if(!here.ncmm_graphics_loaded(p))return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
-        const auto tile=std::as_const(here).maptile_at(p);const auto &ter=tile.get_ter_t();
-        ncmm_world::traits t{};t.loaded=true;
-        t.no_floor=ter.has_flag(ter_furn_flag::TFLAG_NO_FLOOR);t.no_floor_water=ter.has_flag(ter_furn_flag::TFLAG_NO_FLOOR_WATER);
-        if(!(here.supports_zlevels()&&z>=-OVERMAP_DEPTH+1))t.no_floor=t.no_floor_water=false;
-        t.transparent_floor=ter.has_flag(ter_furn_flag::TFLAG_TRANSPARENT_FLOOR);t.z_transparent=ter.has_flag(ter_furn_flag::TFLAG_Z_TRANSPARENT);
-        t.goes_up=ter.has_flag(ter_furn_flag::TFLAG_GOES_UP);t.goes_down=ter.has_flag(ter_furn_flag::TFLAG_GOES_DOWN);
-        t.ramp=ter.has_flag(ter_furn_flag::TFLAG_RAMP);t.ramp_up=ter.has_flag(ter_furn_flag::TFLAG_RAMP_UP);
-        t.ramp_down=ter.has_flag(ter_furn_flag::TFLAG_RAMP_DOWN);t.ramp_end=ter.has_flag(ter_furn_flag::TFLAG_RAMP_END);
-        t.difficult_z=ter.has_flag(ter_furn_flag::TFLAG_DIFFICULT_Z);t.opaque=!ter.transparent;
-        const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
-        t.partial_support=ncmm_graphics_shapes::partial_support(shape,z);
-        return ncmm_world::semantics(t);
+        return graphics_world_terrain_stair_flags(here,ax,ay,z,ox,oy,side,side,loaded.front(),loaded.back());
     };
     // Lazy absolute-coordinate facts survive ordinary viewport shifts. Native
     // geometry notifications invalidate derived neighbours and roof columns.

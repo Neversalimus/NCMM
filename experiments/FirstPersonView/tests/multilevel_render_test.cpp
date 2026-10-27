@@ -46,6 +46,141 @@ struct collector:geometry_sink {
     void skin(const first_person::creature::model &,const first_person::creature::skeleton_pose &,int,vec,int,vec,bool,bool,float,vec)override{}
     void impostor(const first_person::creature::asset &,const first_person::creature::pose_state &,vec,int,int,bool)override{}
 };
+namespace terrain_stair_sampler_fixture {
+using event=std::array<int,4>;
+std::vector<event> reads;
+void note(char kind,int x=0,int y=0,int z=0){reads.push_back({int(kind),x,y,z});}
+enum class ter_furn_flag {TFLAG_NO_FLOOR,TFLAG_NO_FLOOR_WATER,TFLAG_TRANSPARENT_FLOOR,TFLAG_Z_TRANSPARENT,
+    TFLAG_GOES_UP,TFLAG_GOES_DOWN,TFLAG_RAMP,TFLAG_RAMP_UP,TFLAG_RAMP_DOWN,TFLAG_RAMP_END,TFLAG_DIFFICULT_Z};
+struct tripoint_abs_ms {int x,y,z;tripoint_abs_ms(int a,int b,int c):x(a),y(b),z(c){}};
+struct terrain_id {std::string value="t_floor";const std::string &str()const{note('I');return value;}};
+struct close_id {bool empty=true;bool is_null()const{note('C');return empty;}};
+struct terrain_definition {
+    std::array<bool,11> flags{};bool transparent=true;
+    terrain_id id;std::string looks_like;close_id close;ncmm_graphics_shapes::traits shape{};
+    bool has_flag(ter_furn_flag flag)const{note('F',int(flag));return flags[size_t(flag)];}
+};
+struct map {
+    terrain_definition terrain;bool loaded=true,zlevels=true;
+    tripoint_abs_ms get_bub(tripoint_abs_ms p)const{note('B',p.x,p.y,p.z);return {p.x-7,p.y+9,p.z};}
+    bool ncmm_graphics_loaded(tripoint_abs_ms p)const{note('L',p.x,p.y,p.z);return loaded;}
+    bool supports_zlevels()const{note('Z');return zlevels;}
+    struct tile {const terrain_definition &terrain;const terrain_definition &get_ter_t()const{note('T');return terrain;}};
+    tile maptile_at(tripoint_abs_ms p)const{note('M',p.x,p.y,p.z);return {terrain};}
+};
+ncmm_graphics_shapes::traits graphics_traits(const terrain_definition &terrain,bool opened){note('G',int(opened));return terrain.shape;}
+constexpr int OVERMAP_DEPTH=10;
+#include "../../graphics_bridge/ncmm_graphics_terrain_stair.inc"
+// Frozen lambda body from Stage17/1a951e1 world.inc. Do not derive this oracle
+// from the extracted helper when changing it. CC-BY-SA-3.0 Native fact APIs.
+// BEGIN FROZEN TERRAIN STAIR SAMPLER
+uint32_t frozen(map &here,int ax,int ay,int z,int ox,int oy,int side,const std::array<int,2> &loaded){
+        const int64_t x=int64_t(ax)-ox,y=int64_t(ay)-oy;
+        if(x<0||y<0||x>=side||y>=side||z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
+        const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));
+        if(!here.ncmm_graphics_loaded(p))return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
+        const auto tile=std::as_const(here).maptile_at(p);const auto &ter=tile.get_ter_t();
+        ncmm_world::traits t{};t.loaded=true;
+        t.no_floor=ter.has_flag(ter_furn_flag::TFLAG_NO_FLOOR);t.no_floor_water=ter.has_flag(ter_furn_flag::TFLAG_NO_FLOOR_WATER);
+        if(!(here.supports_zlevels()&&z>=-OVERMAP_DEPTH+1))t.no_floor=t.no_floor_water=false;
+        t.transparent_floor=ter.has_flag(ter_furn_flag::TFLAG_TRANSPARENT_FLOOR);t.z_transparent=ter.has_flag(ter_furn_flag::TFLAG_Z_TRANSPARENT);
+        t.goes_up=ter.has_flag(ter_furn_flag::TFLAG_GOES_UP);t.goes_down=ter.has_flag(ter_furn_flag::TFLAG_GOES_DOWN);
+        t.ramp=ter.has_flag(ter_furn_flag::TFLAG_RAMP);t.ramp_up=ter.has_flag(ter_furn_flag::TFLAG_RAMP_UP);
+        t.ramp_down=ter.has_flag(ter_furn_flag::TFLAG_RAMP_DOWN);t.ramp_end=ter.has_flag(ter_furn_flag::TFLAG_RAMP_END);
+        t.difficult_z=ter.has_flag(ter_furn_flag::TFLAG_DIFFICULT_Z);t.opaque=!ter.transparent;
+        const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+        t.partial_support=ncmm_graphics_shapes::partial_support(shape,z);
+        return ncmm_world::semantics(t);
+}
+// END FROZEN TERRAIN STAIR SAMPLER
+}
+void multilevel_observer_stair_regression(){
+    #include "../../graphics_bridge/ncmm_graphics_multilevel_observer.inc"
+    namespace source=terrain_stair_sampler_fixture;
+    size_t source_cases=0;
+    for(bool loaded:{false,true})for(bool zlevels:{false,true})for(unsigned mode=0;mode<13;++mode){
+        source::map native;native.loaded=loaded;native.zlevels=zlevels;
+        if(mode<11)native.terrain.flags[mode]=true;
+        if(mode==11){native.terrain.id.value="t_radio_tower";native.terrain.flags[size_t(source::ter_furn_flag::TFLAG_GOES_UP)]=true;}
+        if(mode==12){native.terrain.id.value="t_stairs_up";native.terrain.flags[size_t(source::ter_furn_flag::TFLAG_GOES_UP)]=true;native.terrain.transparent=false;}
+        for(const auto &point:std::array<std::array<int,3>,10>{{{{-4,-7,0}},{{-3,-7,0}},{{1,-3,1}},{{2,-3,1}},{{-3,-8,0}},{{-3,-2,0}},{{-3,-7,-11}},{{-3,-7,2}},{{-3,-7,-10}},{{-3,-7,-9}}}}){
+            source::reads.clear();const auto expected=source::frozen(native,point[0],point[1],point[2],-3,-7,5,{{-10,1}});const auto expected_reads=source::reads;
+            source::reads.clear();const auto actual=source::graphics_world_terrain_stair_flags(native,point[0],point[1],point[2],-3,-7,5,5,-10,1);
+            check(actual==expected&&source::reads==expected_reads,"extracted terrain-only sampler retains exact facts and ordered bounded Native reads");
+            const bool outside=point[0]<-3||point[0]>=2||point[1]<-7||point[1]>=-2||point[2]<-10||point[2]>1;
+            if(outside)check(source::reads.empty(),"outside XY/Z rejects before any Native lookup");
+            else if(!loaded)check(source::reads.size()==2&&source::reads.back()[0]=='L',"unloaded terrain rejects before tile, flag or material reads");
+            ++source_cases;
+        }
+    }
+    std::cout<<"Multilevel observer terrain sampler: "<<source_cases<<" frozen-source ordered-read comparisons\n";
+    struct published_stair {
+        ncmm_world_cell_v1 cell{};
+        ncmm_graphics_cell_v1 appearance{};
+        ncmm_graphics_cell_v2 detail{};
+        ncmm_world::terrain_stair_proof proof{};
+        const char *physical=nullptr;
+    };
+    std::array<published_stair,2> stairs;
+    ncmm_world::traits upper{},lower{};upper.loaded=lower.loaded=true;
+    lower.goes_up=true;upper.goes_down=true;
+    const auto terrain=[&](int x,int y,int z){
+        if(x==0&&y==0&&z==0)return ncmm_world::semantics(lower);
+        if(x==0&&y==0&&z==1)return ncmm_world::semantics(upper);
+        return uint32_t(NCMM_WORLD_FLOOR);
+    };
+    for(int z=0;z<2;++z){auto &stair=stairs[size_t(z)];
+        stair.proof=ncmm_world::unperceived_terrain_stair(0,0,z,terrain(0,0,z),0,true,terrain);
+        check(stair.proof.navigation&(z?NCMM_WORLD_DOWN:NCMM_WORLD_UP),"ordinary terrain itself proves the published stair navigation");
+        check(stair.proof.permission()==NCMM_WORLD_STRUCTURE_VISIBLE,"the actual Host policy permits this non-BODY ordinary terrain stair");
+        stair.cell={0,0,z,ncmm_world::restore_terrain_stair_facts(NCMM_WORLD_ROOFED,stair.proof)|stair.proof.permission(),stair.proof.direction,0,1};
+        stair.physical=z?"t_stairs_down":"t_stairs_up";
+        std::strcpy(stair.appearance.terrain,stair.physical);stair.detail.terrain_shape=NCMM_SHAPE_FLAT;
+        check(!ncmm_graphics_shapes::structural_surface(stair.detail.terrain_shape),"ordinary stair geometry is intentionally independent of the architectural shape enum");
+        auto rejected=[&](published_stair value,const char *reason){
+            check(!ncmm_multilevel_observer_structure(value.cell,value.appearance,value.detail,value.proof,value.physical),reason);
+        };
+        auto bad=stair;bad.proof={};rejected(bad,"combined furniture GOES_UP/DOWN cannot stand in for an own-terrain proof");
+        auto furniture_only=[&](int x,int y,int height){return x==0&&y==0&&height==z?uint32_t(NCMM_WORLD_FLOOR):terrain(x,y,height);};
+        bad=stair;bad.proof=ncmm_world::unperceived_terrain_stair(0,0,z,stair.cell.flags,0,true,furniture_only);
+        check(!bad.proof.navigation,"the actual terrain proof rejects a combined furniture-only connector");rejected(bad,"a furniture GOES_UP/DOWN control remains rejected with real terrain proof");
+        bad=stair;bad.cell.flags|=NCMM_WORLD_BODY_VISIBLE;rejected(bad,"the narrow static exception cannot accept a BODY alias");
+        bad=stair;bad.cell.flags&=~NCMM_WORLD_STRUCTURE_VISIBLE;rejected(bad,"navigation without STRUCTURE permission remains rejected");
+        for(uint32_t flag:{uint32_t(NCMM_WORLD_RAMP),uint32_t(NCMM_WORLD_LADDER),uint32_t(NCMM_WORLD_UNKNOWN),uint32_t(NCMM_WORLD_RAMP_END)}){
+            bad=stair;bad.cell.flags|=flag;rejected(bad,"ramps, ladders and unknown terrain stay outside the ordinary-stair exception");
+        }
+        bad=stair;bad.cell.flags^=NCMM_WORLD_CONNECTED_UP;rejected(bad,"published connectors must exactly match the terrain-only proof");
+        bad=stair;bad.cell.flags^=NCMM_WORLD_OPAQUE;rejected(bad,"combined furniture or field opacity cannot replace own terrain opacity");
+        bad=stair;bad.cell.direction=(stair.cell.direction+1)%4;rejected(bad,"a furniture-derived facing cannot replace terrain facing");
+        bad=stair;bad.physical="t_floor";rejected(bad,"published terrain must retain its exact physical identity");
+        bad=stair;std::strcpy(bad.appearance.furniture,"f_ncmm_static_stair_control");rejected(bad,"a hidden furniture identity is never accepted by the static exception");
+        bad=stair;std::strcpy(bad.appearance.item,"rock");rejected(bad,"a hidden item is never accepted by the static exception");
+        bad=stair;std::strcpy(bad.appearance.creature,"mon_zombie");rejected(bad,"a hidden creature is never accepted by the static exception");
+        bad=stair;std::strcpy(bad.detail.field,"fd_smoke");rejected(bad,"a hidden field is never accepted by the static exception");
+        bad=stair;bad.detail.field_shape=NCMM_SHAPE_BILLBOARD;rejected(bad,"a hidden field shape cannot bypass empty field identity");
+        bad=stair;bad.detail.furniture_shape=NCMM_SHAPE_STORAGE;rejected(bad,"a hidden furniture shape cannot bypass empty furniture identity");
+        bad=stair;bad.appearance.flags|=NCMM_GFX_VEHICLE;rejected(bad,"the terrain exception cannot expose a vehicle presentation");
+        bad=stair;bad.physical=nullptr;rejected(bad,"missing physical terrain identity cannot prove the static stair");
+        bad=stair;bad.detail.terrain_shape=NCMM_SHAPE_BILLBOARD;rejected(bad,"the new exception cannot legitimize arbitrary unsupported shapes");
+    }
+    ncmm_graphics_cell_v2 wall{};wall.terrain_shape=NCMM_SHAPE_WALL;
+    check(ncmm_multilevel_observer_structure({}, {}, wall, {}, "t_wall"),"the established architectural observer branch remains unchanged");
+    // These are generated by the real Host permission policy, not invented
+    // appearance flags. The old shape-only observer rejects both legal cells.
+    for(const auto &stair:stairs)
+        check(ncmm_multilevel_observer_structure(stair.cell,stair.appearance,stair.detail,stair.proof,stair.physical),
+              "multilevel observer accepts the Host-proven non-BODY FLAT ordinary terrain stair");
+    ncmm_graphics_multilevel_scene_v1 world{};std::string failure="stale observer failure";int calls=0;
+    const auto provider=[](const ncmm_graphics_multilevel_scene_v1 *,void *user){++*static_cast<int *>(user);return 7;};
+    const auto accepted=[](const ncmm_graphics_multilevel_scene_v1 &){};
+    check(ncmm_multilevel_observer_invoke(&world,accepted,provider,&calls,failure)==7&&calls==1&&failure.empty(),"observer forwarding retains the exact provider result and clears stale diagnostics");
+    const auto rejected=[](const ncmm_graphics_multilevel_scene_v1 &){throw std::runtime_error("multilevel_exact_observer_reason");};
+    check(ncmm_multilevel_observer_invoke(&world,rejected,provider,&calls,failure)==0&&calls==1&&failure=="multilevel_exact_observer_reason", "observer inspection failure keeps its exact reason and cannot invoke a real provider");
+    const auto throwing_provider=[](const ncmm_graphics_multilevel_scene_v1 *,void *)->int{throw std::runtime_error("real_provider_failure");};
+    bool propagated=false;try{ncmm_multilevel_observer_invoke(&world,accepted,throwing_provider,nullptr,failure);}catch(const std::runtime_error &error){propagated=std::strcmp(error.what(),"real_provider_failure")==0;}
+    check(propagated&&failure.empty(),"real module callback exceptions still propagate to the production quarantine");
+    check(ncmm_multilevel_observer_invoke(nullptr,accepted,provider,&calls,failure)==0&&calls==1&&failure=="multilevel_real_world_contract_invalid", "null observer input is an explicit inspection error");
+}
 void static_stair_permission_regression(){
     // Feed the shared CPU/GPU producer a terrain-only Host permission. BODY
     // stays absent, including when stale/malicious content IDs are supplied.
@@ -414,7 +549,7 @@ int main(int argc,char **argv){try{
         if(argc!=3||std::string(argv[1])!="--chain-captures")throw std::runtime_error("usage: first_person_multilevel_render_tests [--chain-captures directory]");
         chain_captures(std::filesystem::path(argv[2]));return 0;
     }
-    static_stair_permission_regression();chain_link_regression();skyline_host_regression();skyline_render_regression();
+    multilevel_observer_stair_regression();static_stair_permission_regression();chain_link_regression();skyline_host_regression();skyline_render_regression();
     for(const auto &test:{std::pair<const char *,unsigned>{"t_railroad_track_h",1},{"t_railroad_track_on_tie_v",2},{"t_railroad_track_d1",4},{"t_railroad_track_d2",8}}){
         fixture rail(1);rail.slab(0);const int at=rail.cell(6,1,0);std::strcpy(rail.appearance[at].terrain,test.first);
         check(ncmm_rail::track(test.first)&&ncmm_rail::axes(test.first)==test.second,"Native rail suffix selects its physical direction");
