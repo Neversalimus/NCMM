@@ -3,7 +3,177 @@
 #include <iostream>
 #include <map>
 #include <stdexcept>
+#include <string>
 #include <thread>
+#include <tuple>
+
+// Compile the actual Host helper, replacing Native dependencies only. This
+// fixture does not execute a Native game or measure Host frame elapsed time.
+namespace host_range_fixture {
+struct tripoint_bub_ms {
+    int xx=0,yy=0,zz=0;
+    int x()const{return xx;}int y()const{return yy;}int z()const{return zz;}
+    auto key()const{return std::make_tuple(xx,yy,zz);}
+    bool operator==(const tripoint_bub_ms &other)const{return key()==other.key();}
+};
+using key=std::tuple<int,int,int>;
+struct read_event {
+    char kind;key position;float argument;
+    bool operator==(const read_event &other)const{return kind==other.kind&&position==other.position&&argument==other.argument;}
+};
+struct distance_event {tripoint_bub_ms observer,target;int value;};
+inline std::vector<read_event> reads;
+inline std::vector<distance_event> distances;
+inline bool circular=false;
+inline int fov_3d_z_range=12;
+constexpr int MAX_VIEW_DISTANCE=60;
+struct sample {bool loaded=true;float raw=0;};
+struct level_cache {float natural_light_level_cache=0;};
+struct map {
+    std::map<key,sample> cells;
+    std::map<int,level_cache> levels;
+    bool ncmm_graphics_loaded(const tripoint_bub_ms &p){
+        reads.push_back({'L',p.key(),0});const auto at=cells.find(p.key());return at!=cells.end()&&at->second.loaded;
+    }
+    float ambient_light_at(const tripoint_bub_ms &p){reads.push_back({'A',p.key(),0});return cells.at(p.key()).raw;}
+    const level_cache &get_cache_ref(int z){reads.push_back({'N',{0,0,z},0});return levels.at(z);}
+};
+struct efftype_id {const char *name;explicit efftype_id(const char *value):name(value){}};
+inline int sight_result(float raw,int impairment){
+    const int base=raw==0?1:raw<1?2:raw<5?5:raw<20?13:60;
+    return std::max(1,base-impairment);
+}
+struct avatar {
+    tripoint_bub_ms position{};int impairment=0;bool blind=false,native_seen=true;
+    const tripoint_bub_ms &pos_bub()const{return position;}int posz()const{return position.z();}
+    int sight_range(float raw)const{reads.push_back({'S',position.key(),raw});return sight_result(raw,impairment);}
+    bool has_effect(const efftype_id &effect)const{return blind&&std::string(effect.name)=="no_sight";}
+    bool sees(map &,const tripoint_bub_ms &p)const{reads.push_back({'V',p.key(),0});return native_seen;}
+};
+inline map source;
+inline avatar observer;
+inline map &get_map(){return source;}
+inline avatar &get_avatar(){return observer;}
+inline float default_daylight_level(){return 120;}
+// Representative injected integer policies exercise forwarding and reuse.
+// They are not an implementation oracle for Native rl_dist, its Z scaling or
+// rounding: production keeps that function as an unchanged black box.
+inline int distance_value(const tripoint_bub_ms &a,const tripoint_bub_ms &b,bool trig){
+    const int64_t dx=int64_t(a.x())-b.x(),dy=int64_t(a.y())-b.y(),dz=int64_t(a.z())-b.z();
+    if(!trig)return int(std::max({std::abs(dx),std::abs(dy),std::abs(dz)}));
+    return int(float(std::sqrt(double(dx*dx+dy*dy+dz*dz))));
+}
+inline int rl_dist(const tripoint_bub_ms &a,const tripoint_bub_ms &b){const int value=distance_value(a,b,circular);distances.push_back({a,b,value});return value;}
+#include "../../graphics_bridge/ncmm_graphics_range.inc"
+
+inline void reset(){source={};observer={};reads.clear();distances.clear();circular=false;fov_3d_z_range=12;}
+inline void seed(const tripoint_bub_ms &p,float raw,float natural,bool loaded=true){source.cells[p.key()]={loaded,raw};source.levels[p.z()]={natural};}
+inline bool oracle(const tripoint_bub_ms &p,int maximum,bool blind,const tripoint_bub_ms *surface=nullptr){
+    const auto target=source.cells.find(p.key());
+    if(target==source.cells.end()||!target->second.loaded||std::abs(p.z()-observer.posz())>fov_3d_z_range)return false;
+    const auto &lit=surface?*surface:p;const auto light=source.cells.find(lit.key());
+    if(light==source.cells.end()||!light->second.loaded)return false;
+    const float raw=light->second.raw;const int minimum=std::min(maximum,sight_result(raw,observer.impairment));
+    const bool artificial=raw>source.levels.at(p.z()).natural_light_level_cache;
+    const int wanted=distance_value(observer.position,p,circular);
+    return (wanted<=minimum||(wanted<=maximum&&artificial))&&wanted<=(blind?1:artificial?MAX_VIEW_DISTANCE:minimum);
+}
+struct group_result {
+    std::array<bool,5> values{};size_t target_calls=0,lower_calls=0;
+    bool arguments_valid=true;
+    std::vector<read_event> native_reads;
+};
+inline group_result range_group(bool corner,bool reuse=false){
+    const auto &eye=observer.position;
+    const tripoint_bub_ms p{eye.x()+3,eye.y()+4,eye.z()},below{p.x(),p.y(),p.z()-1},left{p.x()-1,p.y(),p.z()},front{p.x(),p.y()-1,p.z()};
+    seed(p,0,0);seed(below,20,0);seed(left,20,0);seed(front,4,0);
+    reads.clear();distances.clear();ncmm_world::light_range_cache ranges;group_result result;
+    std::optional<int> wanted;if(reuse)wanted=rl_dist(observer.pos_bub(),p);
+    result.values[0]=graphics_world_in_visual_range(p,60,false,&ranges,nullptr,wanted);
+    result.values[1]=graphics_world_in_visual_range(below,60,false,&ranges);
+    result.values[2]=(wanted?*wanted:rl_dist(observer.pos_bub(),p))<=60;
+    if(corner){result.values[3]=graphics_world_in_visual_range(p,60,false,&ranges,&left,wanted);
+        result.values[4]=graphics_world_in_visual_range(p,60,false,&ranges,&front,wanted);}
+    for(const auto &event:distances){
+        if(event.target==p)++result.target_calls;if(event.target==below)++result.lower_calls;
+        result.arguments_valid&=event.observer==eye&&(event.target==p||event.target==below);
+    }
+    result.native_reads=reads;return result;
+}
+}
+
+template<class Check> void native_range_checks(Check check){
+    namespace host=host_range_fixture;
+    auto require=[&](bool value,const char *message){if(!value)std::cerr<<"Native range: "<<message<<'\n';check(value);};
+    const host::tripoint_bub_ms zero{},triple{3,4,12};
+    require(host::distance_value(zero,triple,true)==13&&host::distance_value(zero,triple,false)==12,"frozen integer-policy cases distinguish circular and square distance");
+    require(host::distance_value(zero,{1,2,2},true)==3&&host::distance_value(zero,{1,2,1},true)==2,"a lower XYZ must not reuse the target's rounded integer distance");
+    const std::array<host::tripoint_bub_ms,6> offsets{{{0,0,0},{1,2,2},{3,4,12},{5,5,0},{-4,1,-2},{60,0,0}}};
+    for(bool trig:{false,true})for(int moved:{0,1})for(const auto &delta:offsets)for(int maximum:{0,1,2,5,12,13,60})
+        for(float raw:{0.f,.5f,4.f,20.f,120.f})for(float natural:{0.f,1.f,4.f,20.f})for(bool blind:{false,true})for(bool separate:{false,true}){
+            host::reset();host::circular=trig;host::observer.position={moved?10:0,moved?-20:0,moved?3:0};host::observer.impairment=moved;
+            const auto &at=host::observer.position;const host::tripoint_bub_ms p{at.x()+delta.x(),at.y()+delta.y(),at.z()+delta.z()},lit{p.x()+25,p.y()-17,p.z()+1};
+            host::seed(p,separate?0:raw,natural);if(separate)host::seed(lit,raw,natural+100);
+            ncmm_world::light_range_cache ranges;const auto *surface=separate?&lit:nullptr;
+            const bool actual=host::graphics_world_in_visual_range(p,maximum,blind,&ranges,surface);
+            require(actual==host::oracle(p,maximum,blind,surface),"actual extracted helper preserves range/light/artificial/no-sight result");
+            require(host::distances.size()==1&&host::distances[0].observer==at&&host::distances[0].target==p,
+                "surface light changes the raw argument, never Native observer/target XYZ");
+            const int wanted=host::distances[0].value;
+            const auto fallback_reads=host::reads;host::reads.clear();host::distances.clear();ncmm_world::light_range_cache reused_ranges;
+            const bool reused=host::graphics_world_in_visual_range(p,maximum,blind,&reused_ranges,surface,wanted);
+            require(reused==actual&&host::reads==fallback_reads,"known integer preserves every result and loaded/light/sight/natural read in order");
+            require(host::distances.empty(),"known integer, including zero, never evaluates the Native distance callback");
+        }
+    for(int gate=0;gate<4;++gate){
+        host::reset();const host::tripoint_bub_ms p{1,2,2},lit{9,8,3};host::seed(p,20,0,gate!=0);host::seed(lit,120,0,gate!=1);
+        if(gate==2)host::fov_3d_z_range=1;else if(gate==3)host::fov_3d_z_range=2;
+        const bool actual=host::graphics_world_in_visual_range(p,60,false,nullptr,&lit);
+        require(actual==host::oracle(p,60,false,&lit),"loaded target/source and exact Z-range boundary retain canonical guards");
+        require(host::distances.size()==size_t(gate==3),"rejected loaded/Z inputs never evaluate Native integer distance");
+        const auto lights=std::count_if(host::reads.begin(),host::reads.end(),[](const auto &event){return event.kind=='A';});
+        require(lights==(gate==3?1:0),"loaded/Z rejection stays before Native light reads");
+        const auto fallback_reads=host::reads;host::reads.clear();host::distances.clear();
+        require(host::graphics_world_in_visual_range(p,60,false,nullptr,&lit,host::distance_value(host::observer.position,p,host::circular))==actual&&host::reads==fallback_reads,
+            "known distance cannot bypass a target/source loaded check or Z gate");
+        require(host::distances.empty(),"known distance remains lazy even at rejected fallback inputs");
+    }
+    for(bool blind:{false,true})for(bool seen:{false,true})for(float raw:{0.f,120.f}){
+        host::reset();const host::tripoint_bub_ms p{3,4,0};host::seed(p,raw,0);host::observer.blind=blind;host::observer.native_seen=seen;
+        const int maximum=std::max(host::sight_result(120,0),host::sight_result(0,0));const bool range=host::oracle(p,maximum,blind);
+        require(host::graphics_world_perception(p)==(range&&seen),"default range/perception still delegates to Native sees after range success");
+        const auto visibility=std::count_if(host::reads.begin(),host::reads.end(),[](const auto &event){return event.kind=='V';});
+        require(visibility==(range?1:0),"you.sees short-circuit is independent of reusable distance");
+    }
+    {
+        host::reset();host::circular=true;const host::tripoint_bub_ms p{1,2,2},below{1,2,1};
+        host::seed(p,20,0);host::seed(below,20,0);
+        const int wanted=host::rl_dist(host::observer.pos_bub(),p);
+        require(!host::graphics_world_in_visual_range(p,2,false,nullptr,nullptr,wanted)&&host::graphics_world_in_visual_range(below,2,false),
+            "a separately ranged lower XYZ can pass when the candidate's known integer fails");
+        require(host::distances.size()==2&&host::distances[0].target==p&&host::distances[0].value==3&&
+            host::distances[1].observer==host::observer.pos_bub()&&host::distances[1].target==below&&host::distances[1].value==2,
+            "lower helper computes its own exact observer/target integer instead of reusing the candidate's result");
+    }
+    for(bool trig:{false,true}){
+        host::reset();host::circular=trig;const auto floor=host::range_group(false),corner=host::range_group(true);
+        require(floor.target_calls==2&&corner.target_calls==4&&floor.lower_calls==1&&corner.lower_calls==1,
+            "actual-source before baseline repeats target distance but keeps lower XYZ separate");
+        require(floor.values[0]==corner.values[0]&&floor.values[1]==corner.values[1]&&floor.values[2]==corner.values[2]&&corner.values[3]&&corner.values[4],
+            "facade source-light queries retain the same target and published decisions");
+        std::cout<<"Host range helper component baseline (representative injected integers, not Native timing/formula): "<<(trig?"circular":"square")
+                 <<" target callbacks floor="<<floor.target_calls<<" corner="<<corner.target_calls<<" lower="<<floor.lower_calls<<"/"<<corner.lower_calls<<'\n';
+        for(int moved:{0,1})for(bool use_corner:{false,true}){
+            host::observer.position={moved?1000000:0,moved?-1000000:0,moved?7:0};
+            const auto original=host::range_group(use_corner),reused=host::range_group(use_corner,true);
+            require(original.values==reused.values&&original.native_reads==reused.native_reads,"paired source helper decisions and non-distance read traces remain exact after observer relocation");
+            require(original.arguments_valid&&reused.arguments_valid&&reused.target_calls==1&&reused.lower_calls==1,
+                "reused target has one exact observer/target call and below still has its own XYZ call");
+        }
+        std::cout<<"Host range helper component after (representative injected "<<(trig?"circular":"square")
+                 <<" integers, not Native timing/formula): target callbacks floor=1 corner=1; lower=1/1; paired decisions/read traces preserved\n";
+    }
+}
 
 template<class Check> void sealed_ring_checks(Check check){
     using namespace ncmm_world;
@@ -77,6 +247,7 @@ template<class Check> void sealed_ring_checks(Check check){
 int main(){try{
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
+    native_range_checks(check);
     sealed_ring_checks(check);
     {
         int identities[2]{};

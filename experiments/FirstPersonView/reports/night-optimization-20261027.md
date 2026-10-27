@@ -259,13 +259,45 @@ Do not merge or release before the user's separate finalization request.
     come from the existing near renderer's .81 m cell lattice width and
     2.5 m storey height, rather than being dimensions asserted by JSON.
 
+11. **Reuse a candidate's Native integer distance.** The current range check,
+    structural range and lit facade checks independently called `rl_dist`
+    for the same observer/target. The candidate now computes that exact
+    Native integer once, after the existing loaded/frustum/occlusion/local-air
+    gates. Current, structure and facade queries reuse it; the lower XYZ
+    retains its own call. There is no cross-cell/frame cache, distance formula
+    replacement, floating approximation, changed range or additional memory
+    table. Fallback remains conditional, including a supplied zero distance.
+
+    First extracted the unchanged actual Host helper into a copied bridge
+    include: its old body matched 1247 characters after newline normalization.
+    Compiling this production include with injected map/avatar dependencies
+    established a passing before baseline (877135 total checks): floor target
+    distance callbacks 2, corner 4, lower 1/1. After reuse they are 1, 1 and
+    1/1. The paired helper matrix preserves every boolean decision and ordered
+    non-distance read trace across 13440 combinations of light, artificial
+    sources, no-sight, range thresholds, separate surface-light Z and observer
+    relocation. Known-zero/fallback, loaded/Z rejection before light reads,
+    Native sees short-circuit, exact callback arguments and a lower XYZ with
+    a different integer/decision are checked. Representative injected square
+    and circular integers are dependency controls, not an oracle for Native
+    distance formula, Z scaling or frame elapsed time.
+
+    Affected Release build, 904041-check cache/range suite, 195 Python and
+    25 atomic bridge tests pass. Evidence: `night-range-baseline*` and
+    `night-range-after*` logs in the existing private work directory. No
+    millisecond gain or ordinary-game first-frame improvement is claimed;
+    actual pinned Host compilation and qualification must follow.
+    The same 50 inventoried autonomous CTests also pass after this stage
+    (15.48 s). Renderer/module bytes are unchanged by the Host-only range edit;
+    the skyline hidden GPU result above remains its applicable device check.
+
 ## Working queue
 
-1. Audit repeated Native distance/range queries within one XYZ's visibility
-   processing. Old profiles contain this work, but no current millisecond
-   benefit or paired callback-count baseline has been established. Enlarging
-   the existing light-range cache was rejected as a priority: recorded frames
-   already make only 2-15 sight-range evaluations for 1400-3000 cache hits.
+1. Repeated distance calls within one candidate are removed and component
+   callback counts verified. Obtain the fresh pinned Native profile to choose
+   the next timing bottleneck. Enlarging the existing light-range cache remains
+   rejected as a priority: recorded frames already make only 2-15 sight-range
+   evaluations for 1400-3000 cache hits.
 2. The typed radio skyline now passes local CPU/GPU/module/Host-source
    controls. Qualify the resulting exact revision in the real pinned Hosts;
    assess distant wire minification in that setting before further changes.

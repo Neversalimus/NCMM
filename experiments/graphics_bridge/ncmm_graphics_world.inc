@@ -171,18 +171,7 @@ void graphics_world_frame_presented()
     graphics_world_pending_present=graphics_frame_pending_present=false;
 }
 std::array<float,3> graphics_world_rgb(const tripoint_bub_ms &p){return graphics_sample_rgb(p);}
-bool graphics_world_in_visual_range(const tripoint_bub_ms &p,int maximum,bool no_sight,ncmm_world::light_range_cache *ranges=nullptr,const tripoint_bub_ms *surface_light=nullptr)
-{
-    map &here=get_map();avatar &you=get_avatar();if(!here.ncmm_graphics_loaded(p)||std::abs(p.z()-you.posz())>fov_3d_z_range)return false;
-    const auto &lit=surface_light?*surface_light:p;if(!here.ncmm_graphics_loaded(lit))return false;
-    const float raw=here.ambient_light_at(lit);const int current=ranges?ranges->get(raw,[&]{return you.sight_range(raw);}):you.sight_range(raw),minimum=std::min(current,maximum);
-    const int wanted=rl_dist(you.pos_bub(),p);const bool artificial=raw>here.get_cache_ref(p.z()).natural_light_level_cache;
-    if(!(wanted<=minimum||(wanted<=maximum&&artificial)))return false;
-    return wanted<=(no_sight?1:artificial?MAX_VIEW_DISTANCE:minimum);
-}
-bool graphics_world_in_visual_range(const tripoint_bub_ms &p){const auto &you=get_avatar();
-    return graphics_world_in_visual_range(p,std::max(you.sight_range(default_daylight_level()),you.sight_range(0)),you.has_effect(efftype_id("no_sight")));}
-bool graphics_world_perception(const tripoint_bub_ms &p){return graphics_world_in_visual_range(p)&&get_avatar().sees(get_map(),p);}
+#include "ncmm_graphics_range.inc"
 bool graphics_draw_world(int x,int y,int width,int height)
 {
     ncmm_graphics_trace::cpu_zone snapshot_zone("Snapshot");
@@ -401,12 +390,16 @@ bool graphics_draw_world(int x,int y,int width,int height)
         const bool local_air=air&&!entity&&!observed_death&&std::as_const(here).maptile_at(p).get_items().empty();
         // Frustum and local-air rejection precede native light/perception work.
         if(local_air&&(!atmosphere||dx*dx+dy*dy>16.f*16.f||z<eye_level||z>eye_level+2))continue;
+        // Surface-light samples change illumination, not the target XYZ. Keep
+        // Native's integer result and distance policy for this candidate only.
+        const int wanted=rl_dist(you.pos_bub(),p);
         const auto below=tripoint_bub_ms(p.xy(),z-1);
-        const bool current_in_range=in_visual_range(p),lower_in_range=in_visual_range(below);
+        const bool current_in_range=graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,nullptr,wanted),
+                   lower_in_range=in_visual_range(below);
         // Architecture is continuous inside the physical sight radius, even
         // when a dark room/tile centre has never passed the top-down FOV test.
         // Its light and the raster depth still determine what reaches the eye.
-        const bool structure_range=rl_dist(you.pos_bub(),p)<=(visual_no_sight?1:visual_maximum);
+        const bool structure_range=wanted<=(visual_no_sight?1:visual_maximum);
         const bool static_surface=structure_range&&(semantic&(graphics_world_architecture|NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN));
         // No permission below can survive if neither side is within native
         // visual range. In particular, don't trace thousands of dark buried
@@ -419,7 +412,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
                 const auto adjacent=ncmm_world::facade_neighbor({ax,ay,z},face);
                 if(ncmm_world::structural_flags(base_flags(adjacent.x,adjacent.y,adjacent.z))&(NCMM_WORLD_OPAQUE|NCMM_WORLD_UNKNOWN))continue;
                 const auto lit=here.get_bub(tripoint_abs_ms(adjacent.x,adjacent.y,adjacent.z));
-                possible_face=graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,&lit);
+                possible_face=graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,&lit,wanted);
             }
             if(!possible_face){++graphics_world_metrics.occlusion_rejected;continue;}
         }
@@ -437,7 +430,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
                 const auto adjacent=ncmm_world::facade_neighbor({ax,ay,z},face);
                 if(ncmm_world::structural_flags(base_flags(adjacent.x,adjacent.y,adjacent.z))&(NCMM_WORLD_OPAQUE|NCMM_WORLD_UNKNOWN))continue;
                 const auto lit=here.get_bub(tripoint_abs_ms(adjacent.x,adjacent.y,adjacent.z));
-                if(!graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,&lit))continue;
+                if(!graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,&lit,wanted))continue;
                 facade_in_range=true;const auto rgb=graphics_world_rgb(lit);
                 for(size_t channel=0;channel<3;++channel)facade_light[channel]=std::max(facade_light[channel],rgb[channel]);
             }
