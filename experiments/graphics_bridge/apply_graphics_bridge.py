@@ -114,8 +114,9 @@ def patch_native_shadowcasting(text, header, identity):
         '#include "shadowcasting.h"\n#include "ncmm_graphics_sight_exp_cache.hpp"\n', 1)
     text = text.replace(NATIVE_SHADOWCAST_RADIUS, NATIVE_SHADOWCAST_RADIUS +
         '    ncmm_graphics_shadowcasting::calc_cache<T, calc> ncmm_calc;\n')
-    return text.replace(NATIVE_SHADOWCAST_CALC,
+    text = text.replace(NATIVE_SHADOWCAST_CALC,
         '                    last_intensity = ncmm_calc( numerator, this_span->cumulative_value, dist );\n')
+    return text + '\n#include "ncmm_graphics_sight_reference.inc"\n'
 
 
 NATIVE_MAP_CACHE_ORIGINAL = (4288, "1f8d5580024513cbd0f684eb32957832ba194ba41ba7e3c4d3ccc5919c1fda21")
@@ -406,7 +407,7 @@ def apply(root: Path):
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CREATURES_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_creatures_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {')
     loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "void graphics_note_creature( Creature *who, uint32_t event, float heading )\n{\n#if defined(TILES)\n    graphics_notify_creature( who, event, heading );\n#else\n    (void)who; (void)event; (void)heading;\n#endif\n}\nbool graphics_requires_terrain_pass()\n{")
     loader = replace(loader, '#include "ncmm_graphics_camera.hpp"',
-                     '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_context.hpp"\n#include "ncmm_graphics_snapshot_cache.hpp"\n#include "ncmm_graphics_trace.hpp"\n#if defined(TILES)\n#include <SDL3_image/SDL_image.h>\n#endif')
+                     '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_context.hpp"\n#include "ncmm_graphics_snapshot_cache.hpp"\n#include "ncmm_graphics_trace.hpp"\n#include "ncmm_graphics_sight_reference.hpp"\n#if defined(TILES)\n#include <SDL3_image/SDL_image.h>\n#endif')
     loader = replace(loader, '    const bool gameplay = ncmm_graphics_shapes::stays_perspective( category );\n    if( gameplay != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();\n    graphics_gameplay_context = gameplay;\n    graphics_control_context = category == "DEFAULTMODE";',
                      '    const bool previous = graphics_gameplay_context;\n    graphics_context.note( category );\n    if( previous != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();')
     loader = replace(loader, '    graphics_gameplay_context = false;',
@@ -768,10 +769,11 @@ void initialize();''')
     lightmap_cpp=patch_native_apparent_light(read("lightmap.cpp"),identity)
     updates["lightmap.cpp"]=patch_native_vision_transparency(lightmap_cpp,identity)
     updates["shadowcasting.cpp"]=patch_native_shadowcasting(read("shadowcasting.cpp"),read("shadowcasting.h"),identity)
-    name="ncmm_graphics_sight_exp_cache.hpp"
-    if (root / "src" / name).exists():
-        raise ValueError("Experimental source already exists: " + name)
-    updates[name]=(bridge/name).read_text(encoding="utf-8")
+    for name in ("ncmm_graphics_sight_exp_cache.hpp", "ncmm_graphics_sight_reference.hpp",
+                 "ncmm_graphics_sight_reference.inc", "ncmm_graphics_sight_comparison.inc"):
+        if (root / "src" / name).exists():
+            raise ValueError("Experimental source already exists: " + name)
+        updates[name]=(bridge/name).read_text(encoding="utf-8")
     for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_map_shift.inc","ncmm_graphics_support_rebase.hpp","ncmm_graphics_actualize.inc","ncmm_graphics_map_cache.inc","ncmm_graphics_phase_loop.inc","ncmm_graphics_submap_phase.inc","ncmm_graphics_floor_cache.inc","ncmm_graphics_outside_cache.inc","ncmm_graphics_vision_transparency.inc","ncmm_graphics_reconcile_items.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)

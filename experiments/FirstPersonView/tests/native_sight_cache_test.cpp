@@ -125,6 +125,9 @@ namespace native_sight_reference {
 namespace native_sight_candidate {
 #include "native_shadowcasting_primary.inc"
 }
+#define NCMM_GRAPHICS_REFERENCE_PRIMARY native_sight_candidate::cast_zlight
+#include "ncmm_graphics_sight_reference.inc"
+#undef NCMM_GRAPHICS_REFERENCE_PRIMARY
 namespace ncmm_shadow_fixture {
 bool check( const float &t, const float &i ) {
     if( active ) { ++active->checks; active->add( bits( t ) ); active->add( bits( i ) ); }
@@ -287,6 +290,29 @@ void primitive_reuse() {
     errno = EDOM; standard( 1.0f );
     require( errno == EDOM, "normal hit retains current unrelated errno" );
 }
+void diagnostic_reference_semantics() {
+    world<float> w;
+    for( bool metric : {false, true} ) for( int scene : {0, 2, 3, 4} ) {
+        circular = metric; w.fill( scene, true );
+        const auto identity = w.input_identity();
+        const int offset = scene >= 3 ? 36 : 0;
+        record original, diagnostic;
+        active = &original;
+        native_sight_reference::cast_zlight<float, sight_calc, sight_check, accumulate_transparency>(
+            w.expected, w.in, w.floor, {66, 66, 0}, offset, 1.0f, vertical_direction::BOTH );
+        active = &diagnostic;
+        ncmm_graphics_shadowcasting::reference_cast(
+            w.actual, w.in, w.floor, {66, 66, 0}, offset, 1.0f, vertical_direction::BOTH );
+        active = nullptr;
+        w.compare();
+        require( identity == w.input_identity(), "diagnostic reference preserves every input/floor byte" );
+        require( original.requests == diagnostic.requests && original.trace == diagnostic.trace,
+                 "diagnostic reference uses the complete Native traversal and distance order" );
+        require( original.exponent_calls == original.requests &&
+                 diagnostic.exponent_calls == original.exponent_calls,
+                 "reference wrapper must execute every original exponent, never the cache specialization" );
+    }
+}
 void run() {
     primitive_semantics();
     world<float> w;
@@ -317,6 +343,7 @@ void run() {
               << " checks passed before work acceptance; exponent evaluations " << before << " -> " << after << '\n';
     require( before > 100000 && after < before/2, "reduce repeated exact exponent work in full Native body (fail-before control)" );
     primitive_reuse();
+    diagnostic_reference_semantics();
     std::cout << "Exact sight denominator cache: " << cases << " pairs / " << checks
               << " checks passed; owned context, not game/RTX/frame timings\n";
 }

@@ -156,6 +156,8 @@ class ApplyTests(unittest.TestCase):
         for pin in bridge.SOURCES:
             actual = bridge.patch_native_shadowcasting(cpp, header, pin)
             restored = actual.replace('#include "ncmm_graphics_sight_exp_cache.hpp"\n', '', 1)
+            self.assertTrue(restored.endswith('\n#include "ncmm_graphics_sight_reference.inc"\n'))
+            restored = restored.removesuffix('\n#include "ncmm_graphics_sight_reference.inc"\n')
             self.assertEqual(restored.count('    ncmm_graphics_shadowcasting::calc_cache<T, calc> ncmm_calc;\n'), 2)
             restored = restored.replace('    ncmm_graphics_shadowcasting::calc_cache<T, calc> ncmm_calc;\n', '')
             restored = restored.replace('last_intensity = ncmm_calc(', 'last_intensity = calc(')
@@ -174,17 +176,18 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(fragment.encode()).hexdigest(), '36e3758aa305c5df73edd3db83d92c796d0b59cbe6cee4545c6af74a9ad60074')
 
     def test_shadowcast_both_pins_copy_receipt_and_unchanged_header(self):
-        name = 'ncmm_graphics_sight_exp_cache.hpp'
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp); self.fixture(root,pin)
                 header=(root/'src/shadowcasting.h').read_bytes()
                 with patch.object(bridge.subprocess,'check_output',return_value=pin): bridge.apply(root)
                 self.assertEqual((root/'src/shadowcasting.h').read_bytes(),header)
-                data=Path(bridge.__file__).with_name(name).read_bytes()
-                self.assertEqual((root/'src'/name).read_bytes(),data)
                 receipt=json.loads((root/'first-person-source.json').read_text(encoding='utf-8'))
-                self.assertEqual(receipt['inputs'][name],hashlib.sha256(data).hexdigest())
+                for name in ('ncmm_graphics_sight_exp_cache.hpp','ncmm_graphics_sight_reference.hpp',
+                             'ncmm_graphics_sight_reference.inc','ncmm_graphics_sight_comparison.inc'):
+                    data=Path(bridge.__file__).with_name(name).read_bytes()
+                    self.assertEqual((root/'src'/name).read_bytes(),data)
+                    self.assertEqual(receipt['inputs'][name],hashlib.sha256(data).hexdigest())
                 self.assertEqual(receipt['inputs']['shadowcasting.cpp'],hashlib.sha256((root/'src/shadowcasting.cpp').read_bytes()).hexdigest())
 
     def test_shadowcast_changed_missing_or_duplicate_sources_are_atomic(self):
@@ -198,6 +201,23 @@ class ApplyTests(unittest.TestCase):
                         before=self.fingerprint(root)
                         with patch.object(bridge.subprocess,'check_output',return_value=pin):
                             with self.assertRaisesRegex(ValueError,'shadowcasting'): bridge.apply(root)
+                        self.assertEqual(before,self.fingerprint(root))
+
+    def test_sight_comparison_missing_or_existing_helpers_are_atomic(self):
+        for name in ('ncmm_graphics_sight_reference.hpp','ncmm_graphics_sight_reference.inc',
+                     'ncmm_graphics_sight_comparison.inc'):
+            for pin in bridge.SOURCES:
+                for existing in (False,True):
+                    with self.subTest(name=name,pin=pin,existing=existing), tempfile.TemporaryDirectory() as tmp:
+                        root=Path(tmp); self.fixture(root,pin)
+                        if existing: (root/'src'/name).write_text('existing helper\n',encoding='utf-8')
+                        before=self.fingerprint(root); original_read=Path.read_text
+                        def read(path,*args,**kwargs):
+                            if not existing and path==Path(bridge.__file__).with_name(name):
+                                raise FileNotFoundError('missing comparison include')
+                            return original_read(path,*args,**kwargs)
+                        with patch.object(bridge.subprocess,'check_output',return_value=pin), patch.object(Path,'read_text',read):
+                            with self.assertRaises((ValueError,FileNotFoundError)): bridge.apply(root)
                         self.assertEqual(before,self.fingerprint(root))
 
     def test_shadowcast_missing_or_existing_include_is_atomic(self):

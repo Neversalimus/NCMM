@@ -16,6 +16,7 @@
     std::ofstream stream(game_root()/"ncmm"/"first-person-movement-benchmark.json");JsonOut report(stream);
     report.start_object();report.member("schema",2);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);
     report.member("profiler_markers_enabled",ncmm_graphics_trace::enabled());
+    report.member("native_sight_comparison_enabled",std::getenv("NCMM_FP_SIGHT_COMPARE")!=nullptr);
     report.member("gpu_debug_requested",std::getenv("SDL_RENDER_GPU_DEBUG")!=nullptr);
     report.member("distance_radius",NCMM_GRAPHICS_V2_RADIUS);
     const bool legacy_z_option=get_options().has_option("FOV_3D_Z_RANGE");
@@ -35,6 +36,11 @@
     const bool trace_capture=!trace_scene.empty();
     require(!trace_capture||trace_scene=="quiet"||trace_scene=="rotate"||trace_scene=="step"||trace_scene=="shot"||trace_scene=="hands"||trace_scene=="smoke"||trace_scene=="city","trace_capture_unknown_scene");
     const bool extended=std::getenv("NCMM_FP_EXTENDED")!=nullptr||trace_capture;
+    const char *sight_compare_setting=std::getenv("NCMM_FP_SIGHT_COMPARE");
+    const bool sight_compare=sight_compare_setting!=nullptr;
+    require(!sight_compare||(std::strcmp(sight_compare_setting,"1")==0&&!extended&&!full_size_gpu_matrix&&
+        !std::getenv("NCMM_FP_CAMERA_CACHE_VERIFY")&&!std::getenv("SDL_RENDER_GPU_DEBUG")),
+        "sight_comparison_requires_ordinary_short_movement_diagnostic");
     require(!full_size_gpu_matrix||(extended&&!trace_capture),"full_size_gpu_matrix_requires_ordinary_extended_run");
     struct readback_profile_guard {bool previous;~readback_profile_guard(){graphics_sprite_readbacks.enabled=previous;}} readback_guard{graphics_sprite_readbacks.enabled};
     graphics_sprite_readbacks.enabled=extended;
@@ -101,6 +107,9 @@
             graphics_mouse_dx=std::remainder(-ncmm_graphics_camera::pi*.5f-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
             graphics_mouse_dy=(graphics_camera_pitch+.08f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"movement_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);refresh();
+            if(sight_compare&&viewport==viewports.front()&&std::string(mode)=="cpu"){
+                #include "ncmm_graphics_sight_comparison.inc"
+            }
             std::vector<double> frame_ms,visibility_ms,first_ms,first_frame_ms,easing_ms,cold_turn_ms,warm_turn_ms;
             std::vector<double> geometry_ms,resource_ms;std::vector<uint64_t> range_evaluations,range_hits,ray_hits,ray_misses,geometry_hits,geometry_misses,roof_misses,source_misses,geometry_revisions,material_evaluations,material_hits;
             std::vector<double> native_tiles_ms,perspective_ms,present_ms,unattributed_ms,extract_ms,callback_ms,upload_ms,record_ms,submit_ms;

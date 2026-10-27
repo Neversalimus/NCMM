@@ -880,6 +880,71 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     Next: obtain a same-process comparison on actual Native cache inputs before
     altering the retained caster further; preserve the current full CI run.
 
+39. **Prepare same-process Native sight comparison.** An explicit isolated short
+    movement option compares the retained caster with a second instantiation of
+    the same fully guarded Native body. A distinct sight callback selects the
+    generic forwarding path and executes the original formula every time.
+    Ordinary Native visibility does not call the new diagnostic entrypoint.
+    No cache capacity, traversal, range, math formula, rendering or public ABI
+    is changed. Missing/existing companion files fail before any Native write.
+
+    Street/horde/city each collect nine alternating pairs of eight casts, on
+    the same actual Native transparency/floor pointers, origin, numerator and
+    real no-floor-gap direction. Outputs are owned. Reset/allocation, hashing,
+    validation and JSON IO are outside the timed scope; original caster-owned
+    PLF allocation stays inside. All365904 output floats are compared bitwise
+    after each pair. Exact byte snapshots protect every transparency/floor/
+    seen/camera grid across21Z (4756752 bytes), plus avatar origin/moves/calendar.
+    Reports state warmed Native-caster wall time only, not whole seen-cache,
+    cold load, GPU execution, ordinary FPS or first-correct-presentation timing.
+    Current ordinary movement timings carry the diagnostic-enabled flag; this
+    extra pre-matrix workload must not be silently equated with old warmup.
+
+    Full local Release build passes; frozen coverage now includes158 exact
+    indexed sources. The math target passes498 ordinary pairs /13265 checks,
+    including eight added original-reference pairs. A separately compiled
+    negative control which accidentally caches the reference fails the exact
+    exponent-count requirement. All95 atomic bridge tests (55.563s),299 Python
+    tests (19.860s), including11 strict receipt tests, and affected CTest (3.19s)
+    pass; PowerShell is parsed without execution. The verifier accepts measured
+    regressions, rejects missing/nonfinite/fabricated-scope data and does not
+    impose a favorable timing threshold.
+
+    The actual comparison include also compiles/runs with owned map/avatar/
+    JSON stand-ins: three output contracts and corrupted-output, changed-Native-
+    bytes and failed-IO controls pass. Those model reports explicitly emit
+    actual_cdda_sdl=false and fail the actual-Native receipt gate. The first
+    full-radius finely varying haze model hit its45s bound and was stopped;
+    its partial files are retained. A new output directory uses full-radius
+    open/solid/structured owned inputs; production radius, input and collector
+    are unchanged. Evidence `night-sight-comparison-model-probe-short/`.
+    Actual Native compilation/comparison of these new diagnostic bytes remains
+    pending; keep the existing eae full run alive and use a separate diagnostic
+    branch, without a local game/input run or new checkout.
+
+40. **Qualify the current short-tap fix on both actual Windows Hosts.** Exact
+    eae8d02 run40580475214 emits184-case reports on both1040 and1807. Each
+    passes its exact eae Git-object verifier, including all eight new released
+    taps and eight W+D cases across keychar/keycode and CPU/GPU. Tap fractional
+    distances .137616–.223348 retain zero Native actions and move cost, actual
+    presentations and released keys at the declared controlled speed6. Existing
+    speed1 held-step controls remain required. Both child processes exit0 with
+    no wrapper/debugger error or crash dump; this is an isolated diagnostic,
+    not a physical/manual play session.
+
+    Sourceeae8d02 and runtime merge9e8a85a8592cc4219dd31f91f30987d447345a3e
+    share treee866c81e3a2acea6cbc30377b6f253c8b4305899, checked against local
+    commit objects and remote Git metadata. Only three selected program JSON
+    members per artifact12771495265/12769584568 were read,71583/8388608 reserved
+    bytes total. Strict summary SHA256
+    `51e87dcab9ec8fbeeb85389321936758c430aa10896925473607fd11d8ca4193`.
+    CI diagnostics use Code Review only; ongoing job logs were unavailable,
+    so exact selected program receipts and passing completed FPS steps support
+    this bounded conclusion. Boundary frozen-frame counters are zero, but
+    software-CI gaps171–412ms still do not establish15ms or RTX4090 play.
+    Full current-source qualification and stage39 Native comparison remain
+    pending. GPU/source/runtime and both module jobs at eae pass.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
