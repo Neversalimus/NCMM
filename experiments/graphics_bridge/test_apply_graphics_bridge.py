@@ -170,6 +170,59 @@ bool cata_tiles::draw_sprite_at() {
                     with self.assertRaisesRegex(FileNotFoundError, "missing static-detail source"):
                         bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))
+    def test_candidate_range_frozen_oracle_is_independent_and_unchanged(self):
+        frozen = (REPO / "experiments/FirstPersonView/tests/multilevel_cache_test.cpp").read_text(encoding="utf-8")
+        begin, end = "// BEGIN FROZEN CANDIDATE RANGE\n", "// END FROZEN CANDIDATE RANGE\n"
+        self.assertEqual(frozen.count(begin), 1)
+        self.assertEqual(frozen.count(end), 1)
+        original = frozen.split(begin, 1)[1].split(end, 1)[0]
+        self.assertEqual(len(original.encode("utf-8")), 839)
+        self.assertEqual(hashlib.sha256(original.encode("utf-8")).hexdigest(), "9f5d494805a4f67005db9636c92ee80cbfe677a6ad492a9497349738936b37b6")
+        self.assertIn("lower_in_range=in_visual_range(below);", original)
+    def test_candidate_range_both_pins_and_source_receipt(self):
+        helper = Path(bridge.__file__).with_name("ncmm_graphics_candidate_range.inc")
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                    bridge.apply(root)
+                self.assertEqual((root / "src" / helper.name).read_bytes(), helper.read_bytes())
+                world = (root / "src/ncmm_graphics_world.inc").read_text(encoding="utf-8")
+                self.assertEqual(world.count('#include "ncmm_graphics_candidate_range.inc"'), 1)
+                self.assertIn("if(!static_surface&&!current_in_range&&!lower_in_range&&p!=you.pos_bub())", world)
+                self.assertIn("if(!structure_range&&!lower_in_range)permission&=~NCMM_WORLD_FLOOR_BOTTOM;", world)
+                self.assertIn("if(permission&NCMM_WORLD_FLOOR_BOTTOM){const auto rgb=graphics_world_rgb(below);", world)
+                receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))
+                self.assertEqual(receipt["source_commit"], pin)
+                for name in (helper.name, "ncmm_graphics_world.inc"):
+                    self.assertEqual(receipt["inputs"][name], hashlib.sha256((root / "src" / name).read_bytes()).hexdigest())
+    def test_candidate_range_existing_include_failure_is_atomic(self):
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                (root / "src/ncmm_graphics_candidate_range.inc").write_text("existing candidate evaluation\n", encoding="utf-8")
+                (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                before = self.fingerprint(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                    with self.assertRaisesRegex(ValueError, "Experimental source already exists: ncmm_graphics_candidate_range.inc"):
+                        bridge.apply(root)
+                self.assertEqual(before, self.fingerprint(root))
+    def test_candidate_range_missing_helper_failure_is_atomic(self):
+        helper = Path(bridge.__file__).with_name("ncmm_graphics_candidate_range.inc")
+        original_read = Path.read_text
+        def read(path, *args, **kwargs):
+            if path == helper:
+                raise FileNotFoundError("missing candidate-range source")
+            return original_read(path, *args, **kwargs)
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                before = self.fingerprint(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
+                    with self.assertRaisesRegex(FileNotFoundError, "missing candidate-range source"):
+                        bridge.apply(root)
+                self.assertEqual(before, self.fingerprint(root))
     def test_native_apparent_light_adaptation_retains_both_primary_pin_bodies(self):
         original = apparent_light_original()
         digest = "7e570456c43c6dcf6b02d29bd4ef8a25a63a0889006855f28483870dd6a70a14"

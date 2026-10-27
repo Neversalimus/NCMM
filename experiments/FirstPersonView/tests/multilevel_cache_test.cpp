@@ -14,7 +14,11 @@
 namespace host_range_fixture {
 struct tripoint_bub_ms {
     int xx=0,yy=0,zz=0;
+    tripoint_bub_ms()=default;
+    tripoint_bub_ms(int x,int y,int z):xx(x),yy(y),zz(z){}
+    tripoint_bub_ms(std::array<int,2> xy,int z):xx(xy[0]),yy(xy[1]),zz(z){}
     int x()const{return xx;}int y()const{return yy;}int z()const{return zz;}
+    std::array<int,2> xy()const{return {{xx,yy}};}
     auto key()const{return std::make_tuple(xx,yy,zz);}
     bool operator==(const tripoint_bub_ms &other)const{return key()==other.key();}
 };
@@ -26,6 +30,7 @@ struct read_event {
 struct distance_event {tripoint_bub_ms observer,target;int value;};
 inline std::vector<read_event> reads;
 inline std::vector<distance_event> distances;
+inline bool ordered_distances=false;
 inline bool circular=false;
 inline int fov_3d_z_range=12;
 constexpr int MAX_VIEW_DISTANCE=60;
@@ -65,10 +70,11 @@ inline int distance_value(const tripoint_bub_ms &a,const tripoint_bub_ms &b,bool
     if(!trig)return int(std::max({std::abs(dx),std::abs(dy),std::abs(dz)}));
     return int(float(std::sqrt(double(dx*dx+dy*dy+dz*dz))));
 }
-inline int rl_dist(const tripoint_bub_ms &a,const tripoint_bub_ms &b){const int value=distance_value(a,b,circular);distances.push_back({a,b,value});return value;}
+inline int rl_dist(const tripoint_bub_ms &a,const tripoint_bub_ms &b){const int value=distance_value(a,b,circular);distances.push_back({a,b,value});
+    if(ordered_distances)reads.push_back({'D',b.key(),float(value)});return value;}
 #include "../../graphics_bridge/ncmm_graphics_range.inc"
 
-inline void reset(){source={};observer={};reads.clear();distances.clear();circular=false;fov_3d_z_range=12;}
+inline void reset(){source={};observer={};reads.clear();distances.clear();circular=false;ordered_distances=false;fov_3d_z_range=12;}
 inline void seed(const tripoint_bub_ms &p,float raw,float natural,bool loaded=true){source.cells[p.key()]={loaded,raw};source.levels[p.z()]={natural};}
 inline bool oracle(const tripoint_bub_ms &p,int maximum,bool blind,const tripoint_bub_ms *surface=nullptr){
     const auto target=source.cells.find(p.key());
@@ -1026,6 +1032,142 @@ template<class Check> void static_detail_checks(Check check){
                  <<category_after[category][0]/category_cases[category]<<'/'<<category_after[category][1]/category_cases[category]<<'/'<<category_after[category][2]/category_cases[category]<<'\n';}
 }
 
+namespace candidate_range_fixture {
+using namespace host_range_fixture;
+constexpr uint32_t graphics_world_architecture=1u<<28;
+struct evaluation {int wanted=0;tripoint_bub_ms below{};bool current=false,lower=false,structure=false,static_surface=false;};
+template<class Lower> evaluation actual(avatar &you,const tripoint_bub_ms &p,int z,uint32_t semantic,int visual_maximum,bool visual_no_sight,ncmm_world::light_range_cache &visual_ranges,Lower in_visual_range){
+#include "../../graphics_bridge/ncmm_graphics_candidate_range.inc"
+    return {wanted,below,current_in_range,lower_in_range,structure_range,static_surface};
+}
+template<class Lower> evaluation frozen(avatar &you,const tripoint_bub_ms &p,int z,uint32_t semantic,int visual_maximum,bool visual_no_sight,ncmm_world::light_range_cache &visual_ranges,Lower in_visual_range){
+// BEGIN FROZEN CANDIDATE RANGE
+// Surface-light samples change illumination, not the target XYZ. Keep
+// Native's integer result and distance policy for this candidate only.
+const int wanted=rl_dist(you.pos_bub(),p);
+const auto below=tripoint_bub_ms(p.xy(),z-1);
+const bool current_in_range=graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,nullptr,wanted),
+           lower_in_range=in_visual_range(below);
+// Architecture is continuous inside the physical sight radius, even
+// when a dark room/tile centre has never passed the top-down FOV test.
+// Its light and the raster depth still determine what reaches the eye.
+const bool structure_range=wanted<=(visual_no_sight?1:visual_maximum);
+const bool static_surface=structure_range&&(semantic&(graphics_world_architecture|NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN|NCMM_WORLD_UP));
+// END FROZEN CANDIDATE RANGE
+    return {wanted,below,current_in_range,lower_in_range,structure_range,static_surface};
+}
+struct input {
+    tripoint_bub_ms p{3,4,0};uint32_t semantic=NCMM_WORLD_FLOOR;
+    int maximum=60;bool blind=false,loaded=true,lower_loaded=true,surface_loaded=true,facade=true;
+    float raw=0,lower_raw=32,surface_raw=8,natural=32;
+};
+struct decision {
+    bool early=false,facade=false;std::array<uint32_t,4> permissions{};
+    bool operator==(const decision &other)const{return early==other.early&&facade==other.facade&&permissions==other.permissions;}
+};
+struct result {
+    std::vector<evaluation> values;std::vector<decision> decisions;std::vector<read_event> trace;std::vector<distance_event> distance;
+    size_t lower_requests=0;uint64_t misses=0,hits=0;
+};
+inline void seed_inputs(const std::vector<input> &inputs){
+    for(const auto &c:inputs){seed(c.p,c.raw,c.natural,c.loaded);seed({c.p.x(),c.p.y(),c.p.z()-1},c.lower_raw,c.natural,c.lower_loaded);
+        seed({c.p.x()+1,c.p.y()+1,c.p.z()},c.surface_raw,c.natural,c.surface_loaded);}
+}
+inline result run(const std::vector<input> &inputs,bool optimized){
+    reads.clear();distances.clear();ordered_distances=true;ncmm_world::light_range_cache cache;result out;
+    for(size_t index=0;index<inputs.size();++index){const auto &c=inputs[index];
+        auto lower=[&](const tripoint_bub_ms &p){++out.lower_requests;reads.push_back({'Q',p.key(),float(index)});
+            const bool value=graphics_world_in_visual_range(p,c.maximum,c.blind,&cache);reads.push_back({'E',p.key(),float(value)});return value;};
+        const auto e=optimized?actual(observer,c.p,c.p.z(),c.semantic,c.maximum,c.blind,cache,lower):frozen(observer,c.p,c.p.z(),c.semantic,c.maximum,c.blind,cache,lower);
+        out.values.push_back(e);decision used;
+        // Exact existing consumers: lower is unobservable only when the
+        // static gate implies structure range. Keep the nonstatic early gate.
+        used.early=!e.static_surface&&!e.current&&!e.lower&&!(c.p==observer.pos_bub());
+        constexpr std::array<uint32_t,4> permissions{{0,NCMM_WORLD_FLOOR_TOP,NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM,
+            NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM|NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_STRUCTURE_VISIBLE}};
+        for(size_t i=0;i<permissions.size();++i){uint32_t permission=permissions[i];
+            if(!e.structure&&!e.current)permission&=~NCMM_WORLD_FLOOR_TOP;
+            if(!e.structure&&!e.lower)permission&=~NCMM_WORLD_FLOOR_BOTTOM;
+            if((permission&NCMM_WORLD_STRUCTURE_VISIBLE)&&(c.semantic&NCMM_WORLD_FLOOR))permission|=ncmm_world::facade_slab_permissions(c.semantic,1.25f,float(c.p.z())*NCMM_WORLD_LEVEL_HEIGHT);
+            used.permissions[i]=permission;}
+        if(c.facade){const tripoint_bub_ms lit{c.p.x()+1,c.p.y()+1,c.p.z()};
+            // The post-candidate facade query keeps its own light source,
+            // target XYZ and the already computed Native integer, including 0.
+            reads.push_back({'H',lit.key(),float(index)});used.facade=graphics_world_in_visual_range(c.p,c.maximum,c.blind,&cache,&lit,e.wanted);
+            reads.push_back({'J',lit.key(),float(used.facade)});}
+        out.decisions.push_back(used);
+    }
+    ordered_distances=false;out.trace=reads;out.distance=distances;out.misses=cache.evaluations;out.hits=cache.hits;return out;
+}
+inline std::vector<read_event> retained(const result &before,bool lazy){
+    std::vector<read_event> out;bool skip=false;
+    for(const auto &event:before.trace){
+        if(event.kind=='Q')skip=lazy&&before.values[size_t(event.argument)].static_surface;
+        if(!skip&&event.kind!='S')out.push_back(event);
+        if(event.kind=='E')skip=false;
+    }
+    return out;
+}
+}
+
+template<class Check> void candidate_range_checks(Check check){
+    namespace host=host_range_fixture;namespace candidate=candidate_range_fixture;
+    auto require=[&](bool value,const char *message){if(!value)std::cerr<<"Candidate range: "<<message<<'\n';check(value);};
+    constexpr bool lazy_lower=true; // Stage A baseline is saved; the frozen query block never changes.
+    size_t cases=0,sequences=0,before_lower=0,after_lower=0,skippable=0;uint64_t before_misses=0,after_misses=0;
+    auto compare=[&](const std::vector<candidate::input> &inputs){
+        const auto before=candidate::run(inputs,false),after=candidate::run(inputs,true);
+        require(before.decisions==after.decisions,"all downstream early/facade decisions and slab permission bits retain the frozen result");
+        size_t dead=0;for(size_t i=0;i<inputs.size();++i){const auto &c=inputs[i];const auto &a=before.values[i],&b=after.values[i];
+            require(a.wanted==b.wanted&&a.below==b.below&&b.below==host::tripoint_bub_ms(c.p.xy(),c.p.z()-1)&&a.current==b.current&&a.structure==b.structure&&a.static_surface==b.static_surface,
+                "current/structure/static values and exact distinct below XYZ retain the frozen Native forwarding");
+            require(b.current==host::oracle(c.p,c.maximum,c.blind),"cached current range equals the independent uncached injected-integer oracle");
+            if(c.facade){const host::tripoint_bub_ms lit{c.p.x()+1,c.p.y()+1,c.p.z()};require(after.decisions[i].facade==host::oracle(c.p,c.maximum,c.blind,&lit),"facade light preserves target XYZ and uncached range result");}
+            if(a.static_surface)++dead;else require(a.lower==b.lower,"every nonstatic lower result remains unchanged, including structure-range-only candidates");
+        }
+        require(before.lower_requests==inputs.size()&&after.lower_requests==inputs.size()-(lazy_lower?dead:0),"only statically unconsumed lower helper invocations disappear");
+        require(candidate::retained(after,false)==candidate::retained(before,lazy_lower),"all retained loaded/ambient/distance/natural/guard/surface reads preserve exact arguments and order");
+        require(after.misses<=before.misses,"deleting keys cannot increase total misses across the actual 128 single-way slots");
+        if(!lazy_lower)require(after.misses==before.misses&&after.trace==before.trace,"baseline extraction keeps the full original read/cache trace");
+        for(const auto *r:{&before,&after}){
+            size_t sight=0,ambient=0,distances=0;for(const auto &event:r->trace){
+                if(event.kind=='S'){++sight;require(event.position==host::observer.position.key()&&std::isfinite(event.argument),"miss callbacks retain the frozen observer and exact finite source light");}
+                if(event.kind=='A')++ambient;if(event.kind=='D')++distances;}
+            require(sight==r->misses&&ambient==r->misses+r->hits&&distances==r->distance.size(),"logical Native reads agree with actual lightcache evaluations/hits and distance calls");
+            for(const auto &event:r->distance){bool allowed=false;for(const auto &c:inputs)allowed=allowed||event.target==c.p||event.target==host::tripoint_bub_ms(c.p.xy(),c.p.z()-1);
+                require(event.observer==host::observer.position&&allowed&&event.value==host::distance_value(event.observer,event.target,host::circular),"every current/below distance keeps exact observer/target XYZ and its own injected Native integer");}
+        }
+        before_lower+=before.lower_requests;after_lower+=after.lower_requests;skippable+=dead;before_misses+=before.misses;after_misses+=after.misses;cases+=inputs.size();++sequences;
+    };
+    constexpr std::array<uint32_t,8> semantics{{NCMM_WORLD_FLOOR,NCMM_WORLD_WATER,NCMM_WORLD_DOWN,NCMM_WORLD_UP,candidate::graphics_world_architecture,
+        NCMM_WORLD_CANOPY,NCMM_WORLD_OPAQUE,NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR}};
+    for(bool trig:{false,true})for(unsigned control=0;control<12;++control)for(uint32_t semantic:semantics){
+        host::reset();host::circular=trig;host::observer.position={1000000,-1000000,3};host::observer.impairment=control%2;
+        candidate::input c;c.p={1000003,-999996,3};c.semantic=semantic;
+        if(control==0)c.p=host::observer.position;if(control==1)c.p={1000001,-1000000,3};
+        if(control==2)c.maximum=1;if(control==3){c.blind=true;c.p={1000001,-1000000,3};}
+        if(control==4)c.blind=true;if(control==5){c.p={1000000,-1000000,5};host::fov_3d_z_range=1;}
+        if(control==6){c.p={1000000,-1000000,5};host::fov_3d_z_range=2;}
+        if(control==7)c.loaded=false;if(control==8)c.lower_loaded=false;if(control==9)c.surface_loaded=false;
+        if(control==10){c.raw=32;c.lower_raw=1;c.natural=0;}if(control==11){c.p=host::observer.position;c.lower_raw=static_detail_fixture::float_bits(0x80000000u);c.facade=false;}
+        std::vector<candidate::input> inputs{c};candidate::seed_inputs(inputs);compare(inputs);
+    }
+    // Full short sequences use real colliding raw-bit keys and one shared
+    // actual cache per draw. Removing a lower warm-up may move a later S miss;
+    // only the aggregate miss count and returned results must stay bounded.
+    constexpr std::array<float,4> lights{{0.f,1.f,8.f,20.f}}; // slots 0, 0, 0, 32.
+    for(unsigned encoded=0;encoded<64;++encoded)for(unsigned static_mask=0;static_mask<8;++static_mask){
+        host::reset();host::observer.impairment=1;std::vector<candidate::input> inputs;
+        unsigned code=encoded;for(unsigned step=0;step<3;++step){const unsigned value=code%4;code/=4;candidate::input c;
+            c.p={5+int(step)*3,0,0};c.semantic=static_mask&(1u<<step)?uint32_t(NCMM_WORLD_FLOOR):uint32_t(NCMM_WORLD_CANOPY);
+            c.raw=lights[value];c.lower_raw=lights[(value+1)%4];c.surface_raw=lights[(value+2)%4];inputs.push_back(c);}
+        candidate::seed_inputs(inputs);compare(inputs);
+    }
+    host::reset();
+    std::cout<<"Candidate range actual-source "<<(lazy_lower?"after":"baseline")<<": "<<cases<<" candidates / "<<sequences<<" sequences, lower callbacks "<<before_lower<<" -> "<<after_lower
+             <<", statically unconsumed="<<skippable<<", total lightcache misses "<<before_misses<<" -> "<<after_misses<<" (injected Native policies, not timing)\n";
+}
+
 int main(){try{
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
@@ -1035,6 +1177,7 @@ int main(){try{
     geometry_border_checks(check);
     unperceived_terrain_stair_checks(check);
     static_detail_checks(check);
+    candidate_range_checks(check);
     {
         int identities[2]{};
         const auto *a=reinterpret_cast<const map *>(&identities[0]);

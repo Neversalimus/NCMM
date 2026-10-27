@@ -230,6 +230,30 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     range queries is separate: their direct-mapped cache can shift later hits,
     so it requires sequence/collision controls before any production change.
 
+19. **Skip unconsumed lower range queries.** The loaded candidate block now
+    keeps the current Native query first and omits the distinct lower-XYZ range
+    query only when `static_surface` is true. That implies structure range, so
+    both later lower-result consumers short-circuit. Structure-range-only air
+    candidates still perform the query; the mandatory lower RGB sample remains.
+    The exact pinned sight/threshold/ambient query bodies were inspected: no RNG
+    or action writes, and required Native level caches already exist at this
+    point. No persistent cache or range/formula/permission change was added.
+
+    The actual extracted block and real range helper/cache are compared with an
+    independent frozen 839-byte pre-change block, SHA256
+    `9f5d494805a4f67005db9636c92ee80cbfe677a6ad492a9497349738936b37b6`.
+    Baseline and meaningful failing-before runs were saved. Across 1728
+    candidates / 704 guard and collision sequences: lower calls 1728 -> 840,
+    total cache misses 4104 -> 3385; no sequence increases misses. Deleting keys
+    cannot increase key runs in each of the actual 128 single-way slots, though
+    individual later hits/misses can move. All used decisions/permission bits,
+    target/surface/below XYZ and retained non-sight read order match; canonical
+    sight results remain exact despite shifted miss sites. Controls include
+    loaded/Z bounds, blindness, zero distance, signed zero and raw-bit collisions.
+    Full Release, 1440145 pure source/cache checks, all 50 inventoried CTests
+    (14.17 s) and 38 atomic bridge tests pass. Logs `night-lower-range-*`.
+    These callback counts do not establish a Native millisecond gain.
+
 ## Actual remote evidence and next priorities
 
 **Stair evidence at exact `2ce404d`, run 40441923163.** Packaged runtime merge
@@ -257,9 +281,58 @@ exit 0, no dumps/wrapper/debugger errors. Private receipts/readbacks:
   verification is CI's. Combined reserved transfer <658 KB of an 8 MiB cap.
 
 This establishes one terrain-only render defect on a controlled 1807 night
-scene. Stage17's shared fix passes component/render-only checks; require its
-separate actual post-fix Native pixel/ledger receipt. Do not infer absence of
-other stair defects from 1040's already-visible case.
+scene. Do not infer absence of other stair defects from 1040's already-visible
+case.
+
+**Actual post-fix Native evidence at `1a951e1`.** Runtime
+`d42ff81c8653f7e8c112014e0ba8f77bf82135b2` has the same tree
+`35dff0b96f281bf19c3f358457f4866f072b6aff` as that PR head. Both engine pins
+and process receipts match (exit0, no wrapper/debugger errors or dumps).
+Bounded selected JSON/BMP reads: `night-static-stair-1a951e1/`, independent
+summary SHA256 `33419a005f410a51c74e5e6f30ea10702a1062f14a371f9ffe93bfbb0b9a017b`.
+
+- 1807 night: schema2 **retained_geometry_verified**. Normal flags 278945 carry
+  BODY=0, STRUCTURE, UP and CONNECTED_UP. Removing only UP/CONNECTED_UP and
+  direction changes 23138 -> 23032 triangles and 29741 ROI pixels; real normal
+  and untouched owned static controls match byte-for-byte. All N/D/N and pair
+  physical/memory/OMT ledgers and protected/source digests match. Normal RGB
+  .365478 stays fixed; debug .390478 is separately recorded. Actual normal,
+  static and NAV-removed images were inspected. Normal/static BMP SHA256
+  `25177b5c18781cb28d7cee679a6aa310e6793de45efd1b11767fb0e9adcd782a`.
+- 1040 remains honestly inconclusive (BODY already visible at all three light
+  levels); its actual night BMP matches the preceding 1040 image. Selected
+  readbacks total four images across both pins, not all diagnostic images.
+  Shared reserved transfer is 460049 bytes / 8 MiB. This proves the controlled
+  stair correction, not a general visibility qualification or frame-time gain.
+
+**New adjacent movement phases at the same exact tree.** Early artifacts
+12709744679 / 12711130391 contain 12 records each, 12 accepted steps per record
+(288 total), matching engine/Host/module/process provenance. Every adjacent
+phase receipt conserves its original first-ready time with zero reported
+accounting residual. Private summaries are under `night-movement-1a951e1/`;
+their SHA256 values are `1d13d5c23b5c604826ec4e847b3b2b8732082c6557323d20b71736fc7b170772`
+and `67fec8f0307e1706d71952a0b91a1b4847c4c93398cfa8cf18cfed91f6964d2a`.
+Only selected program JSON was fetched (323755 reserved bytes / 8 MiB).
+
+GPU640 medians in milliseconds, software D3D12 **Microsoft Basic Render Driver**,
+VSync1, same 12-step isolated route:
+
+| Pin / scene | Action | Build map cache | Update visibility | First render | First ready (p95) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1040 street | 19.20 | 5.32 | 12.56 | 17.37 | 62.09 (84.28) |
+| 1040 horde | 25.69 | 6.76 | 20.46 | 21.73 | 82.34 (119.90) |
+| 1040 city | 26.20 | 8.11 | 19.36 | 41.13 | 110.83 (164.76) |
+| 1807 street | 24.60 | 5.86 | 19.50 | 28.97 | 87.46 (119.72) |
+| 1807 horde | 25.97 | 6.48 | 19.68 | 42.45 | 108.47 (141.14) |
+| 1807 city | 28.34 | 8.21 | 26.11 | 52.39 | 136.77 (242.76) |
+
+These are synchronous diagnostic wall scopes, not on-core CPU, GPU execution,
+ordinary play or paired before/after gains. The benchmark's existing refresh
+explicitly invalidates visibility; its cost cannot be assigned wholesale to
+ordinary movement. Render-call contains the first render; bookkeeping medians
+are .0026-.0031 ms in these records, not the earlier unmeasured large gap.
+Independent phase medians need not sum to the median total. Actual actions and
+Native visibility are justified next investigation points; 15 ms is unproved.
 
 **Earlier timing priority, not new-byte performance.** Selected program JSON
 from `fc2ada7`'s exact-tree package used 5133467 bytes instead of full multi-GB
@@ -298,9 +371,16 @@ Pushed `1a951e156562478ae1632857c207f5768ca5084e` has passing
 [source/package](https://github.com/Neversalimus/NCMM/actions/runs/40448928654),
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40448928727).
 Its [main run](https://github.com/Neversalimus/NCMM/actions/runs/40448928678)
-has compiled both Windows Hosts; fresh Native actions/stairs/movement are
-pending. Stage18 is held locally while that useful early evidence completes;
-it will need its own exact-source Host qualification after publishing.
+compiled all four actual Hosts. Both Windows early actions/stairs/movement
+steps passed; longer gameplay/final gates remain pending. Linux1040 controls
+failed (exit191, no timeout): program smoke reports
+`multilevel_real_sdl_render_failed`, after 12 complete multilevel records through
+stairs CPU/GPU and before stairs_down. Selected program JSON receipts are in
+`night-linux-1a951e1/12710699779/`; CI logs were read only through Code Review.
+The old observer's blanket structural-shape assertion may reject the newly
+permitted ordinary terrain stairs; this is under causal investigation, not yet
+declared the established reason. No full Native pass is claimed. Stage18
+`d9f9fba` remains local and requires its own exact-source Host qualification.
 
 The freshly rebuilt hidden render-only RTX 4090 controls retain
 45 grass draws, zero CPU world raster, zero warm static uploads and 21108 open

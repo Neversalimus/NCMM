@@ -403,17 +403,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         const bool local_air=air&&!entity&&!observed_death&&std::as_const(here).maptile_at(p).get_items().empty();
         // Frustum and local-air rejection precede native light/perception work.
         if(local_air&&(!atmosphere||dx*dx+dy*dy>16.f*16.f||z<eye_level||z>eye_level+2))continue;
-        // Surface-light samples change illumination, not the target XYZ. Keep
-        // Native's integer result and distance policy for this candidate only.
-        const int wanted=rl_dist(you.pos_bub(),p);
-        const auto below=tripoint_bub_ms(p.xy(),z-1);
-        const bool current_in_range=graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,nullptr,wanted),
-                   lower_in_range=in_visual_range(below);
-        // Architecture is continuous inside the physical sight radius, even
-        // when a dark room/tile centre has never passed the top-down FOV test.
-        // Its light and the raster depth still determine what reaches the eye.
-        const bool structure_range=wanted<=(visual_no_sight?1:visual_maximum);
-        const bool static_surface=structure_range&&(semantic&(graphics_world_architecture|NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN|NCMM_WORLD_UP));
+#include "ncmm_graphics_candidate_range.inc"
         // No permission below can survive if neither side is within native
         // visual range. In particular, don't trace thousands of dark buried
         // floors. Their private structural facts still occlude other rays.
