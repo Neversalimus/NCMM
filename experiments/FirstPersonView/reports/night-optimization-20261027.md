@@ -1000,6 +1000,53 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     Next: assess the exact row shortcut without the cache that regressed
     ordinary Native street/horde, then qualify the selected bounded change.
 
+43. **Replace regressing exponent cache with an exact square-row candidate.**
+    Stage41 establishes an actual Native street/horde regression. The source
+    adapter now restores the original exponent formula on every request,
+    removes the cache from copied Native inputs, and selects the exact integer
+    row distance once per cast only for the complete standard sight callback
+    triple with square distance enabled. Circular and unknown callbacks retain
+    the original live Native distance; public signature, explicit instantiations,
+    traversal, floors, range and Native state remain unchanged. The old cache
+    helper stays only for historical source-model controls, not the Native copy.
+
+    The complete source adapter still guards both full pinned caster/header
+    digests. Reversing every dispatch edit restores the original bytes. The new
+    compiled model is checked against the actual emitted full body, with just
+    two distance-value observers and owned coordinate/grid/fragment context.
+    All501 pairs/466428 checks and226981 exhaustive numerical deltas pass,
+    including three custom callbacks which change the metric during traversal.
+    Distance helper calls10702148 ->5351074, exact row values5351074; exponent
+    requests10702148 ->10702148. All output/input bits, distance values/order
+    and generic callback side effects agree. Five separately compiled controls
+    (wrong row, forced circular shortcut, missing each of three callback guards)
+    all fail the exact output comparison. Both pure math CTests pass in5.99s.
+
+    A separately compiled observer-free private comparison against the original
+    formula has square-metric paired median ratios.5297/.7610/.7892/.9045
+    for open/wall/haze/mixed. Two circular ratios worsen1.0517/1.0096;
+    first circular open4.809 ->5.758 and mixed39.118 ->40.149ms also worsen.
+    Background work is uncontrolled and the context is owned: these are not
+    Native, ordinary-game or first-presentation performance results. Private
+    summary SHA256
+    `bb4b9669a7ee5b5489ab2bcfbf0cc038d441926d86a0307aee2fb59ad12fe98b`.
+
+    Release build,300 Python tests(20.215s),96 atomic preparation tests(58.454s)
+    and PowerShell syntax pass. Schema2 names the new distance candidate and
+    rejects old exponent-cache reports; twelve receipt tests pass. The actual
+    collector compiles with the new candidate in an owned model, validates
+    three scene contracts and rejects changed output, changed Native bytes and
+    failed IO. Model reports remain actual_cdda_sdl=false and fail the actual
+    Native gate. Evidence prefixes `night-sight-distance-negative-controls/`
+    (summary3dbde1d9689b52cf0a005e5762ce3da84ffc808477d15b5b834c93b7dd9bbc91)
+    and `night-sight-distance-collector-model/`
+    (summaryf790df444b4ba90cfe5b51f00fc4b6dc9c724d09c9c56503fc0d091b869c887f).
+    The new model also joins the existing Linux ASan/UBSan gate. Actual Native
+    compilation and same-process comparison remain pending; do not integrate
+    a latency claim until those results establish the selected change's scope.
+    Keep full PR eae and prior diagnostic f6ac running; reuse the completed
+    older sight-diagnostic branch for this bounded next comparison.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both

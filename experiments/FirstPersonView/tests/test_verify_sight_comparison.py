@@ -7,30 +7,34 @@ from verify_sight_comparison import SCENES, verify, verify_directory
 
 
 def valid(scene='street'):
-    report = dict(schema=1, success=True, scene=scene, actual_cdda_sdl=True,
+    report = dict(schema=2, success=True, scene=scene, actual_cdda_sdl=True,
                   manual_playthrough=False, same_process=True, origin_preserved=True,
                   moves_preserved=True, calendar_preserved=True, gpu_execution_measured=False,
                   first_correct_present_measured=False, scope='native_3d_caster_only',
                   timing='steady_clock_wall_batch_ms',
                   world_state='warmed_native_caches_no_simulation_turns',
                   reference='original_sight_formula_generic_forwarding',
-                  candidate='retained_exact_one_entry_cache', width=132, height=132,
+                  candidate='exact_square_row_distance_original_exponent', width=132, height=132,
                   layers=21, max_view_distance=60, offset_distance=0, repetitions=8,
                   protected_native_bytes=132*132*21*13, numerator=1.0,
                   origin=[60,60,0], direction='up', native_before='1456712345671234567')
     report['samples'] = [dict(sample=i, reference_first=i % 2 == 0,
         output_bits_equal=True, protected_native_bytes_equal=True,
-        output_floats_compared=132*132*21, reference_digest='123456789', cached_digest='123456789',
-        native_after=report['native_before'], reference_wall_ms=32.0, cached_wall_ms=36.0)
+        output_floats_compared=132*132*21, reference_digest='123456789', candidate_digest='123456789',
+        native_after=report['native_before'], reference_wall_ms=32.0, candidate_wall_ms=36.0)
         for i in range(9)]
     return report
 
 
 class SightComparisonTests(unittest.TestCase):
+    def test_previous_exponent_cache_report_cannot_qualify_distance_candidate(self):
+        report=valid(); report.update(schema=1,candidate='retained_exact_one_entry_cache')
+        with self.assertRaises(ValueError): verify(report,'street')
+
     def test_regression_remains_a_valid_measurement_without_speed_gate(self):
         result = verify(valid(), 'street')
         self.assertEqual(result['reference_median_ms'], 4.0)
-        self.assertEqual(result['cached_median_ms'], 4.5)
+        self.assertEqual(result['candidate_median_ms'], 4.5)
         self.assertEqual(result['paired_ratio_median'], 1.125)
         self.assertEqual(result['regressions'], 9)
         self.assertFalse(result['first_correct_present_qualified'])
@@ -61,7 +65,7 @@ class SightComparisonTests(unittest.TestCase):
             with self.subTest(samples=len(samples)), self.assertRaises(ValueError): verify(changed, 'street')
 
     def test_nonfinite_zero_and_boolean_times_are_rejected(self):
-        for key in ('reference_wall_ms','cached_wall_ms'):
+        for key in ('reference_wall_ms','candidate_wall_ms'):
             for value in (0, -1, True, '12', None, float('nan'), float('inf'), float('-inf')):
                 report=valid(); report['samples'][4][key]=value
                 with self.subTest(key=key,value=value), self.assertRaises(ValueError): verify(report, 'street')
@@ -69,7 +73,7 @@ class SightComparisonTests(unittest.TestCase):
     def test_each_pair_must_protect_all_native_and_output_bytes(self):
         for key, value in dict(sample=True, reference_first=False, output_bits_equal=1,
             protected_native_bytes_equal=False, output_floats_compared=1,
-            reference_digest='18446744073709551616', cached_digest='12', native_after='42').items():
+            reference_digest='18446744073709551616', candidate_digest='12', native_after='42').items():
             report=valid(); report['samples'][0][key]=value
             with self.subTest(key=key), self.assertRaises(ValueError): verify(report, 'street')
 

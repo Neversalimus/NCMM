@@ -56,6 +56,7 @@ namespace cata {
 template<class T, class Point> using mdarray = std::array<std::array<T, MAPSIZE_Y>, MAPSIZE_X>;
 template<class T> using list = plf::list<T>;
 }
+bool trigdist = false;
 namespace ncmm_shadow_fixture {
 std::uint32_t bits( float value ) {
     std::uint32_t out; std::memcpy( &out, &value, sizeof( out ) ); return out;
@@ -66,7 +67,7 @@ struct record {
     void add( std::uint32_t value ) { trace = ( trace ^ value ) * 1099511628211ULL; }
 };
 record *active = nullptr;
-bool circular = false;
+bool &circular = ::trigdist;
 float evaluate( float exponent ) {
     if( active ) ++active->exponent_calls;
     return std::exp( exponent );
@@ -77,6 +78,9 @@ void require( bool value, const char *message ) {
     ++checks; if( !value ) throw std::runtime_error( message );
 }
 }
+#if defined(NCMM_SHADOWCAST_EXTERNAL_DISTANCE)
+int rl_dist( const tripoint_rel_ms &a, const tripoint_rel_ms &b );
+#else
 int rl_dist( const tripoint_rel_ms &a, const tripoint_rel_ms &b ) {
     const int dx = a.x()-b.x(), dy = a.y()-b.y(), dz = a.z()-b.z();
     const int result = ncmm_shadow_fixture::circular ?
@@ -88,6 +92,7 @@ int rl_dist( const tripoint_rel_ms &a, const tripoint_rel_ms &b ) {
     }
     return result;
 }
+#endif
 #define NCMM_SHADOWCAST_MODEL
 #include "native_shadowcasting_math.inc"
 #include "native_shadowcasting_fragment.hpp"

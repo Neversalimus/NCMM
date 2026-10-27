@@ -31,9 +31,9 @@ def verify(report, scene):
                            timing='steady_clock_wall_batch_ms',
                            world_state='warmed_native_caches_no_simulation_turns',
                            reference='original_sight_formula_generic_forwarding',
-                           candidate='retained_exact_one_entry_cache').items():
+                           candidate='exact_square_row_distance_original_exponent').items():
         require(report.get(key) == value, 'Incorrect comparison identity: '+key)
-    for key, value in dict(schema=1, width=132, height=132, layers=21, max_view_distance=60,
+    for key, value in dict(schema=2, width=132, height=132, layers=21, max_view_distance=60,
                            offset_distance=0, repetitions=8,
                            protected_native_bytes=132*132*21*13).items():
         require(type(report.get(key)) is int and report[key] == value,
@@ -60,9 +60,9 @@ def verify(report, scene):
         require(type(sample.get('output_floats_compared')) is int and
                 sample['output_floats_compared'] == 132*132*21, 'Incomplete XYZ output comparison')
         require(digest(sample.get('reference_digest')) and
-                sample['reference_digest'] == sample.get('cached_digest'), 'Different output identities')
+                sample['reference_digest'] == sample.get('candidate_digest'), 'Different output identities')
         require(sample.get('native_after') == before_identity, 'Native caches changed between pairs')
-        for key, target in (('reference_wall_ms', reference), ('cached_wall_ms', cached)):
+        for key, target in (('reference_wall_ms', reference), ('candidate_wall_ms', cached)):
             value = sample.get(key)
             require(type(value) in (int, float) and math.isfinite(value) and value > 0,
                     'Missing, zero, nonnumeric or nonfinite timing: '+key)
@@ -71,8 +71,8 @@ def verify(report, scene):
         require(math.isfinite(ratio), 'Nonfinite comparison ratio')
         ratios.append(ratio)
     return dict(scene=scene, pairs=9, repetitions=8, first_reference_ms=reference[0],
-                first_cached_ms=cached[0], reference_median_ms=statistics.median(reference),
-                cached_median_ms=statistics.median(cached),
+                first_candidate_ms=cached[0], reference_median_ms=statistics.median(reference),
+                candidate_median_ms=statistics.median(cached),
                 paired_ratio_median=statistics.median(ratios),
                 regressions=sum(ratio > 1 for ratio in ratios),
                 first_correct_present_qualified=False, ordinary_game_fps_qualified=False)

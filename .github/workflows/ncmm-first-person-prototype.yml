@@ -143,10 +143,10 @@ jobs:
         run: cmake -S experiments/FirstPersonView -B fp-cache-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build focused cache and facade sanitizers
         if: runner.os == 'Linux'
-        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_snapshot_cache_tests first_person_scene_signature_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_gpu_cache_tests first_person_facade_continuity_tests first_person_viewmodel_asset_tests first_person_viewmodel_rig_tests first_person_viewmodel_gpu_tests first_person_sight_cache_tests
+        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_snapshot_cache_tests first_person_scene_signature_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_gpu_cache_tests first_person_facade_continuity_tests first_person_viewmodel_asset_tests first_person_viewmodel_rig_tests first_person_viewmodel_gpu_tests first_person_sight_cache_tests first_person_sight_distance_tests
       - name: ASan and UBSan sparse coordinates, face masks and facade continuity
         if: runner.os == 'Linux'
-        run: ctest --test-dir fp-cache-sanitize -R "^first_person_(snapshot_cache|scene_signature|multilevel_(policy|cache|gpu_cache)|facade_continuity|viewmodel_(asset|rig|gpu)|sight_cache)$" --output-on-failure
+        run: ctest --test-dir fp-cache-sanitize -R "^first_person_(snapshot_cache|scene_signature|multilevel_(policy|cache|gpu_cache)|facade_continuity|viewmodel_(asset|rig|gpu)|sight_(cache|distance))$" --output-on-failure
       - name: Configure sanitizer coverage
         if: runner.os == 'Linux' && needs.qualification_plan.outputs.full == 'true'
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON

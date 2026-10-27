@@ -148,22 +148,48 @@ def native_shadowcast_originals():
 
 
 class ApplyTests(unittest.TestCase):
-    def test_shadowcast_complete_primary_and_only_local_cache_adaptation(self):
+    def test_shadowcast_complete_primary_and_exact_square_dispatch(self):
         cpp, header = native_shadowcast_originals()
         # Independent pinned digests, not computed from the changed helper.
         self.assertEqual(hashlib.sha256(cpp.encode()).hexdigest(), 'fbf4e65de6c85af60267e5b73a0d2d4d933a0dd24fe4752a9685281d32fa59c9')
         self.assertEqual(hashlib.sha256(header.encode()).hexdigest(), '9f5eea643f64c436fcbb202e8b966d53bc54a9ce45392447ceebf17cc1ad0af8')
         for pin in bridge.SOURCES:
             actual = bridge.patch_native_shadowcasting(cpp, header, pin)
-            restored = actual.replace('#include "ncmm_graphics_sight_exp_cache.hpp"\n', '', 1)
+            self.assertNotIn('ncmm_calc', actual)
+            restored = actual.replace('#include <type_traits>\n', '', 1)
             self.assertTrue(restored.endswith('\n#include "ncmm_graphics_sight_reference.inc"\n'))
             restored = restored.removesuffix('\n#include "ncmm_graphics_sight_reference.inc"\n')
-            self.assertEqual(restored.count('    ncmm_graphics_shadowcasting::calc_cache<T, calc> ncmm_calc;\n'), 2)
-            restored = restored.replace('    ncmm_graphics_shadowcasting::calc_cache<T, calc> ncmm_calc;\n', '')
-            restored = restored.replace('last_intensity = ncmm_calc(', 'last_intensity = calc(')
+            self.assertEqual(restored.count('template<bool NCMM_SQUARE, int '), 2)
+            restored = restored.replace('template<bool NCMM_SQUARE, int ', 'template<int ')
+            restored = restored.replace('template<bool NCMM_SQUARE, typename T,', 'template<typename T,', 1)
+            restored = restored.replace('void ncmm_cast_zlight_implementation(\n', 'void cast_zlight(\n', 1)
+            self.assertEqual(restored.count('< NCMM_SQUARE, '), 24)
+            restored = restored.replace('< NCMM_SQUARE, ', '< ')
+            distance='( NCMM_SQUARE ? distance : rl_dist( tripoint_rel_ms::zero, delta ) )'
+            self.assertEqual(restored.count(distance), 2)
+            restored = restored.replace(distance, 'rl_dist( tripoint_rel_ms::zero, delta )')
+            restored = restored.replace('#include "ncmm_graphics_sight_dispatch.inc"\n\n', '', 1)
             self.assertEqual(restored, cpp)
         with self.assertRaisesRegex(ValueError, 'shadowcasting'):
             bridge.patch_native_shadowcasting(cpp, header, 'unknown')
+
+    def test_distance_model_compiles_the_actual_emitted_native_body(self):
+        cpp, header = native_shadowcast_originals()
+        directory=REPO/'experiments/FirstPersonView/tests'
+        frozen=(directory/'native_shadowcasting_distance.inc').read_text(encoding='utf-8')
+        frozen=frozen.split('// BEGIN EMITTED NATIVE DISTANCE BODY\n',1)[1]
+        for pin in bridge.SOURCES:
+            actual=bridge.patch_native_shadowcasting(cpp,header,pin)
+            actual=actual[actual.index('// historically 8 bits is enough'):]
+            actual=actual.removesuffix('\n#include "ncmm_graphics_sight_reference.inc"\n')
+            self.assertEqual(actual.count('( NCMM_SQUARE ? distance : rl_dist('),2)
+            actual=actual.replace('( NCMM_SQUARE ? distance : rl_dist(',
+                '( NCMM_SQUARE ? ncmm_test_row_distance( distance ) : rl_dist(')
+            self.assertEqual(actual,frozen)
+        numerical=(directory/'native_distance_primary.inc').read_text(encoding='utf-8')
+        numerical=numerical[numerical.index('inline float trig_dist'):]
+        self.assertEqual(hashlib.sha256(numerical.encode()).hexdigest(),
+                         '914d0b9f8f3c979ada713e8a603fededf54cf83dff86d87402bf0007fa50864c')
 
     def test_shadowcast_real_container_and_fragment_primary_identity(self):
         directory = REPO / 'experiments/FirstPersonView/tests'
@@ -183,7 +209,7 @@ class ApplyTests(unittest.TestCase):
                 with patch.object(bridge.subprocess,'check_output',return_value=pin): bridge.apply(root)
                 self.assertEqual((root/'src/shadowcasting.h').read_bytes(),header)
                 receipt=json.loads((root/'first-person-source.json').read_text(encoding='utf-8'))
-                for name in ('ncmm_graphics_sight_exp_cache.hpp','ncmm_graphics_sight_reference.hpp',
+                for name in ('ncmm_graphics_sight_dispatch.inc','ncmm_graphics_sight_reference.hpp',
                              'ncmm_graphics_sight_reference.inc','ncmm_graphics_sight_comparison.inc'):
                     data=Path(bridge.__file__).with_name(name).read_bytes()
                     self.assertEqual((root/'src'/name).read_bytes(),data)
@@ -221,7 +247,7 @@ class ApplyTests(unittest.TestCase):
                         self.assertEqual(before,self.fingerprint(root))
 
     def test_shadowcast_missing_or_existing_include_is_atomic(self):
-        name='ncmm_graphics_sight_exp_cache.hpp'
+        name='ncmm_graphics_sight_dispatch.inc'
         for pin in bridge.SOURCES:
             for existing in (False,True):
                 with self.subTest(pin=pin,existing=existing), tempfile.TemporaryDirectory() as tmp:

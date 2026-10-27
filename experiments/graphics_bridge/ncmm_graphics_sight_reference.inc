@@ -9,8 +9,8 @@ namespace {
 float reference_sight_calc( const float &numerator, const float &transparency,
                             const int &distance )
 {
-    // This distinct function pointer deliberately selects calc_cache's generic
-    // forwarding path. The original Native sight formula executes every time.
+    // This distinct function pointer selects the original distance path.
+    // Both Native distance and sight formula execute on every request.
     return sight_calc( numerator, transparency, distance );
 }
 }

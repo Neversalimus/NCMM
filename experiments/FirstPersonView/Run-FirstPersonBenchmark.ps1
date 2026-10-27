@@ -353,7 +353,7 @@ if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Reques
 if($SightCacheComparison){
     foreach($scene in @('street','multi_level_horde','city_blocks')){
         $comparison=Get-Content -LiteralPath (Join-Path $evidence ('first-person-sight-cache-'+$scene+'.json')) -Raw | ConvertFrom-Json
-        if($comparison.schema -ne 1 -or $comparison.success -ne $true -or $comparison.actual_cdda_sdl -ne $true -or $comparison.same_process -ne $true -or $comparison.scene -ne $scene -or @($comparison.samples).Count -ne 9){throw 'Native sight-cache comparison is missing or incomplete.'}
+        if($comparison.schema -ne 2 -or $comparison.candidate -ne 'exact_square_row_distance_original_exponent' -or $comparison.success -ne $true -or $comparison.actual_cdda_sdl -ne $true -or $comparison.same_process -ne $true -or $comparison.scene -ne $scene -or @($comparison.samples).Count -ne 9){throw 'Native sight-distance comparison is missing or incomplete.'}
     }
 }
 if($StaticStairProbe){

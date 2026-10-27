@@ -72,7 +72,7 @@
     std::ofstream sight_stream( path );
     JsonOut sight_report( sight_stream );
     sight_report.start_object();
-    sight_report.member( "schema", 1 );
+    sight_report.member( "schema", 2 );
     sight_report.member( "scene", scene );
     sight_report.member( "actual_cdda_sdl", true );
     sight_report.member( "manual_playthrough", false );
@@ -83,7 +83,7 @@
     sight_report.member( "gpu_execution_measured", false );
     sight_report.member( "first_correct_present_measured", false );
     sight_report.member( "reference", "original_sight_formula_generic_forwarding" );
-    sight_report.member( "candidate", "retained_exact_one_entry_cache" );
+    sight_report.member( "candidate", "exact_square_row_distance_original_exponent" );
     sight_report.member( "width", MAPSIZE_X );
     sight_report.member( "height", MAPSIZE_Y );
     sight_report.member( "layers", OVERMAP_LAYERS );
@@ -119,11 +119,11 @@
         sight_report.member( "sample", sample );
         sight_report.member( "reference_first", reference_first );
         sight_report.member( "reference_wall_ms", reference_ms );
-        sight_report.member( "cached_wall_ms", cached_ms );
+        sight_report.member( "candidate_wall_ms", cached_ms );
         sight_report.member( "output_bits_equal", same_bits );
         sight_report.member( "output_floats_compared", OVERMAP_LAYERS * plane_elements );
         sight_report.member( "reference_digest", output_identity( original_output ) );
-        sight_report.member( "cached_digest", output_identity( cached_output ) );
+        sight_report.member( "candidate_digest", output_identity( cached_output ) );
         sight_report.member( "protected_native_bytes_equal", identity.first );
         sight_report.member( "native_after", identity.second );
         sight_report.end_object();
