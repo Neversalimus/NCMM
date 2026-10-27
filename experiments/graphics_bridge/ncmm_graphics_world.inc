@@ -217,6 +217,27 @@ bool graphics_draw_world(int x,int y,int width,int height)
             return graphics_world_read_source(here,ax,ay,z,material_definitions,elevated_material_definitions);
         });
     };
+    // Rare non-BODY stair proofs must never inherit hidden furniture, field
+    // or vehicle navigation. This const view is bounded to the same source
+    // window and owns no Native data beyond the individual terrain read.
+    auto terrain_stair_flags=[&](int ax,int ay,int z){
+        const int64_t x=int64_t(ax)-ox,y=int64_t(ay)-oy;
+        if(x<0||y<0||x>=side||y>=side||z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
+        const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));
+        if(!here.ncmm_graphics_loaded(p))return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
+        const auto tile=std::as_const(here).maptile_at(p);const auto &ter=tile.get_ter_t();
+        ncmm_world::traits t{};t.loaded=true;
+        t.no_floor=ter.has_flag(ter_furn_flag::TFLAG_NO_FLOOR);t.no_floor_water=ter.has_flag(ter_furn_flag::TFLAG_NO_FLOOR_WATER);
+        if(!(here.supports_zlevels()&&z>=-OVERMAP_DEPTH+1))t.no_floor=t.no_floor_water=false;
+        t.transparent_floor=ter.has_flag(ter_furn_flag::TFLAG_TRANSPARENT_FLOOR);t.z_transparent=ter.has_flag(ter_furn_flag::TFLAG_Z_TRANSPARENT);
+        t.goes_up=ter.has_flag(ter_furn_flag::TFLAG_GOES_UP);t.goes_down=ter.has_flag(ter_furn_flag::TFLAG_GOES_DOWN);
+        t.ramp=ter.has_flag(ter_furn_flag::TFLAG_RAMP);t.ramp_up=ter.has_flag(ter_furn_flag::TFLAG_RAMP_UP);
+        t.ramp_down=ter.has_flag(ter_furn_flag::TFLAG_RAMP_DOWN);t.ramp_end=ter.has_flag(ter_furn_flag::TFLAG_RAMP_END);
+        t.difficult_z=ter.has_flag(ter_furn_flag::TFLAG_DIFFICULT_Z);t.opaque=!ter.transparent;
+        const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+        t.partial_support=ncmm_graphics_shapes::partial_support(shape,z);
+        return ncmm_world::semantics(t);
+    };
     // Lazy absolute-coordinate facts survive ordinary viewport shifts. Native
     // geometry notifications invalidate derived neighbours and roof columns.
     auto derive_flags=[&](int ax,int ay,int z){
@@ -392,7 +413,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         // when a dark room/tile centre has never passed the top-down FOV test.
         // Its light and the raster depth still determine what reaches the eye.
         const bool structure_range=wanted<=(visual_no_sight?1:visual_maximum);
-        const bool static_surface=structure_range&&(semantic&(graphics_world_architecture|NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN));
+        const bool static_surface=structure_range&&(semantic&(graphics_world_architecture|NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN|NCMM_WORLD_UP));
         // No permission below can survive if neither side is within native
         // visual range. In particular, don't trace thousands of dark buried
         // floors. Their private structural facts still occlude other rays.
@@ -448,6 +469,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
             if(perceived)permission|=NCMM_WORLD_BODY_VISIBLE;
         }
         if(p==you.pos_bub())permission|=NCMM_WORLD_BODY_VISIBLE;
+        const auto terrain_stair=ncmm_world::unperceived_terrain_stair(ax,ay,z,semantic,permission,structure_range,terrain_stair_flags);
+        if(terrain_stair.navigation&&!(permission&NCMM_WORLD_STRUCTURE_VISIBLE))facade_light=graphics_world_rgb(p);
+        permission|=terrain_stair.permission();
         if(!permission){++graphics_world_metrics.occlusion_rejected;continue;}
         if(atmosphere||(permission&NCMM_WORLD_BODY_VISIBLE)){
             const uint32_t column=graphics_world_roofs.get(ax,ay,0,graphics_world_geometry_revision,[&]{
@@ -463,11 +487,13 @@ bool graphics_draw_world(int x,int y,int width,int height)
             if(landing)semantic|=NCMM_WORLD_DOWN;
             if(local_air){if(graphics_world_roofs.get(ax,ay,0,graphics_world_geometry_revision,[&]{return ncmm_world::roof_column(loaded.front(),loaded.back(),[&](int h){return base_flags(ax,ay,h);});})&(uint32_t(1)<<(z-loaded.front())))semantic|=NCMM_WORLD_ROOFED;}
             else semantic|=NCMM_WORLD_ROOFED; // No hidden room navigation facts.
+            semantic=ncmm_world::restore_terrain_stair_facts(semantic,terrain_stair);
         }
         graphics_world_candidate c{};c.world={ax,ay,z,semantic|permission,0,0,graphics_world_level_revisions[size_t(z+128)]+1,{0,0,0}};
         c.pos=p;c.permission=permission;c.distance=dx*dx+dy*dy+dz*dz;c.facade_light=facade_light;
         if(permission&NCMM_WORLD_FLOOR_BOTTOM){const auto rgb=graphics_world_rgb(below);std::copy(rgb.begin(),rgb.end(),c.world.lower_light);}
-        if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&NCMM_WORLD_RAMP)) {
+        if(terrain_stair.navigation)c.world.direction=terrain_stair.direction;
+        else if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&NCMM_WORLD_RAMP)) {
             for(uint32_t direction=0;direction<4;++direction){const int nx=direction==0?1:direction==2?-1:0,ny=direction==1?1:direction==3?-1:0;
                 if(flags(ax+nx,ay+ny,z)&NCMM_WORLD_RAMP_END){c.world.direction=direction;break;}}
         } else if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&NCMM_WORLD_LADDER)) {

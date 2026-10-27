@@ -5,7 +5,8 @@ from pathlib import Path
 import tempfile
 import unittest
 from PIL import Image, ImageDraw
-from verify_static_stair_audit import BODY, CAMERA, NAV, ROI, THRESHOLDS, verify
+from verify_static_stair_audit import (BODY, CAMERA, NAV, ROI, STRUCTURE, THRESHOLDS,
+                                       RETAINED_NAV, RETAINED_THRESHOLDS, verify)
 
 
 def observation(furniture=False, hidden=False, debug=False):
@@ -63,6 +64,41 @@ def fixture():
     return result
 
 
+def retained_fixture():
+    result = fixture()
+    result.update(schema=2, retained_thresholds=copy.deepcopy(RETAINED_THRESHOLDS))
+    for case in result['cases']:
+        case.update(matrix_eligible=False, inconclusive_reason='terrain_semantics_already_published',
+                    matrix00_normal_pixels_equal=False, matrix=[])
+        for phase in case['phases']:
+            if phase['name'] != 'debug':
+                phase['target']['flags'] |= RETAINED_NAV
+                phase['target']['direction'] = 2
+                phase['triangles'] = 124
+        last = case['phases'][-1]
+        retained = dict(eligible=True, inconclusive_reason='', normal_static_pixels_equal=True, frames=[])
+        for keep, name in ((1, 'normal_static'), (0, 'nav_removed')):
+            frame = copy.deepcopy(last)
+            flags = last['target']['flags'] if keep else last['target']['flags'] & ~RETAINED_NAV
+            direction = last['target']['direction'] if keep else 0
+            frame.update(name=name, file=f'first-person-static-stair-{case["name"]}-{name}.bmp',
+                         body=0, semantics=keep, target_flags=flags, target_direction=direction,
+                         world_digest='100' if keep else '400', native_source_digest='100',
+                         published_light=last['target']['published_light'].copy(), triangles=124 if keep else 100)
+            frame['target'].update(flags=flags, direction=direction)
+            retained['frames'].append(frame)
+        case['retained_geometry'] = retained
+    return result
+
+
+def paint_image(root, filename, intensity=0, inside=True, count=8):
+    image = Image.new('RGB', (640, 480), (20, 20, 20))
+    if intensity:
+        x, y = (ROI[0], ROI[1]) if inside else (10, 10)
+        ImageDraw.Draw(image).line((x, y, x + count - 1, y), fill=(20 + intensity, 20, 20))
+    image.save(root / filename)
+
+
 class StaticStairEvidenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -79,11 +115,7 @@ class StaticStairEvidenceTests(unittest.TestCase):
 
     @classmethod
     def paint(cls, filename, intensity=0, inside=True, count=8):
-        image = Image.new('RGB', (640, 480), (20, 20, 20))
-        if intensity:
-            x, y = (ROI[0], ROI[1]) if inside else (10, 10)
-            ImageDraw.Draw(image).line((x, y, x + count - 1, y), fill=(20 + intensity, 20, 20))
-        image.save(cls.root / filename)
+        paint_image(cls.root, filename, intensity, inside, count)
 
     def setUp(self):
         self.report = copy.deepcopy(self.baseline)
@@ -282,6 +314,177 @@ class StaticStairEvidenceTests(unittest.TestCase):
     def test_empty_hidden_fixture_is_rejected(self):
         self.case['phases'][0]['ledger_before']['physical']['creatures']['count'] = 0
         with self.assertRaisesRegex(AssertionError, 'Vacuous'): self.run_report()
+
+
+class RetainedStairEvidenceTests(unittest.TestCase):
+    """Synthetic retained controls are distinct from the old factorial evidence."""
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.root = Path(cls.temp.name)
+        cls.baseline = retained_fixture()
+        for case in cls.baseline['cases']:
+            for frame in case['phases'] + case['retained_geometry']['frames']:
+                paint_image(cls.root, frame['file'], 0 if frame['name'] in ('debug', 'nav_removed') else 4)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+
+    def setUp(self):
+        self.report = copy.deepcopy(self.baseline)
+        self.case = self.report['cases'][0]
+        self.packet = self.case['retained_geometry']
+        self.static, self.removed = self.packet['frames']
+        self.changed_files = set()
+
+    def tearDown(self):
+        for filename in self.changed_files:
+            paint_image(self.root, filename, 0 if filename.endswith(('-debug.bmp', '-nav_removed.bmp')) else 4)
+
+    def run_report(self):
+        (self.root / 'first-person-static-stair-audit.json').write_text(json.dumps(self.report))
+        return verify(self.root)
+
+    def alter_pixels(self, frame, intensity=0, inside=True, count=8):
+        self.changed_files.add(frame['file'])
+        paint_image(self.root, frame['file'], intensity, inside, count)
+
+    def alter_normal_pixels(self, intensity=4, inside=True, count=8):
+        for frame in (self.case['phases'][0], self.case['phases'][2], self.static):
+            self.alter_pixels(frame, intensity, inside, count)
+
+    def test_retained_geometry_is_a_separate_status(self):
+        result = self.run_report()
+        self.assertEqual(result['status'], 'retained_geometry_verified')
+        case = result['cases'][0]
+        self.assertEqual(case['factorial_status'], 'inconclusive')
+        self.assertIsNone(case['interaction_triangles'])
+        self.assertEqual(case['retained_geometry']['geometry_triangles'], 24)
+        self.assertEqual(case['retained_geometry']['geometry_pixels'], 8)
+        self.assertFalse(result['ordinary_performance_measurement'])
+
+    def test_schema2_still_verifies_the_unchanged_missing_nav_factorial(self):
+        report = fixture()
+        report.update(schema=2, retained_thresholds=copy.deepcopy(RETAINED_THRESHOLDS))
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for case in report['cases']:
+                case['retained_geometry'] = dict(eligible=False, inconclusive_reason='normal_terrain_navigation_incomplete',
+                                                 normal_static_pixels_equal=False, frames=[])
+                for frame in case['phases'] + case['matrix']:
+                    paint_image(root, frame['file'], 4 if frame['name'] == 'matrix11' else 0)
+            (root / 'first-person-static-stair-audit.json').write_text(json.dumps(report))
+            self.assertEqual(verify(root)['status'], 'confirmed')
+
+    def test_schema1_cannot_smuggle_new_fields_and_unknown_schema_is_rejected(self):
+        self.report['schema'] = 1
+        with self.assertRaisesRegex(AssertionError, 'Schema1'): self.run_report()
+        del self.report['retained_thresholds']
+        with self.assertRaisesRegex(AssertionError, 'Schema1'): self.run_report()
+        self.report['schema'] = 3
+        with self.assertRaises(AssertionError): self.run_report()
+
+    def test_schema2_requires_exact_protocol_and_fixed_thresholds(self):
+        for change in ('missing_thresholds', 'changed_thresholds', 'missing_packet', 'extra_packet_key'):
+            with self.subTest(change=change):
+                self.report = copy.deepcopy(self.baseline)
+                if change == 'missing_thresholds': del self.report['retained_thresholds']
+                elif change == 'changed_thresholds': self.report['retained_thresholds']['geometry_pixels'] = 7
+                elif change == 'missing_packet': del self.report['cases'][0]['retained_geometry']
+                else: self.report['cases'][0]['retained_geometry']['reported_pass'] = True
+                with self.assertRaises(AssertionError): self.run_report()
+
+    def test_eligibility_cannot_be_forced_for_body_or_missing_structure_or_nonordinary_stair(self):
+        for remove, add in ((0, BODY), (STRUCTURE, 0), (256, 0), (16384, 0), (0, 1024), (0, 2048)):
+            with self.subTest(remove=remove, add=add):
+                self.report = copy.deepcopy(self.baseline)
+                for phase in self.report['cases'][0]['phases']:
+                    if phase['name'] != 'debug': phase['target']['flags'] = phase['target']['flags'] & ~remove | add
+                    elif remove & RETAINED_NAV: phase['target']['flags'] &= ~remove
+                with self.assertRaisesRegex(AssertionError, 'Retained eligibility'): self.run_report()
+
+    def test_real_terrain_up_cannot_be_replaced_by_furniture(self):
+        self.case['phases'][1]['target'].update(raw_terrain_up=False, raw_furniture_up=True)
+        with self.assertRaises(AssertionError): self.run_report()
+
+    def test_nav_removal_preserves_body_structure_down_and_all_other_bits(self):
+        for remove, add in ((0, BODY), (STRUCTURE, 0), (512, 0), (0, 8)):
+            with self.subTest(remove=remove, add=add):
+                self.removed['target_flags'] = self.baseline['cases'][0]['retained_geometry']['frames'][1]['target_flags'] & ~remove | add
+                with self.assertRaisesRegex(AssertionError, 'unrelated terrain flags'): self.run_report()
+
+    def test_directions_and_normal_illumination_are_fixed(self):
+        for frame, key, value in ((self.static, 'target_direction', 0), (self.removed, 'target_direction', 1),
+                                  (self.static, 'published_light', [.2, .1, .1])):
+            before = frame[key]; frame[key] = value
+            with self.assertRaises(AssertionError): self.run_report()
+            frame[key] = before
+
+    def test_false_normal_static_identity_or_repeat_flag_is_rejected(self):
+        self.packet['normal_static_pixels_equal'] = False
+        with self.assertRaisesRegex(AssertionError, 'normal_static pixels'): self.run_report()
+        self.packet['normal_static_pixels_equal'] = True
+        self.alter_pixels(self.static, 0)
+        with self.assertRaisesRegex(AssertionError, 'normal_static pixels'): self.run_report()
+
+    def test_retained_snapshot_source_and_fresh_raster_are_required(self):
+        for key, value in (('protected_snapshot_digest', '42'), ('native_source_digest', '42'),
+                           ('world_digest', '42'), ('raster_calls', 0)):
+            before = self.static[key]; self.static[key] = value
+            with self.assertRaises(AssertionError): self.run_report()
+            self.static[key] = before
+
+    def test_pair_cannot_be_missing_reordered_or_marked_ineligible(self):
+        original = self.packet['frames']
+        for frames in ([], original[::-1], original[:1]):
+            self.packet['frames'] = frames
+            with self.assertRaisesRegex(AssertionError, 'retained controls'): self.run_report()
+        self.packet.update(eligible=False, frames=[], normal_static_pixels_equal=False, inconclusive_reason='Ignored valid target')
+        with self.assertRaisesRegex(AssertionError, 'Retained eligibility'): self.run_report()
+
+    def test_hidden_contents_and_focus_remain_identical_in_both_owned_frames(self):
+        for frame in (self.static, self.removed):
+            for key, value in (('furniture', 'f_chair'), ('item', 'rock'), ('creature', 'mon_zombie'),
+                               ('field', 'fd_smoke'), ('focus_result', 1), ('target_result', 1)):
+                before = frame['hidden_control'][key]; frame['hidden_control'][key] = value
+                with self.assertRaisesRegex(AssertionError, 'protected contents/focus'): self.run_report()
+                frame['hidden_control'][key] = before
+
+    def test_target_appearance_furniture_and_vision_are_protected(self):
+        for key, value in (('terrain', 't_stairs_down'), ('furniture', 'f_chair'), ('item', 'rock'), ('native_sees', True)):
+            before = self.static['target'][key]; self.static['target'][key] = value
+            with self.assertRaisesRegex(AssertionError, 'protected observations'): self.run_report()
+            self.static['target'][key] = before
+        self.static['debug_nightvision'] = True
+        with self.assertRaisesRegex(AssertionError, 'changed vision'): self.run_report()
+
+    def test_physical_raw_light_memory_and_discovery_cannot_change_during_pair(self):
+        for group in ('physical', 'memory', 'overmap'):
+            record = self.removed['ledger_after'][group]
+            if group == 'physical': before = record['light']['hash']; record['light']['hash'] = '42'
+            else: before = record['hash']; record['hash'] = '42'
+            with self.assertRaisesRegex(AssertionError, 'Native state/discovery'): self.run_report()
+            if group == 'physical': record['light']['hash'] = before
+            else: record['hash'] = before
+
+    def test_raw_phase_light_drift_is_honestly_inconclusive(self):
+        self.case['phases'][1]['ledger_after']['physical']['light']['hash'] = '42'
+        with self.assertRaisesRegex(AssertionError, 'Retained eligibility'): self.run_report()
+        self.packet.update(eligible=False, frames=[], normal_static_pixels_equal=False, inconclusive_reason='physical_light_mismatch')
+        self.assertEqual(self.run_report()['cases'][0]['status'], 'inconclusive')
+
+    def test_subthreshold_pixels_or_contrast_cannot_verify_retention(self):
+        for intensity, count, inside in ((3, 8, True), (4, 7, True), (4, 8, False)):
+            self.alter_normal_pixels(intensity, inside, count)
+            self.assertEqual(self.run_report()['cases'][0]['retained_geometry']['status'], 'inconclusive')
+
+    def test_triangle_removal_is_signed_and_independent_of_pixels(self):
+        for triangles in (101, 125):
+            self.removed['triangles'] = triangles
+            self.assertEqual(self.run_report()['cases'][0]['retained_geometry']['status'], 'inconclusive')
+        self.static['triangles'] = 125
+        with self.assertRaisesRegex(AssertionError, 'real normal snapshot'): self.run_report()
 
 
 if __name__ == '__main__':

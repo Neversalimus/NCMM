@@ -349,7 +349,7 @@ $auditName=if($StaticStairProbe){'first-person-static-stair-audit.json'}elseif($
 if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
 if($StaticStairProbe){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
-    if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.diagnostic_only -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.renderer -ne 'cpu' -or $audit.width -ne 640 -or $audit.height -ne 480 -or @($audit.cases).Count -ne 3){throw 'Static terrain-stair diagnostic evidence is incomplete.'}
+    if($audit.schema -notin @(1,2) -or $audit.success -ne $true -or $audit.diagnostic_only -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.renderer -ne 'cpu' -or $audit.width -ne 640 -or $audit.height -ne 480 -or @($audit.cases).Count -ne 3){throw 'Static terrain-stair diagnostic evidence is incomplete.'}
     # The separate pixel/ledger verifier determines confirmed vs inconclusive.
     # A successful recorder alone is not evidence of a visibility defect.
     $soaked=0

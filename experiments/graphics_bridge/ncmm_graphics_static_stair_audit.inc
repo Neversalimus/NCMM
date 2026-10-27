@@ -302,17 +302,18 @@
         require(saved_image,"static_stair_capture_write_failed");out.after=read_ledger();++frames;
         require(out.before.nonlight_digest==out.after.nonlight_digest,"static_stair_render_mutated_native_state");
         require(here.get_abs_sub()==original_origin&&you.pos_abs()==original_position&&you.get_moves()==original_moves,"static_stair_probe_moved_native_avatar");return out;};
-    auto write_frame=[&](JsonOut &json,const frame_record &entry,bool matrix,int body=0,int semantics=0){json.start_object();json.member("name",entry.name);
+    auto write_frame=[&](JsonOut &json,const frame_record &entry,bool matrix,int body=0,int semantics=0,bool retained=false){json.start_object();json.member("name",entry.name);
         if(matrix){json.member("body",body);json.member("semantics",semantics);json.member("target_flags",entry.target.flags);json.member("target_direction",entry.target.direction);json.member("published_light",entry.target.published_light);}
-        else{json.member("debug_nightvision",entry.vision);json.member("ledger_before");write_ledger(json,entry.before);json.member("target");write_cell(json,entry.target);json.member("furniture_control");write_cell(json,entry.furniture);json.member("hidden_control");write_cell(json,entry.hidden);}
+        if(!matrix||retained){json.member("debug_nightvision",entry.vision);json.member("ledger_before");write_ledger(json,entry.before);json.member("target");write_cell(json,entry.target);json.member("furniture_control");write_cell(json,entry.furniture);json.member("hidden_control");write_cell(json,entry.hidden);}
         json.member("ledger_after");write_ledger(json,entry.after);json.member("world_digest",entry.digest);json.member("protected_snapshot_digest",entry.protected_digest);json.member("native_source_digest",entry.native_digest);
         json.member("source_epoch",entry.source_epoch);json.member("source_revision",entry.source_revision);json.member("source_serial",entry.source_serial);
         json.member("pixel_fingerprint",entry.pixel_fingerprint);json.member("file",entry.file);
         json.member("triangles",entry.metrics.triangles);json.member("raster_calls",entry.metrics.raster_calls);json.member("raster_width",entry.metrics.width);json.member("raster_height",entry.metrics.height);json.end_object();};
 
     std::ofstream stream(game_root()/"ncmm"/"first-person-static-stair-audit.json");stream.imbue(std::locale::classic());JsonOut report(stream);
-    report.start_object();report.member("schema",1);report.member("diagnostic_only",true);report.member("actual_cdda_sdl",true);report.member("renderer","cpu");report.member("width",width);report.member("height",height);report.member("preflight_frames",2);report.member("owned_snapshot_limit",owned_limit);report.member("fixture_camera",declared_camera);
+    report.start_object();report.member("schema",2);report.member("diagnostic_only",true);report.member("actual_cdda_sdl",true);report.member("renderer","cpu");report.member("width",width);report.member("height",height);report.member("preflight_frames",2);report.member("owned_snapshot_limit",owned_limit);report.member("fixture_camera",declared_camera);
     report.member("thresholds");report.start_object();report.member("interaction_triangles",24);report.member("interaction_pixels",8);report.member("rgb_interaction",4);report.end_object();
+    report.member("retained_thresholds");report.start_object();report.member("geometry_triangles",24);report.member("geometry_pixels",8);report.member("rgb_difference",4);report.end_object();
     report.member("cases");report.start_array();
     const std::array<std::pair<const char *,time_duration>,3> cases{{{"day",12_hours},{"dusk",19_hours},{"night",24_hours}}};
     for(const auto &test:cases){const std::string name=test.first;normal=owned_snapshot{};calendar::turn=calendar::turn_zero+test.second;get_weather().weather_id=weather_type_id("sunny");
@@ -330,11 +331,23 @@
         else if(!repeated)inconclusive="normal_pixels_not_repeatable";
         else if(first.digest!=last.digest||first.protected_digest!=last.protected_digest||!same_cell(first.target,last.target))inconclusive="normal_snapshot_not_repeatable";
         else if(!first.target.present||!last.target.present||!debug.target.present)inconclusive="target_missing_in_native_snapshot";
-        else if((first.target.flags&NCMM_WORLD_BODY_VISIBLE)||(last.target.flags&NCMM_WORLD_BODY_VISIBLE))inconclusive="normal_body_already_visible";
-        else if(!(debug.target.flags&NCMM_WORLD_BODY_VISIBLE)||!(debug.target.flags&NCMM_WORLD_UP)||!(debug.target.flags&NCMM_WORLD_CONNECTED_UP))inconclusive="debug_terrain_semantics_incomplete";
-        else if(!last.target.terrain_up||last.target.furniture_up||debug.target.raw_terrain!=last.target.raw_terrain)inconclusive="terrain_stair_provenance_missing";
-        else if(!((debug.target.flags&terrain_nav)&~last.target.flags))inconclusive="terrain_semantics_already_published";
+        std::string retained_inconclusive=inconclusive;
+        if(inconclusive.empty()){
+            if((first.target.flags&NCMM_WORLD_BODY_VISIBLE)||(last.target.flags&NCMM_WORLD_BODY_VISIBLE))inconclusive="normal_body_already_visible";
+            else if(!(debug.target.flags&NCMM_WORLD_BODY_VISIBLE)||!(debug.target.flags&NCMM_WORLD_UP)||!(debug.target.flags&NCMM_WORLD_CONNECTED_UP))inconclusive="debug_terrain_semantics_incomplete";
+            else if(!last.target.terrain_up||last.target.furniture_up||debug.target.raw_terrain!=last.target.raw_terrain)inconclusive="terrain_stair_provenance_missing";
+            else if(!((debug.target.flags&terrain_nav)&~last.target.flags))inconclusive="terrain_semantics_already_published";
+        }
+        constexpr uint32_t retained_nav=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;
+        if(retained_inconclusive.empty()){
+            if(last.target.flags&NCMM_WORLD_BODY_VISIBLE)retained_inconclusive="normal_body_already_visible";
+            else if(!(last.target.flags&NCMM_WORLD_STRUCTURE_VISIBLE))retained_inconclusive="normal_structure_not_visible";
+            else if((last.target.flags&retained_nav)!=retained_nav)retained_inconclusive="normal_terrain_navigation_incomplete";
+            else if(last.target.flags&(NCMM_WORLD_RAMP|NCMM_WORLD_LADDER))retained_inconclusive="normal_stair_is_not_ordinary";
+            else if(!last.target.terrain_up||last.target.furniture_up||debug.target.raw_terrain!=last.target.raw_terrain)retained_inconclusive="terrain_stair_provenance_missing";
+        }
         const bool eligible=inconclusive.empty();
+        const bool retained_eligible=retained_inconclusive.empty();
         report.start_object();report.member("name",name);report.member("roi",std::array<int,4>{{240,160,160,280}});
         const auto point_array=[](const auto &p){return std::array<int,3>{{p.x(),p.y(),p.z()}};};
         report.member("target",point_array(target));report.member("furniture_control",point_array(furniture_control));report.member("hidden_control",point_array(hidden_control));
@@ -360,7 +373,26 @@
             }
             normal.coordinates[index].flags=original_flags;normal.coordinates[index].direction=original_direction;
         }
-        report.end_array();report.member("matrix00_normal_pixels_equal",zero_matches);report.end_object();stream.flush();
+        report.end_array();report.member("matrix00_normal_pixels_equal",zero_matches);
+        report.member("retained_geometry");report.start_object();report.member("eligible",retained_eligible);report.member("inconclusive_reason",retained_inconclusive);
+        report.member("frames");report.start_array();bool retained_matches=false;
+        if(retained_eligible){const size_t index=size_t(last.target.index);require(index<normal.coordinates.size(),"static_stair_retained_target_missing");
+            const uint32_t original_flags=normal.coordinates[index].flags,original_direction=normal.coordinates[index].direction;
+            // The positive control is the untouched real normal snapshot.
+            // Remove only UP/CONNECTED_UP, preserving DOWN and every other bit.
+            for(int keep:{1,0}){auto &cell=normal.coordinates[index];cell.flags=keep?original_flags:original_flags&~retained_nav;cell.direction=keep?original_direction:0;
+                require(!(cell.flags&NCMM_WORLD_BODY_VISIBLE)&&(cell.flags&NCMM_WORLD_STRUCTURE_VISIBLE),"static_stair_retained_changed_visibility");
+                require((cell.flags&~retained_nav)==(original_flags&~retained_nav),"static_stair_retained_changed_other_flags");
+                const auto entry=record(name,keep?"normal_static":"nav_removed",&normal.scene,false);
+                require(entry.protected_digest==last.protected_digest,"static_stair_retained_modified_protected_snapshot");
+                require(entry.target.published_light==last.target.published_light,"static_stair_retained_changed_published_light");
+                require(entry.after.nonlight_digest==last.after.nonlight_digest,"static_stair_retained_mutated_native_state");
+                if(keep){retained_matches=entry.pixels==last.pixels;require(entry.digest==last.digest,"static_stair_retained_changed_normal_snapshot");}
+                write_frame(report,entry,true,0,keep,true);
+            }
+            normal.coordinates[index].flags=original_flags;normal.coordinates[index].direction=original_direction;
+        }
+        report.end_array();report.member("normal_static_pixels_equal",retained_matches);report.end_object();report.end_object();stream.flush();
     }
     report.end_array();require(set_fixture_camera(original_camera[0],original_camera[1]),"static_stair_camera_restore_failed");
     report.member("success",true);report.end_object();stream.close();require(bool(stream),"static_stair_report_write_failed");

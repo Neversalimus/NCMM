@@ -750,6 +750,153 @@ template<class Check> void geometry_border_checks(Check check){
     }
 }
 
+// The real shared static-stair policy consumes terrain-only semantics. The
+// injected reader models the Host's bounded const terrain view, not Native
+// perception, furniture access or a running game. It never populates a cache.
+struct terrain_stair_fixture {
+    using key=std::tuple<int,int,int>;
+    std::map<key,ncmm_world::traits> cells;
+    int left=0,top=0,side=12,low=-1,high=2;
+    bool default_wall=false;
+    size_t callbacks=0,loaded_reads=0,rejected_reads=0;
+    static ncmm_world::traits tile(bool up=false,bool down=false,bool opaque=false){
+        ncmm_world::traits t{};t.loaded=true;t.goes_up=up;t.goes_down=down;t.opaque=opaque;return t;
+    }
+    void set(int x,int y,int z,ncmm_world::traits t){cells[{x,y,z}]=t;}
+    uint32_t raw(int x,int y,int z)const{
+        const auto found=cells.find({x,y,z});return ncmm_world::semantics(found==cells.end()?tile(false,false,default_wall):found->second);
+    }
+    uint32_t read(int x,int y,int z){
+        ++callbacks;
+        if(int64_t(x)<left||int64_t(y)<top||int64_t(x)>=int64_t(left)+side||int64_t(y)>=int64_t(top)+side||z<low||z>high){
+            ++rejected_reads;return NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE;
+        }
+        ++loaded_reads;return raw(x,y,z);
+    }
+    ncmm_world::terrain_stair_proof prove(int x=4,int y=4,int z=0,uint32_t combined=NCMM_WORLD_UP,uint32_t permission=0,bool in_range=true){
+        callbacks=loaded_reads=rejected_reads=0;
+        return ncmm_world::unperceived_terrain_stair(x,y,z,combined,permission,in_range,[&](int a,int b,int c){return read(a,b,c);});
+    }
+};
+
+template<class Check> void unperceived_terrain_stair_checks(Check check){
+    using namespace ncmm_world;
+    auto require=[&](bool value,const char *message){if(!value)std::cerr<<"Terrain stair: "<<message<<'\n';check(value);};
+    auto legacy_mask=[](uint32_t semantic,uint32_t permission){
+        semantic&=262143u;const bool landing=(semantic&NCMM_WORLD_DOWN)&&!(semantic&(NCMM_WORLD_LADDER|NCMM_WORLD_RAMP));
+        semantic&=NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_WATER|NCMM_WORLD_UNKNOWN|
+            ((permission&NCMM_WORLD_STRUCTURE_VISIBLE)?uint32_t(NCMM_WORLD_OPAQUE):0u);
+        if(landing)semantic|=NCMM_WORLD_DOWN;
+        return semantic|NCMM_WORLD_ROOFED;
+    };
+    terrain_stair_fixture f;f.set(4,4,0,f.tile(true));f.set(4,4,1,f.tile(false,true));
+    const uint32_t source=f.raw(4,4,0)|NCMM_WORLD_CONNECTED_UP;
+    const auto physical_before=f.cells;const auto proof=f.prove(4,4,0,source,NCMM_WORLD_FLOOR_TOP);
+    require(proof.navigation==(NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP)&&proof.permission()==NCMM_WORLD_STRUCTURE_VISIBLE,"dark terrain UP retains its complete flight with static permission only");
+    require(!(proof.permission()&NCMM_WORLD_BODY_VISIBLE)&&proof.direction<4,"a static proof cannot publish contents or invalid orientation");
+    // The failing1807 night artifact published161 (FLOOR|TOP|ROOFED), whereas
+    // debug BODY published16689. Reconstruct the normal mask without BODY.
+    const auto old=legacy_mask(source,NCMM_WORLD_FLOOR_TOP)|NCMM_WORLD_FLOOR_TOP;
+    const auto restored=restore_terrain_stair_facts(legacy_mask(source,NCMM_WORLD_FLOOR_TOP|proof.permission())|NCMM_WORLD_FLOOR_TOP,proof)|proof.permission();
+    require(old==161u&&restored==278945u,"normal-light witness adds only terrain navigation and STRUCTURE_VISIBLE, never BODY");
+    require(full_opaque_slab(f.raw(4,4,0))&&floor_blocks(f.raw(4,4,0),.5f,.5f),"the physical lower floor keeps its original slab/occlusion semantics");
+    for(const auto &entry:physical_before){const auto &p=entry.first;require(f.raw(std::get<0>(p),std::get<1>(p),std::get<2>(p))==semantics(entry.second),"presentation proof does not mutate source terrain facts");}
+
+    for(const auto gate:std::array<std::array<uint32_t,3>,4>{{{{NCMM_WORLD_UP,NCMM_WORLD_BODY_VISIBLE,1}},{{NCMM_WORLD_UP,0,0}},{{NCMM_WORLD_FLOOR,0,1}},{{NCMM_WORLD_UP|NCMM_WORLD_UNKNOWN,0,1}}}}){
+        const auto none=f.prove(4,4,0,gate[0],gate[1],gate[2]!=0);
+        require(!none.navigation&&!none.permission()&&f.callbacks==0,"BODY, range, no-nav and unknown prefilters perform no terrain query");
+        require(restore_terrain_stair_facts(0x7ffffu,none)==0x7ffffu,"ineligible/BODY publication remains bit exact");
+    }
+    // A furniture-only UP can pass the conservative early surface prefilter,
+    // but cannot acquire a terrain exception, even on a truly floorless tile.
+    for(bool no_floor:{false,true})for(uint32_t nav:{uint32_t(NCMM_WORLD_UP),uint32_t(NCMM_WORLD_DOWN),terrain_stair_navigation_mask}){
+        terrain_stair_fixture hidden;auto t=hidden.tile();t.no_floor=no_floor;hidden.set(4,4,0,t);
+        const auto none=hidden.prove(4,4,0,semantics(t)|nav);
+        const auto masked=legacy_mask(semantics(t)|nav,NCMM_WORLD_FLOOR_TOP);
+        require(!none.navigation&&!none.permission()&&hidden.callbacks==1,"hidden furniture navigation cannot disclose an ordinary floor or air tile");
+        require(restore_terrain_stair_facts(masked,none)==masked,"noneligible hidden furniture preserves the exact legacy DOWN landing policy");
+    }
+    for(int variant=0;variant<5;++variant){
+        terrain_stair_fixture excluded;auto t=excluded.tile(true);
+        if(variant==0)t.ramp=true;if(variant==1)t.ramp_up=true;if(variant==2)t.ramp_down=true;if(variant==3)t.ramp_end=true;if(variant==4)t.difficult_z=true;
+        excluded.set(4,4,0,t);const auto none=excluded.prove();
+        require(!none.navigation&&!none.permission()&&excluded.callbacks==1,"ramps, ramp ends and difficult-Z ladders receive no new permission");
+    }
+    for(int variant=0;variant<6;++variant){
+        terrain_stair_fixture physical;auto t=physical.tile(true);
+        if(variant==0)t.no_floor=true;if(variant==1)t.no_floor_water=true;if(variant==2)t.transparent_floor=true;
+        if(variant==3)t.z_transparent=true;if(variant==4)t.opaque=true;if(variant==5)t.partial_support=true;
+        physical.set(4,4,0,t);const auto semantic=semantics(t);const auto actual=physical.prove(4,4,0,semantic);
+        const auto masked=legacy_mask(semantic,NCMM_WORLD_FLOOR_TOP|actual.permission());
+        const auto result=restore_terrain_stair_facts(masked,actual);
+        require(actual.navigation==NCMM_WORLD_UP&&(result&~terrain_stair_navigation_mask)==(masked&~terrain_stair_navigation_mask),"floor, water, glass, own opacity and partial-support facts survive terrain-nav restoration exactly");
+        require(full_opaque_slab(semantic)==full_opaque_slab(physical.raw(4,4,0))&&floor_blocks(semantic,.5f,.5f)==floor_blocks(physical.raw(4,4,0),.5f,.5f),"static permission changes neither closed slab nor physical floor-blocking facts");
+    }
+    // Same-XY air keeps the established full-height ordinary stair rule. A
+    // furniture-created shaft or connector is absent from this terrain view.
+    terrain_stair_fixture shaft;shaft.set(4,4,0,shaft.tile(true));auto air=shaft.tile();air.no_floor=true;shaft.set(4,4,1,air);
+    require(bool(shaft.prove().navigation&NCMM_WORLD_CONNECTED_UP),"real terrain NO_FLOOR above supplies a full-height flight");
+    shaft.set(4,4,1,shaft.tile());require(!(shaft.prove().navigation&NCMM_WORLD_CONNECTED_UP),"hidden furniture open-down/connected bits cannot invent a terrain shaft");
+    for(int variant=0;variant<3;++variant){auto other=shaft.tile(false,true);if(variant==0)other.ramp_down=true;if(variant==1)other.difficult_z=true;if(variant==2)other.ramp_end=true;
+        shaft.set(4,4,1,other);require(!(shaft.prove().navigation&NCMM_WORLD_CONNECTED_UP),"a nonordinary upper connector cannot extend the static flight");}
+
+    size_t opacity_replacements=0;
+    for(bool terrain_opaque:{false,true})for(uint32_t direction=0;direction<4;++direction){
+        const int dx=direction==0?1:direction==2?-1:0,dy=direction==1?1:direction==3?-1:0;
+        terrain_stair_fixture facing;facing.default_wall=true;facing.set(4,4,0,facing.tile(true,false,terrain_opaque));facing.set(4,4,1,facing.tile(false,true));
+        for(int n:{1,2}){facing.set(4-n*dx,4-n*dy,0,facing.tile());facing.set(4+n*dx,4+n*dy,1,facing.tile());}
+        const auto actual=facing.prove();
+        require(actual.direction==direction&&actual.navigation==(NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP),"all four uphill orientations use both real terrain landings");
+        const auto upper=facing.prove(4,4,1,NCMM_WORLD_DOWN);
+        require(upper.direction==direction&&upper.navigation==(NCMM_WORLD_DOWN|NCMM_WORLD_CONNECTED_DOWN),"upper and lower endpoints share their terrain-only direction");
+        // Every subset of combined navigation represents hidden furniture
+        // that must not rotate or replace this ordinary terrain flight.
+        constexpr std::array<uint32_t,7> bits{{NCMM_WORLD_UP,NCMM_WORLD_DOWN,NCMM_WORLD_RAMP,NCMM_WORLD_LADDER,NCMM_WORLD_CONNECTED_UP,NCMM_WORLD_CONNECTED_DOWN,NCMM_WORLD_RAMP_END}};
+        for(unsigned combination=0;combination<128;++combination){uint32_t hidden=0;for(unsigned b=0;b<bits.size();++b)if(combination&(1u<<b))hidden|=bits[b];
+            for(uint32_t opaque:{0u,uint32_t(NCMM_WORLD_OPAQUE),uint32_t(NCMM_WORLD_OPAQUE)|opaque_field_fact}){
+                const uint32_t combined=NCMM_WORLD_UP|hidden|opaque|NCMM_WORLD_FLOOR|(terrain_opaque?uint32_t(NCMM_WORLD_OPAQUE):0u);const auto mixed=facing.prove(4,4,0,combined);
+                require(mixed.navigation==actual.navigation&&mixed.direction==actual.direction&&mixed.permission()==actual.permission()&&mixed.terrain_opaque==actual.terrain_opaque,"hidden furniture and field nav/opacity cannot alter terrain proof or facing");
+                // Match actual Host order: proof permission is merged BEFORE
+                // the old non-BODY mask, which would now retain combined gas
+                // or furniture OPAQUE unless the terrain proof replaces it.
+                const uint32_t effective_permission=NCMM_WORLD_FLOOR_TOP|mixed.permission();
+                const uint32_t masked=legacy_mask(combined,effective_permission),published=restore_terrain_stair_facts(masked,mixed);
+                if(!terrain_opaque&&opaque){require(bool(masked&NCMM_WORLD_OPAQUE),"the actual effective-permission legacy mask would retain hidden furniture/gas opacity before terrain restoration");++opacity_replacements;}
+                require((published&terrain_stair_navigation_mask)==actual.navigation&&
+                    (published&NCMM_WORLD_OPAQUE)==(terrain_opaque?uint32_t(NCMM_WORLD_OPAQUE):0u)&&
+                    (published&~(terrain_stair_navigation_mask|NCMM_WORLD_OPAQUE))==(masked&~(terrain_stair_navigation_mask|NCMM_WORLD_OPAQUE)),"eligible mixed tiles replace ALL combined nav/opacity with terrain facts while preserving all other bits");
+                require(facing.callbacks<=36,"ordinary terrain proof has a fixed local query bound");
+            }
+        }
+    }
+    require(opacity_replacements==1024,"all four facings and hidden-nav subsets exercise both foreign opacity sources");
+    // The real shared partner rules reject diagonals, ambiguity and OMT
+    // boundaries; a single offset pair stays reciprocal without furniture.
+    for(int mode=0;mode<4;++mode){
+        terrain_stair_fixture offset;const int root=mode==3?23:4;offset.left=root-3;
+        offset.set(root,4,0,offset.tile(true));offset.set(root+1,4+(mode==1?1:0),1,offset.tile(false,true));
+        if(mode==2)offset.set(root,5,1,offset.tile(false,true));
+        const auto lower=offset.prove(root,4,0);
+        require(bool(lower.navigation&NCMM_WORLD_CONNECTED_UP)==(mode==0),"only an unambiguous cardinal connector inside the same OMT forms a pair");
+        if(mode==0){const auto upper=offset.prove(root+1,4,1,NCMM_WORLD_DOWN);require((upper.navigation&NCMM_WORLD_CONNECTED_DOWN)&&upper.direction==lower.direction,"offset upper direction uses its actual lower terrain partner");}
+    }
+    terrain_stair_fixture missing;missing.set(4,4,0,missing.tile(true));auto unloaded=missing.tile(false,true);unloaded.loaded=false;missing.set(4,4,1,unloaded);
+    require(!(missing.prove().navigation&NCMM_WORLD_CONNECTED_UP),"an unloaded source hole cannot become an upper connector");
+    require(missing.callbacks<=36,"unknown holes remain bounded");
+    missing.set(4,4,0,unloaded);require(!missing.prove().navigation&&missing.callbacks==1,"an unloaded own terrain cannot prove static geometry");
+    terrain_stair_fixture bounded;bounded.left=bounded.top=4;bounded.side=1;bounded.low=bounded.high=0;
+    bounded.set(4,4,0,bounded.tile(true,true));const auto isolated=bounded.prove(4,4,0,NCMM_WORLD_UP|NCMM_WORLD_DOWN);
+    require(isolated.navigation==(NCMM_WORLD_UP|NCMM_WORLD_DOWN)&&bounded.callbacks<=36&&bounded.loaded_reads==1&&bounded.rejected_reads>0,"XY and loaded-Z guards admit only the own terrain read in an isolated source window");
+    for(bool upper_edge:{false,true}){
+        terrain_stair_fixture edge;edge.left=upper_edge?INT_MAX-11:INT_MIN;edge.top=edge.left;edge.low=upper_edge?INT_MAX-1:INT_MIN;edge.high=upper_edge?INT_MAX:INT_MIN+1;
+        const int x=upper_edge?INT_MAX:INT_MIN,y=x,z=upper_edge?INT_MAX:INT_MIN;
+        edge.set(x,y,z,edge.tile(true,true));const auto extreme=edge.prove(x,y,z,NCMM_WORLD_UP|NCMM_WORLD_DOWN);
+        require(extreme.navigation==(NCMM_WORLD_UP|NCMM_WORLD_DOWN)&&extreme.direction<4&&edge.callbacks<=36,"extreme integer coordinates never wrap into invented connectors");
+        require(edge.loaded_reads==edge.callbacks&&edge.rejected_reads==0,"integer-overflow neighbours are rejected before invoking the bounded terrain sampler");
+    }
+    std::cout<<"Terrain-only static stairs: normal161 -> "<<restored<<", four facings, mixed hidden nav, source bounds and noneligible legacy masks passed\n";
+}
+
 int main(){try{
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
@@ -757,6 +904,7 @@ int main(){try{
     native_apparent_light_checks(check);
     sealed_ring_checks(check);
     geometry_border_checks(check);
+    unperceived_terrain_stair_checks(check);
     {
         int identities[2]{};
         const auto *a=reinterpret_cast<const map *>(&identities[0]);

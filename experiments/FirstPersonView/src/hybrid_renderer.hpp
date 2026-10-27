@@ -1167,7 +1167,14 @@ class renderer {
             if(c.item[0]&&extra(i).item_liquid&&extra(i).item_liquid!=extra(i).field_liquid)puddle(i,extra(i).item_liquid,.014f);
             continue;}
             if(world_data&&!(world_flags(i)&NCMM_WORLD_BODY_VISIBLE)){
-                if(world_flags(i)&NCMM_WORLD_STRUCTURE_VISIBLE)architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
+                if(world_flags(i)&NCMM_WORLD_STRUCTURE_VISIBLE){
+                    // The Host may publish an ordinary terrain staircase as
+                    // static architecture while Native perception withholds
+                    // every item, actor, field and furnishing in this cell.
+                    // Ramps/ladders keep their existing BODY permission path.
+                    if((world_flags(i)&NCMM_WORLD_UP)&&!(world_flags(i)&(NCMM_WORLD_RAMP|NCMM_WORLD_LADDER)))world_transition(i);
+                    architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
+                }
                 continue;
             }
             contact_shadow(i,x,y);

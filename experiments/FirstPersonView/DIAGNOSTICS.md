@@ -60,6 +60,18 @@ A successful recorder does not establish a visibility defect,
 qualify a production fix or measure ordinary gameplay frame times. The
 existing 180-case FPS input matrix remains separate.
 
+Schema 2 additionally checks retained ordinary terrain stairs when the real
+normal target has BODY=0, STRUCTURE_VISIBLE and UP/CONNECTED_UP. The
+`normal_static` owned copy must reproduce the actual `normal_after` pixels,
+geometry and source digest. Its `nav_removed` partner removes only
+UP/CONNECTED_UP and sets direction to zero; DOWN, BODY, STRUCTURE, normal
+appearance, illumination, hidden contents and Native ledgers stay unchanged.
+The separate `retained_geometry_verified` status requires at least 24 removed
+triangles and eight changed ROI pixels at RGB difference 4/255. The old
+factorial confirmation remains separate and takes precedence if still present.
+Schema 1 remains readable but cannot contain schema-2 retained protocol fields.
+Synthetic verifier tests do not establish a fixed Native renderer result.
+
 ## Native firing UI context
 
 The gameplay audit now dispatches the ordinary game command through SDL input,

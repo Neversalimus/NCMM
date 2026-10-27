@@ -162,6 +162,48 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     preserves all 87 existing steps and adds one upload. This is not a full YAML
     parser or a same-condition A/B: earlier ordering changes resource warmup.
 
+17. **Keep ordinary terrain stairs as static architecture.** The actual 1807
+    night evidence below motivated a narrow exception: BODY=0, physical sight
+    radius, loaded bounded terrain with genuine ordinary UP/DOWN. Furniture,
+    gas and vehicles cannot prove connectors, direction or opacity. No new
+    permission is given to ramps/ladders/unknown terrain. BODY and noneligible
+    paths retain their prior rules; physics, sight/discovery and public ABI are
+    unchanged. Rare proofs perform at most 36 local terrain callbacks, not a
+    new whole-window pass or persistent cache. Fresh STRUCTURE RGB uses the
+    existing Native color sample. Review caught and corrected combined hidden
+    furniture/gas OPAQUE being retained by the newly granted STRUCTURE mask;
+    effective-permission controls now require terrain's own opaque fact.
+
+    Shared CPU/GPU rendering draws these ordinary flights in the static branch
+    while contents remain behind BODY. An offset stair without either BODY or
+    STRUCTURE cannot cut a neighboring permitted support wall. The first new
+    pure rendering regression failed before this renderer change. After: four
+    facings and aligned/offset flights preserve exact geometry/UV/RGB, CPU
+    pixels/depth and foreground-wall occlusion. Supplied hidden furniture,
+    loot, creatures and fields do not change the image or create a target.
+
+    Full Release, 1412064 source/cache checks, 182644 multilevel-render checks,
+    257 Python, 30 atomic bridge tests and all 50 inventoried CTests (15.90 s)
+    pass. Hidden render-only D3D12/RTX4090: 43781 pixels differ from the
+    navigation-removed control; restored navigation and supplied hidden-content
+    variants match the original RGBA pixels exactly. Three actual captures
+    inspected; CPU world raster remains zero. Grass remains 45 draws, radio
+    268/176 pixels, open multi-Z 21108 on both rasterizers; ADS/objects/muzzle
+    and subway brightness controls pass. The first readback attempt stopped on
+    the CLI's Unicode output-prefix encoding; repeating with an ASCII prefix
+    passed. Evidence: `night-static-terrain-stairs-*`.
+
+    Additive diagnostic schema2 now separately tests a real normal BODY=0
+    snapshot against removal of only UP/CONNECTED_UP and direction. Untouched
+    owned normal must match actual normal pixels/digest; fixed normal RGB,
+    protected contents and complete physical/discovery ledgers remain equal.
+    Separate retained thresholds are 24 removed triangles/8 changed ROI pixels/
+    RGB difference 4, with status `retained_geometry_verified`. Legacy schema1
+    factorial verification remains strict and separate; 17 new negative tests
+    plus the prior 34 pass. Runner AST, isolated schema1/2 acceptance and 0/3
+    rejection, and 162 environment-isolation checks pass without a game launch.
+    **Actual post-fix Native receipt and ordinary performance remain pending.**
+
 ## Actual remote evidence and next priorities
 
 **Stair evidence at exact `2ce404d`, run 40441923163.** Packaged runtime merge
@@ -189,10 +231,9 @@ exit 0, no dumps/wrapper/debugger errors. Private receipts/readbacks:
   verification is CI's. Combined reserved transfer <658 KB of an 8 MiB cap.
 
 This establishes one terrain-only render defect on a controlled 1807 night
-scene, not a general visibility fix. Next: retain ordinary static terrain stairs
-without granting BODY or publishing furniture/items/creatures/fields/focus or
-changing discovery. Require a separate post-fix pixel/ledger test. Do not infer
-absence of other stair defects from 1040's already-visible case.
+scene. Stage17's shared fix passes component/render-only checks; require its
+separate actual post-fix Native pixel/ledger receipt. Do not infer absence of
+other stair defects from 1040's already-visible case.
 
 **Earlier timing priority, not new-byte performance.** Selected program JSON
 from `fc2ada7`'s exact-tree package used 5133467 bytes instead of full multi-GB
@@ -221,11 +262,11 @@ compilations; actual Native qualification remains running.
 [GPU Windows/Linux/Vulkan/sanitizers](https://github.com/Neversalimus/NCMM/actions/runs/40441923119),
 [source/package](https://github.com/Neversalimus/NCMM/actions/runs/40441923114),
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40441923116) pass.
-These results do not qualify subsequent stage15 Host bytes. The failed
+These results do not qualify subsequent stage15/17 Host or renderer bytes. The failed
 `21b3878` Native compile and its repair are retained above; older ddfa/fc2
 passes also do not qualify new bytes.
 
-Hidden render-only RTX 4090 controls at unchanged renderer/module bytes retain
+The freshly rebuilt hidden render-only RTX 4090 controls retain
 45 grass draws, zero CPU world raster, zero warm static uploads and 21108 open
 multi-Z pixels on both rasterizers. Existing ADS/objects/muzzle/subway brightness
 checks pass. Repeat affected checks after code edits; do not rerun unchanged

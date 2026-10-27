@@ -112,6 +112,51 @@ inline uint32_t semantics(const traits &t){
     // preserve the physical slab unless TRANSPARENT_FLOOR/NO_FLOOR also applies.
     return out;
 }
+constexpr uint32_t terrain_stair_navigation_mask=NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER|
+    NCMM_WORLD_CONNECTED_UP|NCMM_WORLD_CONNECTED_DOWN|NCMM_WORLD_RAMP_END;
+struct terrain_stair_proof {
+    uint32_t navigation=0,direction=0,terrain_opaque=0;
+    uint32_t permission()const{return navigation?uint32_t(NCMM_WORLD_STRUCTURE_VISIBLE):0u;}
+};
+// A dark ordinary terrain stair is still a static surface. The combined
+// terrain/furniture facts are only a conservative prefilter: neither its
+// connector nor its facing may reveal an unperceived furniture definition.
+// The sampler must read bounded, loaded terrain alone, including its physical
+// floor/opacity/water flags. No result or Native reference is retained here.
+template<class Sample> terrain_stair_proof unperceived_terrain_stair(int x,int y,int z,uint32_t combined,uint32_t permission,bool structure_range,Sample terrain){
+    terrain_stair_proof out;
+    if((permission&NCMM_WORLD_BODY_VISIBLE)||!structure_range||(combined&NCMM_WORLD_UNKNOWN)||!(combined&(NCMM_WORLD_UP|NCMM_WORLD_DOWN)))return out;
+    const auto own=terrain(x,y,z);
+    constexpr uint32_t excluded=NCMM_WORLD_UNKNOWN|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER|NCMM_WORLD_RAMP_END;
+    if(own&excluded)return out;
+    out.navigation=own&(NCMM_WORLD_UP|NCMM_WORLD_DOWN);
+    if(!out.navigation)return out;
+    out.terrain_opaque=own&NCMM_WORLD_OPAQUE;
+    auto connector=[&](int a,int b,int c){const auto f=terrain(a,b,c);return f&NCMM_WORLD_RAMP_END?f|NCMM_WORLD_UNKNOWN:f;};
+    std::optional<voxel> lower;
+    if(out.navigation&NCMM_WORLD_UP){
+        const auto above=stair_sample(x,y,int64_t(z)+1,terrain);
+        // Match the ordinary terrain branch's open shaft/full-flight rule;
+        // ramps and ladders remain outside this static permission exception.
+        if((!(above&excluded)&&(above&NCMM_WORLD_OPEN_DOWN))||stair_partner(x,y,z,1,connector))out.navigation|=NCMM_WORLD_CONNECTED_UP;
+    }
+    if(out.navigation&NCMM_WORLD_DOWN){
+        lower=stair_partner(x,y,z,-1,connector);
+        if(lower)out.navigation|=NCMM_WORLD_CONNECTED_DOWN;
+    }
+    if(out.navigation&NCMM_WORLD_UP)out.direction=stair_direction(x,y,z,terrain);
+    else if(lower)out.direction=stair_direction(lower->x,lower->y,lower->z,terrain);
+    else if(z>INT_MIN)out.direction=stair_direction(x,y,z-1,terrain);
+    return out;
+}
+inline uint32_t restore_terrain_stair_facts(uint32_t masked,const terrain_stair_proof &proof){
+    // Leave the old non-BODY mask (including its legacy DOWN landing) exact
+    // when terrain did not prove an ordinary stair. An eligible mixed tile
+    // replaces every combined navigation bit with terrain's own facts. The
+    // new STRUCTURE permission also lets the legacy mask retain OPAQUE, so
+    // replace that presentation fact instead of publishing furniture/gas.
+    return proof.navigation?(masked&~(terrain_stair_navigation_mask|NCMM_WORLD_OPAQUE))|proof.navigation|proof.terrain_opaque:masked;
+}
 inline bool supported_item(uint32_t flags,bool platform=false){return platform||(flags&(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR))!=0;}
 inline auto order(const ncmm_world_cell_v1 &c){return std::make_tuple(c.z,c.y,c.x);}
 inline bool finite(point p){return std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z);}

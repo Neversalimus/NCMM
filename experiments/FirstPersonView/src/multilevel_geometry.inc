@@ -59,6 +59,8 @@
     bool world_stair_wall(int i){
         if(!world_data)return false;const auto &p=world_data->coordinates[i];
         const auto root=ncmm_world::stair_wall_root(p.x,p.y,p.z,world_stair_query());if(!root)return false;
+        const int stair=world_coordinates.find(root->x-world_data->origin_x,root->y-world_data->origin_y,root->z);
+        if(stair<0||!(world_flags(stair)&(NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_STRUCTURE_VISIBLE)))return false;
         // A Native wall tile below an offset exit is the solid support of that
         // stairwell, not a full-height cube across its upper flight. Ground
         // collision/Native visibility remain unchanged; only its mesh is cut.

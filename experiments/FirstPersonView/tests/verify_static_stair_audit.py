@@ -7,8 +7,11 @@ from pathlib import Path
 from PIL import Image
 
 BODY = 16
+STRUCTURE = 262144
 NAV = 256 | 1024 | 2048 | 16384 | 32768 | 131072
 THRESHOLDS = dict(interaction_triangles=24, interaction_pixels=8, rgb_interaction=4)
+RETAINED_NAV = 256 | 16384
+RETAINED_THRESHOLDS = dict(geometry_triangles=24, geometry_pixels=8, rgb_difference=4)
 PHASES = ('normal_before', 'debug', 'normal_after')
 MATRIX = ('matrix11', 'matrix10', 'matrix01', 'matrix00')
 ROI = [240, 160, 160, 280]
@@ -134,10 +137,58 @@ def interaction(images, roi):
     return changed
 
 
+def retained_geometry(root, case, normal, last, rendered_normal, eligible):
+    """A real normal snapshot versus removal of only its ordinary-stair UP bits."""
+    receipt = case.get('retained_geometry')
+    assert type(receipt) is dict and set(receipt) == {'eligible', 'inconclusive_reason', 'normal_static_pixels_equal', 'frames'}, 'Invalid retained geometry protocol'
+    assert type(receipt['eligible']) is bool and receipt['eligible'] == bool(eligible), 'Retained eligibility differs from raw observations'
+    assert type(receipt['normal_static_pixels_equal']) is bool
+    if not eligible:
+        assert receipt['frames'] == [] and receipt['normal_static_pixels_equal'] is False
+        assert type(receipt['inconclusive_reason']) is str and receipt['inconclusive_reason']
+        return dict(status='inconclusive', reason=receipt['inconclusive_reason'], geometry_triangles=None, geometry_pixels=None)
+    assert receipt['inconclusive_reason'] == ''
+    frames = receipt['frames']
+    assert type(frames) is list and [frame['name'] for frame in frames] == ['normal_static', 'nav_removed'], 'Incomplete or reordered retained controls'
+    target = last['target']
+    rendered = []
+    for keep, frame in zip((1, 0), frames):
+        assert type(frame['body']) is int and frame['body'] == 0
+        assert type(frame['semantics']) is int and frame['semantics'] == keep
+        flags = target['flags'] if keep else target['flags'] & ~RETAINED_NAV
+        direction = target['direction'] if keep else 0
+        assert integer(frame['target_flags'], 0, (1 << 32) - 1) == flags, 'Retained control changed unrelated terrain flags'
+        assert integer(frame['target_direction'], 0, 3) == direction, 'Retained control changed direction'
+        assert frame['published_light'] == target['published_light'], 'Retained control changed normal published illumination'
+        assert frame['protected_snapshot_digest'] == last['protected_snapshot_digest'], 'Retained owned snapshot contents were altered'
+        assert digest(frame['native_source_digest']) == last['world_digest'], 'Retained live normal source changed'
+        assert frame['debug_nightvision'] is False, 'Retained control changed vision'
+        assert ledger(frame['ledger_before']) == ledger(frame['ledger_after']) == normal, 'Retained control changed Native state/discovery'
+        assert control(frame['target']) == dict(target, flags=flags, direction=direction), 'Retained target changed protected observations'
+        for key in ('furniture_control', 'hidden_control'):
+            assert control(frame[key]) == last[key], 'Retained control changed protected contents/focus'
+        rendered.append(pixels(root, frame, case['name'], frame['name']))
+    assert frames[0]['world_digest'] == last['world_digest'] and frames[0]['triangles'] == last['triangles'], 'Retained normal_static is not the real normal snapshot'
+    assert frames[1]['world_digest'] != last['world_digest'], 'Retained controls did not change navigation'
+    assert receipt['normal_static_pixels_equal'] is True and rendered[0] == rendered_normal, 'Actual normal_static pixels differ from normal'
+    geometry = frames[0]['triangles'] - frames[1]['triangles']
+    x, y, width, height = ROI
+    changed = 0
+    for row in range(y, y + height):
+        for column in range(x, x + width):
+            at = (row * 640 + column) * 3
+            changed += max(abs(rendered[0][at + channel] - rendered[1][at + channel]) for channel in range(3)) >= RETAINED_THRESHOLDS['rgb_difference']
+    verified = geometry >= RETAINED_THRESHOLDS['geometry_triangles'] and changed >= RETAINED_THRESHOLDS['geometry_pixels']
+    return dict(status='retained_geometry_verified' if verified else 'inconclusive',
+                reason='' if verified else 'Insufficient retained terrain geometry/pixel contrast at the fixed thresholds',
+                geometry_triangles=geometry, geometry_pixels=changed)
+
+
 def verify(root):
     root = Path(root)
     report = json.loads((root / 'first-person-static-stair-audit.json').read_text(encoding='utf-8-sig'))
-    assert integer(report['schema'], 1, 1) == 1 and report['success'] is True
+    schema = integer(report['schema'], 1, 2)
+    assert report['success'] is True
     assert report['diagnostic_only'] is True and report['actual_cdda_sdl'] is True
     assert integer(report['preflight_frames'], 2, 2) == 2, 'Missing fixed preflight declaration'
     assert report['renderer'] == 'cpu' and report['width'] == 640 and report['height'] == 480
@@ -146,6 +197,10 @@ def verify(root):
     assert report['thresholds'] == THRESHOLDS, 'Causal thresholds changed after observation'
     cases = report['cases']
     assert len(cases) == 3 and [case['name'] for case in cases] == ['day', 'dusk', 'night']
+    if schema == 1:
+        assert 'retained_thresholds' not in report and all('retained_geometry' not in case for case in cases), 'Schema1 cannot contain retained protocol fields'
+    else:
+        assert report.get('retained_thresholds') == RETAINED_THRESHOLDS, 'Retained thresholds changed after observation'
     results = []
     for case in cases:
         scene = case['name']
@@ -227,18 +282,34 @@ def verify(root):
             assert case['matrix'] == [] and case['matrix00_normal_pixels_equal'] is False
             assert type(case['inconclusive_reason']) is str and case['inconclusive_reason']
             confirmed, reason = False, case['inconclusive_reason']
-        results.append(dict(name=scene, status='confirmed' if confirmed else 'inconclusive', reason=reason,
-                            interaction_triangles=triangle_interaction, interaction_pixels=pixel_interaction,
-                            debug_published_light_changed=target['published_light'] != changed_target['published_light'],
-                            normal_rgb_sha256=hashlib.sha256(rendered[2]).hexdigest()))
-    return dict(success=True, diagnostic_only=True, actual_cdda_sdl=True, renderer='cpu',
+        result = dict(name=scene, status='confirmed' if confirmed else 'inconclusive', reason=reason,
+                      interaction_triangles=triangle_interaction, interaction_pixels=pixel_interaction,
+                      debug_published_light_changed=target['published_light'] != changed_target['published_light'],
+                      normal_rgb_sha256=hashlib.sha256(rendered[2]).hexdigest())
+        if schema == 2:
+            retained_eligible = (raw_light_stable and normal['memory']['valid'] and normal['memory']['show'] and repeated and source_repeated
+                                 and target['present'] and changed_target['present'] and not (target['flags'] & BODY)
+                                 and bool(target['flags'] & STRUCTURE) and (target['flags'] & RETAINED_NAV) == RETAINED_NAV
+                                 and not (target['flags'] & (1024 | 2048)) and target['raw_terrain'] == changed_target['raw_terrain']
+                                 and target['ambient_light'] == changed_target['ambient_light'] and target['light'] == changed_target['light'])
+            result['factorial_status'] = result['status']
+            result['retained_geometry'] = retained_geometry(root, case, normal, last, rendered[2], retained_eligible)
+            if not confirmed and result['retained_geometry']['status'] == 'retained_geometry_verified':
+                result['status'], result['reason'] = 'retained_geometry_verified', ''
+        results.append(result)
+    result = dict(success=True, diagnostic_only=True, actual_cdda_sdl=True, renderer='cpu',
                 ordinary_performance_measurement=False, manual_playthrough=False,
-                status='confirmed' if any(case['status'] == 'confirmed' for case in results) else 'inconclusive',
+                status='confirmed' if any(case.get('factorial_status', case['status']) == 'confirmed' for case in results) else
+                       'retained_geometry_verified' if any(case['status'] == 'retained_geometry_verified' for case in results) else 'inconclusive',
                 limitations=['Debug observation may publish different illumination; its pixels are not a causal comparison',
                              'Every factorial control retains the same normal appearance and published illumination',
                              'Two declared preflight frames precede observations; this is not a first-frame performance probe',
                              'This diagnostic does not qualify a production visibility fix or ordinary game frame time'],
                 thresholds=THRESHOLDS, cases=results)
+    if schema == 2:
+        result['retained_thresholds'] = RETAINED_THRESHOLDS
+        result['limitations'].append('Retained geometry is a separate normal-only navigation-removal control, not a factorial bug confirmation')
+    return result
 
 
 if __name__ == '__main__':

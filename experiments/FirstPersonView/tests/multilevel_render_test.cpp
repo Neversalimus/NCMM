@@ -46,6 +46,66 @@ struct collector:geometry_sink {
     void skin(const first_person::creature::model &,const first_person::creature::skeleton_pose &,int,vec,int,vec,bool,bool,float,vec)override{}
     void impostor(const first_person::creature::asset &,const first_person::creature::pose_state &,vec,int,int,bool)override{}
 };
+void static_stair_permission_regression(){
+    // Feed the shared CPU/GPU producer a terrain-only Host permission. BODY
+    // stays absent, including when stale/malicious content IDs are supplied.
+    for(int offset:{0,1})for(uint32_t direction=0;direction<4;++direction){
+        fixture scene(2);scene.slab(0);scene.slab(1);
+        const int root=scene.cell(6,1,0),upper=scene.cell(6+offset,1,1);
+        auto &source=scene.positions[root];source.flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP|NCMM_WORLD_STRUCTURE_VISIBLE;
+        source.direction=direction;std::strcpy(scene.appearance[root].terrain,"t_stairs_up");
+        scene.positions[upper].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_DOWN|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+        scene.appearance[upper].flags|=NCMM_GFX_NO_FLOOR;std::strcpy(scene.appearance[upper].terrain,"t_stairs_down");
+        render_options options;options.contact_shadows=false;
+        const auto geometry=[&](){collector out;frame stats;
+            renderer(scene.world.appearance,0,.15f,{},stats,{},nullptr,options,nullptr,&scene.world).collect(out,400,260);return out;};
+        const auto raster=[&](){frame out;
+            check(build_frame(scene.world.appearance,0,.15f,{},out,400,260,{},nullptr,nullptr,nullptr,options,nullptr,&scene.world),"static stair CPU raster validates");return out;};
+        const auto equal=[&](const collector &a,const collector &b){
+            check(a.triangles.size()==b.triangles.size(),"static terrain permission retains complete stair geometry without BODY");
+            for(size_t i=0;i<a.triangles.size();++i){const auto &x=a.triangles[i],&y=b.triangles[i];
+                check(x.m.cell==y.m.cell&&x.m.texture==y.m.texture&&x.m.finish==y.m.finish&&x.m.alpha==y.m.alpha,
+                      "static terrain permission preserves materials and source ownership");
+                for(int v=0;v<3;++v)check(x.v[v].p.x==y.v[v].p.x&&x.v[v].p.y==y.v[v].p.y&&x.v[v].p.z==y.v[v].p.z&&
+                    x.v[v].u==y.v[v].u&&x.v[v].v==y.v[v].v&&x.v[v].light.x==y.v[v].light.x&&x.v[v].light.y==y.v[v].light.y&&x.v[v].light.z==y.v[v].light.z,
+                    "static terrain permission preserves exact positions, UV and RGB");
+            }
+        };
+        const auto visible=geometry();const auto reference=raster();source.flags&=~NCMM_WORLD_BODY_VISIBLE;
+        const auto retained=geometry();equal(visible,retained);const auto normal=raster();
+        check(reference.pixels==normal.pixels&&reference.depth==normal.depth,"static stair pixels and depth match visible terrain at fixed RGB");
+        check(std::count(normal.owners.begin(),normal.owners.end(),root)>24,"static-only staircase has actual visible CPU pixels");
+        std::strcpy(scene.appearance[root].furniture,"f_bookcase");scene.details[root].furniture_shape=NCMM_SHAPE_STORAGE;
+        std::strcpy(scene.appearance[root].item,"rock");std::strcpy(scene.appearance[root].creature,"mon_zombie");
+        std::strcpy(scene.details[root].field,"fd_fire");scene.details[root].field_shape=NCMM_SHAPE_BILLBOARD;
+        const auto hidden=geometry();equal(retained,hidden);const auto private_contents=raster();
+        check(private_contents.pixels==normal.pixels&&private_contents.depth==normal.depth,"static stair permission cannot reveal supplied furniture, inventory or fields");
+        check(private_contents.aimed<0&&std::all_of(private_contents.creatures.begin(),private_contents.creatures.end(),[](int i){return i<0;}),
+              "static stair permission cannot reveal or select a creature");
+        scene.appearance[root].furniture[0]=scene.appearance[root].item[0]=scene.appearance[root].creature[0]=scene.details[root].field[0]='\0';
+        scene.details[root].furniture_shape=scene.details[root].field_shape=NCMM_SHAPE_FLAT;
+        source.flags&=~NCMM_WORLD_STRUCTURE_VISIBLE;const auto denied=geometry();
+        check(denied.triangles.size()+24<retained.triangles.size(),"navigation alone cannot bypass static permission");
+        if(offset){
+            const int support=scene.cell(7,1,0);scene.positions[support].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE;
+            scene.details[support].terrain_shape=NCMM_SHAPE_WALL;std::strcpy(scene.appearance[support].terrain,"t_wall");
+            const auto support_mesh=[&](){auto mesh=geometry();mesh.triangles.erase(std::remove_if(mesh.triangles.begin(),mesh.triangles.end(),
+                [&](const triangle &t){return t.m.cell!=support;}),mesh.triangles.end());return mesh;};
+            const auto with_unpermitted_nav=support_mesh();
+            source.flags&=~(NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP);const auto without_nav=support_mesh();
+            equal(with_unpermitted_nav,without_nav);
+            check(!with_unpermitted_nav.triangles.empty(),"an offset stair without permission cannot cut the permitted wall below its exit");
+            source.flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;
+            scene.positions[support].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+            scene.details[support].terrain_shape=NCMM_SHAPE_FLAT;std::strcpy(scene.appearance[support].terrain,"t_floor");
+        }
+        source.flags|=NCMM_WORLD_STRUCTURE_VISIBLE;
+        const int wall=scene.cell(4,1,0);scene.positions[wall].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE;
+        scene.details[wall].terrain_shape=NCMM_SHAPE_WALL;std::strcpy(scene.appearance[wall].terrain,"t_wall");
+        const auto occluded=raster();check(std::count(occluded.owners.begin(),occluded.owners.end(),root)==0,
+            "foreground architecture still occludes static-only stairs in depth");
+    }
+}
 void skyline_host_regression(){
     namespace host=skyline_host_fixture;
     using ncmm_world::valid_skyline;
@@ -354,7 +414,7 @@ int main(int argc,char **argv){try{
         if(argc!=3||std::string(argv[1])!="--chain-captures")throw std::runtime_error("usage: first_person_multilevel_render_tests [--chain-captures directory]");
         chain_captures(std::filesystem::path(argv[2]));return 0;
     }
-    chain_link_regression();skyline_host_regression();skyline_render_regression();
+    static_stair_permission_regression();chain_link_regression();skyline_host_regression();skyline_render_regression();
     for(const auto &test:{std::pair<const char *,unsigned>{"t_railroad_track_h",1},{"t_railroad_track_on_tie_v",2},{"t_railroad_track_d1",4},{"t_railroad_track_d2",8}}){
         fixture rail(1);rail.slab(0);const int at=rail.cell(6,1,0);std::strcpy(rail.appearance[at].terrain,test.first);
         check(ncmm_rail::track(test.first)&&ncmm_rail::axes(test.first)==test.second,"Native rail suffix selects its physical direction");

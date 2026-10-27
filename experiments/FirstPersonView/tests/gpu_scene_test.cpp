@@ -354,6 +354,56 @@ int main(int argc,char **argv){
                 "CPU and GPU do not conceal a hole with invented world geometry; hands keep their independent pass");
     }
     {
+        // A render-only controlled terrain stair: static geometry permission
+        // never supplies Native BODY permission or reveals cell contents.
+        namespace fp=first_person;
+        constexpr int side=7,area=side*side,root=2*side+3,upper=area+root;
+        std::vector<ncmm_graphics_cell_v1> cells(area*2);std::vector<ncmm_graphics_cell_v2> details(cells.size());
+        std::vector<ncmm_world_cell_v1> xyz;xyz.reserve(cells.size());
+        for(int z=0;z<2;++z)for(int y=0;y<side;++y)for(int x=0;x<side;++x){const int i=z*area+y*side+x;
+            cells[i].flags=NCMM_GFX_VISIBLE|(z?NCMM_GFX_NO_FLOOR:0);std::strcpy(cells[i].terrain,z?"t_open_air":"t_floor");
+            std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=.365478f;
+            xyz.push_back({x,y,z,z?0u:uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP),0,0,1,{.365478f,.365478f,.365478f}});
+        }
+        xyz[root].flags|=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;xyz[root].direction=3;
+        xyz[upper].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_DOWN|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+        std::strcpy(cells[root].terrain,"t_stairs_up");std::strcpy(cells[upper].terrain,"t_stairs_down");
+        ncmm_world_slice_v1 slices[]={{0,0,area,0,1,1},{1,area,area,0,2,1}};
+        ncmm_graphics_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.world_epoch=2083;world.revision=1;
+        world.loaded_max_z=1;world.level_height=2.5f;world.coordinates=xyz.data();world.cell_count=uint32_t(xyz.size());world.slices=slices;world.slice_count=2;
+        auto &source=world.appearance;source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,side,side,3.5f,5.5f,cells.data(),cells.size()};
+        source.details=details.data();source.detail_count=details.size();
+        fp::gpu::scene_cache cache;
+        auto submit=[&](const char *name){++world.revision;fp::gpu::packet packet;fp::hybrid::frame stats;
+            require(cache.build(source,-fp::hybrid::pi*.5f,-.1f,{},packet,stats,engine.metrics(),{},nullptr,nullptr,640,480,NCMM_GPU_FORCE,&world),cache.last_reason.c_str());
+            ncmm_gpu_multilevel_scene_v1 sent{};sent.struct_size=sizeof(sent);sent.version=1;sent.base=packet.finish(nullptr);
+            sent.coordinates=xyz.data();sent.cell_count=uint32_t(xyz.size());sent.level_height=2.5f;
+            require(engine.submit(sent.base,&sent),engine.metrics().reason);capture(name);
+            require(engine.metrics().cpu_raster_calls==0&&engine.metrics().visible_creature_pixels==0&&engine.metrics().target_cell<0,
+                "static stairs use GPU geometry without exposing creatures or invoking a CPU world raster");
+            auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *image=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;
+            SDL_DestroySurface(raw);require(image!=nullptr,"static stair GPU readback");std::vector<uint32_t> pixels;pixels.reserve(640*480);
+            for(int y=0;y<480;++y){const auto *row=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+y*image->pitch);
+                pixels.insert(pixels.end(),row,row+640);}
+            SDL_DestroySurface(image);return pixels;
+        };
+        const auto normal=submit("-stairs-static");
+        xyz[root].flags&=~(NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP);xyz[root].direction=0;
+        const auto missing=submit("-stairs-removed");size_t changed=0;
+        for(size_t i=640*20;i<normal.size();++i){const auto a=normal[i],b=missing[i];
+            const auto contrast=[&](int shift){return std::abs(int((a>>shift)&255)-int((b>>shift)&255));};
+            changed+=std::max({contrast(24),contrast(16),contrast(8)})>=4;
+        }
+        require(changed>=24,"terrain stairs have actual GPU pixel coverage with BODY withheld");
+        xyz[root].flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;xyz[root].direction=3;
+        const auto restored=submit("-stairs-restored");require(restored==normal,"restoring static navigation restores exact GPU pixels");
+        std::strcpy(cells[root].furniture,"f_bookcase");details[root].furniture_shape=NCMM_SHAPE_STORAGE;
+        std::strcpy(cells[root].item,"rock");std::strcpy(cells[root].creature,"mon_zombie");
+        std::strcpy(details[root].field,"fd_fire");details[root].field_shape=NCMM_SHAPE_BILLBOARD;
+        require(submit("-stairs-hidden-contents")==normal,"static stair permission cannot reveal stale supplied room contents on GPU");
+        std::printf("Static-only terrain stairs GPU coverage: %zu pixels; BODY remains absent\n",changed);
+    }
+    {
         // Run the actual weighted PSX packets through the shared device, rather
         // than inferring GPU skinning from the producer's matrix unit test.
         namespace fp=first_person;
