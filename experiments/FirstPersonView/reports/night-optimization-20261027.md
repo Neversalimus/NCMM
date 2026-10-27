@@ -562,7 +562,76 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     Actual new Native compilation and elapsed impact remain pending; this is
     a work-count result, not a measured first-frame or 15 ms improvement.
 
+30. **Proven empty terrain phase scans during loading.** Inclusive grid copy/
+    load remains 7–9 ms in the latest child captures. Its Native loadn tail calls
+    temperature-based terrain processing 144 times on every loaded level, even
+    for uniform definitions without phase rules. Recorded original terrain is
+    a separate private map and can exist while storage is uniform; it must not
+    be inferred empty. A read-only inline accessor tests that actual map. It
+    adds no data or virtual methods and changes no public module ABI.
+
+    After the unchanged loading/vehicle/tree callbacks and weather/origin setup,
+    the shortcut revalidates mapping, XYZ bounds and Z-level semantics. Only
+    uniform terrain with valid integer/string registry definitions, empty
+    phase_method and no recorded original terrain can omit the loop. Real
+    restoration, freezing, weather seeds and invalid-definition diagnostics
+    retain the original calls. The original full loadn body (5042 bytes),
+    temperature helper (3269 bytes), metadata query (129 bytes) and394-byte
+    header anchor have independent source guards for both pins. The existing
+    pure cache-reset scope still wraps exactly the same flag writes. Every
+    other Native loadn/header byte is preserved; both new includes are copied
+    and receipted atomically. Tiny bounded GitHub metadata establishes that both
+    pins share the same mapgen.cpp Git blob; source was read from existing local
+    Git objects, without a new remote330KB source or checkout.
+
+    Red:230 paired state cases pass before the work gate fails at144 ->144 cell
+    calls. Green:144 ->0 per eligible submap,3024 ->0 over21 eligible levels;
+    230 cases /443 checks pass. Exact Native loop/metadata/early-return code is
+    compiled against owned data; active freezing/weather is an observable
+    model, not a complete Native weather simulation. Cases protect mixed and
+    unknown phases, all recorded-history positions including outside the tile
+    domain, invalid IDs/string conversions, aliases/bounds,21 Z levels and
+    callback changes. Four compiled negative controls reject ignoring original
+    history, mixed terrain, stale mapping and gating before callbacks. Full
+    Release and affected cache CTest (.86 s) pass; all84 atomic bridge tests
+    pass. The Native terrain string-validity and integer-to-string functions
+    have external definitions; the unavailable integer validity specialization
+    remains deliberately undefined in the model. Evidence `night-phase-*`.
+    Actual new Native compilation, elapsed impact and first-frame benefit are
+    pending. No unchanged renderer/hardware suite was rerun for these Host edits.
+
 ## Actual remote evidence and next priorities
+
+**Actual underground-loop revision `aff7dd7`, run40525583050.** Both early
+Windows programs exit0 without wrapper/debugger error or dumps. Runtime
+`ce3d5328b61c3906ffd15e04306a934f08eb72bc` shares the saved source tree
+`d70642062c20a8fb9e1b85bdbcf781f43ddd101c`. Four selected JSON members per
+artifact12747006628/12746137910 reserve350518 bytes /8 MiB. All288 action scopes
+and144 actual shift children pass the unchanged strict verifier. Private
+`night-movement-aff7dd7/` summaries SHA256:
+1040 `eb62d4f27ee3e502d44a3645d0693743dd886e8a6c1f2e28419f4d38bbfc2557`,
+1807 `01aefbc9b84bbf2bc04d894836084ea5176a287b0163927ed057260c51041312`.
+
+Software D3D12 Microsoft Basic Render Driver,640x480,VSync1; median ms,
+six crossings per row. Independent phase medians MUST NOT be summed:
+
+| Pin / scene | Crossing action | Inclusive shift | Grid copy/load | Support rebase | Actualize | Reconcile |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1040 street | 32.058 | 15.736 | 7.361 | .858 | 5.272 | 1.363 |
+| 1040 horde | 36.374 | 15.677 | 7.368 | .927 | 5.741 | 1.534 |
+| 1040 city | 45.627 | 16.528 | 7.525 | 1.601 | 5.750 | 1.490 |
+| 1807 street | 42.512 | 19.072 | 8.742 | .991 | 7.211 | 2.029 |
+| 1807 horde | 43.948 | 19.152 | 8.592 | 1.086 | 7.313 | 2.011 |
+| 1807 city | 53.714 | 20.596 | 8.699 | 1.957 | 7.406 | 2.124 |
+
+Observed actualization medians are5.27–7.41 ms, compared with7.26–10.84 ms in
+the preceding independent capture. The work-count model is causal; these
+different CI runs are not a paired Native gain. Copy/load becomes slower, and
+all1040 crossing-action medians worsen despite lower actualize medians. 1807
+city actualize p95 remains30.531 ms. Both source trees are independently proved;
+their equality to each runtime does not make the two workloads/machines a paired
+experiment. Stage30 still requires its own Native compilation and timings;
+ordinary RTX4090 FPS, scanout and15 ms first-correct-game frames are unqualified.
 
 **Actual node-transfer revision `2b62a69`, run 40517335063.** Both early
 Windows programs exit0 without wrapper/debugger error or dumps. The source and

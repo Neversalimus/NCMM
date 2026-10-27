@@ -94,6 +94,62 @@ def patch_native_map_shift(text, identity):
     return text[:begin] + extracted + text[begin + length:]
 
 
+NATIVE_PHASE_LOADN_ORIGINAL = (5042, "0b240eebc4b1a768a97339cc8411f99e96d7d56628298dfbeca222fcd3313ec6")
+NATIVE_TEMPERATURE_PHASE_ORIGINAL = (3269, "6c1daaf2e505f465dba85fbf3ccf58c0d1154b988675fe9e29ee0088d2f19ebe")
+NATIVE_SUBMAP_ORIGINAL_QUERY = (129, "f86c6db768528e9dafc442f8de205afaa478f3c903a4bd626e6f64bec3e43998")
+NATIVE_PHASE_LOOP = """        for( int sx = 0; sx < SEEX; ++sx ) {
+            for( int sy = 0; sy < SEEX; ++sy ) {
+                temp_based_phase_change_at( sm_origin + point( sx, sy ), wgen );
+            }
+        }
+"""
+NATIVE_SUBMAP_PHASE_ANCHOR = """        // Tracks original terrain for tiles transformed by phase logic
+        std::map<point_sm_ms, ter_id> original_terrain;
+
+    public:
+        bool has_original_ter( const point_sm_ms &p ) const;
+        ter_id get_original_ter( const point_sm_ms &p ) const;
+        void set_original_ter( const point_sm_ms &p, const ter_id &t );
+        void clear_original_ter( const point_sm_ms &p );
+"""
+
+
+def patch_native_phase_scan(text, mapgen, identity):
+    signature = "void map::loadn( const point_bub_sm &grid, bool update_vehicles )\n"
+    helper = "void map::temp_based_phase_change_at("
+    if identity not in SOURCES or text.count(signature) != 1 or mapgen.count(helper) != 1:
+        raise ValueError("Experimental bridge Native phase-scan source differs")
+    if text.count(SUBMAP_CACHE_RESET) != 1:
+        raise ValueError("Experimental bridge requires one exact anchor: Native source cache reset")
+    length, digest = NATIVE_TEMPERATURE_PHASE_ORIGINAL
+    begin = mapgen.index(helper)
+    if hashlib.sha256(mapgen[begin:begin + length].encode()).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native phase-scan helper differs")
+    length, digest = NATIVE_PHASE_LOADN_ORIGINAL
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode()).hexdigest() != digest or original.count(NATIVE_PHASE_LOOP) != 1:
+        raise ValueError("Experimental bridge Native phase-scan loadn differs")
+    # Keep the complete Native load/vehicle/tree/weather/origin prefix and the
+    # enclosing Z loop. Its later pure cache-flag scope is applied unchanged.
+    updated = original.replace(NATIVE_PHASE_LOOP, '#include "ncmm_graphics_phase_loop.inc"\n', 1)
+    return text[:begin] + updated + text[begin + length:]
+
+
+def patch_native_submap_phase(header, implementation, identity):
+    signature = "bool submap::has_original_ter("
+    if (identity not in SOURCES or header.count(NATIVE_SUBMAP_PHASE_ANCHOR) != 1
+            or implementation.count(signature) != 1 or "ncmm_graphics_has_original_terrain" in header):
+        raise ValueError("Experimental bridge Native phase-scan metadata differs")
+    length, digest = NATIVE_SUBMAP_ORIGINAL_QUERY
+    begin = implementation.index(signature)
+    if hashlib.sha256(implementation[begin:begin + length].encode()).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native phase-scan metadata query differs")
+    anchor = NATIVE_SUBMAP_PHASE_ANCHOR.replace('    public:\n',
+        '    public:\n#include "ncmm_graphics_submap_phase.inc"\n', 1)
+    return header.replace(NATIVE_SUBMAP_PHASE_ANCHOR, anchor, 1)
+
+
 NATIVE_ACTUALIZE_ORIGINAL = (2401, "469b917a6c8b6cc465780354731c07c5fbd8b2eda0645c80f643a58cb3d40502")
 NATIVE_ACTUALIZE_PREFIXES = {
     "grow_plant": (178, "b835e619848d3763a32312296a69d4d1f8038705648edfcd7c5c4761a6d02c1b"),
@@ -631,6 +687,8 @@ void initialize();''')
         "            return inbounds( p ) && unsafe_get_submap_at( p ) != nullptr;\n"
         "        }\n        int supports_zlevels() const {")
     map_cpp=replace(read("map.cpp"), '#include "map.h"', '#include "map.h"\n#include "ncmm_loader.h"')
+    map_cpp=patch_native_phase_scan(map_cpp,read("mapgen.cpp"),identity)
+    updates["submap.h"]=patch_native_submap_phase(read("submap.h"),read("submap.cpp"),identity)
     for signature,level in (
         ("void map::set_transparency_cache_dirty( const int zlev )", "zlev"),
         ("void map::set_transparency_cache_dirty( const tripoint_bub_ms &p, bool field )", "p.z()"),
@@ -670,7 +728,7 @@ void initialize();''')
     updates["game.cpp"]=game_cpp
     lightmap_cpp=patch_native_apparent_light(read("lightmap.cpp"),identity)
     updates["lightmap.cpp"]=patch_native_vision_transparency(lightmap_cpp,identity)
-    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_map_shift.inc","ncmm_graphics_support_rebase.hpp","ncmm_graphics_actualize.inc","ncmm_graphics_floor_cache.inc","ncmm_graphics_outside_cache.inc","ncmm_graphics_vision_transparency.inc","ncmm_graphics_reconcile_items.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
+    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_map_shift.inc","ncmm_graphics_support_rebase.hpp","ncmm_graphics_actualize.inc","ncmm_graphics_phase_loop.inc","ncmm_graphics_submap_phase.inc","ncmm_graphics_floor_cache.inc","ncmm_graphics_outside_cache.inc","ncmm_graphics_vision_transparency.inc","ncmm_graphics_reconcile_items.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")

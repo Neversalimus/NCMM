@@ -57,6 +57,19 @@ def native_map_shift_original(pin):
     return frozen.split(begin, 1)[1].split(end, 1)[0]
 
 
+def native_phase_source(name):
+    frozen = (REPO / "experiments/FirstPersonView/tests/native_phase_scan_fixture.cpp").read_text(encoding="utf-8")
+    begin, end = (f"// {kind} FROZEN NATIVE PHASE SOURCE {name}\n" for kind in ("BEGIN", "END"))
+    if frozen.count(begin) != 1 or frozen.count(end) != 1:
+        raise ValueError("Frozen Native phase source differs")
+    return frozen.split(begin, 1)[1].split(end, 1)[0]
+
+
+def native_phase_query():
+    frozen = (REPO / "experiments/FirstPersonView/tests/native_phase_scan_fixture.cpp").read_text(encoding="utf-8")
+    return frozen.split("// BEGIN FROZEN NATIVE ORIGINAL TERRAIN QUERY\n", 1)[1].split("// END FROZEN NATIVE ORIGINAL TERRAIN QUERY\n", 1)[0]
+
+
 def native_actualize_original():
     frozen = (REPO / "experiments/FirstPersonView/tests/native_actualize_primary.inc").read_text(encoding="utf-8")
     begin, end = "// BEGIN FROZEN NATIVE ACTUALIZE\n", "// END FROZEN NATIVE ACTUALIZE\n"
@@ -110,6 +123,98 @@ def native_item_reconciliation_original(pin):
 
 
 class ApplyTests(unittest.TestCase):
+    def test_phase_primary_and_source_preservation(self):
+        for name, expected in (("loadn", bridge.NATIVE_PHASE_LOADN_ORIGINAL),
+                               ("phase_function", bridge.NATIVE_TEMPERATURE_PHASE_ORIGINAL)):
+            data = native_phase_source(name)
+            self.assertEqual((len(data.encode()), hashlib.sha256(data.encode()).hexdigest()), expected)
+        anchor = native_phase_source("submap_anchor")
+        self.assertEqual(anchor, bridge.NATIVE_SUBMAP_PHASE_ANCHOR)
+        self.assertEqual((len(anchor.encode()), hashlib.sha256(anchor.encode()).hexdigest()),
+                         (394, "f4b432b46faa03b2e3026798f518a0a9c27ffe28891737a4fc48fbeefab53247"))
+        query = native_phase_query()
+        self.assertEqual((len(query.encode()), hashlib.sha256(query.encode()).hexdigest()), bridge.NATIVE_SUBMAP_ORIGINAL_QUERY)
+        source = Path(bridge.__file__).with_name("ncmm_graphics_phase_loop.inc").read_text(encoding="utf-8")
+        begin, end = "        // BEGIN PROVEN UNIFORM PHASE NOOP\n", "        // END PROVEN UNIFORM PHASE NOOP\n"
+        prefix, rest = source.split(begin, 1)
+        self.assertTrue(prefix.startswith("// Adapted from Cataclysm:"))
+        self.assertEqual(rest.split(end, 1)[1], bridge.NATIVE_PHASE_LOOP)
+        frozen = (REPO / "experiments/FirstPersonView/tests/native_phase_scan_fixture.cpp").read_text(encoding="utf-8")
+        loop = frozen.split("// BEGIN FROZEN NATIVE PHASE LOOP\n",1)[1].split("// END FROZEN NATIVE PHASE LOOP\n",1)[0]
+        self.assertEqual(loop, bridge.NATIVE_PHASE_LOOP)
+        compiled = frozen.split("// BEGIN COMPILED NATIVE PHASE PREFIX\n",1)[1].split("// END COMPILED NATIVE PHASE PREFIX\n",1)[0]
+        compiled = compiled.replace("map::phase_inner(", "map::temp_based_phase_change_at(", 1)
+        self.assertEqual(compiled, native_phase_source("phase_function").split("    units::temperature standard = 0_K;",1)[0])
+
+    def test_phase_patch_retains_complete_native_load_and_metadata(self):
+        original = native_phase_source("loadn")
+        header = "// prefix\n" + native_phase_source("submap_anchor") + "// suffix\n"
+        for pin in bridge.SOURCES:
+            changed = bridge.patch_native_phase_scan("// prefix\n"+original+"// suffix\n", native_phase_source("phase_function"), pin)
+            self.assertEqual(changed.replace('#include "ncmm_graphics_phase_loop.inc"\n', bridge.NATIVE_PHASE_LOOP, 1),
+                             "// prefix\n"+original+"// suffix\n")
+            updated = bridge.patch_native_submap_phase(header,native_phase_query(),pin)
+            self.assertEqual(updated.replace('#include "ncmm_graphics_submap_phase.inc"\n','',1),header)
+
+    def test_phase_both_pins_copy_and_receipt(self):
+        names = ("ncmm_graphics_phase_loop.inc", "ncmm_graphics_submap_phase.inc")
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp); self.fixture(root,pin)
+                with patch.object(bridge.subprocess,"check_output",return_value=pin): bridge.apply(root)
+                self.assertEqual((root/"src/map.cpp").read_text(encoding="utf-8").count('#include "ncmm_graphics_phase_loop.inc"'),1)
+                self.assertEqual((root/"src/submap.h").read_text(encoding="utf-8").count('#include "ncmm_graphics_submap_phase.inc"'),1)
+                receipt=json.loads((root/"first-person-source.json").read_text(encoding="utf-8"))
+                for name in names:
+                    data=Path(bridge.__file__).with_name(name).read_bytes()
+                    self.assertEqual((root/"src"/name).read_bytes(),data)
+                    self.assertEqual(receipt["inputs"][name],hashlib.sha256(data).hexdigest())
+                header=(root/"src/submap.h").read_bytes()
+                self.assertEqual(receipt["inputs"]["submap.h"],hashlib.sha256(header).hexdigest())
+
+    def test_phase_changed_missing_and_duplicate_sources_are_atomic(self):
+        specs=(("map.cpp",native_phase_source("loadn")),("mapgen.cpp",native_phase_source("phase_function")),
+               ("submap.h",native_phase_source("submap_anchor")),("submap.cpp",native_phase_query()))
+        for pin in bridge.SOURCES:
+            for name, original in specs:
+                for kind in ("changed","missing","duplicate"):
+                    with self.subTest(pin=pin,name=name,kind=kind), tempfile.TemporaryDirectory() as tmp:
+                        root=Path(tmp); self.fixture(root,pin); path=root/"src"/name
+                        data=path.read_text(encoding="utf-8")
+                        changed=original.replace("original_terrain", "different_terrain",1) if "original_terrain" in original else original.replace("bool map_incomplete = false;", "bool map_incomplete = true;",1)
+                        replacement={"changed":changed,"missing":"","duplicate":original+original}[kind]
+                        self.assertNotEqual(replacement,original)
+                        path.write_text(data.replace(original,replacement,1),encoding="utf-8")
+                        before=self.fingerprint(root)
+                        with patch.object(bridge.subprocess,"check_output",return_value=pin):
+                            with self.assertRaisesRegex(ValueError,"phase-scan|cache reset"): bridge.apply(root)
+                        self.assertEqual(before,self.fingerprint(root))
+
+    def test_phase_metadata_name_collision_is_atomic(self):
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);self.fixture(root,pin);path=root/"src/submap.h"
+                with path.open('a',encoding='utf-8') as f: f.write('\nvoid ncmm_graphics_has_original_terrain();\n')
+                before=self.fingerprint(root)
+                with patch.object(bridge.subprocess,"check_output",return_value=pin):
+                    with self.assertRaisesRegex(ValueError,"phase-scan metadata"): bridge.apply(root)
+                self.assertEqual(before,self.fingerprint(root))
+
+    def test_phase_missing_or_existing_includes_are_atomic(self):
+        for pin in bridge.SOURCES:
+            for name in ("ncmm_graphics_phase_loop.inc","ncmm_graphics_submap_phase.inc"):
+                for existing in (False,True):
+                    with self.subTest(pin=pin,name=name,existing=existing), tempfile.TemporaryDirectory() as tmp:
+                        root=Path(tmp);self.fixture(root,pin)
+                        if existing: (root/"src"/name).write_text("existing include\n",encoding="utf-8")
+                        before=self.fingerprint(root);original_read=Path.read_text
+                        def read(path,*args,**kwargs):
+                            if not existing and path==Path(bridge.__file__).with_name(name): raise FileNotFoundError("missing include")
+                            return original_read(path,*args,**kwargs)
+                        with patch.object(bridge.subprocess,"check_output",return_value=pin),patch.object(Path,"read_text",read):
+                            with self.assertRaises((ValueError,FileNotFoundError)): bridge.apply(root)
+                        self.assertEqual(before,self.fingerprint(root))
+
     def test_actualize_primary_and_source_preserving_fast_path(self):
         original = native_actualize_original()
         self.assertEqual((len(original.encode()), hashlib.sha256(original.encode()).hexdigest()),
@@ -668,6 +773,10 @@ class ApplyTests(unittest.TestCase):
         (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n" + APPARENT_LIGHT_DECLARATIONS)
         (root / "src/lightmap.cpp").write_text('#include "map.h"\n' + apparent_light_original() + '\n' + native_vision_transparency_original() + '\n// Native continuation retained.\n')
         map_cpp='#include "map.h"\n'
+        map_cpp += native_phase_source("loadn")
+        (root/"src/mapgen.cpp").write_text(native_phase_source("phase_function"),encoding="utf-8")
+        (root/"src/submap.h").write_text(native_phase_source("submap_anchor"),encoding="utf-8")
+        (root/"src/submap.cpp").write_text(native_phase_query(),encoding="utf-8")
         map_cpp += native_actualize_original()
         for prefix in native_actualize_prefixes().values():
             map_cpp += prefix + '}\n' * (prefix.count('{') - prefix.count('}'))
@@ -676,7 +785,7 @@ class ApplyTests(unittest.TestCase):
                           "void map::set_outside_cache_dirty( const int zlev )",
                           "void map::set_floor_cache_dirty( const int zlev )"):
             map_cpp+=signature+"\n{\n}\n"
-        (root / "src/map.cpp").write_text(map_cpp+native_item_reconciliation_original(pin)+native_map_shift_original(pin)+native_outside_cache_original()+native_floor_cache_original()+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
+        (root / "src/map.cpp").write_text(map_cpp+native_item_reconciliation_original(pin)+native_map_shift_original(pin)+native_outside_cache_original()+native_floor_cache_original()+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );\n        if( next_action.type == input_event_t::timeout ) {\n        }\n    inp_mngr.set_timeout( old_timeout );\n    return *result;\n}\n')
         (root / "src/input.cpp").write_text('#include "input.h"\nvoid input_manager::wait_for_any_key()\n{\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n    if( needupdate ) {\n        try_sdl_update();\n    }\n}\n')
