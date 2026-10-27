@@ -356,6 +356,9 @@ Do not merge or release before the user's separate finalization request.
     Native compilation and real per-function timings remain pending. These
     synchronous wall scopes include clock-probe overhead and possible waits;
     they do not measure on-core CPU or GPU execution or ordinary game latency.
+    An independent read-only review found no scope/index/double-count defect.
+    The release entrypoint qualifies the short 12-step route; 64-step support
+    currently has shared verifier unit coverage, not a new Extended receipt gate.
 
 14. **Invalidate geometry borders only on the shifted axis.** A pure XY step
     invalidated all four old/new perimeters, including middle cells whose full
@@ -384,6 +387,44 @@ Do not merge or release before the user's separate finalization request.
     No local Native game or input test ran; pinned Host qualification and the
     actual first-frame timing gain remain pending.
 
+15. **Reuse the exact Native apparent-light distance.** Primary lightmap.cpp
+    on both supported pins computes observer-to-target XYZ distance in
+    apparent_light_at, then computes it again in apparent_light_helper. Both
+    observer getters return the same avatar; intervening clairvoyance/field/cache
+    reads do not change its position or distance policy. The separate neighbour
+    XY distances describe other targets and remain unchanged.
+
+    First extracted both exact functions (5280 ASCII bytes, shared SHA256
+    `7e570456c43c6dcf6b02d29bd4ef8a25a63a0889006855f28483870dd6a70a14`)
+    without a behavior change. The actual extracted code compiled against
+    injected Native dependencies and passed 3180 paired primary-source cases,
+    establishing measured callback counts outer 2 / direct helper 1 / early
+    clairvoyance 1. Then introduced a file-local implementation receiving the
+    same avatar reference and already-converted integer. The public two-argument
+    static helper still performs its original getter/distance fallback for
+    pl_sees and other callers. The outer query reuses its own exact integer;
+    no distance formula, vision threshold, discovery policy, float operation
+    order or public declaration changed.
+
+    After: outer 1 / direct 1 / clairvoyance 1. All five light enums, bitwise
+    float outputs, ordered non-distance reads and complete ordered neighbour
+    2D traces match the frozen primary baseline, including zero distance,
+    Z/observer/target arguments, camera visibility, opacity, recoil/cant-see,
+    clairvoyance and 256 neighbour masks at four map edges. Injected integer
+    policies are forwarding controls, not a replacement Native-distance oracle.
+    Original block provenance, upstream blobs and CC-BY-SA attribution remain
+    in the include. The apply script accepts only the two exact pinned blocks;
+    lightmap.cpp/include join its existing atomic updates and source receipt.
+    Corrupted, duplicated, missing and already-patched input tests fail without
+    partial writes or receipt replacement on either pin.
+
+    Full Release build, 1401746-check source/range/light/border suite, 240 Python,
+    30 atomic bridge tests and all 50 inventoried autonomous CTests pass
+    (14.51 s). Before/after logs: `night-apparent-light-baseline*` and
+    `night-apparent-light-after*`. No Native millisecond improvement or hardware
+    frame-time result is inferred. Actual pinned Host compilation and visibility
+    qualification remain required for these subsequent bytes.
+
 ## Fresh profile evidence and working queue
 
 Bounded HTTP-range reads of selected program JSON from run 40425289251 used
@@ -410,7 +451,8 @@ Windows1807's older gameplay JSON is truncated and excluded.
    keep render bookkeeping separate and use measured phases to select the next
    production bottleneck. The axis-specific border change passes a cold source
    oracle; qualify its actual Host effect rather than treating the old median
-   1419 Host derived-cache misses as GPU mesh regeneration. Repeated candidate distances are already removed
+   1419 Host derived-cache misses as GPU mesh regeneration. Repeated Host
+   candidate and Native apparent-light distances are already removed
    and callback counts verified. Enlarging the existing light-range cache remains
    rejected as a priority: recorded frames already make only 2-15 sight-range
    evaluations for 1400-3000 cache hits.
@@ -444,8 +486,15 @@ Pushed checkpoint `21b3878c3612c04f071cc87db8e3cb65a65192da` has passing
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40440858342) runs.
 Its [actual Native builds](https://github.com/Neversalimus/NCMM/actions/runs/40440858328)
 failed on the recorder integration errors recorded under stage12; no Native
-experiment or new timing ran. Requalify the corrected recorder before reading
-any success claim into those three infrastructure passes. Earlier ddfa802
+experiment or new timing ran. Corrected checkpoint
+`2ce404deb8b0581ae92d0cea7e22b07d02ce69e9` has passing
+[GPU](https://github.com/Neversalimus/NCMM/actions/runs/40441923119),
+[source/package](https://github.com/Neversalimus/NCMM/actions/runs/40441923114)
+and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40441923116).
+In its [main run](https://github.com/Neversalimus/NCMM/actions/runs/40441923163),
+both pinned Windows Hosts now compile, Windows module tests pass and Native
+qualification is proceeding; Linux compilation/module checks remain pending.
+These passes do not qualify the subsequent local stage15 adaptation. Earlier ddfa802
 Windows/Linux module jobs and both pins' Host compilations passed, then their
 long Native qualification was superseded. The older fc2 Win1040 gameplay/profile
 step passed, and its Linux module sanitizer pass resolved the earlier

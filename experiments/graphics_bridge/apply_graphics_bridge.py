@@ -20,6 +20,28 @@ SOURCES = {
     "074aa98bd5be3de4c35f154082db32a0e63bb0f1": "cdda-experimental-2026-10-06-1807",
 }
 
+# The two Native function bodies are byte-identical at these exact pins. Keep
+# the original block digest independent of the extracted implementation, so a
+# later internal change cannot silently broaden the upstream patch anchor.
+APPARENT_LIGHT_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (5280, "7e570456c43c6dcf6b02d29bd4ef8a25a63a0889006855f28483870dd6a70a14"),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (5280, "7e570456c43c6dcf6b02d29bd4ef8a25a63a0889006855f28483870dd6a70a14"),
+}
+
+
+def patch_native_apparent_light(text, identity):
+    signature = "map::apparent_light_info map::apparent_light_helper("
+    outer = "lit_level map::apparent_light_at("
+    if identity not in APPARENT_LIGHT_ORIGINALS or text.count(signature) != 1 or text.count(outer) != 1:
+        raise ValueError("Experimental bridge Native apparent-light source differs")
+    length, digest = APPARENT_LIGHT_ORIGINALS[identity]
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native apparent-light source differs")
+    return text[:begin] + '#include "ncmm_graphics_apparent_light.inc"\n' + text[begin + length:]
+
+
 SUBMAP_CACHE_RESET = """        // New submap changes the content of the map and all caches must be recalculated
         set_transparency_cache_dirty( z );
         set_seen_cache_dirty( z );
@@ -473,7 +495,8 @@ void initialize();''')
         '\n    ncmm::graphics_world_region_changed( this, ncmm_changed_field.x(), ncmm_changed_field.y(), p.z(), 1, 1 );')
     updates["map.cpp"]=map_cpp
     updates["game.cpp"]=game_cpp
-    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
+    updates["lightmap.cpp"]=patch_native_apparent_light(read("lightmap.cpp"),identity)
+    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")

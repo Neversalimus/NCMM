@@ -1,4 +1,5 @@
 import hashlib
+import json
 import re
 from pathlib import Path
 import tempfile
@@ -16,6 +17,28 @@ SDL_ANCHOR = """        tilecontext->draw(
             overlay_strings,
             color_blocks );"""
 
+APPARENT_LIGHT_DECLARATIONS = """        struct apparent_light_info {
+            bool obstructed;
+            bool abs_obstructed;
+            float apparent_light;
+        };
+        static apparent_light_info apparent_light_helper( const level_cache &map_cache,
+                const tripoint_bub_ms &p );
+        lit_level apparent_light_at( const tripoint_bub_ms &p,
+                                    const visibility_variables &cache ) const;
+"""
+
+
+def apparent_light_original():
+    # The primary-source oracle stays frozen when the extracted implementation
+    # changes. Do not derive an upstream patch fixture from the changed inc.
+    frozen = (REPO / "experiments/FirstPersonView/tests/multilevel_cache_test.cpp").read_text(encoding="utf-8")
+    begin = "// BEGIN FROZEN NATIVE APPARENT LIGHT\n"
+    end = "// END FROZEN NATIVE APPARENT LIGHT\n"
+    if frozen.count(begin) != 1 or frozen.count(end) != 1:
+        raise ValueError("Frozen Native apparent-light fixture differs")
+    return frozen.split(begin, 1)[1].split(end, 1)[0]
+
 class ApplyTests(unittest.TestCase):
     def fixture(self, root):
         (root / "src").mkdir()
@@ -32,7 +55,8 @@ class ApplyTests(unittest.TestCase):
         (root/'src/options.cpp').write_text(options)
         (root / "src/creature.h").write_text('#include <array>\nclass Creature {\n    public:\n        ~Creature() override;\n};\n')
         (root / "src/overmapbuffer.h").write_text("        bool has( const point_abs_om &p );\n")
-        (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n")
+        (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n" + APPARENT_LIGHT_DECLARATIONS)
+        (root / "src/lightmap.cpp").write_text('#include "map.h"\n' + apparent_light_original() + '\n// Native continuation retained.\n')
         map_cpp='#include "map.h"\n'
         for signature in ("void map::set_transparency_cache_dirty( const int zlev )",
                           "void map::set_transparency_cache_dirty( const tripoint_bub_ms &p, bool field )",
@@ -92,6 +116,84 @@ bool cata_tiles::draw_sprite_at() {
             root = Path(tmp); self.fixture(root); before = self.fingerprint(root)
             with patch.object(bridge.subprocess, "check_output", return_value="a" * 40):
                 with self.assertRaisesRegex(ValueError, "Unqualified"): bridge.apply(root)
+            self.assertEqual(before, self.fingerprint(root))
+    def test_native_apparent_light_adaptation_retains_both_primary_pin_bodies(self):
+        original = apparent_light_original()
+        digest = "7e570456c43c6dcf6b02d29bd4ef8a25a63a0889006855f28483870dd6a70a14"
+        self.assertEqual(len(original.encode("utf-8")), 5280)
+        self.assertEqual(hashlib.sha256(original.encode("utf-8")).hexdigest(), digest)
+        self.assertEqual(set(bridge.APPARENT_LIGHT_ORIGINALS), set(bridge.SOURCES))
+        extracted = Path(bridge.__file__).with_name("ncmm_graphics_apparent_light.inc").read_text(encoding="utf-8")
+        signature = "map::apparent_light_info map::apparent_light_helper( const level_cache &map_cache,\n        const tripoint_bub_ms &p )\n"
+        implementation = "static map::apparent_light_info ncmm_apparent_light_impl( const level_cache &map_cache,\n        const tripoint_bub_ms &p, const avatar &u, const int dist )\n"
+        native_locals = "    avatar const &u = get_avatar();\n    const int dist = rl_dist( u.pos_bub(), p );\n"
+        helper, outer = original.split("\nlit_level map::apparent_light_at(", 1)
+        self.assertEqual(helper.count(native_locals), 1)
+        adapted_helper = helper.replace(signature, implementation, 1).replace(native_locals, "", 1)
+        wrapper = signature + "{\n" + native_locals + "    return ncmm_apparent_light_impl( map_cache, p, u, dist );\n}\n"
+        adapted_outer = ("lit_level map::apparent_light_at(" + outer).replace(
+            "    const apparent_light_info a = apparent_light_helper( map_cache, p );",
+            "    const apparent_light_info a = ncmm_apparent_light_impl( map_cache, p, get_avatar(), dist );", 1)
+        # All remaining Native body text, including guards and float order, is
+        # exact. The public wrapper retains its original getter/distance pair.
+        self.assertEqual(extracted[extracted.index(implementation):], adapted_helper + "\n" + wrapper + "\n" + adapted_outer)
+        self.assertTrue(extracted.startswith("// Adapted from Cataclysm: Dark Days Ahead"))
+        self.assertIn("https://creativecommons.org/licenses/by-sa/3.0/", extracted)
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin):
+                self.assertEqual(bridge.APPARENT_LIGHT_ORIGINALS[pin], (5280, digest))
+                self.assertIn("/blob/" + pin + "/src/lightmap.cpp", extracted)
+    def test_native_apparent_light_both_pins_and_source_receipt(self):
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                original = (root / "src/lightmap.cpp").read_text(encoding="utf-8")
+                with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                    bridge.apply(root)
+                actual = (root / "src/lightmap.cpp").read_text(encoding="utf-8")
+                self.assertEqual(actual, original.replace(apparent_light_original(), '#include "ncmm_graphics_apparent_light.inc"\n', 1))
+                self.assertEqual((root / "src/ncmm_graphics_apparent_light.inc").read_bytes(), Path(bridge.__file__).with_name("ncmm_graphics_apparent_light.inc").read_bytes())
+                self.assertIn(APPARENT_LIGHT_DECLARATIONS, (root / "src/map.h").read_text(encoding="utf-8"))
+                receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))
+                self.assertEqual(receipt["source_commit"], pin)
+                self.assertIn("lightmap.cpp", receipt["inputs"])
+                self.assertIn("ncmm_graphics_apparent_light.inc", receipt["inputs"])
+                for name, digest in receipt["inputs"].items():
+                    self.assertEqual(hashlib.sha256((root / "src" / name).read_bytes()).hexdigest(), digest)
+    def test_native_apparent_light_anchor_failure_is_atomic_including_receipt(self):
+        original = apparent_light_original()
+        for pin in bridge.SOURCES:
+            for changed in (original.replace("avatar const &u = get_avatar();", "avatar const &u = changed_avatar();"),
+                            original.replace("a.apparent_light >= cache.vision_threshold", "a.apparent_light > cache.vision_threshold"),
+                            original + original, "changed Native lightmap"):
+                with self.subTest(pin=pin, changed=changed[:80]), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root)
+                    (root / "src/lightmap.cpp").write_text(changed, encoding="utf-8")
+                    (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                    before = self.fingerprint(root)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                        with self.assertRaisesRegex(ValueError, "Native apparent-light source differs"):
+                            bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+    def test_native_apparent_light_existing_include_failure_is_atomic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); self.fixture(root)
+            (root / "src/ncmm_graphics_apparent_light.inc").write_text("existing Native include\n", encoding="utf-8")
+            (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+            before = self.fingerprint(root)
+            with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError, "Experimental source already exists: ncmm_graphics_apparent_light.inc"):
+                    bridge.apply(root)
+            self.assertEqual(before, self.fingerprint(root))
+    def test_native_apparent_light_missing_source_is_atomic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); self.fixture(root)
+            (root / "src/lightmap.cpp").unlink()
+            (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+            before = self.fingerprint(root)
+            with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaises(FileNotFoundError):
+                    bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
     def test_multilevel_minor_two_dispatch_preserves_legacy_and_rejects_newer(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,6 +1,8 @@
 #include "ncmm_world_cache.hpp"
 #include "ncmm_graphics_invalidation.hpp"
 #include <iostream>
+#include <cstring>
+#include <type_traits>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -173,6 +175,391 @@ template<class Check> void native_range_checks(Check check){
         std::cout<<"Host range helper component after (representative injected "<<(trig?"circular":"square")
                  <<" integers, not Native timing/formula): target callbacks floor=1 corner=1; lower=1/1; paired decisions/read traces preserved\n";
     }
+}
+
+// Compile the actual Native adaptation against frozen primary definitions.
+// Mock dependencies expose ordered reads and the integer
+// distance black box; they do not emulate Native light-cache layout, rl_dist's
+// formula/Z policy, or frame elapsed time.
+namespace native_apparent_light_fixture {
+constexpr int side=9;
+struct point {
+    int xx=0,yy=0;
+    static const point south,north,east,south_east,north_east,west,south_west,north_west;
+};
+inline constexpr point point::south{0,1};
+inline constexpr point point::north{0,-1};
+inline constexpr point point::east{1,0};
+inline constexpr point point::south_east{1,1};
+inline constexpr point point::north_east{1,-1};
+inline constexpr point point::west{-1,0};
+inline constexpr point point::south_west{-1,1};
+inline constexpr point point::north_west{-1,-1};
+struct point_bub_ms {
+    int xx=0,yy=0;
+    int x()const{return xx;}int y()const{return yy;}
+    point_bub_ms operator+(point offset)const{return {xx+offset.xx,yy+offset.yy};}
+};
+struct tripoint_bub_ms {
+    int xx=0,yy=0,zz=0;
+    int x()const{return xx;}int y()const{return yy;}int z()const{return zz;}
+    point_bub_ms xy()const{return {xx,yy};}
+    bool operator==(const tripoint_bub_ms &other)const{return std::tie(xx,yy,zz)==std::tie(other.xx,other.yy,other.zz);}
+};
+struct read_event {
+    char kind;tripoint_bub_ms at;int argument=0;
+    bool operator==(const read_event &other)const{return kind==other.kind&&at==other.at&&argument==other.argument;}
+};
+struct distance_event {
+    int dimensions;tripoint_bub_ms observer,target;int result;
+    bool operator==(const distance_event &other)const{return dimensions==other.dimensions&&observer==other.observer&&target==other.target&&result==other.result;}
+};
+inline std::vector<read_event> reads;
+inline std::vector<distance_event> distances;
+inline int cache_z=0,xyz_result=0,neighbour_policy=0;
+inline void note(char kind,const tripoint_bub_ms &at,int argument=0){reads.push_back({kind,at,argument});}
+enum class quadrant {NE,NW,SE,SW};
+struct four_quadrants {
+    std::array<float,4> values;
+    four_quadrants(float value=0){values.fill(value);}
+    float &operator[](quadrant q){return values[size_t(q)];}
+    float max()const{return *std::max_element(values.begin(),values.end());}
+};
+inline four_quadrants operator*(const four_quadrants &a,const four_quadrants &b){
+    four_quadrants value;for(size_t i=0;i<4;++i)value.values[i]=a.values[i]*b.values[i];return value;
+}
+template<class Value,char Kind> struct grid {
+    std::array<std::array<Value,side>,side> values{};
+    struct column {
+        const grid &owner;int x;
+        const Value &operator[](int y)const{note(Kind,{x,y,cache_z});return owner.values[size_t(x)][size_t(y)];}
+    };
+    column operator[](int x)const{return {*this,x};}
+};
+struct level_cache {
+    grid<float,'S'> seen_cache;
+    grid<float,'C'> camera_cache;
+    grid<float,'T'> transparency_cache;
+    grid<float,'V'> vision_transparency_cache;
+    grid<four_quadrants,'L'> lm;
+    grid<float,'M'> sm;
+};
+inline level_cache physical;
+struct Character {
+    tripoint_bub_ms position{4,4,0};int range=6;
+    const tripoint_bub_ms &pos_bub()const{return position;}
+    int unimpaired_range()const{note('U',position,range);return range;}
+};
+constexpr int MAX_RECOIL=100;
+struct avatar:Character {
+    int recoil=MAX_RECOIL;bool cannot_see=false;
+    bool cant_see(const tripoint_bub_ms &p)const{note('X',p,int(cannot_see));return cannot_see;}
+};
+inline avatar observer;
+inline avatar &get_avatar(){note('A',observer.position);return observer;}
+inline Character &get_player_character(){note('P',observer.position);return observer;}
+// The production integer result is injected verbatim, including zero. The two
+// representative 2D policies only exercise neighbour call forwarding; neither
+// is asserted to reproduce Native distance or its Z scaling/rounding.
+inline int rl_dist(const tripoint_bub_ms &a,const tripoint_bub_ms &b){distances.push_back({3,a,b,xyz_result});return xyz_result;}
+inline int rl_dist(const point_bub_ms &a,const point_bub_ms &b){
+    const int dx=std::abs(a.x()-b.x()),dy=std::abs(a.y()-b.y());
+    const int result=neighbour_policy?dx+dy:std::max(dx,dy);
+    distances.push_back({2,{a.x(),a.y(),0},{b.x(),b.y(),0},result});return result;
+}
+struct bounds {
+    bool contains(const point_bub_ms &p)const{note('B',{p.x(),p.y(),cache_z});return p.x()>=0&&p.y()>=0&&p.x()<side&&p.y()<side;}
+};
+inline const bounds lightmap_boundaries;
+constexpr float LIGHT_TRANSPARENCY_SOLID=0.f,LIGHT_AMBIENT_LIT=10.f,LIGHT_SOURCE_BRIGHT=40.f;
+enum class lit_level {BLANK,LOW,LIT,BRIGHT_ONLY,BRIGHT};
+struct visibility_variables {
+    int u_clairvoyance=0;std::optional<int> clairvoyance_field;
+    float g_light_level=20.f,vision_threshold=.25f;
+};
+struct apparent_light_info {bool obstructed,abs_obstructed;float apparent_light;};
+inline bool field_present=false;
+struct field_view {
+    tripoint_bub_ms at;
+    bool find_field(int id)const{note('F',at,id);return field_present;}
+};
+struct map_dependencies {
+    const level_cache &get_cache_ref(int z)const{note('Z',{0,0,z});return physical;}
+    field_view field_at(const tripoint_bub_ms &p)const{note('f',p);return {p};}
+};
+namespace actual {
+struct map:map_dependencies {
+    using apparent_light_info=native_apparent_light_fixture::apparent_light_info;
+    static apparent_light_info apparent_light_helper(const level_cache &,const tripoint_bub_ms &);
+    lit_level apparent_light_at(const tripoint_bub_ms &,const visibility_variables &)const;
+};
+#include "../../graphics_bridge/ncmm_graphics_apparent_light.inc"
+}
+namespace frozen {
+struct map:map_dependencies {
+    using apparent_light_info=native_apparent_light_fixture::apparent_light_info;
+    static apparent_light_info apparent_light_helper(const level_cache &,const tripoint_bub_ms &);
+    lit_level apparent_light_at(const tripoint_bub_ms &,const visibility_variables &)const;
+};
+// Frozen primary bodies, CC-BY-SA-3.0, sources/provenance in the production inc.
+// Keep this baseline unchanged when the extracted implementation is optimized.
+// BEGIN FROZEN NATIVE APPARENT LIGHT
+map::apparent_light_info map::apparent_light_helper( const level_cache &map_cache,
+        const tripoint_bub_ms &p )
+{
+    avatar const &u = get_avatar();
+    const int dist = rl_dist( u.pos_bub(), p );
+    const float abs_vis =
+        std::max( map_cache.seen_cache[p.x()][p.y()], map_cache.camera_cache[p.x()][p.y()] );
+    const float vis = dist > u.unimpaired_range() ? map_cache.camera_cache[p.x()][p.y()] : abs_vis;
+    const bool obstructed = vis <= LIGHT_TRANSPARENCY_SOLID + 0.1;
+    const bool abs_obstructed = abs_vis <= LIGHT_TRANSPARENCY_SOLID + 0.1;
+
+    auto is_opaque = [&map_cache]( const point_bub_ms & p ) {
+        return map_cache.transparency_cache[p.x()][p.y()] <= LIGHT_TRANSPARENCY_SOLID &&
+               map_cache.vision_transparency_cache[p.x()][p.y()] <= LIGHT_TRANSPARENCY_SOLID;
+    };
+
+    // possibly reduce view if aiming (also blocks light)
+    if( get_avatar().recoil < MAX_RECOIL ) {
+        if( get_avatar().cant_see( p ) ) {
+            return { true, true, 0.0 };
+        }
+    }
+
+    const bool p_opaque = is_opaque( p.xy() );
+    float apparent_light;
+
+    if( p_opaque && vis > 0 ) {
+        // This is the complicated case.  We want to check which quadrants the
+        // player can see the tile from, and only count light values from those
+        // quadrants.
+        struct offset_and_quadrants {
+            point offset;
+            std::array<quadrant, 2> quadrants;
+        };
+        static constexpr std::array<offset_and_quadrants, 8> adjacent_offsets = {{
+                { point::south,      {{ quadrant::SE, quadrant::SW }} },
+                { point::north,      {{ quadrant::NE, quadrant::NW }} },
+                { point::east,       {{ quadrant::SE, quadrant::NE }} },
+                { point::south_east, {{ quadrant::SE, quadrant::SE }} },
+                { point::north_east, {{ quadrant::NE, quadrant::NE }} },
+                { point::west,       {{ quadrant::SW, quadrant::NW }} },
+                { point::south_west, {{ quadrant::SW, quadrant::SW }} },
+                { point::north_west, {{ quadrant::NW, quadrant::NW }} },
+            }
+        };
+
+        four_quadrants seen_from( 0 );
+        for( const offset_and_quadrants &oq : adjacent_offsets ) {
+            const point_bub_ms neighbour = p.xy() + oq.offset;
+
+            if( !lightmap_boundaries.contains( neighbour ) ) {
+                continue;
+            }
+            if( is_opaque( neighbour ) ) {
+                continue;
+            }
+            if( ( rl_dist( u.pos_bub().xy(), neighbour ) > u.unimpaired_range() &&
+                  map_cache.camera_cache[neighbour.x()][neighbour.y()] == 0 ) ||
+                ( map_cache.seen_cache[neighbour.x()][neighbour.y()] == 0 &&
+                  map_cache.camera_cache[neighbour.x()][neighbour.y()] == 0 ) ) {
+                continue;
+            }
+            // This is a non-opaque visible neighbour, so count visibility from the relevant
+            // quadrants
+            seen_from[oq.quadrants[0]] = vis;
+            seen_from[oq.quadrants[1]] = vis;
+        }
+        apparent_light = ( seen_from * map_cache.lm[p.x()][p.y()] ).max();
+    } else {
+        // This is the simple case, for a non-opaque tile light from all
+        // directions is equivalent
+        apparent_light = vis * map_cache.lm[p.x()][p.y()].max();
+    }
+    return { obstructed, abs_obstructed, apparent_light };
+}
+
+lit_level map::apparent_light_at( const tripoint_bub_ms &p,
+                                  const visibility_variables &cache ) const
+{
+    Character &player_character = get_player_character();
+    const int dist = rl_dist( player_character.pos_bub(), p );
+
+    // Clairvoyance overrides everything.
+    if( cache.u_clairvoyance > 0 && dist <= cache.u_clairvoyance ) {
+        return lit_level::BRIGHT;
+    }
+    if( cache.clairvoyance_field && field_at( p ).find_field( *cache.clairvoyance_field ) ) {
+        return lit_level::BRIGHT;
+    }
+    const level_cache &map_cache = get_cache_ref( p.z() );
+    const apparent_light_info a = apparent_light_helper( map_cache, p );
+
+    // Unimpaired range is an override to strictly limit vision range based on various conditions,
+    // but the player can still see light sources
+    if( dist > player_character.unimpaired_range() && map_cache.camera_cache[p.x()][p.y()] == 0.0 ) {
+        if( !a.abs_obstructed && map_cache.sm[p.x()][p.y()] > 0.0 ) {
+            return lit_level::BRIGHT_ONLY;
+        }
+        return lit_level::BLANK;
+    }
+
+    if( a.obstructed ) {
+        if( a.apparent_light > LIGHT_AMBIENT_LIT ) {
+            if( a.apparent_light > cache.g_light_level ) {
+                // This represents too hazy to see detail,
+                // but enough light getting through to illuminate.
+                return lit_level::BRIGHT_ONLY;
+            }
+        }
+        return lit_level::BLANK;
+    }
+    // Then we just search for the light level in descending order.
+    if( a.apparent_light > LIGHT_SOURCE_BRIGHT || map_cache.sm[p.x()][p.y()] > 0.0 ) {
+        return lit_level::BRIGHT;
+    }
+    if( a.apparent_light > LIGHT_AMBIENT_LIT ) {
+        return lit_level::LIT;
+    }
+    if( a.apparent_light >= cache.vision_threshold ) {
+        return lit_level::LOW;
+    } else {
+        return lit_level::BLANK;
+    }
+}
+// END FROZEN NATIVE APPARENT LIGHT
+}
+using helper_signature=apparent_light_info (*)(const level_cache &,const tripoint_bub_ms &);
+using outer_signature=lit_level (actual::map::*)(const tripoint_bub_ms &,const visibility_variables &)const;
+static_assert(std::is_same<decltype(&actual::map::apparent_light_helper),helper_signature>::value,"public map-editor/pl_sees two-argument helper contract");
+static_assert(std::is_same<decltype(&actual::map::apparent_light_at),outer_signature>::value,"const Native visibility caller contract");
+inline uint32_t float_bits(float value){uint32_t result;std::memcpy(&result,&value,sizeof(result));return result;}
+inline bool same_info(const apparent_light_info &a,const apparent_light_info &b){
+    return a.obstructed==b.obstructed&&a.abs_obstructed==b.abs_obstructed&&float_bits(a.apparent_light)==float_bits(b.apparent_light);
+}
+inline void reset(const tripoint_bub_ms &p){
+    physical={};observer={};field_present=false;cache_z=p.z();xyz_result=0;neighbour_policy=0;
+    for(int x=0;x<side;++x)for(int y=0;y<side;++y){
+        physical.seen_cache.values[x][y]=1;physical.transparency_cache.values[x][y]=1;
+        physical.vision_transparency_cache.values[x][y]=1;physical.lm.values[x][y]=four_quadrants(1);
+    }
+    reads.clear();distances.clear();
+}
+struct measurement {
+    apparent_light_info info{};lit_level level=lit_level::BLANK;
+    std::vector<read_event> read_trace;
+    std::vector<distance_event> distance_trace;
+};
+inline measurement run(bool reference,bool direct,const tripoint_bub_ms &p,const visibility_variables &variables){
+    reads.clear();distances.clear();measurement result;
+    if(direct){
+        // The actual public static two-argument function is also callable as a
+        // function pointer, as existing external diagnostics require.
+        const helper_signature exposed=&actual::map::apparent_light_helper;
+        result.info=reference?frozen::map::apparent_light_helper(physical,p):exposed(physical,p);
+    }else result.level=reference?frozen::map{}.apparent_light_at(p,variables):actual::map{}.apparent_light_at(p,variables);
+    result.read_trace=reads;result.distance_trace=distances;return result;
+}
+inline size_t xyz_calls(const measurement &value){return size_t(std::count_if(value.distance_trace.begin(),value.distance_trace.end(),[](const auto &event){return event.dimensions==3;}));}
+inline std::vector<distance_event> one_xyz_trace(const measurement &value){
+    std::vector<distance_event> result;bool had_xyz=false;
+    for(const auto &event:value.distance_trace){
+        // Only the repeated full-XYZ query disappears. Preserve the first
+        // exact integer/arguments and every 2D neighbour call in its order.
+        if(event.dimensions!=3||!had_xyz)result.push_back(event);
+        had_xyz|=event.dimensions==3;
+    }
+    return result;
+}
+}
+
+template<class Check> void native_apparent_light_checks(Check check){
+    namespace host=native_apparent_light_fixture;
+    size_t sample=0;bool saw_neighbours=false,saw_cant_see=false,saw_field=false;
+    std::array<bool,5> levels{};
+    auto require=[&](bool value,const char *message){if(!value)std::cerr<<"Native apparent light sample "<<sample<<": "<<message<<'\n';check(value);};
+    auto paired=[&](const host::tripoint_bub_ms &p,const host::visibility_variables &variables){
+        for(bool direct:{false,true}){
+            ++sample;const auto actual=host::run(false,direct,p,variables),expected=host::run(true,direct,p,variables);
+            require(direct?host::same_info(actual.info,expected.info):actual.level==expected.level,
+                "adapted Native result preserves exact enum, flags and apparent-light float bits");
+            require(actual.read_trace==expected.read_trace,"ordered non-distance dependency reads equal the frozen primary source");
+            const bool entered_helper=direct||std::any_of(expected.read_trace.begin(),expected.read_trace.end(),[](const auto &event){return event.kind=='A';});
+            require(host::xyz_calls(expected)==size_t(!direct&&entered_helper?2:1)&&host::xyz_calls(actual)==1,
+                "frozen normal outer retains two XYZ calls; adapted outer, direct fallback and early guards each use one");
+            require(actual.distance_trace==host::one_xyz_trace(expected),"only the repeated XYZ query disappears; every neighbour callback, value and order remain exact");
+            auto arguments=[&](const host::measurement &measured){for(const auto &event:measured.distance_trace){
+                if(event.dimensions==3)require(event.observer==host::observer.position&&event.target==p&&event.result==host::xyz_result,
+                    "full Native observer/target XYZ and already converted integer are exact, including zero");
+                else saw_neighbours=true;
+            }};
+            arguments(actual);arguments(expected);
+            for(const auto &event:actual.read_trace){saw_cant_see|=event.kind=='X';saw_field|=event.kind=='F';}
+            if(!direct)levels[size_t(actual.level)]=true;
+        }
+    };
+    const host::tripoint_bub_ms center{4,4,2};
+    host::reset(center);host::xyz_result=5;host::visibility_variables variables;
+    const auto normal=host::run(false,false,center,variables),direct=host::run(false,true,center,variables);
+    const auto before_normal=host::run(true,false,center,variables),before_direct=host::run(true,true,center,variables);
+    variables.u_clairvoyance=5;const auto clairvoyant=host::run(false,false,center,variables);
+    const auto before_clairvoyant=host::run(true,false,center,variables);
+    require(host::xyz_calls(before_normal)==2&&host::xyz_calls(before_direct)==1&&host::xyz_calls(before_clairvoyant)==1,
+        "frozen primary before baseline stays outer2/direct1/clairvoyance1 XYZ callbacks");
+    require(host::xyz_calls(normal)==1&&host::xyz_calls(direct)==1&&host::xyz_calls(clairvoyant)==1,
+        "adapted actual-source after uses outer1/direct1/clairvoyance1 XYZ callbacks");
+    require(clairvoyant.level==host::lit_level::BRIGHT&&clairvoyant.read_trace.size()==1&&clairvoyant.read_trace[0].kind=='P',
+        "distance clairvoyance still returns before cache, avatar and helper reads");
+    std::cout<<"Native apparent-light frozen primary-source component baseline (injected integers, not Native timing/formula): XYZ outer="
+             <<host::xyz_calls(before_normal)<<" direct="<<host::xyz_calls(before_direct)<<" clairvoyance="<<host::xyz_calls(before_clairvoyant)<<'\n';
+    std::cout<<"Native apparent-light adapted actual-source component after (injected integers, not Native timing/formula): XYZ outer="
+             <<host::xyz_calls(normal)<<" direct="<<host::xyz_calls(direct)<<" clairvoyance="<<host::xyz_calls(clairvoyant)<<'\n';
+    // Thresholds include exact and adjacent representable float values; the
+    // frozen implementation, not a second simplified formula, is the oracle.
+    const std::array<float,7> strengths{{0.f,.25f,1.f,10.f,std::nextafter(10.f,20.f),40.f,std::nextafter(40.f,80.f)}};
+    for(int distance:{0,6,7,100000})for(float seen:{0.f,.05f,.1f,.2f,1.f})for(float camera:{0.f,.25f,1.f})for(float strength:strengths){
+        host::reset(center);host::xyz_result=distance;
+        host::physical.seen_cache.values[4][4]=seen;host::physical.camera_cache.values[4][4]=camera;
+        host::physical.lm.values[4][4]=host::four_quadrants(strength);paired(center,{});
+    }
+    // All neighbour-opacity masks at interior, edges and corners, on multiple
+    // Z levels. Out-of-bounds neighbours must be rejected before grid reads.
+    const std::array<host::point,8> offsets{{host::point::south,host::point::north,host::point::east,host::point::south_east,
+        host::point::north_east,host::point::west,host::point::south_west,host::point::north_west}};
+    for(const host::tripoint_bub_ms p:std::array<host::tripoint_bub_ms,4>{{{0,0,-4},{0,4,0},{4,4,7},{8,8,2}}})for(unsigned mask=0;mask<256;++mask){
+        host::reset(p);host::xyz_result=int(mask%11);host::neighbour_policy=int(mask&1);host::observer.range=int(mask%7);
+        host::observer.position={mask&2?1000000:4,mask&4?-1000000:4,mask&8?-7:7};
+        for(size_t i=0;i<offsets.size();++i){const auto n=p.xy()+offsets[i];if(n.x()<0||n.y()<0||n.x()>=host::side||n.y()>=host::side)continue;
+            const bool opaque=(mask&(1u<<i))!=0;
+            host::physical.transparency_cache.values[n.x()][n.y()]=opaque?0.f:1.f;
+            host::physical.vision_transparency_cache.values[n.x()][n.y()]=opaque?0.f:float(i&1);
+            host::physical.seen_cache.values[n.x()][n.y()]=i%3?1.f:0.f;
+            host::physical.camera_cache.values[n.x()][n.y()]=(i+mask)%4?0.f:.75f;
+        }
+        host::physical.transparency_cache.values[p.x()][p.y()]=0;host::physical.vision_transparency_cache.values[p.x()][p.y()]=0;
+        host::physical.seen_cache.values[p.x()][p.y()]=mask&1?.05f:1.f;
+        host::physical.camera_cache.values[p.x()][p.y()]=mask&2?.5f:0.f;
+        host::physical.lm.values[p.x()][p.y()].values={{.25f,10.f,41.f,1000.f}};paired(p,{});
+    }
+    // Recoil/cant-see must not move before the old distance or visibility
+    // reads. Clairvoyance has its two distinct early-return paths.
+    for(int distance:{0,1,6,7})for(int clairvoyance:{0,1,6})for(int field_mode:{0,1,2})for(bool recoil:{false,true})for(bool blocked:{false,true}){
+        host::reset(center);host::xyz_result=distance;host::observer.recoil=recoil?host::MAX_RECOIL-1:host::MAX_RECOIL;host::observer.cannot_see=blocked;
+        host::visibility_variables settings;settings.u_clairvoyance=clairvoyance;if(field_mode)settings.clairvoyance_field=17;host::field_present=field_mode==2;
+        paired(center,settings);
+    }
+    host::reset(center);host::xyz_result=7;host::physical.sm.values[4][4]=1;paired(center,{});
+    require(host::run(false,false,center,{}).level==host::lit_level::BRIGHT_ONLY,"distant unobstructed light source retains BRIGHT_ONLY range override");
+    host::reset(center);host::physical.seen_cache.values[4][4]=.05f;host::physical.lm.values[4][4]=host::four_quadrants(1000);paired(center,{});
+    require(host::run(false,false,center,{}).level==host::lit_level::BRIGHT_ONLY,"hazy light above ambient and global thresholds retains BRIGHT_ONLY");
+    host::reset(center);host::observer.recoil=host::MAX_RECOIL-1;host::observer.cannot_see=true;
+    const auto blocked=host::run(false,true,center,{});
+    require(host::xyz_calls(blocked)==1&&blocked.info.obstructed&&blocked.info.abs_obstructed&&host::float_bits(blocked.info.apparent_light)==host::float_bits(0.f),
+        "direct helper keeps its Native distance before the aiming early return");
+    require(saw_neighbours&&saw_cant_see&&saw_field&&std::all_of(levels.begin(),levels.end(),[](bool value){return value;}),
+        "paired oracle covers neighbours, aiming, field clairvoyance and all five Native light classifications");
+    std::cout<<"Native apparent-light paired primary-source cases="<<sample<<"; ordered non-distance reads, float bits and caller signatures preserved\n";
 }
 
 template<class Check> void sealed_ring_checks(Check check){
@@ -367,6 +754,7 @@ int main(){try{
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
     native_range_checks(check);
+    native_apparent_light_checks(check);
     sealed_ring_checks(check);
     geometry_border_checks(check);
     {
