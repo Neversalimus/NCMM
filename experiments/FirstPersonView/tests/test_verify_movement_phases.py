@@ -1,7 +1,8 @@
 import copy
 import math
 import unittest
-from verify_horizon_release import frame_phases, expected_payload_files, verify_payload_file_matrix
+from verify_horizon_release import (NATIVE_STEP_LABELS, frame_phases, native_step_phases,
+                                    expected_payload_files, verify_payload_file_matrix)
 
 class FramePhaseTests(unittest.TestCase):
     def valid_record(self):
@@ -44,6 +45,93 @@ class FramePhaseTests(unittest.TestCase):
     def test_no_claim_without_exclusive_measurement(self):
         r=self.valid_record();r['exclusive_phases_available']=False
         with self.assertRaisesRegex(ValueError,'missing'):frame_phases(r)
+
+class NativeActionPhaseTests(unittest.TestCase):
+    """Contrived receipts exercise accounting guards, never provide timings."""
+    def valid_record(self, steps=12):
+        indices = list(range(192 if steps == 64 else 96, (192 if steps == 64 else 96) + steps))
+        record = dict(native_steps=steps, first_frame_indices=indices,
+                      frame_samples_ms=[4.0] * (indices[-1] + 1), first_ready_samples_ms=[9.2] * steps)
+        rows = []
+        position, moves = [20, 30, 0], 100000
+        for step, index in enumerate(indices):
+            offsets = [0, .5, .6, .7, .8, 2.8, 2.9, 4.9, 5, 9.1, 9.2]
+            direction = ((1, 0, 0), (0, -1, 0), (-1, 0, 0), (0, 1, 0))[step % 4]
+            target = [a + b for a, b in zip(position, direction)]
+            rows.append(dict(step=step, frame_index=index, boundary_offsets_ms=offsets,
+                             phase_wall_ms=[b-a for a, b in zip(offsets, offsets[1:])],
+                             first_ready_wall_ms=9.2, first_frame_wall_ms=4.0,
+                             render_bookkeeping_wall_ms=.1, residual_wall_ms=0,
+                             moves_before=moves, moves_after=moves-100, **{'from': position, 'to': target}))
+            position, moves = target, moves-100
+        record['native_step_phases'] = dict(clock='std::chrono::steady_clock', units='milliseconds',
+                                           phase_labels=list(NATIVE_STEP_LABELS), samples=rows)
+        return record
+
+    def test_conserved_adjacent_phases_for_short_and_extended_routes(self):
+        for steps in (12, 64):
+            result = native_step_phases(self.valid_record(steps))
+            self.assertEqual(result['samples'], steps)
+            self.assertAlmostEqual(result['phases']['move']['median_ms'], .5)
+            self.assertAlmostEqual(result['phases']['render_call']['median_ms'], 4.1)
+            self.assertAlmostEqual(result['render_bookkeeping_median_ms'], .1)
+
+    def test_legacy_absence_is_explicit_and_cannot_pass_new_qualification(self):
+        record = self.valid_record(); del record['native_step_phases']
+        self.assertFalse(native_step_phases(record, required=False)['available'])
+        with self.assertRaisesRegex(ValueError, 'receipt missing'): native_step_phases(record)
+
+    def test_invalid_clock_or_phase_order_is_rejected(self):
+        for name, value in (('clock', 'cpu_clock'), ('units', 'seconds'), ('phase_labels', list(reversed(NATIVE_STEP_LABELS)))):
+            record = self.valid_record(); record['native_step_phases'][name] = value
+            with self.assertRaises(ValueError): native_step_phases(record)
+
+    def test_missing_reordered_and_duplicate_action_samples_are_rejected(self):
+        for change in ('missing', 'reordered', 'duplicate'):
+            record = self.valid_record(); rows = record['native_step_phases']['samples']
+            if change == 'missing': rows.pop()
+            elif change == 'duplicate': rows[1] = copy.deepcopy(rows[0])
+            else: rows[0], rows[1] = rows[1], rows[0]
+            with self.assertRaises(ValueError): native_step_phases(record)
+
+    def test_action_frame_mapping_must_use_the_original_stream(self):
+        record = self.valid_record(); record['native_step_phases']['samples'][0]['frame_index'] += 1
+        with self.assertRaisesRegex(ValueError, 'action/frame'): native_step_phases(record)
+
+    def test_backward_nonfinite_and_omitted_boundaries_are_rejected(self):
+        for value in (-1, float('nan'), float('inf'), True):
+            record = self.valid_record(); record['native_step_phases']['samples'][0]['boundary_offsets_ms'][4] = value
+            with self.assertRaisesRegex(ValueError, 'boundaries'): native_step_phases(record)
+        record = self.valid_record(); record['native_step_phases']['samples'][0]['boundary_offsets_ms'].pop()
+        with self.assertRaisesRegex(ValueError, 'boundaries'): native_step_phases(record)
+
+    def test_inclusive_frame_cannot_be_added_to_render_twice(self):
+        record = self.valid_record(); record['native_step_phases']['samples'][0]['phase_wall_ms'][8] += 4
+        with self.assertRaisesRegex(ValueError, 'overlap or omit'): native_step_phases(record)
+
+    def test_original_totals_and_inner_render_accounting_are_required(self):
+        for name in ('first_ready_wall_ms', 'first_frame_wall_ms', 'render_bookkeeping_wall_ms'):
+            record = self.valid_record(); record['native_step_phases']['samples'][0][name] += .01
+            with self.assertRaises(ValueError): native_step_phases(record)
+
+    def test_signed_residual_cannot_be_clamped_to_zero(self):
+        record = self.valid_record(); row = record['native_step_phases']['samples'][0]
+        row['first_ready_wall_ms'] -= .002; record['first_ready_samples_ms'][0] -= .002
+        row['residual_wall_ms'] = -.002
+        self.assertAlmostEqual(native_step_phases(record)['max_abs_accounting_residual_ms'], .002)
+        row['residual_wall_ms'] = 0
+        with self.assertRaisesRegex(ValueError, 'clamped residual'): native_step_phases(record)
+
+    def test_unaccounted_action_work_is_rejected(self):
+        record = self.valid_record(); row = record['native_step_phases']['samples'][0]
+        row['first_ready_wall_ms'] += .01; record['first_ready_samples_ms'][0] += .01; row['residual_wall_ms'] = .01
+        with self.assertRaisesRegex(ValueError, 'Unconserved'): native_step_phases(record)
+
+    def test_route_teleport_and_missing_move_cost_are_rejected(self):
+        for name, value in (('from', [30, 40, 0]), ('to', [20, 30, 1]), ('moves_after', 100000)):
+            record = self.valid_record(); record['native_step_phases']['samples'][0][name] = value
+            with self.assertRaises(ValueError): native_step_phases(record)
+
 
 class PayloadMatrixTests(unittest.TestCase):
     held='experiments/FirstPersonView/assets/held_items/selection.json'

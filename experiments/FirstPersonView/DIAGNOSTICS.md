@@ -10,6 +10,18 @@ this performance mode. Configured Native renderer VSync, physical window size,
 display scale and the runtime SDL version are recorded separately from the
 offscreen scene dimensions.
 
+Movement records also contain `native_step_phases`: eleven monotonic clock
+boundaries divide each accepted action into movement, assertions, view-center
+assignment, light reset, map-cache build, visibility invalidation/update,
+refresh return, inclusive render and outer tail. Native calls, route, matrix
+and action assertions are preserved. Storage is reserved before timing and
+sample metadata is appended afterwards. The receipt retains the original
+first-ready/frame samples, accepted XYZ/cost, render bookkeeping and signed
+accounting residual. The release verifier requires consistent adjacent scopes
+and original frame indices. Historical reports without this receipt have no
+measured action/refresh split. These are synchronous wall times including
+probe overhead; `render_call` includes `first_frame`, so never add both.
+
 For component comparisons, `-DisableHeldAssets`, `-DisableTargetHud` and
 `-DisableCameraSnapshot` affect only the diagnostic child. They are separate
 from the one player-facing HUD option. A disabled-components run is an

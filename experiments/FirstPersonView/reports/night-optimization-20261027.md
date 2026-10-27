@@ -320,6 +320,33 @@ Do not merge or release before the user's separate finalization request.
     applicable device result. Logs: `night-stair-*` and
     `night-static-stair-verifier.log` in the existing private work directory.
 
+13. **Measure the Native action/refresh gap, without changing it.** The existing
+    movement benchmark now records eleven adjacent steady-clock boundaries per
+    accepted step: move, assertions, view center, light reset, map-cache build,
+    visibility invalidation/update, refresh return, inclusive render and tail.
+    The original Native statements, route, cost/position assertions, 12-case
+    matrix, rotations and source oracle remain. Fixed-size timestamp storage
+    is reserved outside timing; XYZ/cost metadata and sample storage follow the
+    original first-ready boundary. No production game loop/API changed.
+
+    Additive receipts retain first-ready/frame samples, frame indices, render
+    bookkeeping and signed residual. The verifier checks monotonic/adjacent
+    scopes, original stream identity, accepted route/cost and conserved totals;
+    inner first-frame is never added twice to its inclusive render call.
+    Both pinned primary JsonOut constructors use fixed output, and a fresh
+    ofstream retains six fractional digits: 1 ns in millisecond fields. The
+    predeclared accounting budgets are 0.1 microsecond for identities and
+    3 microseconds for the complete sum; residuals are reported without clamp.
+
+    Local 23 movement/payload verifier tests (11 new), 240 total Python tests
+    and 25 atomic bridge tests pass. The 12 actual historical Win1040 movement
+    records still pass their frame checks, explicitly report no action split
+    and are all rejected by the new strict receipt gate. Their absent phases
+    were not reconstructed as measurements. Evidence: `night-native-step-*`.
+    Native compilation and real per-function timings remain pending. These
+    synchronous wall scopes include clock-probe overhead and possible waits;
+    they do not measure on-core CPU or GPU execution or ordinary game latency.
+
 ## Fresh profile evidence and working queue
 
 Bounded HTTP-range reads of selected program JSON from run 40425289251 used
@@ -342,10 +369,11 @@ gameplay fixture's Native-cache median 31.03 ms (Linux 17.34/16.49 ms) also
 includes forced map-cache invalidation, so it cannot fill the movement gap.
 Windows1807's older gameplay JSON is truncated and excluded.
 
-1. Split the actual movement action/refresh interval into adjacent exclusive
-   wall-time phases without changing the existing Native calls or 12-case
-   matrix. Keep render bookkeeping separate, then use fresh receipts to select
-   a production optimization. Repeated candidate distances are already removed
+1. Run the stage13 adjacent Native action/refresh receipt on the same matrix;
+   keep render bookkeeping separate and use measured phases to select the next
+   production bottleneck. Audit axis-specific Host border invalidation with a
+   cold source oracle: the reported median 1419 is Host derived-cache misses,
+   not GPU mesh regeneration. Repeated candidate distances are already removed
    and callback counts verified. Enlarging the existing light-range cache remains
    rejected as a priority: recorded frames already make only 2-15 sight-range
    evaluations for 1400-3000 cache hits.

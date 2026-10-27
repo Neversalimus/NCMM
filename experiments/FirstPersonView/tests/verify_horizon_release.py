@@ -110,6 +110,72 @@ def frame_phases(record, *, extended=False):
                                     "p99_ms": percentile(record[name][rotations:rotations*2], .99)} for name in phases + nested}}
 
 
+NATIVE_STEP_LABELS = ('move', 'post_action_checks', 'view_center', 'reset_light_level',
+                      'build_map_cache', 'invalidate_visibility_cache', 'update_visibility_cache',
+                      'refresh_return', 'render_call', 'outer_tail')
+
+
+def native_step_phases(record, *, required=True):
+    """Adjacent Native-call wall scopes; render is inclusive of its inner frame."""
+    receipt = record.get('native_step_phases')
+    if receipt is None and not required:
+        return dict(available=False, reason='Historical report has no action/refresh split')
+    require(type(receipt) is dict, 'Native action phase receipt missing')
+    require(receipt.get('clock') == 'std::chrono::steady_clock' and receipt.get('units') == 'milliseconds',
+            'Unsupported Native action phase clock')
+    require(receipt.get('phase_labels') == list(NATIVE_STEP_LABELS), 'Native action phase order changed')
+    count = record['native_steps']
+    require(type(count) is int and 0 < count <= 64, 'Invalid Native action count')
+    rows = receipt['samples']
+    require(type(rows) is list and len(rows) == count, 'Incomplete Native action phase matrix')
+    indices, frames, ready = record['first_frame_indices'], record['frame_samples_ms'], record['first_ready_samples_ms']
+    require(len(indices) == len(ready) == count and all(type(i) is int for i in indices)
+            and all(a < b for a, b in zip(indices, indices[1:])), 'Invalid Native action frame mapping')
+    scalar = lambda value: type(value) in (int, float) and math.isfinite(value)
+    route = ((1, 0, 0), (0, -1, 0), (-1, 0, 0), (0, 1, 0))
+    previous_to = None
+    for step, row in enumerate(rows):
+        require(type(row['step']) is int and row['step'] == step, 'Reordered Native action samples')
+        index = row['frame_index']
+        require(type(index) is int and index == indices[step] and 0 <= index < len(frames), 'Native action/frame mismatch')
+        offsets, durations = row['boundary_offsets_ms'], row['phase_wall_ms']
+        require(type(offsets) is list and len(offsets) == 11 and all(scalar(v) and v >= 0 for v in offsets)
+                and offsets[0] == 0 and all(a <= b for a, b in zip(offsets, offsets[1:])), 'Invalid Native action boundaries')
+        require(type(durations) is list and len(durations) == 10 and all(scalar(v) and v >= 0 for v in durations),
+                'Invalid Native action durations')
+        require(all(abs(b - a - duration) <= .0001 for a, b, duration in zip(offsets, offsets[1:], durations)),
+                'Native action scopes overlap or omit work')
+        for name in ('first_ready_wall_ms', 'first_frame_wall_ms', 'render_bookkeeping_wall_ms', 'residual_wall_ms'):
+            require(scalar(row[name]), 'Nonfinite Native action accounting')
+        outer, inner = row['first_ready_wall_ms'], row['first_frame_wall_ms']
+        require(scalar(ready[step]) and scalar(frames[index]) and inner > 0 and outer > 0
+                and abs(outer - ready[step]) <= .0001 and abs(inner - frames[index]) <= .0001,
+                'Native action totals differ from the original samples')
+        require(abs(outer - offsets[-1]) <= .003 and abs(row['residual_wall_ms']) <= .003
+                and abs(row['residual_wall_ms'] - (outer - sum(durations))) <= .0001,
+                'Unconserved Native action total or clamped residual')
+        require(durations[8] >= inner - .003 and row['render_bookkeeping_wall_ms'] >= -.003
+                and abs(row['render_bookkeeping_wall_ms'] - (durations[8] - inner)) <= .0001,
+                'Native render/frame scopes overlap incorrectly')
+        for name in ('from', 'to'):
+            position = row[name]
+            require(type(position) is list and len(position) == 3
+                    and all(type(v) is int and -(1 << 31) <= v < 1 << 31 for v in position), 'Invalid Native action position')
+        require(tuple(b - a for a, b in zip(row['from'], row['to'])) == route[step % 4]
+                and (previous_to is None or row['from'] == previous_to), 'Native movement route changed')
+        previous_to = row['to']
+        require(all(type(row[name]) is int and -(1 << 31) <= row[name] < 1 << 31 for name in ('moves_before', 'moves_after'))
+                and row['moves_after'] < row['moves_before'], 'Native movement did not consume action cost')
+    return dict(available=True, clock=receipt['clock'], units='milliseconds', samples=count,
+                phases={name: dict(median_ms=percentile([row['phase_wall_ms'][i] for row in rows], .5),
+                                   p95_ms=percentile([row['phase_wall_ms'][i] for row in rows], .95),
+                                   p99_ms=percentile([row['phase_wall_ms'][i] for row in rows], .99))
+                        for i, name in enumerate(NATIVE_STEP_LABELS)},
+                render_bookkeeping_median_ms=percentile([row['render_bookkeeping_wall_ms'] for row in rows], .5),
+                max_abs_accounting_residual_ms=max(abs(row['residual_wall_ms']) for row in rows),
+                scope='Synchronous Native-call wall times; render_call includes first_frame, never add both; not on-core CPU or GPU execution')
+
+
 def verify(args):
     root = Path(args.installer_root)
     archive = root / f"NCMM_FirstPersonView_{args.expected_version}_TEST_{args.build}_Windows_x64.zip"
@@ -186,6 +252,7 @@ def verify(args):
         matrix.add(key)
         require(record["native_steps"] == 12, "Native steps missing")
         phases = frame_phases(record)
+        action_phases = native_step_phases(record)
         frame = samples(record, "first_frame_after_step_samples_ms", 12)
         ready = samples(record, "first_ready_samples_ms", 12)
         cold = samples(record, "cold_rotation_samples_ms", 48)
@@ -196,7 +263,7 @@ def verify(args):
                     "GPU walking or rotation fell back to CPU")
             timings.append({"scene": record["scene"], "width": record["width"],
                             "height": record["height"], "first_render_frame": frame,
-                            "native_move_to_first_ready": ready, "cold_rotation": cold,
+                            "native_move_to_first_ready": ready, "native_action_phases": action_phases, "cold_rotation": cold,
                             "warm_rotation": warm, "frame_phases": phases, "device": record["device"],
                             "backend": record["backend"],
                             "software_device": record["software_device"]})
@@ -208,7 +275,8 @@ def verify(args):
               "verified_payload_files": len(bundle["files"]), "manual_playthrough": False,
               "facade": facade, "horizon": horizon, "geometry": geometry, "gpu_timings": timings,
               "clean_focused_process_exits": len(stress), "exclusive_movement_phases_verified": True,
-              "timing_scope": "CI device; first_render_frame excludes native avatar_action/refresh; native_move_to_first_ready includes both"}
+              "exclusive_native_action_phases_verified": True,
+              "timing_scope": "CI device; first_render_frame excludes native avatar_action/refresh; native_move_to_first_ready includes both. Native action phases are adjacent synchronous wall scopes with clock-probe overhead, not on-core CPU or GPU execution."}
     # These are disposable native-game fixture captures, never desktop captures.
     from PIL import Image
     for mode in ("cpu", "gpu"):

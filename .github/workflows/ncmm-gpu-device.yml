@@ -137,7 +137,7 @@ jobs:
             'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'967056405be15fc7dbf7e707bac9374346bc209a4630406fd40542bf2954f2e9',
             'experiments/graphics_bridge/ncmm_gpu_geometry.hpp':'0b4908e30c9855d78466fad31f9c194a057268d4d2a82d1397fb57c504618e9d',
             'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'2c6a31754b82c6b1bec8b03efaffc97603132107d16b604b0ad60265bcc4f6d4',
-            'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'bb4099d9eb5802d0e173ce9d7b21d5756643ca3ef9e7927c6cf223f23244a8ba',
+            'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'305f293f5547370ad5946ea904c47537b0b61fa528c901ef94bcc4bb7504d529',
             'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'c170dd70d01dfd4c5b9858aedb5bc558d013a2d768b3b1cc4b044241d74448ba',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d',
             'experiments/FirstPersonView/src/gpu_scene.hpp':'f6dba5fac4068558ec149b4d365a0b1e01483386e454059c2933d893134999c7',
@@ -243,7 +243,9 @@ jobs:
             'experiments/FirstPersonView/tests/multilevel_fixture.json':'a2c163ed73ca4ccab4383d32eef11b7688d415fb019f845b362592a9c158bf39',
             'experiments/FirstPersonView/tests/test_verify_static_stair_audit.py':'746f6cbae63217683d824b4fe2ddbd13d543130bf4308cf9c294f61f7f5400f2',
             'experiments/FirstPersonView/tests/verify_static_stair_audit.py':'09b520e96b7daef2db8b92ab2ba00f963142e17bb78152381d2a467531b63f70',
-            'experiments/graphics_bridge/ncmm_graphics_static_stair_audit.inc':'a46affd998d07594d0580682223d205d8359a4143b767fceb9b0f63d2fe9f312'}
+            'experiments/graphics_bridge/ncmm_graphics_static_stair_audit.inc':'a46affd998d07594d0580682223d205d8359a4143b767fceb9b0f63d2fe9f312',
+            'experiments/FirstPersonView/tests/test_verify_movement_phases.py':'39cd040b43b99ef2731175aefe36f4b31685dae5093ec454eb717b6f65f1708a',
+            'experiments/FirstPersonView/tests/verify_horizon_release.py':'c86a39b681ae793f56341c43e7f86f725d81b60427d742520530f2527e14a2f9'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')

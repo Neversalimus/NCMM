@@ -2,6 +2,7 @@
 // moves, camera easing, SDL presentation and source visibility all participate.
 {
     using clock=std::chrono::steady_clock;
+    using native_step_points=std::array<clock::time_point,11>;
     const bool full_size_gpu_matrix=std::getenv("NCMM_FP_PERF_GPU_FULLSIZE")!=nullptr;
     auto elapsed=[](auto begin){return std::chrono::duration<double,std::milli>(clock::now()-begin).count();};
     auto percentile=[](std::vector<double> values,double p){if(values.empty())return 0.0;std::sort(values.begin(),values.end());
@@ -23,7 +24,12 @@
     report.member("native_pass_retained",true);
     report.member("simulation_turns_advanced",0);report.member("full_size_gpu_matrix",full_size_gpu_matrix);report.member("records");report.start_array();
     auto at=[&](int x,int y,int z){return here.get_bub(tripoint_abs_ms(original_position.x()+x,original_position.y()+y,z));};
-    auto refresh=[&](){g->ter_view_p=you.pos_bub();g->reset_light_level();here.build_map_cache(you.posz());here.invalidate_visibility_cache();here.update_visibility_cache(you.posz());};
+    auto refresh=[&](native_step_points *points=nullptr){
+        g->ter_view_p=you.pos_bub();if(points)(*points)[3]=clock::now();
+        g->reset_light_level();if(points)(*points)[4]=clock::now();
+        here.build_map_cache(you.posz());if(points)(*points)[5]=clock::now();
+        here.invalidate_visibility_cache();if(points)(*points)[6]=clock::now();
+        here.update_visibility_cache(you.posz());if(points)(*points)[7]=clock::now();};
     const std::string original_tileset=get_option<std::string>("TILES");
     const auto &trace_scene=ncmm_graphics_trace::capture_scene();
     const bool trace_capture=!trace_scene.empty();
@@ -99,6 +105,8 @@
             std::vector<double> geometry_ms,resource_ms;std::vector<uint64_t> range_evaluations,range_hits,ray_hits,ray_misses,geometry_hits,geometry_misses,roof_misses,source_misses,geometry_revisions,material_evaluations,material_hits;
             std::vector<double> native_tiles_ms,perspective_ms,present_ms,unattributed_ms,extract_ms,callback_ms,upload_ms,record_ms,submit_ms;
             std::vector<uint32_t> first_frame_indices;
+            struct native_step_sample {native_step_points points;tripoint_abs_ms from,to;int moves_before=0,moves_after=0;};
+            std::vector<native_step_sample> native_step_samples;native_step_samples.reserve(steps);
             std::vector<double> thread_cpu_ms,process_cpu_ms,sprite_readback_ms;
             std::vector<uint64_t> sprite_readback_attempts,sprite_cache_bytes,gpu_generated_cells,native_atlas_cache_bytes;
             std::vector<uint64_t> frame_upload_capacity,frame_upload_creations;
@@ -209,8 +217,17 @@
                     monster *target=g->place_critter_at(mtype_id("mon_zombie"),at(-1,-1,0));require(target!=nullptr,"movement_punch_target_missing");
                     const auto serial=graphics_attack_serial;you.melee_attack(*target,false);require(graphics_attack_serial>serial&&graphics_attack_kind==1,"movement_native_punch_not_confirmed");++attacks;}
                 first_frame_indices.push_back(uint32_t(frame_ms.size()));
-                const auto before=you.pos_abs();const int moves=you.get_moves();const auto begin=clock::now();require(avatar_action::move(you,here,route[step%4]),"movement_native_walk_failed");
-                require(you.pos_abs()!=before&&you.get_moves()<moves,"movement_native_cost_missing");refresh();render(true);first_ms.push_back(elapsed(begin));first_frame_ms.push_back(frame_ms.back());
+                native_step_sample action_sample{};auto &points=action_sample.points;
+                const auto before=you.pos_abs();const int moves=you.get_moves();const auto begin=clock::now();points[0]=begin;
+                const bool moved=avatar_action::move(you,here,route[step%4]);points[1]=clock::now();require(moved,"movement_native_walk_failed");
+                require(you.pos_abs()!=before&&you.get_moves()<moves,"movement_native_cost_missing");points[2]=clock::now();
+                refresh(&points);points[8]=clock::now();render(true);points[9]=clock::now();points[10]=clock::now();
+                // Keep the original first-ready boundary before sample storage.
+                // The render's existing inner sample excludes its vector/counter
+                // bookkeeping; retain that signed difference rather than call
+                // the outer-minus-inner interval a Native function duration.
+                first_ms.push_back(std::chrono::duration<double,std::milli>(points[10]-begin).count());first_frame_ms.push_back(frame_ms.back());
+                action_sample.from=before;action_sample.to=you.pos_abs();action_sample.moves_before=moves;action_sample.moves_after=you.get_moves();native_step_samples.push_back(action_sample);
                 int samples=0;while(graphics_world_transition_active&&samples++<100){SDL_Delay(17);const auto ease_begin=clock::now();render(true);easing_ms.push_back(elapsed(ease_begin));}
                 require(!graphics_world_transition_active,"movement_camera_did_not_settle");
                 // Only the short functional route runs the Native source oracle.
@@ -279,6 +296,20 @@
                 report.member("snapshot_retained_capacity_bytes",snapshot_retained_bytes);report.member("snapshot_candidate_counts",snapshot_candidates);
                 report.member("gpu_bones",bones);report.member("gpu_held_bones",held_bones);report.member("gpu_resource_bytes",resource_bytes);report.member("host_cpu_cache_bytes",host_bytes);report.member("gpu_producer_cache_bytes",producer_bytes);report.member("process_rss_bytes",rss);}
             report.member("first_frame_after_step_samples_ms",first_frame_ms);report.member("first_frame_after_step_median_ms",percentile(first_frame_ms,.5));report.member("first_frame_after_step_p95_ms",percentile(first_frame_ms,.95));
+            report.member("native_step_phases");report.start_object();report.member("clock","std::chrono::steady_clock");report.member("units","milliseconds");
+            report.member("phase_labels",std::array<const char *,10>{"move","post_action_checks","view_center","reset_light_level","build_map_cache","invalidate_visibility_cache","update_visibility_cache","refresh_return","render_call","outer_tail"});
+            report.member("samples");report.start_array();
+            for(size_t sample_index=0;sample_index<native_step_samples.size();++sample_index){const auto &sample=native_step_samples[sample_index];
+                std::array<double,11> offsets{};std::array<double,10> durations{};double accounted=0;
+                for(size_t point=0;point<offsets.size();++point)offsets[point]=std::chrono::duration<double,std::milli>(sample.points[point]-sample.points[0]).count();
+                for(size_t phase=0;phase<durations.size();++phase){durations[phase]=std::chrono::duration<double,std::milli>(sample.points[phase+1]-sample.points[phase]).count();accounted+=durations[phase];}
+                report.start_object();report.member("step",sample_index);report.member("frame_index",first_frame_indices[sample_index]);
+                report.member("from",std::array<int,3>{sample.from.x(),sample.from.y(),sample.from.z()});report.member("to",std::array<int,3>{sample.to.x(),sample.to.y(),sample.to.z()});
+                report.member("moves_before",sample.moves_before);report.member("moves_after",sample.moves_after);
+                report.member("boundary_offsets_ms",offsets);report.member("phase_wall_ms",durations);
+                report.member("first_ready_wall_ms",first_ms[sample_index]);report.member("first_frame_wall_ms",first_frame_ms[sample_index]);
+                report.member("render_bookkeeping_wall_ms",durations[8]-first_frame_ms[sample_index]);report.member("residual_wall_ms",first_ms[sample_index]-accounted);report.end_object();}
+            report.end_array();report.end_object();
             report.member("first_ready_median_ms",percentile(first_ms,.5));report.member("first_ready_p95_ms",percentile(first_ms,.95));report.member("easing_median_ms",percentile(easing_ms,.5));report.member("easing_p95_ms",percentile(easing_ms,.95));
             report.member("cold_rotation_samples_ms",cold_turn_ms);report.member("warm_rotation_samples_ms",warm_turn_ms);
             report.member("cold_rotation_median_ms",percentile(cold_turn_ms,.5));report.member("cold_rotation_p95_ms",percentile(cold_turn_ms,.95));report.member("cold_rotation_max_ms",*std::max_element(cold_turn_ms.begin(),cold_turn_ms.end()));
