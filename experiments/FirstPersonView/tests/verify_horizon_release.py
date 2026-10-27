@@ -157,7 +157,66 @@ def native_submap_update(row, *, required=False):
                 scope='Synchronous wall scopes include diagnostic probes; not independent GPU/CPU execution')
 
 
-def native_step_phases(record, *, required=True, require_submaps=False):
+NATIVE_MAP_SHIFT_LABELS = ('entry', 'setup', 'unload', 'origin_traps_remote', 'vehicle_zones',
+                           'cache_rebase', 'grid_copy_load', 'vehicle_levels_remote', 'support_rebase',
+                           'actualize', 'reconcile', 'exit')
+
+
+def native_map_shifts(row, parent, *, required=False):
+    """Bounded children partition map::shift; never add them to their parent."""
+    value = row.get('native_map_shifts')
+    if value is None and not required:
+        return dict(available=False, reason='Historical report has no map::shift child scopes')
+    require(parent['available'], 'Native map-shift parent receipt missing')
+    require(type(value) is dict, 'Native map-shift receipt missing')
+    require(type(value.get('schema')) is int and value['schema'] == 1
+            and value.get('clock') == 'std::chrono::steady_clock' and value.get('units') == 'milliseconds'
+            and value.get('diagnostic_probe_overhead_included') is True, 'Invalid Native map-shift clock/schema')
+    dx, dy = parent['shift_xy']
+    expected = max(abs(dx), abs(dy))
+    require(expected <= 32, 'Native map-shift route exceeds bounded capture')
+    for name, count in (('invocations', expected), ('recorded', expected), ('dropped', 0),
+                        ('max_depth', int(expected != 0)), ('exceptional_invocations', 0)):
+        require(type(value.get(name)) is int and value[name] == count, 'Invalid Native map-shift count: ' + name)
+    events = value.get('events')
+    require(type(events) is list and len(events) == expected, 'Incomplete Native map-shift event matrix')
+    update = row['native_submap_updates']['events'][0]
+    route_start = update['boundary_offsets_ms'][1]
+    route_end = update['boundary_offsets_ms'][2] if expected else route_start
+    prior_end, elapsed, children = route_start, 0.0, []
+    rounding = .000003  # Three nanoseconds; serialized offsets have 1 ns quantum.
+    remaining = [dx, dy]
+    for ordinal, event in enumerate(events):
+        require(type(event) is dict, 'Invalid Native map-shift event')
+        for name, count in (('ordinal', ordinal), ('depth', 1), ('parent_ordinal', -1), ('parent_update_ordinal', 0)):
+            require(type(event.get(name)) is int and event[name] == count, 'Nested or misassigned Native map-shift event')
+        require(event.get('route_accepted') is True and event.get('complete') is True
+                and event.get('exceptional') is False, 'Incomplete or exceptional Native map-shift event')
+        direction = [max(-1, min(1, v)) for v in remaining]
+        require(type(event.get('shift_xy')) is list and len(event['shift_xy']) == 2
+                and all(type(v) is int for v in event['shift_xy']) and event['shift_xy'] == direction,
+                'Native map-shift direction/order differs from the accepted parent route')
+        remaining = [a-b for a,b in zip(remaining, direction)]
+        offsets = event.get('boundary_offsets_ms')
+        require(event.get('boundary_labels') == list(NATIVE_MAP_SHIFT_LABELS) and type(offsets) is list
+                and len(offsets) == len(NATIVE_MAP_SHIFT_LABELS), 'Missing or misassigned Native map-shift boundaries')
+        require(all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in offsets)
+                and all(a <= b for a,b in zip(offsets, offsets[1:]))
+                and offsets[0] >= prior_end - rounding and offsets[-1] <= route_end + rounding,
+                'Overlapping or uncontained Native map-shift children')
+        wall = offsets[-1] - offsets[0]
+        elapsed += wall; prior_end = offsets[-1]
+        children.append(dict(shift_xy=direction, elapsed_ms=wall,
+                             phases={a+'_to_'+b: y-x for a,b,x,y in zip(NATIVE_MAP_SHIFT_LABELS,
+                                     NATIVE_MAP_SHIFT_LABELS[1:], offsets, offsets[1:])}))
+    gap = route_end - route_start - elapsed
+    require(remaining == [0, 0] and gap >= -rounding, 'Native map-shift child accounting exceeds its parent')
+    return dict(available=True, calls=expected, children=children, parent_wall_ms=route_end-route_start,
+                child_wall_ms=elapsed, parent_gap_wall_ms=gap,
+                scope='Inclusive synchronous child wall scopes; probes and cleanup included; never add to parent time')
+
+
+def native_step_phases(record, *, required=True, require_submaps=False, require_shifts=False):
     """Adjacent Native-call wall scopes; render is inclusive of its inner frame."""
     receipt = record.get('native_step_phases')
     if receipt is None and not required:
@@ -176,7 +235,7 @@ def native_step_phases(record, *, required=True, require_submaps=False):
     scalar = lambda value: type(value) in (int, float) and math.isfinite(value)
     route = ((1, 0, 0), (0, -1, 0), (-1, 0, 0), (0, 1, 0))
     previous_to = None
-    submaps = []
+    submaps, shifts = [], []
     for step, row in enumerate(rows):
         require(type(row['step']) is int and row['step'] == step, 'Reordered Native action samples')
         index = row['frame_index']
@@ -214,7 +273,9 @@ def native_step_phases(record, *, required=True, require_submaps=False):
             require(submap['input_xy'] == [p+d for p,d in zip(submaps[-1]['output_xy'], route[step % 4])],
                     'Native submap action mapping changed')
         submaps.append(submap)
+        shifts.append(native_map_shifts(row, submap, required=require_shifts))
     require(all(s['available'] for s in submaps) or not any(s['available'] for s in submaps), 'Partial Native submap matrix')
+    require(all(s['available'] for s in shifts) or not any(s['available'] for s in shifts), 'Partial Native map-shift matrix')
     return dict(available=True, clock=receipt['clock'], units='milliseconds', samples=count,
                 phases={name: dict(median_ms=percentile([row['phase_wall_ms'][i] for row in rows], .5),
                                    p95_ms=percentile([row['phase_wall_ms'][i] for row in rows], .95),
@@ -223,6 +284,7 @@ def native_step_phases(record, *, required=True, require_submaps=False):
                 render_bookkeeping_median_ms=percentile([row['render_bookkeeping_wall_ms'] for row in rows], .5),
                 max_abs_accounting_residual_ms=max(abs(row['residual_wall_ms']) for row in rows),
                 submap_updates=dict(available=all(s['available'] for s in submaps), samples=submaps),
+                map_shifts=dict(available=all(s['available'] for s in shifts), samples=shifts),
                 scope='Synchronous Native-call wall times; render_call includes first_frame, never add both; not on-core CPU or GPU execution')
 
 
@@ -302,7 +364,7 @@ def verify(args):
         matrix.add(key)
         require(record["native_steps"] == 12, "Native steps missing")
         phases = frame_phases(record)
-        action_phases = native_step_phases(record, require_submaps=True)
+        action_phases = native_step_phases(record, require_submaps=True, require_shifts=True)
         frame = samples(record, "first_frame_after_step_samples_ms", 12)
         ready = samples(record, "first_ready_samples_ms", 12)
         cold = samples(record, "cold_rotation_samples_ms", 48)

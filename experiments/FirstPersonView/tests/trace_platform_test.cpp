@@ -18,6 +18,8 @@
 #endif
 enum class native_distance { near, far };
 void ncmm_move_diagnostics_cross_tu();
+void ncmm_shift_diagnostics_cross_tu();
+void test_native_map_shift();
 
 namespace allocation_probe { inline bool enabled = false; inline std::size_t calls = 0; }
 void *operator new( std::size_t size )
@@ -306,10 +308,19 @@ void diagnostic_tests()
     for( int i = 0; i < 64; ++i ) {
         int x = 60, y = 60; diag::update_scope disabled( x, y, false );
         if( disabled ) { disabled.route( 0, 0 ); disabled.mark( diag::boundary::zero_position ); }
+        diag::shift_scope disabled_shift( 1, 0 );
+        if( disabled_shift ) disabled_shift.accept();
     }
     allocation_probe::enabled = false;
     require( clock_reads == initial_clocks && allocation_probe::calls == initial_allocations,
              "disabled probes perform no clocks or allocations" );
+    diag::action_record allocated_child;
+    allocation_probe::enabled = true;
+    { diag::action_capture capture( allocated_child, test_now ); ncmm_shift_diagnostics_cross_tu(); }
+    allocation_probe::enabled = false;
+    require( allocation_probe::calls == initial_allocations && allocated_child.shift_recorded == 1 &&
+             allocated_child.shifts[0].count == diag::shift_boundary_capacity,
+             "enabled action and complete child capture use fixed storage without allocations" );
     diag::action_record cross_tu;
     { diag::action_capture capture( cross_tu, test_now ); ncmm_move_diagnostics_cross_tu(); }
     require( qualifies( cross_tu ), "one external inline TLS capture is shared across real translation units" );
@@ -370,7 +381,7 @@ int main(int argc,char **argv)
     ncmm_graphics_trace::note_present();ncmm_graphics_trace::note_present();
     if(ncmm_graphics_trace::presented_frames!=(capture?2u:0u))return 2;
     if(capture&&std::strcmp(ncmm_graphics_trace::capture_label(),"FP_SCENE:quiet"))return 3;
-    try { native_update_fixture::diagnostic_tests(); }
+    try { native_update_fixture::diagnostic_tests(); test_native_map_shift(); }
     catch( const std::exception &e ) { std::cerr << e.what() << '\n'; return 4; }
     ncmm_graphics_trace::cpu_zone scope("Trace SDK include compatibility");
     return native_distance::near == native_distance::far;

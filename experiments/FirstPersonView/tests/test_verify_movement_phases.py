@@ -1,7 +1,7 @@
 import copy
 import math
 import unittest
-from verify_horizon_release import (NATIVE_STEP_LABELS, frame_phases, native_step_phases,
+from verify_horizon_release import (NATIVE_STEP_LABELS, NATIVE_MAP_SHIFT_LABELS, frame_phases, native_step_phases,
                                     expected_payload_files, verify_payload_file_matrix)
 
 class FramePhaseTests(unittest.TestCase):
@@ -243,5 +243,118 @@ class NativeSubmapPhaseTests(unittest.TestCase):
             if mode == 'outside': event['boundary_offsets_ms'][-1] = .6
             if mode == 'nan': event['boundary_offsets_ms'][3] = math.nan
             with self.subTest(mode=mode), self.assertRaises(ValueError): native_step_phases(record, require_submaps=True)
+
+class NativeMapShiftPhaseTests(unittest.TestCase):
+    """Invented times exercise the format; none constitute a measurement."""
+    def add_shifts(self, row):
+        parent = row['native_submap_updates']['events'][0]
+        remaining = parent['shift_xy'][:]
+        count = max(map(abs, remaining))
+        events = []
+        start = parent['boundary_offsets_ms'][1]
+        span = (parent['boundary_offsets_ms'][2]-start)/(2*count+1) if count else 0
+        for ordinal in range(count):
+            direction = [max(-1, min(1, v)) for v in remaining]
+            remaining = [a-b for a,b in zip(remaining, direction)]
+            offsets = [start+(2*ordinal+1)*span+span*b/11 for b in range(12)]
+            events.append(dict(ordinal=ordinal, depth=1, parent_ordinal=-1, parent_update_ordinal=0,
+                shift_xy=direction, route_accepted=True, complete=True, exceptional=False,
+                boundary_labels=list(NATIVE_MAP_SHIFT_LABELS), boundary_offsets_ms=offsets))
+        row['native_map_shifts'] = dict(schema=1, clock='std::chrono::steady_clock', units='milliseconds',
+            diagnostic_probe_overhead_included=True, invocations=count, recorded=count, dropped=0,
+            max_depth=int(count != 0), exceptional_invocations=0, events=events)
+
+    def valid_record(self, multiple=False):
+        record = NativeSubmapPhaseTests().valid_record()
+        if multiple:
+            parent = record['native_step_phases']['samples'][0]['native_submap_updates']['events'][0]
+            parent['shift_xy'] = [3, -2]
+            parent['input_xy'] = [v+s*12 for v,s in zip(parent['output_xy'], parent['shift_xy'])]
+            parent['boundary_labels'] = ['entry', 'route', 'shift', 'rebase_load_npcs', 'invalidate', 'build', 'spawn', 'overmap', 'exit']
+            parent['boundary_offsets_ms'] = [.01*(i+1) for i in range(9)]
+        for row in record['native_step_phases']['samples']: self.add_shifts(row)
+        return record
+
+    def verify(self, record):
+        return native_step_phases(record, require_submaps=True, require_shifts=True)['map_shifts']
+
+    def test_complete_stationary_and_crossing_routes_conserve_parent_time(self):
+        result = self.verify(self.valid_record())
+        self.assertTrue(result['available'])
+        self.assertEqual([s['calls'] for s in result['samples']], [0, 1]*6)
+        child = result['samples'][1]
+        self.assertAlmostEqual(child['child_wall_ms']+child['parent_gap_wall_ms'], child['parent_wall_ms'])
+        self.assertEqual(len(child['children'][0]['phases']), 11)
+
+    def test_multi_call_parent_uses_native_clamped_sequence(self):
+        result = self.verify(self.valid_record(multiple=True))['samples'][0]
+        self.assertEqual([e['shift_xy'] for e in result['children']], [[1, -1], [1, -1], [1, 0]])
+        self.assertAlmostEqual(result['child_wall_ms']+result['parent_gap_wall_ms'], result['parent_wall_ms'])
+
+    def test_historical_absence_is_unavailable_and_cannot_qualify(self):
+        old = NativeSubmapPhaseTests().valid_record()
+        self.assertFalse(native_step_phases(old)['map_shifts']['available'])
+        with self.assertRaisesRegex(ValueError, 'map-shift receipt missing'): self.verify(old)
+        record = self.valid_record(); del record['native_step_phases']['samples'][0]['native_map_shifts']
+        with self.assertRaisesRegex(ValueError, 'Partial Native map-shift'): native_step_phases(record)
+
+    def test_parent_is_required_even_when_child_is_present(self):
+        record = self.valid_record(); del record['native_step_phases']['samples'][1]['native_submap_updates']
+        with self.assertRaises(ValueError): native_step_phases(record)
+
+    def test_invalid_schema_clock_counts_overflow_or_exceptions_rejected(self):
+        for key, value in (('schema', True), ('schema', 2), ('clock', 'cpu'), ('units', 'seconds'),
+                           ('diagnostic_probe_overhead_included', False), ('invocations', 0), ('invocations', 2),
+                           ('recorded', 0), ('recorded', True), ('dropped', 1), ('max_depth', 2), ('exceptional_invocations', 1)):
+            record = self.valid_record(); record['native_step_phases']['samples'][1]['native_map_shifts'][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError): self.verify(record)
+
+    def test_incomplete_nested_or_wrong_parent_child_rejected(self):
+        for key, value in (('ordinal', 1), ('depth', 2), ('parent_ordinal', 0), ('parent_update_ordinal', 1),
+                           ('route_accepted', False), ('complete', False), ('exceptional', True),
+                           ('shift_xy', [0, 1]), ('shift_xy', [False, -1])):
+            record = self.valid_record(); record['native_step_phases']['samples'][1]['native_map_shifts']['events'][0][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError): self.verify(record)
+
+    def test_missing_duplicate_or_misordered_children_rejected(self):
+        for mode in ('missing', 'duplicate', 'order'):
+            record = self.valid_record(multiple=True)
+            events = record['native_step_phases']['samples'][0]['native_map_shifts']['events']
+            if mode == 'missing': events.pop()
+            elif mode == 'duplicate': events.append(copy.deepcopy(events[0]))
+            else: events[0], events[2] = events[2], events[0]
+            with self.subTest(mode=mode), self.assertRaises(ValueError): self.verify(record)
+
+    def test_children_from_other_individually_valid_actions_rejected(self):
+        record = self.valid_record(); rows = record['native_step_phases']['samples']
+        rows[1]['native_map_shifts'], rows[3]['native_map_shifts'] = rows[3]['native_map_shifts'], rows[1]['native_map_shifts']
+        with self.assertRaisesRegex(ValueError, 'direction/order'): self.verify(record)
+
+    def test_bad_boundaries_or_parent_containment_rejected(self):
+        for mode in ('missing', 'labels', 'negative', 'nan', 'bool', 'reverse', 'start', 'end'):
+            record = self.valid_record(); event = record['native_step_phases']['samples'][1]['native_map_shifts']['events'][0]
+            points = event['boundary_offsets_ms']
+            if mode == 'missing': points.pop()
+            elif mode == 'labels': event['boundary_labels'][3] = 'build'
+            elif mode == 'negative': points[0] = -.1
+            elif mode == 'nan': points[3] = math.nan
+            elif mode == 'bool': points[3] = True
+            elif mode == 'reverse': points[3] = 0
+            elif mode == 'start': event['boundary_offsets_ms'] = [v-.02 for v in points]
+            else: event['boundary_offsets_ms'] = [v+.02 for v in points]
+            with self.subTest(mode=mode), self.assertRaises(ValueError): self.verify(record)
+
+    def test_overlap_smaller_than_outer_tolerance_still_rejected(self):
+        record = self.valid_record(multiple=True)
+        events = record['native_step_phases']['samples'][0]['native_map_shifts']['events']
+        # A 1 ns serialized quantum permits 3 ns, never the outer 3 us budget.
+        delta = events[1]['boundary_offsets_ms'][0]-events[0]['boundary_offsets_ms'][-1]+.0001
+        events[1]['boundary_offsets_ms'] = [v-delta for v in events[1]['boundary_offsets_ms']]
+        with self.assertRaisesRegex(ValueError, 'Overlapping'): self.verify(record)
+
+    def test_unexpected_child_on_stationary_route_rejected(self):
+        record = self.valid_record(); rows = record['native_step_phases']['samples']
+        rows[0]['native_map_shifts'] = copy.deepcopy(rows[1]['native_map_shifts'])
+        with self.assertRaisesRegex(ValueError, 'count'): self.verify(record)
 
 if __name__=='__main__':unittest.main()

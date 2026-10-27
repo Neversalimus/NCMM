@@ -68,6 +68,32 @@ def patch_native_update_map(text, identity):
     return text[:begin] + '#include "ncmm_graphics_update_map.inc"\n' + text[begin + patched_length:]
 
 
+NATIVE_MAP_SHIFT_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (4916, "2e4d5b1e9f2e40ba13479de1905f9a60eeb541a6cdbe9758e8b20684fa83c56c", ""),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (4968, "67194a60c86ed8bce2ac67b009eb97b252ad682b513abe2ad1e4cad5816fcfee", "c->map_memory_sweep_pending = true;"),
+}
+NATIVE_MAP_SHIFT_MEMORY = "NCMM_GRAPHICS_SHIFT_MEMORY_SWEEP"
+
+
+def patch_native_map_shift(text, identity):
+    signature = "void map::shift( const point_rel_sm &sp )\n"
+    if (identity not in NATIVE_MAP_SHIFT_ORIGINALS or text.count(signature) != 1
+            or NATIVE_MAP_SHIFT_MEMORY in text):
+        raise ValueError("Experimental bridge Native map-shift source differs")
+    length, digest, sweep = NATIVE_MAP_SHIFT_ORIGINALS[identity]
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native map-shift source differs")
+    # This is the sole difference between the complete pinned Native bodies.
+    # Bind it locally and immediately undefine it after the extracted function.
+    definition = f"#define {NATIVE_MAP_SHIFT_MEMORY}(c)" + (" " + sweep if sweep else "")
+    extracted = (definition + "\n"
+                 '#include "ncmm_graphics_map_shift.inc"\n'
+                 f"#undef {NATIVE_MAP_SHIFT_MEMORY}\n")
+    return text[:begin] + extracted + text[begin + length:]
+
+
 NATIVE_FLOOR_CACHE_ORIGINALS = {
     "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (2349, "80c7cfd987d5550275fd2eabf182d2027591c99d22fa8ca58024da46c2495eb6"),
     "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (2349, "80c7cfd987d5550275fd2eabf182d2027591c99d22fa8ca58024da46c2495eb6"),
@@ -587,7 +613,9 @@ void initialize();''')
     game_cpp=replace(game_cpp,'#include "game.h"','#include "game.h"\n#include "ncmm_graphics_move_diagnostics.hpp"')
     if '#include "ncmm_loader.h"' not in game_cpp:
         game_cpp=replace(game_cpp,'#include "game.h"','#include "game.h"\n#include "ncmm_loader.h"')
+    map_cpp=replace(map_cpp,'#include "map.h"','#include "map.h"\n#include "ncmm_graphics_move_diagnostics.hpp"')
     map_cpp=patch_native_item_reconciliation(map_cpp,identity)
+    map_cpp=patch_native_map_shift(map_cpp,identity)
     map_cpp=patch_native_outside_cache(map_cpp,identity)
     map_cpp=patch_native_floor_cache(map_cpp,identity)
     map_cpp,game_cpp=patch_native_cache_resets(map_cpp,game_cpp)
@@ -610,7 +638,7 @@ void initialize();''')
     updates["game.cpp"]=game_cpp
     lightmap_cpp=patch_native_apparent_light(read("lightmap.cpp"),identity)
     updates["lightmap.cpp"]=patch_native_vision_transparency(lightmap_cpp,identity)
-    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_floor_cache.inc","ncmm_graphics_outside_cache.inc","ncmm_graphics_vision_transparency.inc","ncmm_graphics_reconcile_items.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
+    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_map_shift.inc","ncmm_graphics_floor_cache.inc","ncmm_graphics_outside_cache.inc","ncmm_graphics_vision_transparency.inc","ncmm_graphics_reconcile_items.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")

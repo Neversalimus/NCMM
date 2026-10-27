@@ -131,13 +131,13 @@ jobs:
           from pathlib import Path
           import hashlib,json,os
           files={
-            'experiments/FirstPersonView/CMakeLists.txt':'3e9d83d5a3557823c08b64b55dc70cd55b459090e7b053b963014f27bfa01207',
+            'experiments/FirstPersonView/CMakeLists.txt':'c8ce63608d1df6e08045cefa3e0622dd92d3a72326159211d9aaf82a178ee676',
             'experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp':'d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597',
             'experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp':'f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b',
             'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'967056405be15fc7dbf7e707bac9374346bc209a4630406fd40542bf2954f2e9',
             'experiments/graphics_bridge/ncmm_gpu_geometry.hpp':'0b4908e30c9855d78466fad31f9c194a057268d4d2a82d1397fb57c504618e9d',
             'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'2c6a31754b82c6b1bec8b03efaffc97603132107d16b604b0ad60265bcc4f6d4',
-            'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'057648f535d61dc095219bd6ff3681f80bdd907eb436768fddcf89797eb2f26c',
+            'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'e3cc82ac3fe834e1619f024df89e80767711ab7b688319c43773ef785cf5ee98',
             'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'c170dd70d01dfd4c5b9858aedb5bc558d013a2d768b3b1cc4b044241d74448ba',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d',
             'experiments/FirstPersonView/src/gpu_scene.hpp':'f6dba5fac4068558ec149b4d365a0b1e01483386e454059c2933d893134999c7',
@@ -220,7 +220,7 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_projectiles.h':'fe0917662db6932f84e90174b6c0970380fb560f0e31a8d715776c524f4829ac',
             'experiments/graphics_bridge/ncmm_graphics_projectiles.inc':'b66eaec1988ba9757950f13cb15dd49fed9903f26836918d56466a62ce7fc8f6',
             'experiments/graphics_bridge/ncmm_graphics_snapshot_cache.hpp':'39b4f6c89da51c3bca33d1b1f885995413a6dbafa6783335cfe84e540039b8c8',
-            'experiments/graphics_bridge/test_apply_graphics_bridge.py':'153d843ecbb5a5b3e639e89deae47801132f302aba78486c279e4a450595bdbd',
+            'experiments/graphics_bridge/test_apply_graphics_bridge.py':'cc7b63e0349bcda527d4dece731bd5b558e2d700477ee994316541c832bf2029',
             'experiments/FirstPersonView/tests/Test-CompilerWrapper.ps1':'3b8e80a9180241c2144a92f0902cfd4ab15c7b3d7d190ab375128ef7f5110633',
             'experiments/FirstPersonView/tests/multilevel_cache_test.cpp':'29e65017c80be9c4ceae8de91ffcc180a3f9ced4a4540fb696719d489aac9a49',
             'experiments/graphics_bridge/ncmm_world_cache.hpp':'b4cbe4e3774dfdb17c2e395bf23a0a1bc9b51b840a551f06f54cbde0da3c9080',
@@ -235,7 +235,7 @@ jobs:
             'experiments/FirstPersonView/tests/snapshot_storage_test.cpp':'1ff172b451c00510e105fdf56aefc7cf5aa0af1217ab8134ad21746aa5d427af',
             'experiments/FirstPersonView/reports/night-static-boundary-preparation-20261027.json':'08a7888ac121a67ce4eecda0231242f309148cb643127d8c7bad3b31edc1029e',
             'experiments/FirstPersonView/tests/skyline_host_fixture.hpp':'3bd6b9ac14b72cbe1b9d6ae7907803fbe1acf64faa16c2645ee77e1b241984a0',
-            'experiments/graphics_bridge/apply_graphics_bridge.py':'4aa20a42bfde2837ec661832858cc2682a193ce4ab18f9d92dc3acd310fc0e6d',
+            'experiments/graphics_bridge/apply_graphics_bridge.py':'6901d3139952be42054f94b40a075e8507c995bf5e21ec8b8d1796132b8ec73d',
             'experiments/graphics_bridge/ncmm_graphics_lod.inc':'94a554a5343d3e5fbfe7506596e4079bcb98cd62e5b16abdc12f794aa8ee8321',
             'experiments/graphics_bridge/ncmm_graphics_multilevel.h':'5c8292ca3fca90fe8686cb32ce15cbd0bf8c78fc2e5ffc766d36af6a708741cd',
             'experiments/graphics_bridge/ncmm_world_lod.hpp':'e3fff61d1cc606d651e9b45c002e683b1b3e2ea2144005610a68df0aa3cafe60',
@@ -244,17 +244,17 @@ jobs:
             'experiments/FirstPersonView/tests/test_verify_static_stair_audit.py':'105faba8ed56ff451a67eeaa8ba5ffb44103ea682d9b88682fc94caa554c1dd9',
             'experiments/FirstPersonView/tests/verify_static_stair_audit.py':'89fb1953a98a3d1f05e3b18ee77750495669eba5ad9cc620dd0a6cebf78df503',
             'experiments/graphics_bridge/ncmm_graphics_static_stair_audit.inc':'efaa7acb144a2ebfbaf294e99f4eba836daf76253992ca5bae0ca433f3209b0a',
-            'experiments/FirstPersonView/tests/test_verify_movement_phases.py':'b6be6a774832e000d3914d7816739e02fd44af41c6e7494709e5cb9111c14848',
-            'experiments/FirstPersonView/tests/verify_horizon_release.py':'3f2e9abc4f2560c29292708f9d011d2222fb993d4cc1e0a14d4630c9450f8b85',
+            'experiments/FirstPersonView/tests/test_verify_movement_phases.py':'ed0ee2b671ad3ffe4da562d877c02defc1473ae808033314f70e49ef3a6efed1',
+            'experiments/FirstPersonView/tests/verify_horizon_release.py':'25cb9d6092931a292943dcecaba710dbd6aa088cc41acdff9ec4a65a04112ffc',
             'experiments/graphics_bridge/ncmm_graphics_apparent_light.inc':'1d5e61f678ea4a1d55af1047267a5bba4ec392a7b0313198d8bd41ae0f0b5826',
             'experiments/graphics_bridge/ncmm_graphics_static_detail.inc':'bd9b69c0e9eed8111bcc58051acaf2992c7ed2d9a6a44e8f3bda59e7c341b539',
             'experiments/graphics_bridge/ncmm_graphics_candidate_range.inc':'5f2e16462cbab351939b34ee0b9c83888547b0911bed1347e40c19585fcdd3f7',
             'experiments/graphics_bridge/ncmm_graphics_multilevel_observer.inc':'3092cdeefc9b16f4b0840ac0b1afbeb37fa12f8b5262c74a2cee0baefb56228a',
             'experiments/graphics_bridge/ncmm_graphics_multilevel_smoke.inc':'a8ed1e48eec1cb9d9740b6ad1192aa17d498a3abd74a36c10114e96203425a1b',
             'experiments/graphics_bridge/ncmm_graphics_terrain_stair.inc':'a80e1a081da5e5a42397232b7a8bbe0e2c38f753c808ec8818d1435eba4db4b9',
-            'experiments/FirstPersonView/tests/move_diagnostics_cross_tu.cpp':'fb3b9a46d47029ed016f52747a510f81ced9385fe00bb205e042d16af7543f2d',
-            'experiments/FirstPersonView/tests/trace_platform_test.cpp':'d996d66359bf06afccac0a268343936b65c88317cb0cdca8a0b92eb9ccca3159',
-            'experiments/graphics_bridge/ncmm_graphics_move_diagnostics.hpp':'40b02411b63cc8cedb5aae987ae33866e666cd2c82b5cde582a89b46c9004d74',
+            'experiments/FirstPersonView/tests/move_diagnostics_cross_tu.cpp':'99fcd6b9cf94cda34c3a1dccba5d87351db99108a20a8f5854edff39de27b1d5',
+            'experiments/FirstPersonView/tests/trace_platform_test.cpp':'f9a19cc5c6fd23cb5dd868080ddd126282d6a979ca85b65433219170e2802e53',
+            'experiments/graphics_bridge/ncmm_graphics_move_diagnostics.hpp':'8abdbc502ec8e60be5cbf8a9d7b059c387653655b3dcabf1a660e052b2cb4e5e',
             'experiments/graphics_bridge/ncmm_graphics_update_map.inc':'296426cd87644e9cad5ea639ab3ce0a738ed4b99393fcb0244739337d02998fc',
             'experiments/FirstPersonView/tests/native_floor_cache_fixture.cpp':'bdf60487219a71fb3495eb0fc1dd2050be5147b94c32d15ebe17b6c1f7fb9202',
             'experiments/graphics_bridge/ncmm_graphics_floor_cache.inc':'1bd4d23281b322c7104ac0d4ceb817269753e9679542309c502bd2fe436d4fe4',
@@ -263,7 +263,9 @@ jobs:
             'experiments/FirstPersonView/tests/native_vision_transparency_fixture.cpp':'d4547989025a9ab76f5a1c2ac4bd4e021dd675dac05772fb089228e598de8342',
             'experiments/graphics_bridge/ncmm_graphics_vision_transparency.inc':'e6a443f66d63e0158d0097b919fb920a07ef4ef746f842ec9c10f46664a4e1f4',
             'experiments/FirstPersonView/tests/native_outside_cache_fixture.cpp':'523747ce4df72fc9fdf2bb22d087143e50ae8e63a66939f3f2ef9cd5646ef03f',
-            'experiments/graphics_bridge/ncmm_graphics_outside_cache.inc':'ecf282248ffacf39d127e3075123a56d143913bb458e18650504d8a27cea055a'}
+            'experiments/graphics_bridge/ncmm_graphics_outside_cache.inc':'ecf282248ffacf39d127e3075123a56d143913bb458e18650504d8a27cea055a',
+            'experiments/FirstPersonView/tests/native_map_shift_fixture.cpp':'8f6342d23f8b7cba60ff0aebd51c91add5e0c1e53ec8bb435159658c5774b9f7',
+            'experiments/graphics_bridge/ncmm_graphics_map_shift.inc':'1e072f91ae731556da964e314f6879be0bb37eaea3df33d97843aaf43059d772'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')

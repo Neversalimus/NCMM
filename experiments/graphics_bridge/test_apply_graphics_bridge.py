@@ -48,6 +48,15 @@ def native_update_map_original():
     return frozen.split(begin, 1)[1].split(end, 1)[0]
 
 
+def native_map_shift_original(pin):
+    labels = dict(zip(bridge.SOURCES, ("1040", "1807")))
+    frozen = (REPO / "experiments/FirstPersonView/tests/native_map_shift_fixture.cpp").read_text(encoding="utf-8")
+    begin, end = (f"// {kind} FROZEN NATIVE MAP SHIFT {labels[pin]}\n" for kind in ("BEGIN", "END"))
+    if frozen.count(begin) != 1 or frozen.count(end) != 1:
+        raise ValueError("Frozen Native map-shift fixture differs")
+    return frozen.split(begin, 1)[1].split(end, 1)[0]
+
+
 def native_floor_cache_original():
     frozen = (REPO / "experiments/FirstPersonView/tests/native_floor_cache_fixture.cpp").read_text(encoding="utf-8")
     begin, end = "// BEGIN FROZEN NATIVE FLOOR CACHE\n", "// END FROZEN NATIVE FLOOR CACHE\n"
@@ -82,6 +91,97 @@ def native_item_reconciliation_original(pin):
 
 
 class ApplyTests(unittest.TestCase):
+    def test_map_shift_full_primary_and_source_preserving_probes(self):
+        source = Path(bridge.__file__).with_name("ncmm_graphics_map_shift.inc").read_text(encoding="utf-8")
+        source = source[source.index("void map::shift"):]
+        hooks = [line for line in source.splitlines(keepends=True)
+                 if line.startswith("    ncmm_graphics_move_diagnostics::shift_scope ")
+                 or line.startswith("    if( ncmm_shift_scope ) ")]
+        self.assertEqual(len(hooks), 12)
+        for line in hooks:
+            self.assertEqual(source.count(line), 1)
+            source = source.replace(line, "", 1)
+        binding = "            NCMM_GRAPHICS_SHIFT_MEMORY_SWEEP(cache)\n"
+        self.assertEqual(source.count(binding), 1)
+        for pin, (length, digest, sweep) in bridge.NATIVE_MAP_SHIFT_ORIGINALS.items():
+            original = native_map_shift_original(pin)
+            self.assertEqual(len(original.encode("utf-8")), length)
+            self.assertEqual(hashlib.sha256(original.encode("utf-8")).hexdigest(), digest)
+            restored = source.replace(binding, "            cache->map_memory_sweep_pending = true;\n" if sweep else "", 1)
+            self.assertEqual(restored, original)
+
+    def test_map_shift_patch_retains_surrounding_native_source_and_pin(self):
+        for pin, (_, _, sweep) in bridge.NATIVE_MAP_SHIFT_ORIGINALS.items():
+            original = native_map_shift_original(pin)
+            definition = "#define NCMM_GRAPHICS_SHIFT_MEMORY_SWEEP(c)" + (" " + sweep if sweep else "")
+            expected = ("// prefix\n" + definition + "\n"
+                        '#include "ncmm_graphics_map_shift.inc"\n#undef NCMM_GRAPHICS_SHIFT_MEMORY_SWEEP\n// suffix\n')
+            self.assertEqual(bridge.patch_native_map_shift("// prefix\n"+original+"// suffix\n", pin), expected)
+        with self.assertRaisesRegex(ValueError, "map-shift"):
+            bridge.patch_native_map_shift(original, "unknown")
+
+    def test_map_shift_both_pins_receipt_and_global_tls(self):
+        name = "ncmm_graphics_map_shift.inc"
+        helper = Path(bridge.__file__).with_name(name)
+        for pin, (_, _, sweep) in bridge.NATIVE_MAP_SHIFT_ORIGINALS.items():
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root, pin)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin): bridge.apply(root)
+                source = (root / "src/map.cpp").read_text(encoding="utf-8")
+                definition = "#define NCMM_GRAPHICS_SHIFT_MEMORY_SWEEP(c)" + (" " + sweep if sweep else "")
+                binding = (definition + "\n"
+                           '#include "ncmm_graphics_map_shift.inc"\n#undef NCMM_GRAPHICS_SHIFT_MEMORY_SWEEP\n')
+                self.assertEqual(source.count(binding), 1)
+                self.assertNotIn("void map::shift", source)
+                self.assertEqual(source.count('#include "ncmm_graphics_move_diagnostics.hpp"'), 1)
+                self.assertLess(source.index('#include "ncmm_graphics_move_diagnostics.hpp"'), source.index(binding))
+                namespace = re.search(r"^namespace\b", source, flags=re.M)
+                if namespace: self.assertLess(source.index('#include "ncmm_graphics_move_diagnostics.hpp"'), namespace.start())
+                self.assertEqual((root / "src" / name).read_bytes(), helper.read_bytes())
+                receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))
+                self.assertEqual(receipt["source_commit"], pin)
+                self.assertEqual(receipt["inputs"][name], hashlib.sha256(helper.read_bytes()).hexdigest())
+
+    def test_map_shift_changed_missing_and_duplicate_primary_are_atomic(self):
+        for pin in bridge.SOURCES:
+            for kind in ("changed", "missing", "duplicate"):
+                with self.subTest(pin=pin, kind=kind), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root, pin); path = root / "src/map.cpp"
+                    original = native_map_shift_original(pin)
+                    replacement = {"changed": original.replace("clear_vehicle_level_caches();", "different_vehicle_clear();"),
+                                   "missing": "", "duplicate": original + original}[kind]
+                    path.write_text(path.read_text(encoding="utf-8").replace(original, replacement, 1), encoding="utf-8")
+                    before = self.fingerprint(root)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                        with self.assertRaisesRegex(ValueError, "map-shift"): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
+    def test_map_shift_missing_or_existing_include_is_atomic(self):
+        name = "ncmm_graphics_map_shift.inc"
+        for pin in bridge.SOURCES:
+            for existing in (False, True):
+                with self.subTest(pin=pin, existing=existing), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root, pin)
+                    if existing: (root / "src" / name).write_text("existing shift include\n", encoding="utf-8")
+                    before = self.fingerprint(root); original_read = Path.read_text
+                    def read(path, *args, **kwargs):
+                        if not existing and path == Path(bridge.__file__).with_name(name):
+                            raise FileNotFoundError("missing shift include")
+                        return original_read(path, *args, **kwargs)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
+                        with self.assertRaises((ValueError, FileNotFoundError)): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
+    def test_map_shift_private_macro_collision_is_atomic(self):
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root, pin); path = root / "src/map.cpp"
+                path.write_text(path.read_text(encoding="utf-8") + "\n#define NCMM_GRAPHICS_SHIFT_MEMORY_SWEEP(c) collision\n", encoding="utf-8")
+                before = self.fingerprint(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                    with self.assertRaisesRegex(ValueError, "map-shift"): bridge.apply(root)
+                self.assertEqual(before, self.fingerprint(root))
+
     def test_outside_cache_frozen_body_and_source_preservation(self):
         original = native_outside_cache_original()
         self.assertEqual(len(original.encode("utf-8")), 2217)
@@ -455,7 +555,7 @@ class ApplyTests(unittest.TestCase):
                           "void map::set_outside_cache_dirty( const int zlev )",
                           "void map::set_floor_cache_dirty( const int zlev )"):
             map_cpp+=signature+"\n{\n}\n"
-        (root / "src/map.cpp").write_text(map_cpp+native_item_reconciliation_original(pin)+native_outside_cache_original()+native_floor_cache_original()+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
+        (root / "src/map.cpp").write_text(map_cpp+native_item_reconciliation_original(pin)+native_map_shift_original(pin)+native_outside_cache_original()+native_floor_cache_original()+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );\n        if( next_action.type == input_event_t::timeout ) {\n        }\n    inp_mngr.set_timeout( old_timeout );\n    return *result;\n}\n')
         (root / "src/input.cpp").write_text('#include "input.h"\nvoid input_manager::wait_for_any_key()\n{\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n    if( needupdate ) {\n        try_sdl_update();\n    }\n}\n')

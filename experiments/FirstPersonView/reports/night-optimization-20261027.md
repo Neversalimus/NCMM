@@ -461,7 +461,77 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     the stage22 263-test pass. New Native linkage and gameplay require remote
     qualification; no new latency gain is inferred from this repair.
 
+27. **Adjacent Native map::shift child scopes.** The measured remaining
+    crossing cost justifies separating setup, unload, origin/traps/remote,
+    vehicle-zone writes, cache rebasing, interleaved grid copy/load, vehicle
+    levels/remote restore, support rebasing, actualization, item reconciliation
+    and local cleanup. A bounded 32-child capture shares the existing global
+    inline TLS and clock; ordinary disabled calls perform no clock/allocation,
+    and enabled probe storage also allocates nothing. Native calls and order
+    stay exact. Complete primary bodies are independently guarded at 4916/4968
+    bytes; the later pin's sole extra memory-sweep flag is locally bound and
+    immediately undefined. Declaring the scope first includes loaded-vector
+    destruction in the final interval. Early returns, exceptions, saturation,
+    nesting and dropped children remain explicit, never invented as complete.
+
+    Serialization stays after first-ready. Fresh qualification checks all 12
+    child boundaries, the actual clamped sequence for multiple shifts, parent
+    ordinal, nonoverlap/containment and signed parent gap; 3 ns child tolerance
+    matches the 1 ns serialized quantum. Inclusive parent and child times are
+    never added together. Historical absence remains unavailable; it cannot
+    qualify the new contract.
+
+    Full Release, the same 50 autonomous CTests (14.43 s), 274 Python verifier
+    tests and 72 atomic bridge tests pass. Complete-source owned-state models
+    cover 228 paired scenarios / 3051719 checks, all eight directions,
+    widths1/3/11, missing caches/submaps, remote/support state, every loaded-Z
+    callback, exceptions, multi-call and nested shifts, dropped/saturated
+    counters and real cross-TU TLS. Four compiled negative controls reject
+    absent hooks on each pin after all 96 semantic pairs, an exit before local
+    cleanup, and a lost 1807 memory flag. Initial atomic testing caught CRLF
+    versus LF in the newly generated include; canonical LF restores exact
+    source-copy receipts. Evidence `night-map-shift-*`. These injected clocks
+    are not timings; actual Native compilation/captures remain pending.
+
 ## Actual remote evidence and next priorities
+
+**Fresh cache-stage evidence at exact `311d717`, run 40501372289.** Both pinned
+Windows Hosts compile, and their early movement programs exit 0 with successful
+provenance and no wrapper/debugger errors or dumps. Runtime merge
+`352f056b208e05e8ae98a53bc9b57c55fd610e24` and the saved PR commit share tree
+`408ac1edceabadcc3ac48db816d6d7cf96c6f7c5`; this comparison uses Git objects,
+not the subsequent diagnostic worktree. All 24 records / 288 actions conserve
+their strict adjacent update_map scopes and rebases. Actual new child scopes
+do not exist in this revision; their absence remains explicitly unavailable.
+Four program JSON members per artifact were read from 12733459198/12734059117,
+with 340348 bytes reserved against the shared 8 MiB cap. Private:
+`night-movement-311d717/`. Independent submap summaries have SHA256
+1040 `7dd34f941b80ffbe84454f62f601e2355137eff9863bc3bb934d45dd079f8904`,
+1807 `e6d680e13e39160a0209a38e004364eb03abce90e14718bdcac1f5cbcc82e189`;
+combined scene summary
+`168bef63fd72d60907af62213187f34188db6afdcac67282f58a89c1f96dd106`.
+
+640x480 GPU mode, VSync1, **software D3D12 Microsoft Basic Render Driver**;
+medians in ms, six crossings per row. Independent medians need not sum:
+
+| Pin / scene | No shift action | Crossing action | map::shift | build_map_cache | Crossing first-ready (p95) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1040 street | .339 | 22.055 | 11.901 | 8.928 | 42.088 (54.697) |
+| 1040 horde | .345 | 27.828 | 13.265 | 13.155 | 52.043 (68.506) |
+| 1040 city | .369 | 31.202 | 14.992 | 14.496 | 110.667 (152.497) |
+| 1807 street | .385 | 40.005 | 20.142 | 18.043 | 86.560 (108.580) |
+| 1807 horde | .386 | 41.902 | 20.478 | 19.773 | 114.312 (123.211) |
+| 1807 city | .395 | 47.454 | 22.160 | 23.384 | 134.682 (180.299) |
+
+The older 1040 crossing medians below were 40–55 ms; these are separate CI runs,
+not a controlled paired A/B gain. 1807 city still has crossing-action p95
+109.201 ms and build_map_cache p95 82.158 ms. The unchanged diagnostic refresh
+explicitly invalidates visibility; the benchmark does not advance simulation turns.
+First-ready includes actions, forced refresh and synchronous render; it is not
+scanout/present latency or ordinary RTX 4090 play. No 15 ms claim follows.
+Next: use the bounded child capture to distinguish actualization/reconciliation,
+copy/load and cache rebasing within the still-expensive shift; retain the
+separate cache-build and real-render costs.
 
 **Submap attribution at exact `7f0ea25`, run 40481073067.** Both Windows
 movement programs exit0 with successful provenance, no wrapper/debugger error
@@ -671,6 +741,16 @@ Linux1807 as described in stage26; Linux1040 was still running when the repair
 was prepared. Windows job IDs122168779629/122168779487 and Linux1807
 job122168779729 were read through Code Review only. No new game run, movement
 receipt or full Native pass exists for this failed source revision.
+
+At `311d717`, [main run40501372289](https://github.com/Neversalimus/NCMM/actions/runs/40501372289)
+passes both module jobs and both actual Windows Host compilation/early movement
+programs. Windows galleries and full Linux qualification were still running at
+the checkpoint above. The independent
+[GPU Windows/Linux/Vulkan/sanitizers](https://github.com/Neversalimus/NCMM/actions/runs/40501372156)
+pass, as do [source/package](https://github.com/Neversalimus/NCMM/actions/runs/40501372230)
+and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40501372183).
+These facts do not establish a full Native pass or qualify stage27's new
+diagnostic Host bytes.
 
 The freshly rebuilt hidden render-only RTX 4090 controls retain
 45 grass draws, zero CPU world raster, zero warm static uploads and 21108 open

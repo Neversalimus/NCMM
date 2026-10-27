@@ -327,6 +327,20 @@
                     report.member("input_xy",event.input_xy);report.member("output_xy",event.output_xy);report.member("shift_xy",event.shift_xy);report.member("z_level_changed",event.z_level_changed);
                     report.member("shift_known",event.shift_known);report.member("complete",event.complete);report.member("exceptional",event.exceptional);
                     report.member("boundary_labels",labels);report.member("boundary_offsets_ms",boundaries);report.end_object();}
+                report.end_array();report.end_object();
+                report.member("native_map_shifts");report.start_object();
+                report.member("schema",1);report.member("clock","std::chrono::steady_clock");report.member("units","milliseconds");report.member("diagnostic_probe_overhead_included",true);
+                report.member("invocations",sub.shift_invocations);report.member("recorded",sub.shift_recorded);report.member("dropped",sub.shift_dropped);
+                report.member("max_depth",sub.shift_max_depth);report.member("exceptional_invocations",sub.shift_exceptional_invocations);
+                report.member("events");report.start_array();
+                for(size_t e=0;e<sub.shift_recorded&&e<ncmm_graphics_move_diagnostics::shift_event_capacity;++e){const auto &event=sub.shifts[e];
+                    std::vector<std::string> labels;std::vector<double> boundaries;
+                    for(size_t b=0;b<event.count&&b<ncmm_graphics_move_diagnostics::shift_boundary_capacity;++b){labels.emplace_back(ncmm_graphics_move_diagnostics::label(event.tags[b]));
+                        boundaries.push_back(std::chrono::duration<double,std::milli>(event.points[b]-sample.points[0]).count());}
+                    report.start_object();report.member("ordinal",event.ordinal);report.member("depth",event.depth);report.member("parent_ordinal",event.parent_ordinal);
+                    report.member("parent_update_ordinal",event.parent_update_ordinal);report.member("shift_xy",event.shift_xy);
+                    report.member("route_accepted",event.route_accepted);report.member("complete",event.complete);report.member("exceptional",event.exceptional);
+                    report.member("boundary_labels",labels);report.member("boundary_offsets_ms",boundaries);report.end_object();}
                 report.end_array();report.end_object();report.end_object();}
             report.end_array();report.end_object();
             report.member("first_ready_median_ms",percentile(first_ms,.5));report.member("first_ready_p95_ms",percentile(first_ms,.95));report.member("easing_median_ms",percentile(easing_ms,.5));report.member("easing_p95_ms",percentile(easing_ms,.95));
