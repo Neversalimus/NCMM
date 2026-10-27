@@ -714,6 +714,47 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     and `night-linux-043fb4d/12757734002/`; the process-list hash is
     `393c21ecbd46bb0efe7902668d08d6ebd8ce575ea4eee51da93b068bf56ceee5`.
 
+34. **Reject the Z-loop clamp; independently time the unobserved sight math.**
+    A proposed valid-origin float-only horizontal extent clamp preserved498
+    complete algorithm pairs /14928 checks and every valid grid read, with
+    rows14178044 ->12985288 and unchanged exponent work. Invalid inputs and
+    fragment paths retained their full loops. However, an isolated comparison
+    against the already cached algorithm worsened six of eight paired median
+    ratios (up to24.8%). The initial long benchmark exceeded its60 s bound and
+    produced no timing result; a shorter alternating-order7-pair/2-cast sample
+    established no reliable benefit. **All candidate changes were removed**;
+    the saved stage32/33 implementation and its3D model were rebuilt and pass
+    (CTest2.75 s). No branch contains the rejected extent helper/clamp.
+    Private summary SHA256
+    `70599a6abdb3c45189f94bbd8c481705d9ce3ee4213185230062c76ffb3d15b5`,
+    `night-shadow-bounds-*`. Fewer operations alone are insufficient acceptance.
+
+    Also compare stage32 against the full original with **the actual Native
+    std::exp formula and no exp observer/evaluator wrapper in either path**.
+    Both use pinned algorithm/PLF and owned coordinates/grids/distances, seven
+    alternating-order pairs, two casts/sample, with complete output-bit and
+    unchanged-input checks. MSVC/O2 model medians ms (original ->cache):
+
+    | Distance | Air | Walls/floors | Haze | Mixed |
+    |---|---:|---:|---:|---:|
+    | Square |6.114 ->4.527|.1668 ->.1410|10.109 ->9.759|37.230 ->37.012|
+    | Circular |3.683 ->3.621|.1366 ->.1327|9.598 ->9.113|36.710 ->36.816|
+
+    Individual paired-ratio medians range.746–.970. **The independent circular
+    mixed median worsens**, as do both first mixed samples and the first circular
+    wall sample. These small noisy owned-model captures support the cache as a
+    candidate, not a guaranteed per-scene/first-frame benefit. Background load
+    is uncontrolled; they are not ordinary Native, RTX4090 or first-present
+    timings. All56 comparisons retain exact output bits. Summary SHA256
+    `b548908ca40689e90fe084c8066b820cdcba237df5027fa2ee301efc223c0a75`,
+    `night-sight-unobserved-paired-model/`.
+
+    Both module jobs including focused Linux ASan/UBSan pass for1c8bfdc and
+    eb816c5. The two actual Windows Hosts compile at eb816c5 in diagnostic
+    run40569273849; actual input/gameplay and Linux Host checks remain pending.
+    Main PR1b's full comparison run40534567570 is preserved. Integration-tier
+    dispatches intentionally do not establish the required full qualification.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
