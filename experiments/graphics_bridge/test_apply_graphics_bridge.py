@@ -101,6 +101,16 @@ class ApplyTests(unittest.TestCase):
         for line in hooks:
             self.assertEqual(source.count(line), 1)
             source = source.replace(line, "", 1)
+        begin = "        // BEGIN REUSED NATIVE SUPPORT NODES\n"
+        end = "        // END REUSED NATIVE SUPPORT NODES\n"
+        self.assertEqual(source.count(begin), 1); self.assertEqual(source.count(end), 1)
+        old = ("        std::set<tripoint_bub_ms> old_cache = std::move( support_cache_dirty );\n"
+               "        support_cache_dirty.clear();\n"
+               "        for( const tripoint_bub_ms &pt : old_cache ) {\n"
+               "            support_cache_dirty.insert( pt + point( -sp.x() * SEEX, -sp.y() * SEEY ) );\n"
+               "        }\n")
+        prefix, rest = source.split(begin, 1)
+        source = prefix + old + rest.split(end, 1)[1]
         binding = "            NCMM_GRAPHICS_SHIFT_MEMORY_SWEEP(cache)\n"
         self.assertEqual(source.count(binding), 1)
         for pin, (length, digest, sweep) in bridge.NATIVE_MAP_SHIFT_ORIGINALS.items():
@@ -138,9 +148,14 @@ class ApplyTests(unittest.TestCase):
                 namespace = re.search(r"^namespace\b", source, flags=re.M)
                 if namespace: self.assertLess(source.index('#include "ncmm_graphics_move_diagnostics.hpp"'), namespace.start())
                 self.assertEqual((root / "src" / name).read_bytes(), helper.read_bytes())
+                support_name = "ncmm_graphics_support_rebase.hpp"
+                self.assertEqual(source.count(f'#include "{support_name}"'), 1)
+                support = Path(bridge.__file__).with_name(support_name)
+                self.assertEqual((root / "src" / support_name).read_bytes(), support.read_bytes())
                 receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))
                 self.assertEqual(receipt["source_commit"], pin)
                 self.assertEqual(receipt["inputs"][name], hashlib.sha256(helper.read_bytes()).hexdigest())
+                self.assertEqual(receipt["inputs"][support_name], hashlib.sha256(support.read_bytes()).hexdigest())
 
     def test_map_shift_changed_missing_and_duplicate_primary_are_atomic(self):
         for pin in bridge.SOURCES:
@@ -157,8 +172,7 @@ class ApplyTests(unittest.TestCase):
                     self.assertEqual(before, self.fingerprint(root))
 
     def test_map_shift_missing_or_existing_include_is_atomic(self):
-        name = "ncmm_graphics_map_shift.inc"
-        for pin in bridge.SOURCES:
+        for pin, name in ((p, n) for p in bridge.SOURCES for n in ("ncmm_graphics_map_shift.inc", "ncmm_graphics_support_rebase.hpp")):
             for existing in (False, True):
                 with self.subTest(pin=pin, existing=existing), tempfile.TemporaryDirectory() as tmp:
                     root = Path(tmp); self.fixture(root, pin)

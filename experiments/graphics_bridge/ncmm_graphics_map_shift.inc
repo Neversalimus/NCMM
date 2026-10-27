@@ -125,11 +125,9 @@ void map::shift( const point_rel_sm &sp )
 
     if( ncmm_shift_scope ) ncmm_shift_scope.mark( ncmm_graphics_move_diagnostics::shift_boundary::vehicle_levels_remote );
     if( !support_cache_dirty.empty() ) {
-        std::set<tripoint_bub_ms> old_cache = std::move( support_cache_dirty );
-        support_cache_dirty.clear();
-        for( const tripoint_bub_ms &pt : old_cache ) {
-            support_cache_dirty.insert( pt + point( -sp.x() * SEEX, -sp.y() * SEEY ) );
-        }
+        // BEGIN REUSED NATIVE SUPPORT NODES
+        ncmm_graphics_support_cache::rebase( support_cache_dirty, point( -sp.x() * SEEX, -sp.y() * SEEY ) );
+        // END REUSED NATIVE SUPPORT NODES
     }
     if( ncmm_shift_scope ) ncmm_shift_scope.mark( ncmm_graphics_move_diagnostics::shift_boundary::support_rebase );
     // actualize after loading all submaps to prevent errors

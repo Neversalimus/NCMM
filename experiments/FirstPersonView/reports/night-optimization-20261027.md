@@ -493,7 +493,71 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     source-copy receipts. Evidence `night-map-shift-*`. These injected clocks
     are not timings; actual Native compilation/captures remain pending.
 
+28. **Transfer support-cache nodes during coordinate rebasing.** Actual child
+    scopes below identify 1.2–2.8 ms median support rebasing in the diagnostic
+    route. Native moves its std::set aside, allocates a replacement node for
+    every translated position and destroys all old nodes. A private helper now
+    extracts each old C++17 node, translates its detached value and inserts it
+    into the cleared destination. Only default-allocator sets are accepted;
+    both containers' allocators are compatible. The separate old set is drained
+    once, so inserted values cannot be processed again. End hints preserve
+    correctness even for coordinate orders that change under translation.
+    Empty behavior, complete XYZ/outside-bubble positions, ordering and all
+    Native calls around the block remain unchanged; no actualization is skipped.
+
+    Red: 90 semantic cases pass, then 8192 positions still allocate 8193 times
+    and retain 0 value-node addresses. Green: 8193 -> 1 allocations (MSVC's
+    constant move sentinel), all 8192 value-node addresses retained, with the
+    exact same coordinates. The empty set allocates 0. Independent normal and
+    parity-first orders, sets through 4096 values, all nine XY offsets and
+    negative/outside coordinates cover 90 cases / 76739 checks. The complete
+    frozen Native map::shift oracles still pass 228 scenarios / 3051719 checks
+    on both pins. Source guards restore the one replaced support block before
+    comparing every original function byte. Full Release, the same 50 autonomous
+    CTests (16.56 s) and all 72 atomic bridge tests pass. Unchanged verifier
+    coverage remains stage27's 274-test pass. Evidence `night-support-nodes-*`.
+    New Native timing and first-frame gains remain pending; allocation counts
+    are not measured game-frame improvements.
+
 ## Actual remote evidence and next priorities
+
+**Actual child intervals at exact `7c0a8b9`, run 40508748878.** Both early
+Windows programs exit 0 with successful provenance and no wrapper/debugger
+error or dump. Runtime `72e71bc46271c77d642f5c3b5b1a848ec4b3c565` and source
+share tree `091aa10ea921b4801ec3fea623514164c0df6f79`. Four selected program
+JSON members per artifact 12737019895/12737399271 reserve 350923 bytes / 8 MiB.
+All 288 action scopes and 144 actual child calls pass the strict parent, clamped
+direction, phase, containment and conservation checks. Private summaries under
+`night-movement-7c0a8b9/` have SHA256
+1040 `a4a3d17f457b33fe6d5072deeb6ebf05704f851fee90dcbea8cf4ed6bcb9793e`,
+1807 `ce59102875d797bfbe10aea78daace29ca54ac782f88d19e4100c566d7974db6`.
+
+Software D3D12, Microsoft Basic Render Driver, 640x480, VSync 1: independent
+median milliseconds, six crossings per row. These medians MUST NOT be summed:
+
+| Pin / scene | Crossing action | Inclusive shift | Grid copy/load | Support rebase | Actualize | Reconcile |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1040 street | 35.470 | 18.974 | 6.518 | 1.285 | 9.171 | 1.295 |
+| 1040 horde | 41.980 | 20.848 | 7.451 | 1.542 | 10.150 | 1.615 |
+| 1040 city | 47.804 | 22.256 | 7.478 | 2.722 | 10.227 | 1.568 |
+| 1807 street | 33.843 | 17.237 | 5.912 | 1.218 | 8.296 | 1.797 |
+| 1807 horde | 35.344 | 17.573 | 5.850 | 1.379 | 8.470 | 1.779 |
+| 1807 city | 83.179 | 50.631 | 7.841 | 2.795 | 8.546 | 1.814 |
+
+1807 city peaks hit different phases on different crossings: actualize p95
+69.272 ms, copy/load 35.678 ms, support 10.385 ms and reconcile 7.156 ms. Per-action
+child sums DO conserve the inclusive parent; median signed parent gaps are
+.0009–.0015 ms. Bitset/vehicle cache rebasing is only .023–.035 ms median here,
+so source-only speculation about that loop is deprioritized. The Native
+transparency builder already bulk-resolves uniform submaps; no duplicate
+optimization was added. Actualization includes gameplay callbacks and is not
+skipped for uniform storage or zero elapsed time.
+
+The support queue's ordinary-game cardinality is not measured; this no-turn
+fixture can retain construction work in that queue. New 1040 crossing times
+are worse than 311d717's separate run despite no new production optimization
+between those sources. These results guide attribution, not a paired gain,
+ordinary RTX 4090 FPS or a 15 ms claim. Stage28 timing still needs a new capture.
 
 **Fresh cache-stage evidence at exact `311d717`, run 40501372289.** Both pinned
 Windows Hosts compile, and their early movement programs exit 0 with successful

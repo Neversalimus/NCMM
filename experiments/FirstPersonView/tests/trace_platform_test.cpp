@@ -20,8 +20,14 @@ enum class native_distance { near, far };
 void ncmm_move_diagnostics_cross_tu();
 void ncmm_shift_diagnostics_cross_tu();
 void test_native_map_shift();
+void test_native_support_rebase();
 
 namespace allocation_probe { inline bool enabled = false; inline std::size_t calls = 0; }
+std::size_t ncmm_test_allocation_calls() noexcept { return allocation_probe::calls; }
+bool ncmm_test_allocation_enable( bool value ) noexcept
+{
+    const bool previous = allocation_probe::enabled; allocation_probe::enabled = value; return previous;
+}
 void *operator new( std::size_t size )
 {
     if( allocation_probe::enabled ) ++allocation_probe::calls;
@@ -381,7 +387,7 @@ int main(int argc,char **argv)
     ncmm_graphics_trace::note_present();ncmm_graphics_trace::note_present();
     if(ncmm_graphics_trace::presented_frames!=(capture?2u:0u))return 2;
     if(capture&&std::strcmp(ncmm_graphics_trace::capture_label(),"FP_SCENE:quiet"))return 3;
-    try { native_update_fixture::diagnostic_tests(); test_native_map_shift(); }
+    try { native_update_fixture::diagnostic_tests(); test_native_map_shift(); test_native_support_rebase(); }
     catch( const std::exception &e ) { std::cerr << e.what() << '\n'; return 4; }
     ncmm_graphics_trace::cpu_zone scope("Trace SDK include compatibility");
     return native_distance::near == native_distance::far;

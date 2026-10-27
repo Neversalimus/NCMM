@@ -1,4 +1,5 @@
 #include "ncmm_graphics_move_diagnostics.hpp"
+#include "ncmm_graphics_support_rebase.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
