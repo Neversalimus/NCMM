@@ -1163,6 +1163,53 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     qualification. That completed diagnostic branch can be reused without
     cancelling its functional work.
 
+48. **Audit complete controlled Native turns before blaming AI.** Exact f6ac
+    gameplay/qualification artifacts12775734174/12777336904 supply only three
+    selected program JSON files each,238637/8388608 reserved bytes. Audit,
+    gameplay provenance and release receipts share the exact source/Host/module
+    identities already checked by the Native sight comparison. Each pin really
+    invokes26 do_turn calls: six rounds each with1/5/20 enemies and eight empty
+    turns. All actions succeed and every combat group observes enemy attacks.
+    Avatar protection, stamina/state resets and isolated fixture exclude normal
+    gameplay balance. Strict summary SHA256
+    ae85b8e1b5e2976a6ac1c122269cfc258896b4f9820c6c66d648a7feb1a2952a.
+
+    Empty/combat medians(ms) are114.361/230.598 at1040 and143.819/251.292 at1807;
+    combat p95433.604/277.034. These inclusive wall scopes can include rendering,
+    UI, waits and scheduling; they do not measure pure AI. Code selectsCPU before
+    the empty-turn block; combat merges all three group sizes. Existing reports
+    lack per-turn renderer/callback counts and separate group distributions.
+    The unconditional legacy controlled_without_ai_turn_loop flag cannot prove
+    absence of controlled AI turns. Ordinary default remains Auto: hardwareGPU
+    on a supported device, CPU for software adapters. Legacy projectile drawing
+    and artificial animation delays are already bypassed in FPS presentation;
+    no new animation-delay fix is justified by this audit. Next priority: bound
+    perspective rendering inside each actual do_turn without changing simulation.
+
+49. **Retain a measured Native circular-caster improvement, with first limits.**
+    Exact12a7 run40600292716 produces successful short Windows programs on both
+    pins. Schema3 confirms circular distance and the exact-table path. Both
+    processes exit0 without wrapper/debugger error or dump;54 alternating pairs
+    preserve all365904 output floats,4756752 Native bytes, position/moves/time
+    and metric at each pair boundary. Accompanying movement matrices validate
+    288 actions/144 cache children. Seven selected JSON members per artifact
+    12779685982/12779801403 use366765/8388608 reserved bytes. The exact12a7
+    verifier matches its frozen Git source identity. Strict summary SHA256
+    392c053c4419ab2fcdbe13a50408c69d33567ab32f0e6a74c75d95c9e660c13a.
+
+    Original -> candidate per-cast medians(ms),1040 street/horde/city:
+    4.6542 ->3.9230,5.4176 ->4.5155,6.4740 ->5.2764;1807:
+    5.7838 ->4.7483,6.4826 ->5.2877,8.2441 ->6.7237. Paired ratio medians
+    .8454/.8327/.8123 and.8199/.8201/.8187 support about15–19% improvement
+    **only in this warmed Native3D-caster wall scope**. Four of54 individual
+    pairs regress. First1807 horde worsens9.462 ->14.767 and city16.157 ->16.272;
+    first-sample latency and the15ms complete-frame target remain unqualified.
+    Each first number averages eight casts and is not a first game action.
+    SoftwareD3D12/WARP and scheduling remain limits; independent whole-action
+    timings are mixed and cannot be used as a causal ordinary-frame comparison.
+    This directly supports the circular candidate; full12a7 required qualification
+    continues, while the existing exact-eae full run is preserved.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
