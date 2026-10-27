@@ -837,6 +837,49 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     `night-stage30-windows*-tool-receipt.json`. Next: qualify the new tap code,
     then use a same-machine Native comparison before promoting timing claims.
 
+37. **Reject larger sight-history caches.** Private two-entry MRU and16-entry
+    hashed alternatives preserve all480 float-grid pairs each,25504 combined
+    checks, exact input/floor bytes and callback values/order. Relative to the
+    retained one-entry cache's5080030 exponent evaluations, counts fall to
+    4205268 /1821294, but stack storage rises12 ->20 /144 bytes. No Native or
+    production source is changed by this private comparison.
+
+    The observer-free timing paths use the actual standard exponent and PLF
+    allocator: seven alternating pairs, two casts per sample, eight combinations
+    of scene and distance metric. Both alternatives worsen four of eight paired
+    median ratios; two-entry worst1.0412, sixteen-entry worst1.0767. First-sample
+    regressions also occur. Uncontrolled background load and the owned numeric
+    context prevent ordinary-game/RTX/frame claims. Fewer exponent calls do not
+    justify either replacement. Raw/summary/source hashes are retained privately
+    under `night-sight-history-model/` (summary SHA256
+    `922d7960f8ad68e0a152cf4313bee5e15c57a9ad057baf43583abb7b70130589`);
+    the existing one-entry implementation and
+    all153 frozen sources remain intact. Next: count Native span-list allocation
+    and test synchronous storage reuse only if the baseline supports it.
+
+38. **Reject cast-local span-list reuse on current evidence.** A private candidate
+    reuses one real PLF list only across the synchronous cast's24 segments,
+    clearing and recreating the initial span each time. Both float and owned
+    fragment-helper matrices retain all768 paired output grids,18432 checks,
+    inputs/floors and callback values/order. Counting allocators show29044 ->2750
+    allocations across that matrix, with every allocation freed before return.
+    Representative open/wall/haze/mixed cases fall48/60/224/259 ->2/4/14/32;
+    mixed allocated bytes3403424 ->1058848, but peak live storage1057792 ->1057824
+    increases32 bytes. There is no persistent pool or cross-action warm state.
+
+    A separately compiled build restores the original standard allocator and
+    exponent in both timing paths. Seven alternating pairs/two casts per sample
+    worsen five of eight paired median ratios, up to1.0427. First open sample
+    4.123 ->4.439 ms also worsens. The large allocation-count reduction does not
+    establish a latency benefit, so no production/container/Native patch is kept.
+    Private raw counts, exact candidate and timing summary are preserved under
+    `night-sight-workspace-model/` (summary SHA256
+    `f4a6405d345402cfc8a038677d039c39f5957bfe4c4208031280eec1e8fc413e`).
+    These source-model measurements with ongoing
+    background work are not Native gameplay, RTX4090 or first-present results.
+    Next: obtain a same-process comparison on actual Native cache inputs before
+    altering the retained caster further; preserve the current full CI run.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
