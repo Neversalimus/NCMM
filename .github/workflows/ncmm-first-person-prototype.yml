@@ -504,6 +504,42 @@ jobs:
             installer-result/first-person-static-stair-verified.json
           if-no-files-found: ignore
           retention-days: 7
+      - uses: actions/checkout@v4
+        if: always() && steps.installer_gate.outcome == 'success'
+        with:
+          repository: Neversalimus/CDDA-Mods
+          ref: 59123092c33244d516fa9d5ca69eaafb8d487f37
+          path: udp-resources
+          persist-credentials: false
+          sparse-checkout: mods/undeadpeople/content
+      - name: Native walking, camera easing and full-size UDP viewport
+        if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
+        timeout-minutes: 20
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-movement'
+          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -TilesetRoot (Join-Path $PWD 'udp-resources/mods/undeadpeople/content') -MovementBenchmark
+          $evidence=Join-Path $output 'evidence'
+          Copy-Item (Join-Path $evidence 'first-person-movement-benchmark.json') installer-result/first-person-movement-benchmark.json
+          Copy-Item (Join-Path $output 'benchmark-provenance.json') installer-result/first-person-movement-provenance.json
+          Get-ChildItem $evidence -Filter 'first-person-movement-*.bmp' | Copy-Item -Destination installer-result
+      # Diagnostic bytes are available before the long galleries/gameplay gates;
+      # the final movement/horizon verifier still requires their completed receipts.
+      - name: Preserve early movement diagnostics without qualifying the installer
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-movement-${{ matrix.build }}
+          path: |
+            ${{ runner.temp }}/fp-movement/benchmark-provenance.json
+            ${{ runner.temp }}/fp-movement/evidence/*.json
+            ${{ runner.temp }}/fp-movement/evidence/first-person-movement-*.bmp
+            ${{ runner.temp }}/fp-movement/evidence/first-person-facade-normal-vision-*.bmp
+            ${{ runner.temp }}/fp-movement/evidence/first-person-horizon-*.bmp
+            ${{ runner.temp }}/fp-movement/evidence/first-person-geometry-*.bmp
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Actual SDL mouse rotation and native input snapshot reuse
         timeout-minutes: 10
         shell: powershell
@@ -615,14 +651,6 @@ jobs:
             Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue
             Remove-Item Env:\NCMM_FP_VERIFY_DEFERRED_OPTIONS -ErrorAction SilentlyContinue
           }
-      - uses: actions/checkout@v4
-        if: always() && steps.installer_gate.outcome == 'success'
-        with:
-          repository: Neversalimus/CDDA-Mods
-          ref: 59123092c33244d516fa9d5ca69eaafb8d487f37
-          path: udp-resources
-          persist-credentials: false
-          sparse-checkout: mods/undeadpeople/content
       - name: Automated native gameplay, CPU/GPU profiling and actual UDP Hybrid v3
         timeout-minutes: 95
         shell: powershell
@@ -684,18 +712,6 @@ jobs:
               Get-ChildItem $evidence -Filter 'first-person-gpu-*.bmp' | ForEach-Object {Copy-Item $_.FullName (Join-Path installer-result ($_.Name.Replace('first-person-gpu-','first-person-gpu-focused-')))}
             }
           }
-      - name: Native walking, camera easing and full-size UDP viewport
-        if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
-        timeout-minutes: 20
-        shell: powershell
-        run: |
-          $ErrorActionPreference='Stop'
-          $output=Join-Path $env:RUNNER_TEMP 'fp-movement'
-          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -TilesetRoot (Join-Path $PWD 'udp-resources/mods/undeadpeople/content') -MovementBenchmark
-          $evidence=Join-Path $output 'evidence'
-          Copy-Item (Join-Path $evidence 'first-person-movement-benchmark.json') installer-result/first-person-movement-benchmark.json
-          Copy-Item (Join-Path $output 'benchmark-provenance.json') installer-result/first-person-movement-provenance.json
-          Get-ChildItem $evidence -Filter 'first-person-movement-*.bmp' | Copy-Item -Destination installer-result
       - name: Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items
         if: env.FP_FULL_QUALIFICATION == 'true'
         timeout-minutes: 120
