@@ -127,7 +127,94 @@ def native_item_reconciliation_original(pin):
     return frozen.split(begin, 1)[1].split(end, 1)[0]
 
 
+def native_shadowcast_originals():
+    directory = REPO / "experiments/FirstPersonView/tests"
+    body = (directory / "native_shadowcasting_primary.inc").read_text(encoding="utf-8").split("// BEGIN FROZEN NATIVE SHADOWCAST BODY\n", 1)[1]
+    adapter = ('#if !defined(NCMM_SHADOWCAST_REFERENCE)\n'
+        '    ncmm_graphics_shadowcasting::calc_cache<T, calc, ncmm_shadow_fixture::counted_exp> ncmm_calc;\n#endif\n')
+    original = '                    last_intensity = calc( numerator, this_span->cumulative_value, dist );\n'
+    call = '#if defined(NCMM_SHADOWCAST_REFERENCE)\n' + original + '#else\n                    last_intensity = ncmm_calc( numerator, this_span->cumulative_value, dist );\n#endif\n'
+    if body.count(adapter) != 2 or body.count(call) != 2:
+        raise ValueError("Frozen Native shadowcast adapters differ")
+    prefix = ('#include "shadowcasting.h"\n\n#include <cstdint>\n#include <cstdlib>\n#include <iterator>\n\n'
+        '#include "coordinates.h"\n#include "cuboid_rectangle.h"\n#include "fragment_cloud.h" // IWYU pragma: keep\n'
+        '#include "line.h"\n#include "list.h"\n#include "point.h"\n\n')
+    cpp = prefix + body.replace(adapter, '').replace(call, original)
+    header = (directory / "native_shadowcasting_math.inc").read_text(encoding="utf-8").split("// BEGIN FROZEN NATIVE SHADOWCAST HEADER\n", 1)[1]
+    includes = '#include "coords_fwd.h"\n#include "lightmap.h"\n#include "map_scale_constants.h"\n#include "mdarray.h"\n'
+    header = header.replace('#if !defined(NCMM_SHADOWCAST_MODEL)\n' + includes + '#endif\n', includes, 1)
+    header = header.replace('ncmm_shadow_fixture::evaluate( transparency * distance )', 'std::exp( transparency * distance )', 1)
+    return cpp, header
+
+
 class ApplyTests(unittest.TestCase):
+    def test_shadowcast_complete_primary_and_only_local_cache_adaptation(self):
+        cpp, header = native_shadowcast_originals()
+        # Independent pinned digests, not computed from the changed helper.
+        self.assertEqual(hashlib.sha256(cpp.encode()).hexdigest(), 'fbf4e65de6c85af60267e5b73a0d2d4d933a0dd24fe4752a9685281d32fa59c9')
+        self.assertEqual(hashlib.sha256(header.encode()).hexdigest(), '9f5eea643f64c436fcbb202e8b966d53bc54a9ce45392447ceebf17cc1ad0af8')
+        for pin in bridge.SOURCES:
+            actual = bridge.patch_native_shadowcasting(cpp, header, pin)
+            restored = actual.replace('#include "ncmm_graphics_sight_exp_cache.hpp"\n', '', 1)
+            self.assertEqual(restored.count('    ncmm_graphics_shadowcasting::calc_cache<T, calc> ncmm_calc;\n'), 2)
+            restored = restored.replace('    ncmm_graphics_shadowcasting::calc_cache<T, calc> ncmm_calc;\n', '')
+            restored = restored.replace('last_intensity = ncmm_calc(', 'last_intensity = calc(')
+            self.assertEqual(restored, cpp)
+        with self.assertRaisesRegex(ValueError, 'shadowcasting'):
+            bridge.patch_native_shadowcasting(cpp, header, 'unknown')
+
+    def test_shadowcast_real_container_and_fragment_primary_identity(self):
+        directory = REPO / 'experiments/FirstPersonView/tests'
+        for name, digest in (
+                ('third_party/native_plf_list.h', 'af8a455aea61d8f4c20395ae378679bf4d21ee5f745c76aae97dd31b6f08e4c2'),
+                ('third_party/native_plf_list.LICENSE', 'a33cffd26f76937bb96370c2c97f188fdca3aad933e1032f399f96644769a63c')):
+            self.assertEqual(hashlib.sha256((directory/name).read_bytes()).hexdigest(), digest)
+        fragment = (directory/'native_shadowcasting_fragment.hpp').read_text(encoding='utf-8')
+        fragment = fragment[fragment.index('#pragma once'):]
+        self.assertEqual(hashlib.sha256(fragment.encode()).hexdigest(), '36e3758aa305c5df73edd3db83d92c796d0b59cbe6cee4545c6af74a9ad60074')
+
+    def test_shadowcast_both_pins_copy_receipt_and_unchanged_header(self):
+        name = 'ncmm_graphics_sight_exp_cache.hpp'
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp); self.fixture(root,pin)
+                header=(root/'src/shadowcasting.h').read_bytes()
+                with patch.object(bridge.subprocess,'check_output',return_value=pin): bridge.apply(root)
+                self.assertEqual((root/'src/shadowcasting.h').read_bytes(),header)
+                data=Path(bridge.__file__).with_name(name).read_bytes()
+                self.assertEqual((root/'src'/name).read_bytes(),data)
+                receipt=json.loads((root/'first-person-source.json').read_text(encoding='utf-8'))
+                self.assertEqual(receipt['inputs'][name],hashlib.sha256(data).hexdigest())
+                self.assertEqual(receipt['inputs']['shadowcasting.cpp'],hashlib.sha256((root/'src/shadowcasting.cpp').read_bytes()).hexdigest())
+
+    def test_shadowcast_changed_missing_or_duplicate_sources_are_atomic(self):
+        for pin in bridge.SOURCES:
+            for name in ('shadowcasting.cpp','shadowcasting.h'):
+                for kind in ('changed','missing','duplicate'):
+                    with self.subTest(pin=pin,name=name,kind=kind), tempfile.TemporaryDirectory() as tmp:
+                        root=Path(tmp); self.fixture(root,pin); path=root/'src'/name
+                        data=path.read_text(encoding='utf-8')
+                        path.write_text({'changed':data+'// drift\n','missing':'','duplicate':data+data}[kind],encoding='utf-8')
+                        before=self.fingerprint(root)
+                        with patch.object(bridge.subprocess,'check_output',return_value=pin):
+                            with self.assertRaisesRegex(ValueError,'shadowcasting'): bridge.apply(root)
+                        self.assertEqual(before,self.fingerprint(root))
+
+    def test_shadowcast_missing_or_existing_include_is_atomic(self):
+        name='ncmm_graphics_sight_exp_cache.hpp'
+        for pin in bridge.SOURCES:
+            for existing in (False,True):
+                with self.subTest(pin=pin,existing=existing), tempfile.TemporaryDirectory() as tmp:
+                    root=Path(tmp); self.fixture(root,pin)
+                    if existing: (root/'src'/name).write_text('existing include\n',encoding='utf-8')
+                    before=self.fingerprint(root); original_read=Path.read_text
+                    def read(path,*args,**kwargs):
+                        if not existing and path==Path(bridge.__file__).with_name(name): raise FileNotFoundError('missing sight cache include')
+                        return original_read(path,*args,**kwargs)
+                    with patch.object(bridge.subprocess,'check_output',return_value=pin), patch.object(Path,'read_text',read):
+                        with self.assertRaises((ValueError,FileNotFoundError)): bridge.apply(root)
+                    self.assertEqual(before,self.fingerprint(root))
+
     def test_map_cache_primary_and_adjacent_probe_positions(self):
         original=native_map_cache_original()
         self.assertEqual((len(original.encode()),hashlib.sha256(original.encode()).hexdigest()),bridge.NATIVE_MAP_CACHE_ORIGINAL)
@@ -832,6 +919,9 @@ class ApplyTests(unittest.TestCase):
 
     def fixture(self, root, pin=next(iter(bridge.SOURCES))):
         (root / "src").mkdir()
+        cpp, header = native_shadowcast_originals()
+        (root/'src/shadowcasting.cpp').write_text(cpp,encoding='utf-8')
+        (root/'src/shadowcasting.h').write_text(header,encoding='utf-8')
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/game.h").write_text("        bool save();\n")

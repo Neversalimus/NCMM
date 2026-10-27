@@ -629,11 +629,97 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     and failure protocols. Three compiled negative controls reject absent
     hooks, misassigned labels and a scope ending before local destruction.
     The complete Native builder is checked for source preservation/placement,
-    not compiled against a locally invented engine model. Actual new Native
-    compilation and child timings require the next remote run. This diagnostic
+    not compiled against a locally invented engine model. The exact043 remote
+    compilation and child timings are recorded below. This diagnostic
     stage makes no performance-gain claim. Evidence `night-map-cache-*`.
 
+32. **Reuse exact sight attenuation denominators within each Native segment.**
+    The new actual cache receipts identify the seen-update block as the main
+    child (6.75–13.19 ms median in the recorded software scenes). That block
+    includes other work; it is not an isolated shadowcaster timing. The pinned
+    sight formula repeatedly computes `numerator / exp(transparency*distance)`.
+    Keep multiplication and division in their original order, and reuse only
+    the last exact exponent's denominator. The key uses all float bits,
+    including signed zero. A 12-byte stack object lives for one horizontal or
+    vertical segment; there is no heap, TLS, persistent warm state, map pointer,
+    approximation, changed ray, reduced radius or deferred scene publication.
+    Only the exact Native `float/sight_calc` specialization is cached; fragment
+    and custom callbacks retain their original calls and side effects.
+
+    Every exponent outside[-80,80], including nonfinite values, still invokes
+    the original evaluator every time. Non-normal results are never cached.
+    The pinned pure sight/check/accumulate path does not change rounding mode.
+    Both complete Native files are identical at both pins and guarded before
+    patching: cpp32649 bytes, SHA256
+    `fbf4e65de6c85af60267e5b73a0d2d4d933a0dd24fe4752a9685281d32fa59c9`,
+    header5106 bytes, SHA256
+    `9f5eea643f64c436fcbb202e8b966d53bc54a9ce45392447ceebf17cc1ad0af8`.
+    Removing one private include, two segment locals and two call substitutions
+    restores every cpp byte. The Native header remains unchanged.
+
+    Full pinned algorithm bodies, all24 transforms, real pinned zlib PLF list
+    and the Native float math run against owned coordinate/grid/distance and
+    fragment-helper context. **498 paired cases /13073 checks** pass: every
+    output float bit on21 levels, complete input/floor identity, check/accumulate
+    order, both distance modes, all directions, Z/XY edges, walls, floor holes,
+    haze, deterministic mixed fields, prefilled outputs and zero/negative
+    radii. Full60-tile cases cover air/solid/structured walls; fine transparency
+    permutations use radius24 to bound model complexity. An initial radius60
+    fine-permutation Cartesian matrix was stopped after excessive model cost;
+    it yielded no timing or pass claim. Production radius remains60.
+
+    The uncached control passes the same semantic matrix and then fails work
+    acceptance: **10702148 ->10702148** exponent evaluations. The cache passes
+    with **10702148 ->5080030 (52.53% fewer)** and identical distance requests.
+    Four separately compiled controls reject disabled reuse, a wrong cached
+    denominator, caching unsafe exponents and merging signed-zero keys. Edge
+    checks cover numerator changes, invalidation, exceptions, non-normal
+    evaluator results, errno and independent cache scopes.
+
+    Full local Release,283 Python tests (18.578 s),94 atomic bridge tests
+    (47.102 s) and the new source-model CTest (3.01 s) pass. The CTest has a60 s
+    limit and is added to existing Linux ASan/UBSan coverage. New real Native
+    compilation/gameplay/paired timings remain pending. These deterministic
+    work counts and owned-model timings do not establish ordinary RTX4090
+    frame time or the15 ms target. Evidence `night-sight-*` and source receipts
+    `night-visibility-source-audit/`; no local game/input or subagent was used.
+
 ## Actual remote evidence and next priorities
+
+**Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
+early Windows movement processes exit0 without dumps or wrapper/debugger errors.
+Dispatch runtime equals source`043fb4d349799da87cc1d5afddd7c30d94aa704a`,
+tree`e9b091409810816cc6454ae2fd8843350f67fbbc`. All288 action receipts and144
+cache-builder children pass the new strict validator, including exact ancestry,
+Z/lightmap flags,12 boundaries, containment and signed parent gaps. Four JSON
+members per artifact12757812571/12757553539 reserve361879 bytes /8 MiB. Private
+receipts: `night-movement-043fb4d/`; cache-summary SHA256 values1040
+`b6f66e5c9e35aa4c29e2fc894bbe683d8c9c466d79b154f8ad7a563053799e3f`,
+1807 `133dad18ccb0e2b3b5a9066cd221c4efbbb8c966dc513a311934370a7dfb21cd`.
+
+640x480, VSync1, software D3D12 **Microsoft Basic Render Driver**, six crossings
+per row; independent medians in milliseconds do not necessarily sum:
+
+| Pin / scene | Main cache parent | Structure | Vision transparency | Seen update | Lightmap |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1040 street | 16.260 | 5.481 | .688 | 6.754 | 1.974 |
+| 1040 horde | 17.909 | 5.887 | .765 | 8.529 | 3.123 |
+| 1040 city | 23.265 | 5.760 | .752 | 12.578 | 3.923 |
+| 1807 street | 17.547 | 5.380 | .623 | 8.796 | 2.611 |
+| 1807 horde | 18.982 | 5.405 | .617 | 9.687 | 3.385 |
+| 1807 city | 23.488 | 5.445 | .648 | 13.190 | 4.086 |
+
+Structure combines outside/transparency/floor builders. Seen update includes
+build_seen_cache, the unchanged position/range publication and tile draw-cache
+invalidation; it is not a separately timed shadowcaster. Vehicles cost.0015–
+.0026 ms, character-light state.0053–.0094 ms: neither is the next target.
+Main parent/child median gaps remain.00075–.00155 ms. The next investigation is
+the seen-update block and its 3D shadowcasting, preserving all ranges and outputs.
+All four new actual Hosts compile and both module jobs pass; full functional
+diagnostic jobs remain pending at this checkpoint. The deliberately selected
+integration tier cannot qualify the required full tier. These diagnostic scopes
+are not paired gains, isolated on-core/GPU execution, ordinary RTX4090 frames
+or action-to-first-correct-present;15 ms remains unqualified.
 
 **Actual phase-scan revision `1bdb0cd`, run40534567570.** Both early Windows
 programs exit0 without wrapper/debugger error or dumps. Runtime

@@ -94,6 +94,30 @@ def patch_native_map_shift(text, identity):
     return text[:begin] + extracted + text[begin + length:]
 
 
+NATIVE_SHADOWCAST_CPP = (32649, "fbf4e65de6c85af60267e5b73a0d2d4d933a0dd24fe4752a9685281d32fa59c9")
+NATIVE_SHADOWCAST_HEADER = (5106, "9f5eea643f64c436fcbb202e8b966d53bc54a9ce45392447ceebf17cc1ad0af8")
+NATIVE_SHADOWCAST_RADIUS = "    const int radius = MAX_VIEW_DISTANCE - offset_distance;\n"
+NATIVE_SHADOWCAST_CALC = "                    last_intensity = calc( numerator, this_span->cumulative_value, dist );\n"
+
+
+def patch_native_shadowcasting(text, header, identity):
+    # Both complete files are identical at the supported pins. The pure sight
+    # formula in the header is part of the contract, not just the two call sites.
+    if identity not in SOURCES:
+        raise ValueError("Experimental bridge Native shadowcasting identity differs")
+    for value, (length, digest) in ((text, NATIVE_SHADOWCAST_CPP), (header, NATIVE_SHADOWCAST_HEADER)):
+        if len(value.encode()) != length or hashlib.sha256(value.encode()).hexdigest() != digest:
+            raise ValueError("Experimental bridge Native shadowcasting source differs")
+    if text.count(NATIVE_SHADOWCAST_RADIUS) != 2 or text.count(NATIVE_SHADOWCAST_CALC) != 2:
+        raise ValueError("Experimental bridge Native shadowcasting call sites differ")
+    text = text.replace('#include "shadowcasting.h"\n',
+        '#include "shadowcasting.h"\n#include "ncmm_graphics_sight_exp_cache.hpp"\n', 1)
+    text = text.replace(NATIVE_SHADOWCAST_RADIUS, NATIVE_SHADOWCAST_RADIUS +
+        '    ncmm_graphics_shadowcasting::calc_cache<T, calc> ncmm_calc;\n')
+    return text.replace(NATIVE_SHADOWCAST_CALC,
+        '                    last_intensity = ncmm_calc( numerator, this_span->cumulative_value, dist );\n')
+
+
 NATIVE_MAP_CACHE_ORIGINAL = (4288, "1f8d5580024513cbd0f684eb32957832ba194ba41ba7e3c4d3ccc5919c1fda21")
 
 
@@ -743,6 +767,11 @@ void initialize();''')
     updates["game.cpp"]=game_cpp
     lightmap_cpp=patch_native_apparent_light(read("lightmap.cpp"),identity)
     updates["lightmap.cpp"]=patch_native_vision_transparency(lightmap_cpp,identity)
+    updates["shadowcasting.cpp"]=patch_native_shadowcasting(read("shadowcasting.cpp"),read("shadowcasting.h"),identity)
+    name="ncmm_graphics_sight_exp_cache.hpp"
+    if (root / "src" / name).exists():
+        raise ValueError("Experimental source already exists: " + name)
+    updates[name]=(bridge/name).read_text(encoding="utf-8")
     for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_map_shift.inc","ncmm_graphics_support_rebase.hpp","ncmm_graphics_actualize.inc","ncmm_graphics_map_cache.inc","ncmm_graphics_phase_loop.inc","ncmm_graphics_submap_phase.inc","ncmm_graphics_floor_cache.inc","ncmm_graphics_outside_cache.inc","ncmm_graphics_vision_transparency.inc","ncmm_graphics_reconcile_items.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
