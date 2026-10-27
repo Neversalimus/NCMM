@@ -339,6 +339,39 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     component call reduction is not a measured Native/frame-time improvement;
     the observed 17-32 ms cache cost below covers all of `build_map_cache`.
 
+23. **Skip provably empty uniform Native item walks.** Both complete primary
+    `map::reconcile_loaded_items` bodies are preserved: 1040 is 4665 bytes,
+    SHA256 `43e9d5dff43780bc726edd5ce0798ecd7161dc6a8978072349f3d4b4088c2f82`;
+    1807 is 4660 bytes,
+    `ac9217d4344b3f4363009e3549e542a37fff80e894e0eb3df910b910cc6cc4d9`.
+    The only upstream difference is the cursor constructor; a private macro
+    expands to each pin's exact expression and is immediately undefined.
+    SHA/uniqueness and macro-collision guards reject every other adaptation.
+
+    After the original null check, a uniform submap's actual **mutable** item
+    sentinel is checked once. If empty, all original 144 tile iterations have
+    no item/craft/wakeup callback. A nonempty sentinel keeps the complete
+    original loop and pays one additional pure getter; nonuniform reads remain
+    exact. The guard is reevaluated for each submap after earlier callbacks.
+    Vehicles, every cargo part, recursive children, avatar/NPC inventories,
+    craft reservations, seen-token cleanup and full/additive policy retain
+    their original order and state. Actualization is unchanged.
+
+    Unchanged extraction: 72 semantic pairs plus four whole-bubble oracle
+    comparisons pass, then the final repeated-getter assertion fails. After:
+    76 pairs / 1080060 checks pass. Per pin, fully empty uniform no-Z getters
+    17424 -> 121; all21-Z getters 365904 -> 2541. Separate private compiled
+    negative controls using the wrong const sentinel or uniform-only skipping
+    both fail on callback/state equivalence, before the cardinality gate.
+    They are pure owned std::list-backed models, not plf performance models.
+
+    Full Release, the same 50 inventoried autonomous CTests (14.29 s), 56 atomic
+    bridge tests pass; unchanged Python verifier coverage remains the stage22
+    263-test pass. Evidence `night-items-*`. An independent read-only review
+    found no residual defect. Actual Native compilation/runtime and elapsed
+    gain remain pending; the compiler's possible existing loop hoisting is not
+    measured. Getter counts alone establish no Native or first-frame speedup.
+
 ## Actual remote evidence and next priorities
 
 **Submap attribution at exact `7f0ea25`, run 40481073067.** Both Windows
@@ -529,16 +562,19 @@ No full Native pass is claimed for that older run.
 At exact `7f0ea25`, [main run40481073067](https://github.com/Neversalimus/NCMM/actions/runs/40481073067)
 compiles all four pinned Hosts. Both module jobs and Windows early
 actions/stairs/movement gates pass. **Actual Linux Native1040 job122111496632
-passes in full**: controls, camera, FPS, held, target and gameplay each exit0
+and Native1807 job122111496600 pass in full**: controls, camera, FPS, held,
+target and gameplay each exit0
 without timeout, including the previously failing multilevel control. CI
 diagnostics were read only through Code Review; the log view is truncated,
-so the complete job conclusion and six reported process results establish
-this bounded claim. Linux1807 and the longer Windows qualification were still
-running at this checkpoint. No full main-run pass is claimed. The independent
+so complete job conclusions and twelve reported process results establish
+this bounded claim. Windows1040 also passes the longer gameplay/UDP and eight
+focused clean-teardown checks. Windows appearance and remaining1807
+qualification were still running at this checkpoint. No full main-run pass is
+claimed. The independent
 [GPU Windows/Linux/Vulkan/sanitizers](https://github.com/Neversalimus/NCMM/actions/runs/40481073086),
 [source/package](https://github.com/Neversalimus/NCMM/actions/runs/40481073024)
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40481072968) pass.
-Subsequent stage22 Host bytes require their own remote qualification.
+Subsequent stages22-23 Host bytes require their own remote qualification.
 
 The freshly rebuilt hidden render-only RTX 4090 controls retain
 45 grass draws, zero CPU world raster, zero warm static uploads and 21108 open

@@ -86,6 +86,32 @@ def patch_native_floor_cache(text, identity):
     return text[:begin] + '#include "ncmm_graphics_floor_cache.inc"\n' + text[begin + length:]
 
 
+NATIVE_RECONCILE_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (4665, "43e9d5dff43780bc726edd5ce0798ecd7161dc6a8978072349f3d4b4088c2f82", "map_cursor( get_abs( p ) )"),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (4660, "ac9217d4344b3f4363009e3549e542a37fff80e894e0eb3df910b910cc6cc4d9", "map_cursor( this, p )"),
+}
+NATIVE_RECONCILE_CURSOR = "NCMM_GRAPHICS_RECONCILE_MAP_CURSOR"
+
+
+def patch_native_item_reconciliation(text, identity):
+    signature = "void map::reconcile_loaded_items( const reconcile_scope scope )\n"
+    if (identity not in NATIVE_RECONCILE_ORIGINALS or text.count(signature) != 1
+            or NATIVE_RECONCILE_CURSOR in text):
+        raise ValueError("Experimental bridge Native item-reconciliation source differs")
+    length, digest, cursor = NATIVE_RECONCILE_ORIGINALS[identity]
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native item-reconciliation source differs")
+    # Only the cursor constructor differs between these exact Native bodies.
+    # Its original expression is restored at this one expansion site, and the
+    # private macro cannot escape the extracted function's include.
+    extracted = (f"#define {NATIVE_RECONCILE_CURSOR}(p) {cursor}\n"
+                 '#include "ncmm_graphics_reconcile_items.inc"\n'
+                 f"#undef {NATIVE_RECONCILE_CURSOR}\n")
+    return text[:begin] + extracted + text[begin + length:]
+
+
 SUBMAP_CACHE_RESET = """        // New submap changes the content of the map and all caches must be recalculated
         set_transparency_cache_dirty( z );
         set_seen_cache_dirty( z );
@@ -525,6 +551,7 @@ void initialize();''')
     game_cpp=replace(game_cpp,'#include "game.h"','#include "game.h"\n#include "ncmm_graphics_move_diagnostics.hpp"')
     if '#include "ncmm_loader.h"' not in game_cpp:
         game_cpp=replace(game_cpp,'#include "game.h"','#include "game.h"\n#include "ncmm_loader.h"')
+    map_cpp=patch_native_item_reconciliation(map_cpp,identity)
     map_cpp=patch_native_floor_cache(map_cpp,identity)
     map_cpp,game_cpp=patch_native_cache_resets(map_cpp,game_cpp)
     game_cpp=patch_native_update_map(game_cpp,identity)
@@ -545,7 +572,7 @@ void initialize();''')
     updates["map.cpp"]=map_cpp
     updates["game.cpp"]=game_cpp
     updates["lightmap.cpp"]=patch_native_apparent_light(read("lightmap.cpp"),identity)
-    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_floor_cache.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
+    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_floor_cache.inc","ncmm_graphics_reconcile_items.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")

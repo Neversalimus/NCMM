@@ -56,7 +56,99 @@ def native_floor_cache_original():
     return frozen.split(begin, 1)[1].split(end, 1)[0]
 
 
+def native_item_reconciliation_original(pin):
+    labels = dict(zip(bridge.SOURCES, ("1040", "1807")))
+    frozen = (REPO / "experiments/FirstPersonView/tests/native_item_reconciliation_fixture.cpp").read_text(encoding="utf-8")
+    begin, end = (f"// {kind} FROZEN NATIVE RECONCILE {labels[pin]}\n" for kind in ("BEGIN", "END"))
+    if frozen.count(begin) != 1 or frozen.count(end) != 1:
+        raise ValueError("Frozen Native item-reconciliation fixture differs")
+    return frozen.split(begin, 1)[1].split(end, 1)[0]
+
+
 class ApplyTests(unittest.TestCase):
+    def test_item_reconciliation_frozen_bodies_and_source_preservation(self):
+        expected = {
+            "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (4665, "43e9d5dff43780bc726edd5ce0798ecd7161dc6a8978072349f3d4b4088c2f82", "map_cursor( get_abs( p ) )"),
+            "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (4660, "ac9217d4344b3f4363009e3549e542a37fff80e894e0eb3df910b910cc6cc4d9", "map_cursor( this, p )"),
+        }
+        source = Path(bridge.__file__).with_name("ncmm_graphics_reconcile_items.inc").read_text(encoding="utf-8")
+        source = source[source.index("void map::reconcile_loaded_items"):]
+        begin, end = "                // BEGIN EMPTY UNIFORM NATIVE ITEMS\n", "                // END EMPTY UNIFORM NATIVE ITEMS\n"
+        self.assertEqual(source.count(begin), 1); self.assertEqual(source.count(end), 1)
+        prefix, rest = source.split(begin, 1)
+        source = prefix + rest.split(end, 1)[1]
+        self.assertEqual(source.count("NCMM_GRAPHICS_RECONCILE_MAP_CURSOR( p )"), 1)
+        for pin, (length, digest, cursor) in expected.items():
+            with self.subTest(pin=pin):
+                original = native_item_reconciliation_original(pin)
+                self.assertEqual(len(original.encode("utf-8")), length)
+                self.assertEqual(hashlib.sha256(original.encode("utf-8")).hexdigest(), digest)
+                self.assertEqual(source.replace("NCMM_GRAPHICS_RECONCILE_MAP_CURSOR( p )", cursor, 1), original)
+
+    def test_item_reconciliation_patch_preserves_native_cursor_and_surroundings(self):
+        cursor_macro = "NCMM_GRAPHICS_RECONCILE_MAP_CURSOR"
+        for pin, (_, _, cursor) in bridge.NATIVE_RECONCILE_ORIGINALS.items():
+            with self.subTest(pin=pin):
+                source = "// prefix\n" + native_item_reconciliation_original(pin) + "// suffix\n"
+                self.assertEqual(bridge.patch_native_item_reconciliation(source, pin),
+                                 f'// prefix\n#define {cursor_macro}(p) {cursor}\n#include "ncmm_graphics_reconcile_items.inc"\n#undef {cursor_macro}\n// suffix\n')
+                other = next(value for value in bridge.SOURCES if value != pin)
+                with self.assertRaisesRegex(ValueError, "item-reconciliation"):
+                    bridge.patch_native_item_reconciliation(source, other)
+
+    def test_item_reconciliation_both_pins_source_copy_and_receipt(self):
+        name = "ncmm_graphics_reconcile_items.inc"
+        helper = Path(bridge.__file__).with_name(name)
+        for pin, (_, _, cursor) in bridge.NATIVE_RECONCILE_ORIGINALS.items():
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root, pin)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin): bridge.apply(root)
+                source = (root / "src/map.cpp").read_text(encoding="utf-8")
+                self.assertEqual(source.count(f'#include "{name}"'), 1)
+                self.assertIn(f'#define NCMM_GRAPHICS_RECONCILE_MAP_CURSOR(p) {cursor}\n#include "{name}"\n#undef NCMM_GRAPHICS_RECONCILE_MAP_CURSOR\n', source)
+                self.assertNotIn("void map::reconcile_loaded_items", source)
+                self.assertIn("void map::set_floor_cache_dirty", source)
+                self.assertIn("void map::on_field_modified", source)
+                self.assertEqual((root / "src" / name).read_bytes(), helper.read_bytes())
+                receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))
+                self.assertEqual(receipt["source_commit"], pin)
+                self.assertEqual(receipt["inputs"][name], hashlib.sha256(helper.read_bytes()).hexdigest())
+
+    def test_item_reconciliation_anchor_and_macro_failures_are_atomic(self):
+        for pin in bridge.SOURCES:
+            for kind in ("changed", "missing", "duplicate", "other_pin", "macro_collision"):
+                with self.subTest(pin=pin, kind=kind), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root, pin); path = root / "src/map.cpp"
+                    source = path.read_text(encoding="utf-8"); original = native_item_reconciliation_original(pin)
+                    other = next(value for value in bridge.SOURCES if value != pin)
+                    replacement = {"changed": original.replace("index.clear();", "index.changed_clear();"),
+                                   "missing": "", "duplicate": original + original,
+                                   "other_pin": native_item_reconciliation_original(other),
+                                   "macro_collision": "#define NCMM_GRAPHICS_RECONCILE_MAP_CURSOR(p) existing(p)\n" + original}[kind]
+                    path.write_text(source.replace(original, replacement, 1), encoding="utf-8")
+                    (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                    before = self.fingerprint(root)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                        with self.assertRaisesRegex(ValueError, "item-reconciliation"): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
+    def test_item_reconciliation_missing_or_existing_include_is_atomic(self):
+        name = "ncmm_graphics_reconcile_items.inc"
+        for pin in bridge.SOURCES:
+            for existing in (False, True):
+                with self.subTest(pin=pin, existing=existing), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root, pin)
+                    if existing: (root / "src" / name).write_text("existing item-reconciliation include\n", encoding="utf-8")
+                    (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                    before = self.fingerprint(root); original_read = Path.read_text
+                    def read(path, *args, **kwargs):
+                        if not existing and path == Path(bridge.__file__).with_name(name):
+                            raise FileNotFoundError("missing item-reconciliation include")
+                        return original_read(path, *args, **kwargs)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
+                        with self.assertRaises((ValueError, FileNotFoundError)): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
     def test_floor_cache_primary_and_source_preserving_fast_path(self):
         original = native_floor_cache_original()
         self.assertEqual(len(original.encode("utf-8")), 2349)
@@ -82,7 +174,7 @@ class ApplyTests(unittest.TestCase):
         helper = Path(bridge.__file__).with_name("ncmm_graphics_floor_cache.inc")
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); self.fixture(root)
+                root = Path(tmp); self.fixture(root, pin)
                 with patch.object(bridge.subprocess, "check_output", return_value=pin): bridge.apply(root)
                 source = (root / "src/map.cpp").read_text(encoding="utf-8")
                 self.assertEqual(source.count('#include "ncmm_graphics_floor_cache.inc"'), 1)
@@ -98,7 +190,7 @@ class ApplyTests(unittest.TestCase):
         for pin in bridge.SOURCES:
             for kind in ("changed", "missing", "duplicate"):
                 with self.subTest(pin=pin, kind=kind), tempfile.TemporaryDirectory() as tmp:
-                    root = Path(tmp); self.fixture(root); path = root / "src/map.cpp"
+                    root = Path(tmp); self.fixture(root, pin); path = root / "src/map.cpp"
                     source = path.read_text(encoding="utf-8")
                     original = native_floor_cache_original()
                     replacement = {"changed": original.replace("return zlevels;", "return true;"),
@@ -115,7 +207,7 @@ class ApplyTests(unittest.TestCase):
         for pin in bridge.SOURCES:
             for existing in (False, True):
                 with self.subTest(pin=pin, existing=existing), tempfile.TemporaryDirectory() as tmp:
-                    root = Path(tmp); self.fixture(root)
+                    root = Path(tmp); self.fixture(root, pin)
                     if existing: (root / "src" / name).write_text("existing floor-cache include\n", encoding="utf-8")
                     (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
                     before = self.fingerprint(root); original_read = Path.read_text
@@ -141,7 +233,7 @@ class ApplyTests(unittest.TestCase):
     def test_update_map_both_pins_receipts_and_global_tls_include(self):
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); self.fixture(root)
+                root = Path(tmp); self.fixture(root, pin)
                 with patch.object(bridge.subprocess, 'check_output', return_value=pin): bridge.apply(root)
                 receipt = json.loads((root/'first-person-source.json').read_text(encoding='utf-8'))
                 for name in ('ncmm_graphics_move_diagnostics.hpp', 'ncmm_graphics_update_map.inc'):
@@ -162,7 +254,7 @@ class ApplyTests(unittest.TestCase):
         for pin in bridge.SOURCES:
             for duplicate in (False, True):
                 with self.subTest(pin=pin, duplicate=duplicate), tempfile.TemporaryDirectory() as tmp:
-                    root = Path(tmp); self.fixture(root); game = root/'src/game.cpp'
+                    root = Path(tmp); self.fixture(root, pin); game = root/'src/game.cpp'
                     text = game.read_text(encoding='utf-8')
                     game.write_text(text+native_update_map_original() if duplicate else text.replace('load_npcs();', 'different_load_npcs();'), encoding='utf-8')
                     before = self.fingerprint(root)
@@ -175,7 +267,7 @@ class ApplyTests(unittest.TestCase):
             for name in ('ncmm_graphics_move_diagnostics.hpp', 'ncmm_graphics_update_map.inc'):
                 for existing in (False, True):
                     with self.subTest(pin=pin, name=name, existing=existing), tempfile.TemporaryDirectory() as tmp:
-                        root = Path(tmp); self.fixture(root)
+                        root = Path(tmp); self.fixture(root, pin)
                         if existing: (root/'src'/name).write_text('existing file\n')
                         before = self.fingerprint(root); original_read = Path.read_text
                         def read(path, *args, **kwargs):
@@ -185,7 +277,7 @@ class ApplyTests(unittest.TestCase):
                             with self.assertRaises((ValueError, FileNotFoundError)): bridge.apply(root)
                         self.assertEqual(before, self.fingerprint(root))
 
-    def fixture(self, root):
+    def fixture(self, root, pin=next(iter(bridge.SOURCES))):
         (root / "src").mkdir()
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
@@ -208,7 +300,7 @@ class ApplyTests(unittest.TestCase):
                           "void map::set_outside_cache_dirty( const int zlev )",
                           "void map::set_floor_cache_dirty( const int zlev )"):
             map_cpp+=signature+"\n{\n}\n"
-        (root / "src/map.cpp").write_text(map_cpp+native_floor_cache_original()+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
+        (root / "src/map.cpp").write_text(map_cpp+native_item_reconciliation_original(pin)+native_floor_cache_original()+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );\n        if( next_action.type == input_event_t::timeout ) {\n        }\n    inp_mngr.set_timeout( old_timeout );\n    return *result;\n}\n')
         (root / "src/input.cpp").write_text('#include "input.h"\nvoid input_manager::wait_for_any_key()\n{\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n    if( needupdate ) {\n        try_sdl_update();\n    }\n}\n')
@@ -275,7 +367,7 @@ bool cata_tiles::draw_sprite_at() {
         helper = Path(bridge.__file__).with_name("ncmm_graphics_static_detail.inc")
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); self.fixture(root)
+                root = Path(tmp); self.fixture(root, pin)
                 with patch.object(bridge.subprocess, "check_output", return_value=pin):
                     bridge.apply(root)
                 self.assertEqual((root / "src" / helper.name).read_bytes(), helper.read_bytes())
@@ -291,7 +383,7 @@ bool cata_tiles::draw_sprite_at() {
     def test_static_detail_existing_include_failure_is_atomic(self):
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); self.fixture(root)
+                root = Path(tmp); self.fixture(root, pin)
                 (root / "src/ncmm_graphics_static_detail.inc").write_text("existing extraction\n", encoding="utf-8")
                 (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
                 before = self.fingerprint(root)
@@ -308,7 +400,7 @@ bool cata_tiles::draw_sprite_at() {
             return original_read(path, *args, **kwargs)
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); self.fixture(root)
+                root = Path(tmp); self.fixture(root, pin)
                 (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
                 before = self.fingerprint(root)
                 with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
@@ -328,7 +420,7 @@ bool cata_tiles::draw_sprite_at() {
         names = ("ncmm_graphics_terrain_stair.inc", "ncmm_graphics_multilevel_observer.inc")
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); self.fixture(root)
+                root = Path(tmp); self.fixture(root, pin)
                 with patch.object(bridge.subprocess, "check_output", return_value=pin):
                     bridge.apply(root)
                 for name in names:
@@ -347,7 +439,7 @@ bool cata_tiles::draw_sprite_at() {
         for pin in bridge.SOURCES:
             for name in ("ncmm_graphics_terrain_stair.inc", "ncmm_graphics_multilevel_observer.inc"):
                 with self.subTest(pin=pin, source=name), tempfile.TemporaryDirectory() as tmp:
-                    root = Path(tmp); self.fixture(root)
+                    root = Path(tmp); self.fixture(root, pin)
                     (root / "src" / name).write_text("existing observer source\n", encoding="utf-8")
                     (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
                     before = self.fingerprint(root)
@@ -365,7 +457,7 @@ bool cata_tiles::draw_sprite_at() {
                         raise FileNotFoundError("missing observer source")
                     return original_read(path, *args, **kwargs)
                 with self.subTest(pin=pin, source=name), tempfile.TemporaryDirectory() as tmp:
-                    root = Path(tmp); self.fixture(root)
+                    root = Path(tmp); self.fixture(root, pin)
                     (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
                     before = self.fingerprint(root)
                     with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
@@ -385,7 +477,7 @@ bool cata_tiles::draw_sprite_at() {
         helper = Path(bridge.__file__).with_name("ncmm_graphics_candidate_range.inc")
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); self.fixture(root)
+                root = Path(tmp); self.fixture(root, pin)
                 with patch.object(bridge.subprocess, "check_output", return_value=pin):
                     bridge.apply(root)
                 self.assertEqual((root / "src" / helper.name).read_bytes(), helper.read_bytes())
@@ -401,7 +493,7 @@ bool cata_tiles::draw_sprite_at() {
     def test_candidate_range_existing_include_failure_is_atomic(self):
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); self.fixture(root)
+                root = Path(tmp); self.fixture(root, pin)
                 (root / "src/ncmm_graphics_candidate_range.inc").write_text("existing candidate evaluation\n", encoding="utf-8")
                 (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
                 before = self.fingerprint(root)
@@ -418,7 +510,7 @@ bool cata_tiles::draw_sprite_at() {
             return original_read(path, *args, **kwargs)
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); self.fixture(root)
+                root = Path(tmp); self.fixture(root, pin)
                 (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
                 before = self.fingerprint(root)
                 with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
@@ -454,7 +546,7 @@ bool cata_tiles::draw_sprite_at() {
     def test_native_apparent_light_both_pins_and_source_receipt(self):
         for pin in bridge.SOURCES:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); self.fixture(root)
+                root = Path(tmp); self.fixture(root, pin)
                 original = (root / "src/lightmap.cpp").read_text(encoding="utf-8")
                 with patch.object(bridge.subprocess, "check_output", return_value=pin):
                     bridge.apply(root)
@@ -475,7 +567,7 @@ bool cata_tiles::draw_sprite_at() {
                             original.replace("a.apparent_light >= cache.vision_threshold", "a.apparent_light > cache.vision_threshold"),
                             original + original, "changed Native lightmap"):
                 with self.subTest(pin=pin, changed=changed[:80]), tempfile.TemporaryDirectory() as tmp:
-                    root = Path(tmp); self.fixture(root)
+                    root = Path(tmp); self.fixture(root, pin)
                     (root / "src/lightmap.cpp").write_text(changed, encoding="utf-8")
                     (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
                     before = self.fingerprint(root)

@@ -1169,9 +1169,11 @@ template<class Check> void candidate_range_checks(Check check){
 }
 
 void test_native_floor_cache();
+void test_native_item_reconciliation();
 
 int main(){try{
     test_native_floor_cache();
+    test_native_item_reconciliation();
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
     native_range_checks(check);
