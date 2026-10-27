@@ -945,6 +945,61 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     Full current-source qualification and stage39 Native comparison remain
     pending. GPU/source/runtime and both module jobs at eae pass.
 
+41. **Actual Native comparison revises the exponent-cache decision.** Exact
+    f6ac259 diagnostic run40586668131 finishes both short Windows movement
+    programs without wrapper/debugger failure or crash dump. Seven selected
+    program JSON files per artifact12772249842/12773163479 consume369942 of
+    the shared8388608-byte range budget; no archive or CI log is downloaded.
+    Exact source/process/Host/module identities and the measured Git-object
+    verifier pass. All54 alternating pairs preserve365904 output floats
+    bitwise,4756752 protected Native bytes, avatar position/moves/calendar.
+    The accompanying movement matrices validate288 actions/144 cache children.
+
+    Cached/original per-cast medians (ms),1040 street/horde/city:
+    5.978/5.693,6.551/6.490,7.370/8.169;1807:
+    5.779/5.258,6.177/5.856,7.191/7.904. Paired ratio medians respectively
+    1.0474/1.0076/.9037 and1.0966/1.0536/.9265. Street worsens in all18
+    pairs; horde in16/18, city in2/18. First horde1807 also worsens
+    9.584 ->13.733. Stage32's fewer exponent calls therefore do not establish
+    a general Native latency improvement. Revisit this retained cache before
+    final integration; no favorable-only scene selection or FPS claim.
+    Strict summary SHA256
+    `1a48df692c4022f6d766ea9f840f9cc895fdd41362d05e94d4c4a0d294315520`.
+    These are warmed isolated caster wall times; Microsoft software rendering,
+    uncontrolled scheduling and diagnostic pre-matrix work remain limits.
+    They do not qualify the complete seen cache, ordinary frames or15ms.
+
+    Both actual Linux jobs at current PR headeae8d02 now pass, confirmed
+    through Code Review jobs122458321498/122458321440. Its truncated logs
+    contain successful controls/FPS exits; complete job conclusions cover
+    the remaining functional sequence. Windows full qualification continues.
+    Main PR remains eae; f6ac is only on the existing diagnostic branch.
+
+42. **Investigate exact square-distance dispatch, private candidate only.** At
+    the two guarded3D-caster sites one positive delta axis equals the row
+    distance, and the other axes lie within it. For the square metric, Native
+    `rl_dist` therefore equals the row integer. Circular and generic callbacks
+    must retain the original distance call, including callbacks which can
+    change the metric. Both pins' complete line/coordinate Git objects match
+    (metadata only, no source-body transfer);174285 bytes remain in the
+    existing10MiB source budget.
+
+    A private cast-entry dispatch, restricted to all three exact standard
+    sight callbacks, passes498 paired grids/466358 checks and226981 exhaustive
+    Native numerical deltas. Native distance calls halve10702148 ->5351074;
+    exponent calls remain5080030. Plain-bool model fidelity matches Native's
+    metric declaration. Seven alternating timing pairs/two casts improve all
+    four square-metric medians (ratios.6340/.8399/.9044/.9198), while two
+    circular medians worsen (1.0155/1.0239) and circular first mixed worsens
+    40.388 ->42.255ms. Earlier per-cell dispatch and reference-alias variants
+    are preserved, not rerun until favorable. This model includes owned grid,
+    coordinate and fragment context and cannot establish Native gameplay or
+    first-frame performance. No production edit is retained at this checkpoint.
+    Summary SHA256
+    `a96285e38f58f0c057ea246a3f7a33626830446bcb3ff6cfb6641a30848b58ba`.
+    Next: assess the exact row shortcut without the cache that regressed
+    ordinary Native street/horde, then qualify the selected bounded change.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
