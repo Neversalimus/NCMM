@@ -1,7 +1,7 @@
 import copy
 import math
 import unittest
-from verify_horizon_release import (NATIVE_STEP_LABELS, NATIVE_MAP_SHIFT_LABELS, frame_phases, native_step_phases,
+from verify_horizon_release import (NATIVE_STEP_LABELS, NATIVE_MAP_SHIFT_LABELS, NATIVE_MAP_CACHE_LABELS, frame_phases, native_step_phases,
                                     expected_payload_files, verify_payload_file_matrix)
 
 class FramePhaseTests(unittest.TestCase):
@@ -356,5 +356,93 @@ class NativeMapShiftPhaseTests(unittest.TestCase):
         record = self.valid_record(); rows = record['native_step_phases']['samples']
         rows[0]['native_map_shifts'] = copy.deepcopy(rows[1]['native_map_shifts'])
         with self.assertRaisesRegex(ValueError, 'count'): self.verify(record)
+
+class NativeMapCachePhaseTests(unittest.TestCase):
+    """Fabricated child receipts validate protocol only; these are not timings."""
+    def event(self, start=.051, end=.0565, owner=0, shift=-1, ordinal=0):
+        return dict(ordinal=ordinal, depth=1, parent_ordinal=-1, parent_update_ordinal=owner,
+                    parent_shift_ordinal=shift, zlev=0, skip_lightmap=False, zlevels=True,
+                    bounds_known=True, min_z=-10, max_z=10, complete=True, exceptional=False,
+                    boundary_labels=list(NATIVE_MAP_CACHE_LABELS),
+                    boundary_offsets_ms=[start+(end-start)*i/11 for i in range(12)])
+    def valid_record(self):
+        record=NativeMapShiftPhaseTests().valid_record()
+        for row in record['native_step_phases']['samples']:
+            shifted=row['native_submap_updates']['events'][0]['shift_xy']!=[0,0]
+            row['native_map_cache_builds']=dict(schema=1,clock='std::chrono::steady_clock',units='milliseconds',
+                diagnostic_probe_overhead_included=True, invocations=int(shifted),recorded=int(shifted),dropped=0,
+                max_depth=int(shifted),exceptional_invocations=0,events=[self.event()] if shifted else [])
+        return record
+    def verify(self, record):
+        return native_step_phases(record,require_submaps=True,require_shifts=True,require_caches=True)['map_cache_builds']
+    def test_main_calls_conserve_real_parent_and_missing_hooks_fail(self):
+        r=self.valid_record();parsed=self.verify(r)
+        self.assertTrue(parsed['available']);self.assertEqual([v['calls'] for v in parsed['samples']],[0,1]*6)
+        self.assertEqual(parsed['samples'][1]['children'][0]['location'],'invalidate_to_build')
+        r['native_step_phases']['samples'][1]['native_map_cache_builds'].update(invocations=0,recorded=0,max_depth=0,events=[])
+        with self.assertRaisesRegex(ValueError,'main update call'):self.verify(r)
+    def test_historical_absence_is_explicit_and_partial_data_rejected(self):
+        old=NativeMapShiftPhaseTests().valid_record()
+        self.assertFalse(native_step_phases(old)['map_cache_builds']['available'])
+        with self.assertRaisesRegex(ValueError,'map-cache receipt'):self.verify(old)
+        r=self.valid_record();del r['native_step_phases']['samples'][0]['native_map_cache_builds']
+        with self.assertRaisesRegex(ValueError,'Partial Native map-cache'):native_step_phases(r)
+    def test_counts_schema_nesting_and_exceptions_rejected(self):
+        for key,value in (('schema',2),('clock','cpu_clock'),('units','seconds'),('diagnostic_probe_overhead_included',False),
+                          ('invocations',True),('invocations',33),('recorded',0),('dropped',1),('max_depth',2),('exceptional_invocations',1)):
+            r=self.valid_record();r['native_step_phases']['samples'][1]['native_map_cache_builds'][key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):self.verify(r)
+    def test_event_identity_flags_bounds_and_owners_rejected(self):
+        for key,value in (('ordinal',1),('depth',2),('parent_ordinal',0),('parent_update_ordinal',1),
+                          ('parent_update_ordinal',-1),('parent_shift_ordinal',0),('bounds_known',False),
+                          ('zlevels',0),('skip_lightmap',1),('min_z',0),('max_z',11),('zlev',True),
+                          ('complete',False),('exceptional',True)):
+            r=self.valid_record();r['native_step_phases']['samples'][1]['native_map_cache_builds']['events'][0][key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):self.verify(r)
+    def test_malformed_backward_outside_and_nonfinite_boundaries_rejected(self):
+        for mode in ('missing','labels','backward','outside_update','outside_action','nan','bool'):
+            r=self.valid_record();e=r['native_step_phases']['samples'][1]['native_map_cache_builds']['events'][0]
+            if mode=='missing':e['boundary_offsets_ms'].pop()
+            if mode=='labels':e['boundary_labels'][3]='seen'
+            if mode=='backward':e['boundary_offsets_ms'][3]=0
+            if mode=='outside_update':e['boundary_offsets_ms'][-1]=.2
+            if mode=='outside_action':e['boundary_offsets_ms'][-1]=.6
+            if mode=='nan':e['boundary_offsets_ms'][4]=math.nan
+            if mode=='bool':e['boundary_offsets_ms'][4]=True
+            with self.subTest(mode=mode),self.assertRaises(ValueError):self.verify(r)
+    def test_shift_child_and_standalone_builders_have_distinct_owners(self):
+        r=self.valid_record();rows=r['native_step_phases']['samples'];v=rows[1]['native_map_cache_builds']
+        child=self.event(.024,.025,shift=0)
+        v['events'][0]['ordinal']=1;v['events'].insert(0,child);v.update(invocations=2,recorded=2)
+        parsed=self.verify(r)
+        self.assertEqual([c['location'] for c in parsed['samples'][1]['children']],['map_shift','invalidate_to_build'])
+        child['parent_shift_ordinal']=-1
+        with self.assertRaisesRegex(ValueError,'lost its active shift'):self.verify(r)
+        r=self.valid_record();v=r['native_step_phases']['samples'][0]['native_map_cache_builds']
+        v.update(invocations=1,recorded=1,max_depth=1,events=[self.event(.2,.21,owner=-1)])
+        self.assertEqual(self.verify(r)['samples'][0]['children'][0]['location'],'action_outside_update')
+    def test_overlap_smaller_than_outer_budget_is_rejected(self):
+        r=self.valid_record();v=r['native_step_phases']['samples'][1]['native_map_cache_builds']
+        v['events'].append(self.event(.2,.21,owner=-1,ordinal=1));v.update(invocations=2,recorded=2)
+        self.verify(r)
+        v['events'][1]['boundary_offsets_ms']=[.0564+i*.00001 for i in range(12)]
+        with self.assertRaisesRegex(ValueError,'Overlapping'):self.verify(r)
+    def test_single_level_bounds_and_skip_lightmap_metadata(self):
+        r=self.valid_record();e=r['native_step_phases']['samples'][1]['native_map_cache_builds']['events'][0]
+        e.update(zlev=-3,zlevels=False,min_z=-3,max_z=-3)
+        self.assertEqual(self.verify(r)['samples'][1]['children'][0]['min_z'],-3)
+        e['skip_lightmap']=True
+        with self.assertRaisesRegex(ValueError,'default lightmap branch'):self.verify(r)
+        r=self.valid_record();v=r['native_step_phases']['samples'][0]['native_map_cache_builds']
+        e=self.event(.2,.21,owner=-1);e.update(zlev=-3,zlevels=False,min_z=-3,max_z=-3,skip_lightmap=True)
+        v.update(invocations=1,recorded=1,max_depth=1,events=[e])
+        self.assertTrue(self.verify(r)['samples'][0]['children'][0]['skip_lightmap'])
+    def test_signed_main_build_gap_retains_serialization_roundoff(self):
+        r=self.valid_record();e=r['native_step_phases']['samples'][1]['native_map_cache_builds']['events'][0]
+        e['boundary_offsets_ms']=[.049999+(.060001-.049999)*i/11 for i in range(12)]
+        value=self.verify(r)['samples'][1]
+        self.assertLess(value['direct_build_gap_wall_ms'],0)
+        self.assertAlmostEqual(value['direct_build_gap_wall_ms'],-.000002,places=9)
+
 
 if __name__=='__main__':unittest.main()

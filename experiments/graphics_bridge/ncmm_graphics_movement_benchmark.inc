@@ -341,6 +341,22 @@
                     report.member("parent_update_ordinal",event.parent_update_ordinal);report.member("shift_xy",event.shift_xy);
                     report.member("route_accepted",event.route_accepted);report.member("complete",event.complete);report.member("exceptional",event.exceptional);
                     report.member("boundary_labels",labels);report.member("boundary_offsets_ms",boundaries);report.end_object();}
+                report.end_array();report.end_object();
+                report.member("native_map_cache_builds");report.start_object();
+                report.member("schema",1);report.member("clock","std::chrono::steady_clock");report.member("units","milliseconds");report.member("diagnostic_probe_overhead_included",true);
+                report.member("invocations",sub.cache_invocations);report.member("recorded",sub.cache_recorded);report.member("dropped",sub.cache_dropped);
+                report.member("max_depth",sub.cache_max_depth);report.member("exceptional_invocations",sub.cache_exceptional_invocations);
+                report.member("events");report.start_array();
+                for(size_t e=0;e<sub.cache_recorded&&e<ncmm_graphics_move_diagnostics::cache_event_capacity;++e){const auto &event=sub.caches[e];
+                    std::vector<std::string> labels;std::vector<double> boundaries;
+                    for(size_t b=0;b<event.count&&b<ncmm_graphics_move_diagnostics::cache_boundary_capacity;++b){labels.emplace_back(ncmm_graphics_move_diagnostics::label(event.tags[b]));
+                        boundaries.push_back(std::chrono::duration<double,std::milli>(event.points[b]-sample.points[0]).count());}
+                    report.start_object();report.member("ordinal",event.ordinal);report.member("depth",event.depth);report.member("parent_ordinal",event.parent_ordinal);
+                    report.member("parent_update_ordinal",event.parent_update_ordinal);report.member("parent_shift_ordinal",event.parent_shift_ordinal);
+                    report.member("zlev",event.zlev);report.member("skip_lightmap",event.skip_lightmap);report.member("zlevels",event.zlevels);
+                    report.member("bounds_known",event.bounds_known);report.member("min_z",event.min_z);report.member("max_z",event.max_z);
+                    report.member("complete",event.complete);report.member("exceptional",event.exceptional);
+                    report.member("boundary_labels",labels);report.member("boundary_offsets_ms",boundaries);report.end_object();}
                 report.end_array();report.end_object();report.end_object();}
             report.end_array();report.end_object();
             report.member("first_ready_median_ms",percentile(first_ms,.5));report.member("first_ready_p95_ms",percentile(first_ms,.95));report.member("easing_median_ms",percentile(easing_ms,.5));report.member("easing_p95_ms",percentile(easing_ms,.95));

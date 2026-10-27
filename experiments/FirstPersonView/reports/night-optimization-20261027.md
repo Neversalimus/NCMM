@@ -600,7 +600,73 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     Actual new Native compilation, elapsed impact and first-frame benefit are
     pending. No unchanged renderer/hardware suite was rerun for these Host edits.
 
+31. **Attribute Native cache construction before changing its invalidation.**
+    Current actual crossing receipts below still attribute13–24 ms median to
+    update_map's inclusive build_map_cache call. The separate benchmark refresh
+    costs4–8 ms and is not a substitute for that action measurement. Add opt-in
+    adjacent scopes for structural caches, vehicles, vision transparency, skew
+    cleanup, moncam state, seen/moncam caches, character lights, lightmap and
+    local cleanup. Every Native call remains in place. Both pinned complete
+    builder bodies are identical4288 bytes, SHA256
+    `1f8d5580024513cbd0f684eb32957832ba194ba41ba7e3c4d3ccc5919c1fda21`;
+    removing only the probe statements restores every original byte. The scope
+    is the first local so its exit includes destruction of later temporaries.
+
+    Disabled capture reads no clock and allocates nothing; enabled capture uses
+    bounded fixed storage and records actual update/shift ancestry, Z bounds,
+    lightmap branch, missing markers, exceptions, nesting, drops and saturation.
+    JSON construction remains outside the first-ready boundary. Fresh strict
+    qualification requires the new receipts, exact labels, monotonic contained
+    children and exactly one direct main builder on a crossing. Historical
+    reports remain explicitly unavailable. Signed parent gaps are retained,
+    including tiny rounding residuals; inclusive parent/child times are never
+    added. No light, actor, discovery or gameplay invalidation is removed.
+
+    Full Release,283 Python tests (18.444 s),89 atomic bridge tests and the two
+    affected autonomous trace CTests (.34 s) pass. Five affected atomic tests
+    pass again after the final source-placement assertions. Thirty-six compiled
+    primitive checks cover clocks, allocations, cleanup, owners, cross-TU TLS
+    and failure protocols. Three compiled negative controls reject absent
+    hooks, misassigned labels and a scope ending before local destruction.
+    The complete Native builder is checked for source preservation/placement,
+    not compiled against a locally invented engine model. Actual new Native
+    compilation and child timings require the next remote run. This diagnostic
+    stage makes no performance-gain claim. Evidence `night-map-cache-*`.
+
 ## Actual remote evidence and next priorities
+
+**Actual phase-scan revision `1bdb0cd`, run40534567570.** Both early Windows
+programs exit0 without wrapper/debugger error or dumps. Runtime
+`e5641e79f4e9d398468a5cb8e014eade4560a138` shares saved source tree
+`9c1cab08a53c2740cf3801098f512b482d4f2473`. Four selected program JSON files
+per artifact12749968461/12751251676 reserve351322 bytes /8 MiB. All288 action
+scopes and144 actual shift children pass strict validation. Private receipts
+and independently hashed summaries: `night-movement-1bdb0cd/`; 1040 summary
+`eacbc97f6b056c9641629930b0321b661cef3f665ecb6d52d38cf0c3d2570468`,
+1807 `e5403c15babd5248739602c8de7e9c1693ced868564a15892dea90898dda68e7`.
+
+640x480, VSync1, **software D3D12 Microsoft Basic Render Driver**; six
+crossings per row. Independent medians in milliseconds do not necessarily sum:
+
+| Pin / scene | Action | map::shift | Copy/load | Actualize | Main cache build |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1040 street | 26.084 | 11.288 | 3.277 | 5.508 | 13.454 |
+| 1040 horde | 48.411 | 18.014 | 3.572 | 5.816 | 19.563 |
+| 1040 city | 46.848 | 12.806 | 3.648 | 5.790 | 23.625 |
+| 1807 street | 30.628 | 11.693 | 3.076 | 5.604 | 17.482 |
+| 1807 horde | 31.064 | 11.710 | 2.970 | 5.539 | 17.764 |
+| 1807 city | 37.018 | 13.125 | 3.066 | 5.605 | 21.837 |
+
+Copy/load medians are lower than the preceding independent capture's7–9 ms,
+but this is not a paired causal timing experiment. 1040 horde/city whole-action
+medians worsen;1040 city actualize reaches72.586 ms and1807 city main cache
+86.196 ms. Spawn also has a19.468 ms horde outlier. The main cache call remains
+a justified next profiling target; forced-refresh cache medians4.375/6.693/
+7.849 ms (1040) and5.408/5.708/7.745 ms (1807) must remain separate. Current
+module, GPU Windows/Linux/Vulkan/sanitizer, source/package and runtime jobs
+pass, and all four pinned Hosts compile. Full Native gameplay/appearance jobs
+are still running at this checkpoint. No new full Native pass, ordinary
+RTX4090 frame time, first-correct-present or15 ms result is claimed.
 
 **Actual underground-loop revision `aff7dd7`, run40525583050.** Both early
 Windows programs exit0 without wrapper/debugger error or dumps. Runtime

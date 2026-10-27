@@ -1,6 +1,17 @@
 #include "ncmm_graphics_move_diagnostics.hpp"
 #include <initializer_list>
 
+void ncmm_cache_diagnostics_cross_tu()
+{
+    namespace diag = ncmm_graphics_move_diagnostics;
+    diag::cache_scope scope( 0, false, true );
+    if( scope ) {
+        scope.bounds( -10, 10 );
+        for( std::size_t i = 2; i < diag::cache_boundary_capacity - 1; ++i )
+            scope.mark( static_cast<diag::cache_boundary>( i ) );
+    }
+}
+
 void ncmm_move_diagnostics_cross_tu()
 {
     namespace diag = ncmm_graphics_move_diagnostics;

@@ -57,6 +57,11 @@ def native_map_shift_original(pin):
     return frozen.split(begin, 1)[1].split(end, 1)[0]
 
 
+def native_map_cache_original():
+    frozen=(REPO/"experiments/FirstPersonView/tests/native_map_cache_primary.inc").read_text(encoding="utf-8")
+    return frozen[frozen.index("void map::build_map_cache"):]
+
+
 def native_phase_source(name):
     frozen = (REPO / "experiments/FirstPersonView/tests/native_phase_scan_fixture.cpp").read_text(encoding="utf-8")
     begin, end = (f"// {kind} FROZEN NATIVE PHASE SOURCE {name}\n" for kind in ("BEGIN", "END"))
@@ -123,6 +128,76 @@ def native_item_reconciliation_original(pin):
 
 
 class ApplyTests(unittest.TestCase):
+    def test_map_cache_primary_and_adjacent_probe_positions(self):
+        original=native_map_cache_original()
+        self.assertEqual((len(original.encode()),hashlib.sha256(original.encode()).hexdigest()),bridge.NATIVE_MAP_CACHE_ORIGINAL)
+        source=Path(bridge.__file__).with_name("ncmm_graphics_map_cache.inc").read_text(encoding="utf-8")
+        source=source[source.index("void map::build_map_cache"):]
+        restored=''.join(line for line in source.splitlines(keepends=True) if 'ncmm_cache_scope' not in line)
+        self.assertEqual(restored,original)
+        self.assertTrue(source.startswith('void map::build_map_cache( const int zlev, bool skip_lightmap )\n{\n    ncmm_graphics_move_diagnostics::cache_scope'))
+        self.assertIn('    bool camera_cache_dirty = false;\n    if( ncmm_cache_scope ) ncmm_cache_scope.bounds( minz, maxz );\n',source)
+        self.assertIn('cache_boundary::vision );\n\n    if( seen_cache_dirty ) {\n        skew_vision_cache.clear();',source)
+        self.assertIn('    seen_cache_dirty |= player_prev_pos != p || sr != player_prev_range || camera_cache_dirty;\n    if( ncmm_cache_scope ) ncmm_cache_scope.mark( ncmm_graphics_move_diagnostics::cache_boundary::moncam_state );\n',source)
+        before={
+            'structure':'    // needs a separate pass',
+            'vehicles':'    for( int z = minz; z <= maxz; z++ ) {\n        seen_cache_dirty |= build_vision_transparency_cache',
+            'skew':'    avatar &u = get_avatar();',
+            'seen':'    if( camera_cache_dirty ) {\n        u.moncam_cache = mcache;',
+            'moncam_seen':'    // Detect character/NPC light changes reactively.',
+            'character_lights':'    if( !skip_lightmap ) {',
+        }
+        for name,anchor in before.items():
+            mark=f'    if( ncmm_cache_scope ) ncmm_cache_scope.mark( ncmm_graphics_move_diagnostics::cache_boundary::{name} );\n'
+            self.assertIn(mark+anchor,source)
+        self.assertIn('    }\n    if( ncmm_cache_scope ) ncmm_cache_scope.mark( ncmm_graphics_move_diagnostics::cache_boundary::lightmap );\n}',source)
+
+    def test_map_cache_patch_preserves_surrounding_native(self):
+        for pin in bridge.SOURCES:
+            source='// prefix\n'+native_map_cache_original()+'// suffix\n'
+            self.assertEqual(bridge.patch_native_map_cache(source,pin),'// prefix\n#include "ncmm_graphics_map_cache.inc"\n// suffix\n')
+
+    def test_map_cache_both_pins_copy_and_receipt(self):
+        name='ncmm_graphics_map_cache.inc'
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);self.fixture(root,pin)
+                with patch.object(bridge.subprocess,'check_output',return_value=pin): bridge.apply(root)
+                self.assertEqual((root/'src/map.cpp').read_text(encoding='utf-8').count('#include "ncmm_graphics_map_cache.inc"'),1)
+                data=Path(bridge.__file__).with_name(name).read_bytes()
+                self.assertEqual((root/'src'/name).read_bytes(),data)
+                receipt=json.loads((root/'first-person-source.json').read_text(encoding='utf-8'))
+                self.assertEqual(receipt['inputs'][name],hashlib.sha256(data).hexdigest())
+
+    def test_map_cache_changed_missing_and_duplicate_body_are_atomic(self):
+        original=native_map_cache_original()
+        for pin in bridge.SOURCES:
+            for kind in ('changed','missing','duplicate'):
+                with self.subTest(pin=pin,kind=kind),tempfile.TemporaryDirectory() as tmp:
+                    root=Path(tmp);self.fixture(root,pin);path=root/'src/map.cpp'
+                    data=path.read_text(encoding='utf-8')
+                    replacement={'changed':original.replace('generate_lightmap( zlev );','different_lightmap( zlev );'),'missing':'','duplicate':original+original}[kind]
+                    path.write_text(data.replace(original,replacement,1),encoding='utf-8')
+                    before=self.fingerprint(root)
+                    with patch.object(bridge.subprocess,'check_output',return_value=pin):
+                        with self.assertRaisesRegex(ValueError,'map-cache'):bridge.apply(root)
+                    self.assertEqual(before,self.fingerprint(root))
+
+    def test_map_cache_missing_or_existing_include_is_atomic(self):
+        name='ncmm_graphics_map_cache.inc'
+        for pin in bridge.SOURCES:
+            for existing in (False,True):
+                with self.subTest(pin=pin,existing=existing),tempfile.TemporaryDirectory() as tmp:
+                    root=Path(tmp);self.fixture(root,pin)
+                    if existing:(root/'src'/name).write_text('existing include\n',encoding='utf-8')
+                    before=self.fingerprint(root);original_read=Path.read_text
+                    def read(path,*args,**kwargs):
+                        if not existing and path==Path(bridge.__file__).with_name(name):raise FileNotFoundError('missing include')
+                        return original_read(path,*args,**kwargs)
+                    with patch.object(bridge.subprocess,'check_output',return_value=pin),patch.object(Path,'read_text',read):
+                        with self.assertRaises((ValueError,FileNotFoundError)):bridge.apply(root)
+                    self.assertEqual(before,self.fingerprint(root))
+
     def test_phase_primary_and_source_preservation(self):
         for name, expected in (("loadn", bridge.NATIVE_PHASE_LOADN_ORIGINAL),
                                ("phase_function", bridge.NATIVE_TEMPERATURE_PHASE_ORIGINAL)):
@@ -773,6 +848,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n" + APPARENT_LIGHT_DECLARATIONS)
         (root / "src/lightmap.cpp").write_text('#include "map.h"\n' + apparent_light_original() + '\n' + native_vision_transparency_original() + '\n// Native continuation retained.\n')
         map_cpp='#include "map.h"\n'
+        map_cpp += native_map_cache_original()
         map_cpp += native_phase_source("loadn")
         (root/"src/mapgen.cpp").write_text(native_phase_source("phase_function"),encoding="utf-8")
         (root/"src/submap.h").write_text(native_phase_source("submap_anchor"),encoding="utf-8")

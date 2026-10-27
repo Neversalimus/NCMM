@@ -216,7 +216,84 @@ def native_map_shifts(row, parent, *, required=False):
                 scope='Inclusive synchronous child wall scopes; probes and cleanup included; never add to parent time')
 
 
-def native_step_phases(record, *, required=True, require_submaps=False, require_shifts=False):
+NATIVE_MAP_CACHE_LABELS = ('entry', 'bounds', 'structure', 'vehicles', 'vision', 'skew',
+                         'moncam_state', 'seen', 'moncam_seen', 'character_lights', 'lightmap', 'exit')
+
+
+def native_map_cache_builds(row, parent, shifts, *, required=False):
+    """Real cache children, including cleanup; never add to enclosing action."""
+    value = row.get('native_map_cache_builds')
+    if value is None and not required:
+        return dict(available=False, reason='Historical report has no map-cache child scopes')
+    require(type(value) is dict and parent['available'] and shifts['available'], 'Native map-cache receipt or parent missing')
+    require(type(value.get('schema')) is int and value['schema'] == 1
+            and value.get('clock') == 'std::chrono::steady_clock' and value.get('units') == 'milliseconds'
+            and value.get('diagnostic_probe_overhead_included') is True, 'Invalid Native map-cache clock/schema')
+    calls = value.get('invocations')
+    require(type(calls) is int and 0 <= calls <= 32, 'Native map-cache count exceeds bounded storage')
+    for name, count in (('recorded', calls), ('dropped', 0), ('max_depth', int(calls != 0)), ('exceptional_invocations', 0)):
+        require(type(value.get(name)) is int and value[name] == count, 'Invalid Native map-cache count: ' + name)
+    events = value.get('events')
+    require(type(events) is list and len(events) == calls, 'Incomplete Native map-cache event matrix')
+    update = row['native_submap_updates']['events'][0]
+    update_points, update_labels = update['boundary_offsets_ms'], update['boundary_labels']
+    shift_events = row['native_map_shifts']['events']
+    rounding, previous_end, children, total = .000003, 0.0, [], 0.0
+    for ordinal, event in enumerate(events):
+        require(type(event) is dict, 'Invalid Native map-cache event')
+        for name, expected in (('ordinal', ordinal), ('depth', 1), ('parent_ordinal', -1)):
+            require(type(event.get(name)) is int and event[name] == expected, 'Nested or misassigned Native map-cache event')
+        owner, shift_owner = event.get('parent_update_ordinal'), event.get('parent_shift_ordinal')
+        require(type(owner) is int and owner in (-1, 0) and type(shift_owner) is int
+                and -1 <= shift_owner < len(shift_events), 'Invalid Native map-cache ancestry')
+        require(event.get('complete') is True and event.get('exceptional') is False and event.get('bounds_known') is True,
+                'Incomplete or exceptional Native map-cache event')
+        require(all(type(event.get(name)) is bool for name in ('skip_lightmap', 'zlevels')), 'Invalid Native map-cache flags')
+        require(all(type(event.get(name)) is int and -10 <= event[name] <= 10 for name in ('zlev', 'min_z', 'max_z')),
+                'Invalid Native map-cache Z coordinates')
+        expected_bounds = [-10, 10] if event['zlevels'] else [event['zlev'], event['zlev']]
+        require([event['min_z'], event['max_z']] == expected_bounds, 'Native map-cache bounds differ from the real branch')
+        points = event.get('boundary_offsets_ms')
+        require(event.get('boundary_labels') == list(NATIVE_MAP_CACHE_LABELS) and type(points) is list
+                and len(points) == len(NATIVE_MAP_CACHE_LABELS), 'Missing or misassigned Native map-cache boundaries')
+        require(all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in points)
+                and all(a <= b for a, b in zip(points, points[1:]))
+                and points[0] >= previous_end - rounding and points[-1] <= row['phase_wall_ms'][0] + rounding,
+                'Overlapping or uncontained Native map-cache children')
+        def inside(bounds): return points[0] >= bounds[0] - rounding and points[-1] <= bounds[-1] + rounding
+        if owner == -1:
+            require(shift_owner == -1 and not inside(update_points), 'Native map-cache lost its active update owner')
+            location = 'action_outside_update'
+        else:
+            require(inside(update_points), 'Native map-cache exceeds its update owner')
+            if shift_owner >= 0:
+                require(inside(shift_events[shift_owner]['boundary_offsets_ms']), 'Native map-cache exceeds its shift owner')
+                location = 'map_shift'
+            else:
+                require(not any(inside(e['boundary_offsets_ms']) for e in shift_events), 'Native map-cache lost its active shift owner')
+                locations = [a + '_to_' + b for a, b, x, y in zip(update_labels, update_labels[1:], update_points, update_points[1:])
+                             if points[0] >= x - rounding and points[-1] <= y + rounding]
+                require(len(locations) == 1, 'Native map-cache crosses or ambiguously straddles update boundaries')
+                location = locations[0]
+                if location == 'invalidate_to_build':
+                    require(event['skip_lightmap'] is False, 'Native main map-cache call changed its default lightmap branch')
+        wall = points[-1] - points[0]
+        total += wall; previous_end = points[-1]
+        children.append(dict(location=location, zlev=event['zlev'], zlevels=event['zlevels'],
+                             min_z=event['min_z'], max_z=event['max_z'], skip_lightmap=event['skip_lightmap'], elapsed_ms=wall,
+                             phases={a+'_to_'+b: y-x for a,b,x,y in zip(NATIVE_MAP_CACHE_LABELS, NATIVE_MAP_CACHE_LABELS[1:], points, points[1:])}))
+    require(sum(c['location'] == 'invalidate_to_build' for c in children) == int(parent['shift_xy'] != [0, 0]),
+            'Native map-cache main update call missing or duplicated')
+    parent_build = parent['phases'].get('invalidate_to_build', 0.0)
+    direct_build = sum(c['elapsed_ms'] for c in children if c['location'] == 'invalidate_to_build')
+    build_gap = parent_build - direct_build
+    require(build_gap >= -rounding, 'Native map-cache accounting exceeds main build parent')
+    return dict(available=True, calls=calls, children=children, child_wall_ms=total,
+                parent_build_wall_ms=parent_build, direct_build_child_wall_ms=direct_build, direct_build_gap_wall_ms=build_gap,
+                scope='Adjacent inclusive synchronous cache wall scopes, including probes/cleanup; never add to parent time')
+
+
+def native_step_phases(record, *, required=True, require_submaps=False, require_shifts=False, require_caches=False):
     """Adjacent Native-call wall scopes; render is inclusive of its inner frame."""
     receipt = record.get('native_step_phases')
     if receipt is None and not required:
@@ -235,7 +312,7 @@ def native_step_phases(record, *, required=True, require_submaps=False, require_
     scalar = lambda value: type(value) in (int, float) and math.isfinite(value)
     route = ((1, 0, 0), (0, -1, 0), (-1, 0, 0), (0, 1, 0))
     previous_to = None
-    submaps, shifts = [], []
+    submaps, shifts, caches = [], [], []
     for step, row in enumerate(rows):
         require(type(row['step']) is int and row['step'] == step, 'Reordered Native action samples')
         index = row['frame_index']
@@ -274,8 +351,10 @@ def native_step_phases(record, *, required=True, require_submaps=False, require_
                     'Native submap action mapping changed')
         submaps.append(submap)
         shifts.append(native_map_shifts(row, submap, required=require_shifts))
+        caches.append(native_map_cache_builds(row, submap, shifts[-1], required=require_caches))
     require(all(s['available'] for s in submaps) or not any(s['available'] for s in submaps), 'Partial Native submap matrix')
     require(all(s['available'] for s in shifts) or not any(s['available'] for s in shifts), 'Partial Native map-shift matrix')
+    require(all(s['available'] for s in caches) or not any(s['available'] for s in caches), 'Partial Native map-cache matrix')
     return dict(available=True, clock=receipt['clock'], units='milliseconds', samples=count,
                 phases={name: dict(median_ms=percentile([row['phase_wall_ms'][i] for row in rows], .5),
                                    p95_ms=percentile([row['phase_wall_ms'][i] for row in rows], .95),
@@ -285,6 +364,7 @@ def native_step_phases(record, *, required=True, require_submaps=False, require_
                 max_abs_accounting_residual_ms=max(abs(row['residual_wall_ms']) for row in rows),
                 submap_updates=dict(available=all(s['available'] for s in submaps), samples=submaps),
                 map_shifts=dict(available=all(s['available'] for s in shifts), samples=shifts),
+                map_cache_builds=dict(available=all(s['available'] for s in caches), samples=caches),
                 scope='Synchronous Native-call wall times; render_call includes first_frame, never add both; not on-core CPU or GPU execution')
 
 
@@ -364,7 +444,7 @@ def verify(args):
         matrix.add(key)
         require(record["native_steps"] == 12, "Native steps missing")
         phases = frame_phases(record)
-        action_phases = native_step_phases(record, require_submaps=True, require_shifts=True)
+        action_phases = native_step_phases(record, require_submaps=True, require_shifts=True, require_caches=True)
         frame = samples(record, "first_frame_after_step_samples_ms", 12)
         ready = samples(record, "first_ready_samples_ms", 12)
         cold = samples(record, "cold_rotation_samples_ms", 48)

@@ -18,6 +18,40 @@ constexpr std::size_t event_capacity = 8;
 constexpr std::size_t boundary_capacity = 9;
 constexpr std::size_t shift_event_capacity = 32;
 constexpr std::size_t shift_boundary_capacity = 12;
+constexpr std::size_t cache_event_capacity = 32;
+constexpr std::size_t cache_boundary_capacity = 12;
+enum class cache_boundary : std::uint8_t {
+    entry, bounds, structure, vehicles, vision, skew, moncam_state,
+    seen, moncam_seen, character_lights, lightmap, exit
+};
+inline const char *label( cache_boundary value ) noexcept
+{
+    switch( value ) {
+        case cache_boundary::entry: return "entry";
+        case cache_boundary::bounds: return "bounds";
+        case cache_boundary::structure: return "structure";
+        case cache_boundary::vehicles: return "vehicles";
+        case cache_boundary::vision: return "vision";
+        case cache_boundary::skew: return "skew";
+        case cache_boundary::moncam_state: return "moncam_state";
+        case cache_boundary::seen: return "seen";
+        case cache_boundary::moncam_seen: return "moncam_seen";
+        case cache_boundary::character_lights: return "character_lights";
+        case cache_boundary::lightmap: return "lightmap";
+        case cache_boundary::exit: return "exit";
+    }
+    return "invalid";
+}
+struct cache_event {
+    std::uint32_t ordinal = 0, depth = 0;
+    std::int64_t parent_ordinal = -1, parent_update_ordinal = -1, parent_shift_ordinal = -1;
+    int zlev = 0, min_z = 0, max_z = 0;
+    bool skip_lightmap = false, zlevels = false, bounds_known = false;
+    bool complete = false, exceptional = false;
+    std::size_t count = 0;
+    std::array<cache_boundary, cache_boundary_capacity> tags{};
+    std::array<clock::time_point, cache_boundary_capacity> points{};
+};
 enum class shift_boundary : std::uint8_t {
     entry, setup, unload, origin_traps_remote, vehicle_zones, cache_rebase,
     grid_copy_load, vehicle_levels_remote, support_rebase, actualize, reconcile, exit
@@ -87,6 +121,9 @@ struct action_record {
     std::uint32_t shift_invocations = 0, shift_recorded = 0, shift_dropped = 0, shift_max_depth = 0;
     std::uint32_t shift_exceptional_invocations = 0;
     std::array<shift_event, shift_event_capacity> shifts{};
+    std::uint32_t cache_invocations = 0, cache_recorded = 0, cache_dropped = 0, cache_max_depth = 0;
+    std::uint32_t cache_exceptional_invocations = 0;
+    std::array<cache_event, cache_event_capacity> caches{};
 };
 inline void increment( std::uint32_t &value, action_record &record ) noexcept
 {
@@ -96,15 +133,18 @@ inline void increment( std::uint32_t &value, action_record &record ) noexcept
 inline clock::time_point steady_now() noexcept { return clock::now(); }
 class update_scope;
 class shift_scope;
+class cache_scope;
 class action_capture;
 inline thread_local action_capture *active_capture = nullptr;
 class action_capture {
     friend class update_scope;
     friend class shift_scope;
+    friend class cache_scope;
     action_record &record_;
     action_capture *previous_;
     update_scope *top_ = nullptr;
     shift_scope *shift_top_ = nullptr;
+    cache_scope *cache_top_ = nullptr;
     now_reader now_;
 public:
     explicit action_capture( action_record &record, now_reader now = steady_now ) noexcept :
@@ -122,12 +162,13 @@ public:
     action_capture &operator=( const action_capture & ) = delete;
     ~action_capture() noexcept
     {
-        if( top_ || shift_top_ || active_capture != this ) increment( record_.protocol_errors, record_ );
+        if( top_ || shift_top_ || cache_top_ || active_capture != this ) increment( record_.protocol_errors, record_ );
         active_capture = previous_;
     }
 };
 class update_scope {
     friend class shift_scope;
+    friend class cache_scope;
     action_capture *capture_ = active_capture;
     update_scope *previous_ = nullptr;
     event *event_ = nullptr;
@@ -216,6 +257,7 @@ public:
 // added to update_scope's route-to-shift interval as independent execution time.
 // The Native scope is its function's first local, so exit follows stack cleanup.
 class shift_scope {
+    friend class cache_scope;
     action_capture *capture_ = active_capture;
     shift_scope *previous_ = nullptr;
     shift_event *event_ = nullptr;
@@ -293,6 +335,84 @@ public:
         }
         if( capture_->shift_top_ != this ) increment( record.protocol_errors, record );
         capture_->shift_top_ = previous_;
+    }
+};
+class cache_scope {
+    action_capture *capture_ = active_capture;
+    cache_scope *previous_ = nullptr;
+    cache_event *event_ = nullptr;
+    int exceptions_on_entry_ = 0;
+    std::uint32_t ordinal_ = 0, depth_ = 0;
+    void append( cache_boundary tag ) noexcept
+    {
+        if( !event_ ) return;
+        if( event_->count >= cache_boundary_capacity ) {
+            increment( capture_->record_.protocol_errors, capture_->record_ );
+            return;
+        }
+        const auto at = event_->count++;
+        event_->tags[at] = tag;
+        event_->points[at] = capture_->now_();
+    }
+public:
+    cache_scope( int zlev, bool skip_lightmap, bool zlevels ) noexcept
+    {
+        if( !capture_ ) return;
+        auto &record = capture_->record_;
+        previous_ = capture_->cache_top_;
+        ordinal_ = record.cache_invocations;
+        increment( record.cache_invocations, record );
+        depth_ = previous_ ? previous_->depth_ : 0;
+        increment( depth_, record );
+        if( record.cache_max_depth < depth_ ) record.cache_max_depth = depth_;
+        capture_->cache_top_ = this;
+        exceptions_on_entry_ = std::uncaught_exceptions();
+        if( record.cache_recorded >= cache_event_capacity ) {
+            increment( record.cache_dropped, record );
+            return;
+        }
+        event_ = &record.caches[record.cache_recorded++];
+        event_->ordinal = ordinal_; event_->depth = depth_;
+        event_->parent_ordinal = previous_ ? std::int64_t( previous_->ordinal_ ) : -1;
+        event_->parent_update_ordinal = capture_->top_ ? std::int64_t( capture_->top_->ordinal_ ) : -1;
+        event_->parent_shift_ordinal = capture_->shift_top_ ? std::int64_t( capture_->shift_top_->ordinal_ ) : -1;
+        event_->zlev = zlev; event_->skip_lightmap = skip_lightmap; event_->zlevels = zlevels;
+        append( cache_boundary::entry );
+    }
+    cache_scope( const cache_scope & ) = delete;
+    cache_scope &operator=( const cache_scope & ) = delete;
+    explicit operator bool() const noexcept { return event_ != nullptr; }
+    void bounds( int min_z, int max_z ) noexcept
+    {
+        if( !event_ ) return;
+        if( event_->bounds_known || event_->count != 1 || min_z > max_z )
+            increment( capture_->record_.protocol_errors, capture_->record_ );
+        event_->min_z = min_z; event_->max_z = max_z; event_->bounds_known = true;
+        append( cache_boundary::bounds );
+    }
+    void mark( cache_boundary tag ) noexcept
+    {
+        if( !event_ ) return;
+        if( !event_->bounds_known || event_->count < 2 || event_->count >= cache_boundary_capacity - 1 ||
+            static_cast<std::size_t>( tag ) != event_->count )
+            increment( capture_->record_.protocol_errors, capture_->record_ );
+        append( tag );
+    }
+    ~cache_scope() noexcept
+    {
+        if( !capture_ ) return;
+        auto &record = capture_->record_;
+        const bool exceptional = std::uncaught_exceptions() > exceptions_on_entry_;
+        if( exceptional ) increment( record.cache_exceptional_invocations, record );
+        if( event_ ) {
+            event_->exceptional = exceptional;
+            const bool all = event_->bounds_known && event_->count == cache_boundary_capacity - 1;
+            event_->complete = !exceptional && all;
+            if( !exceptional && !all ) increment( record.protocol_errors, record );
+            append( cache_boundary::exit );
+        }
+        if( capture_->cache_top_ != this ) increment( record.protocol_errors, record );
+        capture_->cache_top_ = previous_;
     }
 };
 } // namespace ncmm_graphics_move_diagnostics
