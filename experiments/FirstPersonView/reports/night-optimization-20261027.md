@@ -769,7 +769,8 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     compiled controls reject consuming a peek or consuming at zero elapsed time.
     Full Release and three affected pure CTests pass (.12 s): router3560,
     locomotion364 and camera36 checks. All288 Python tests pass (20.002 s),
-    including30 FPS verifier tests; the packaged PowerShell runner parses.
+    including30 FPS verifier tests; all94 atomic bridge checks also pass on
+    this source (50.678 s), and the packaged PowerShell runner parses.
     Evidence `night-short-tap-*`; no local game/SDL/input execution is used.
 
     Prepare a new actual Native same-batch press/release case for all four
@@ -787,6 +788,54 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     failing W+D assertion. Linux/remaining Native phases still run. These results
     qualify that bounded stage33 matrix, not this new tap scenario or full
     current-source qualification. PR1b's long full run is still preserved.
+
+36. **Close the preserved full qualification and retain mixed Native timings.**
+    Exact1b run40534567570 now **passes all eight jobs**, including both full
+    Windows Hosts, both actual Linux Native jobs and required qualification.
+    Code Review confirms head1b and Windows jobs122299656609/122299656571;
+    log views are truncated, so job conclusions, not unseen log details, support
+    this claim. Existing GPU/source/runtime passes remain at that same source.
+    This full pass does not qualify subsequent stage31–35 Host bytes.
+
+    Windows1040 qualification artifact12766611444 verifies38 payload files and
+    eight clean focused exits. Runtimee564's tree matches1b. Only seven selected
+    program/provenance JSON files plus the archive directory were read, using
+    the existing movement1b budget (771865/8388608 bytes total). Baseline main
+    `5258e5313ad5deae23f967a4a7fc91c7554377f4` differs from its accepted source
+    `9e3d6230f7adbd7462de80a665fb69e939cd81f1` only in the two feed JSON files,
+    independently checked with offline Git. Both Host and module were replaced.
+    All112 before/after benchmark keys match, but geometry differs in corrected
+    scenes; the reports are not evidence of an identical-output global speedup.
+    Software D3D12/640x480 GPU city median77.719 ->78.894 ms,
+    p95 81.947 ->93.607 ms; mode-first-ready62.743 ->54.687 ms.
+    Open first-ready59.908 ->60.175 ms worsens. These controlled mode timings
+    include Native2D and forced asset invalidation, not player FPS, on-core CPU,
+    GPU execution, ordinary action latency or the15 ms target.
+
+    Exact eb816c5 dispatch40569273849 has strict new movement receipts for both
+    pins:288 actions /144 cache children, all exit0 without wrapper/debugger
+    errors/dumps. Four selected JSON files per artifact12767421535/12767381566
+    reserve362165/8388608 bytes, explicitly reconciled against both range counts.
+    Source/runtime are the same commit/tree0f93248a64ca78ff954cc3da4d7edd8afb85ccda.
+    Summary hashes1040 `92e737d90b87fa37301510f94aca50f0f63b4e466ba21a31df0215db671803c3`,
+    1807 `92fa4a74d3217d1780788dcb487324b156f6399b90dff63414726f8ab1a84a52`.
+    GPU640/VSync1, seen-update medians043 ->eb ms:1040 street6.754 ->7.133,
+    horde8.529 ->10.222, city12.578 ->10.889;1807 street8.796 ->8.944,
+    horde9.687 ->9.261, city13.190 ->11.479. Main cache medians likewise mix
+    gains/regressions (1040 horde17.909 ->22.038 ms). Different CI runs/VM load
+    prevent a causal cache-gain claim; independent phase medians cannot be added.
+    The cache/probe/patch code is byte-identical between1c andeb. Verified local
+    Native1807 lightmap blob0852aeec calls3D cast_zlight unconditionally from
+    build_seen_cache;2D castLightAll is also used for vehicle mirrors.
+
+    Both Windows eb FPS reports independently pass the exact historical180-case
+    verifier and fail the current184-case gate as intended. Four W+D cases per
+    pin pass. Boundary frozen frames are zero, but measured software gaps are
+    165–443 ms, not15 ms. Strict FPS summary SHA256
+    `e511b256e50fe313adc69ddaa21aad0b0c03c35f2572405f999638232281876b`.
+    Private evidence `night-fps-eb816c5/`, `night-movement-eb816c5/`,
+    `night-stage30-windows*-tool-receipt.json`. Next: qualify the new tap code,
+    then use a same-machine Native comparison before promoting timing claims.
 
 ## Actual remote evidence and next priorities
 
