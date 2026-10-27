@@ -205,6 +205,60 @@ Do not merge or release before the user's separate finalization request.
    in `night-static-boundary-preparation-20261027.json`. Only the manual CPU
    benchmark changed in this stage; its Release build and paired modes pass.
 
+10. **Typed standard radio skyline.** The pinned standard `radio_tower` site
+    was published as a generic BUILDING and drawn as an 18x18x5 m box. Its
+    near lattice/mapgen instead has four vertical corner stacks across six
+    2.5 m levels and a narrow seventh level: a 5.81x5.81x17.5 m envelope.
+    Optional minor-2 skyline data now replaces that box with eight fixed
+    cutout face cards (16 radio triangles), with a real open centre and no
+    invented taper. Existing V1 kinds 0-5, patch bytes and revision remain
+    unchanged. Old Hosts/modules retain V1 geography; unavailable, malformed
+    or truncated new data falls back, while a valid disabled skyline remains
+    authoritative. The actual Host dispatcher accepts minor 2 and rejects 3.
+
+    Only an exact standard ID on a fully disclosed, already resident surface
+    overmap can select the authored profile. Unseen/vague/outline/detail
+    discovery, generic/mod/quest tower types and clipped/near sites do not
+    reveal a radio silhouette. This is the nominal standard layout, not an
+    inspection of destruction or modded geometry. All four rotations and
+    negative origins, callback ownership, disabled/underground reset and
+    unchanged legacy data pass the actual Host LOD source with mocked Native
+    interfaces. Independent static review found no actionable defect.
+
+    Initial checks caught a 640-pixel mask exceeding the unchanged V1 512
+    texture limit and a fixture passing a copied scene instead of the required
+    world-owned scene address. Both were fixed without relaxing pixel,
+    validation or budget assertions. Final masks are 256x512 and 128x256;
+    measured owned masks use 1,474,912 bytes. Masks plus the one-site retained
+    metadata use 1,474,992 bytes; the tested Host geography arrays retain
+    100,280 bytes and release them on clear. All 961 possible radio sites
+    generate 3,944,160 bytes of horizon mesh, within the existing budget.
+
+    Real old binary controls pass: old Host-prefix executable/new DLL 37
+    checks; new executable/actual old DLL 55; new/new 86. The saved old DLL
+    SHA256 is `f2cc7f84c854f6073edcdaa7eef8638aeb9790d8fc2e624fad70ba5712ba87f2`.
+    The pure render suite passes 112716 checks. In the hidden D3D12 fixture,
+    actual radio coverage is 268 GPU / 402 CPU pixels, including 176 / 266
+    pixels above the former box's height. Ground-only, lattice, old-box,
+    restored, turned and foreground-wall readbacks were saved and inspected;
+    restored and initial lattice pixels are identical. Camera turns upload
+    no static resources and generate no mesh. Near-wall depth/focus wins.
+    Subpixel wire minification/aliasing remains visible at this distance;
+    this is not a wire-perfect or ordinary Native-game visual qualification.
+    Evidence: `night-skyline-*-final.log`, `night-skyline-gpu-scene-r2.log`
+    and unchanged-pixel conversions in `night-skyline-captures` under the
+    existing private work directory. No frame-time speedup is claimed.
+
+    Primary sources: pinned [1040 mapgen](https://github.com/CleverRaven/Cataclysm-DDA/blob/3f7fb352bf492ba521bd9408a0c9f6ce239e8d83/data/json/mapgen/radio_tower.json),
+    [terrain palette](https://github.com/CleverRaven/Cataclysm-DDA/blob/3f7fb352bf492ba521bd9408a0c9f6ce239e8d83/data/json/mapgen_palettes/radio_tower_palette.json)
+    and [seven-level special](https://github.com/CleverRaven/Cataclysm-DDA/blob/3f7fb352bf492ba521bd9408a0c9f6ce239e8d83/data/json/overmap/overmap_special/specials.json).
+    Local installed data on both pins have identical Git blobs respectively
+    `f205898bda8b32dcf3e247b0a67baa13a4ac0101`,
+    `0b1dc3f2f134990139cbd1c50ee376ebafea9a75` and
+    `5870b1fb6a56b031e3756a0fa6ac2b328ba9e895`. Metre dimensions additionally
+    come from the existing near renderer's .81 m cell lattice width and
+    2.5 m storey height, rather than being dimensions asserted by JSON.
+
 ## Working queue
 
 1. Audit repeated Native distance/range queries within one XYZ's visibility
@@ -212,13 +266,9 @@ Do not merge or release before the user's separate finalization request.
    benefit or paired callback-count baseline has been established. Enlarging
    the existing light-range cache was rejected as a priority: recorded frames
    already make only 2-15 sight-range evaluations for 1400-3000 cache hits.
-2. Distant radio towers are still classified as generic BUILDING horizon
-   patches and become wide boxes. Pinned standard mapgen and near lattice
-   confirm a 5.81 m envelope / 17.5 m top instead of the current 18x18x5 m box.
-   An additive, optional minor-2 typed skyline is being implemented separately;
-   legacy V1 bytes/kinds remain intact. Only fully disclosed exact standard
-   radio terrain may use its authored profile; vague/outline discovery and
-   generic/mod towers must not reveal the radio identity.
+2. The typed radio skyline now passes local CPU/GPU/module/Host-source
+   controls. Qualify the resulting exact revision in the real pinned Hosts;
+   assess distant wire minification in that setting before further changes.
 3. Normal-vision static stairs may be withheld with BODY permissions. This is
    a hypothesis, not a confirmed current game defect: existing Native fixtures
    enable night vision. First obtain a causal normal/night-vision pair before
@@ -231,39 +281,27 @@ audit has not established their recurrence in a current game session.
 
 ## Validation still required for this continuation
 
-At `da8f991`, the complete local build, all 50 inventoried autonomous CTests,
-195 Python tests, 24 atomic bridge tests and the separate hidden render-only
-RTX 4090 scene pass. Grass remains 45 draws, zero CPU world raster and zero
-warm static uploads. Windows/Linux GPU jobs, source/package audit and runtime
-checks and the GPU sanitizer also pass; actual Native runs remain in progress.
-The subsequent slab-only edit passed its affected 850221-check pure suite;
-it does not change the compiled module/GPU scene. Fresh Host qualification is
-still required for that header.
-
-The subsequent floor stage passed a fresh full local build, the same 50
-autonomous CTests and the hidden render-only GPU suite. Fresh remote module,
-GPU and Native qualification is still required for the new producer bytes.
-The details stage adds only its affected 5201-check pure storage suite and the
-195 Python / 24 atomic bridge checks; it is not qualified by the older Native
-results. Accurate inclusion of details memory must also pass the existing
-remote snapshot-memory gate.
+After the skyline stage, a fresh full Release build, all 50 inventoried
+autonomous CTests (16.90 s), 195 Python tests, 25 atomic bridge tests and the
+separate hidden render-only RTX 4090 scene pass. Grass remains 45 draws,
+zero CPU world raster and zero warm static uploads; open multi-Z coverage
+remains 21108 pixels on both rasterizers. Existing ADS/objects/muzzle/subway
+brightness checks pass. Real old/new binary pairs also pass as recorded above.
+These local checks do not execute the real Native extraction/input/game loop.
 
 Pushed checkpoint `fc2ada738ca9cf0d0ca2a33582461cba562658cf` has fresh passing
 [GPU Windows/Linux/Clang ASan/UBSan/Vulkan](https://github.com/Neversalimus/NCMM/actions/runs/40425289227),
 [source/package](https://github.com/Neversalimus/NCMM/actions/runs/40425289234)
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40425289284) runs.
 In [module/Native run](https://github.com/Neversalimus/NCMM/actions/runs/40425289251),
-the Windows module passes; Linux module and both pinned Hosts are still in
-progress. These results do not qualify the subsequent local benchmark or the
-unfinished skyline stage. The older Native run was superseded by this push.
-
-CI update: GPU Windows/Linux/Clang ASan/UBSan/Vulkan run 40418690852 passes.
-Windows module checks pass. Linux module job 121909444832 in run 40418690848
-passed its ordinary 45 tests, then ASan rejected the new test-only allocation
-probe: it replaced `delete[]` with `free` without replacing nothrow array-new,
-used by normalized-record pages. Matching allocation forms are now repaired
-locally without disabling ASan or its mismatch detection. The Linux module gate
-must be rerun; no completed full Native qualification is claimed.
+both Windows and Linux module jobs pass. Linux reports 45 ordinary, 9 further
+and 20 sanitizer checks passing; the original allocation-family ASan failure
+is resolved on Linux. Both pinned Windows Hosts compiled, passed the early
+Native FPS gate and entered the long gameplay/profile galleries; both Linux
+Hosts compiled and entered actual Native controls/gameplay qualification.
+Full Native qualification and accurate callback-memory checks remain in
+progress. These results do not qualify the subsequent local benchmark or
+skyline stage. The older Native run was superseded by this push.
 
 Run the affected checks after each edit, then the autonomous local inventory,
 hidden GPU pixels/resource checks, source/package checks and fresh remote

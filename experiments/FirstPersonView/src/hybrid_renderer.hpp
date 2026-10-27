@@ -27,6 +27,7 @@
 #include <functional>
 #include <limits>
 #include <map>
+#include <memory>
 #include <tuple>
 #include <thread>
 #include <system_error>
@@ -54,6 +55,7 @@ struct presentation_data {
     ncmm_graphics_presentation_v1 view{};
     std::vector<ncmm_graphics_detail_v1> cells;
     std::vector<ncmm_lod_patch_v1> horizon;
+    std::vector<ncmm_skyline_feature_v1> skyline;
     uint64_t horizon_revision=0;bool horizon_enabled=false;
 };
 struct cached_transparency;
@@ -152,6 +154,55 @@ inline const image &forest_impostor(){
         }
     };
     static const storage value;return value.sprite;
+}
+
+// Orthographic cutouts of the actual near radio-cell lattice. The two columns
+// remain vertical and separate; the seventh storey is narrower, never tapered.
+// Eight fixed face cards per site bound both cold geometry and texture memory.
+struct radio_lattice_storage {
+        std::vector<uint32_t> pixels;image sprite;
+        explicit radio_lattice_storage(bool top){
+            const int w=top?128:256,h=top?256:512,levels=top?1:6;
+            const float width=top?1.81f:ncmm_world::radio_width,height=levels*NCMM_WORLD_LEVEL_HEIGHT;
+            pixels.resize(size_t(w)*h);
+            const float texel=std::max(width/(w-1),height/(h-1));
+            const auto line=[&](float ax,float az,float bx,float bz,float radius){
+                const float dx=bx-ax,dz=bz-az,length=dx*dx+dz*dz;
+                const int x0=std::max(0,int(std::floor((std::min(ax,bx)-radius-texel+width*.5f)/width*(w-1))));
+                const int x1=std::min(w-1,int(std::ceil((std::max(ax,bx)+radius+texel+width*.5f)/width*(w-1))));
+                const int y0=std::max(0,int(std::floor((1-(std::max(az,bz)+radius+texel)/height)*(h-1))));
+                const int y1=std::min(h-1,int(std::ceil((1-(std::min(az,bz)-radius-texel)/height)*(h-1))));
+                for(int y=y0;y<=y1;++y)for(int x=x0;x<=x1;++x){
+                    const float xx=float(x)/(w-1)*width-width*.5f,zz=(1-float(y)/(h-1))*height;
+                    const float t=std::clamp(((xx-ax)*dx+(zz-az)*dz)/length,0.f,1.f);
+                    const float alpha=clamp((radius+.5f*texel-std::hypot(xx-ax-t*dx,zz-az-t*dz))/texel);
+                    const uint32_t a=uint32_t(alpha*255);auto &pixel=pixels[size_t(y)*w+x];
+                    if(a>(pixel&255))pixel=pack({.48f,.49f,.47f},a);
+                }
+            };
+            for(float center:{top?-.5f:-2.5f,top?.5f:2.5f}){
+                for(float side:{-.38f,.38f})line(center+side,0,center+side,height,.025f);
+                for(int level=0;level<levels;++level){const float z=level*NCMM_WORLD_LEVEL_HEIGHT;
+                    for(float at:{.04f,1.25f,2.48f})line(center-.38f,z+at,center+.38f,z+at,.018f);
+                    for(int tier=0;tier<2;++tier){const float lo=z+tier*1.25f+.06f,hi=z+(tier+1)*1.25f-.06f;
+                        line(center-.38f,lo,center+.38f,hi,.015f);line(center+.38f,lo,center-.38f,hi,.015f);}
+                }
+            }
+            sprite.data={sizeof(sprite.data),uint32_t(w),uint32_t(h),uint32_t(w),pixels.data()};sprite.analyse();
+        }
+};
+inline auto &radio_lattices(){static std::array<std::unique_ptr<radio_lattice_storage>,2> masks;return masks;}
+inline const image &radio_lattice_impostor(bool top){
+    auto &mask=radio_lattices()[top?1:0];if(!mask)mask=std::make_unique<radio_lattice_storage>(top);return mask->sprite;
+}
+inline size_t radio_lattice_owned_bytes(){
+    size_t bytes=0;for(const auto &mask:radio_lattices())if(mask)bytes+=sizeof(*mask)+
+        (mask->pixels.capacity()+mask->sprite.filtered.capacity()+mask->sprite.mip.capacity())*sizeof(uint32_t);
+    return bytes;
+}
+inline void clear_radio_lattices(){for(auto &mask:radio_lattices())mask.reset();}
+inline size_t horizon_owned_bytes(const presentation_data &p){
+    return p.horizon.capacity()*sizeof(ncmm_lod_patch_v1)+p.skyline.capacity()*sizeof(ncmm_skyline_feature_v1)+radio_lattice_owned_bytes();
 }
 
 // Upper terrain uses a foliage-only cutout. Some 2D atlas fallbacks map
@@ -1062,6 +1113,21 @@ class renderer {
                 quad(at+vec{3,3,p.height+.02f},at+vec{p.width-3,3,p.height+.02f},at+vec{p.width-3,p.depth-3,p.height+.02f},at+vec{3,p.depth-3,p.height+.02f},roof);
             }
         }
+        for(const auto &feature:metadata->skyline){
+            if(feature.kind!=NCMM_SKYLINE_RADIO_STANDARD)continue;
+            material lattice{nullptr,{1,1,1},1,false,false,false,-1};lattice.cutout=true;lattice.distance_lod=true;
+            for(int top=0;top<2;++top){
+                const float width=top?1.81f:feature.width,half=width*.5f,plane=top?.88f:2.88f;
+                const float z=feature.z+(top?15.f:0.f),height=top?2.5f:15.f;
+                lattice.texture=&radio_lattice_impostor(top!=0);
+                const vec base{feature.x,feature.y,z};
+                for(int side=0;side<4;++side){
+                    const auto turn=[&](vec p){return base+quarter_turn(p,unsigned(side));};
+                    quad(turn({-half,-plane,0}),turn({half,-plane,0}),turn({half,-plane,height}),turn({-half,-plane,height}),
+                         lattice,quarter_turn({0,-1,0},unsigned(side)));
+                }
+            }
+        }
     }
     void world(){
         std::vector<int> order;order.reserve(base.cell_count);
@@ -1456,6 +1522,12 @@ inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,co
 }
 inline bool valid_presentation(const presentation_data &p,size_t count){
     if(p.projectiles.size()>NCMM_PROJECTILE_LIMIT)return false;
+    if(!p.skyline.empty()){
+        if(!p.horizon_enabled||p.horizon.size()>NCMM_LOD_MAX_PATCHES||p.skyline.size()>NCMM_SKYLINE_MAX_FEATURES)return false;
+        ncmm_graphics_skyline_scene_v1 skyline{sizeof(skyline),1,uint32_t(p.skyline.size()),0,p.horizon_revision,
+            {sizeof(ncmm_graphics_lod_scene_v1),1,uint32_t(p.horizon.size()),1,p.horizon_revision,0,0,p.horizon.data()},p.skyline.data()};
+        if(!ncmm_world::valid_skyline(skyline))return false;
+    }
     for(const auto &flight:p.projectiles)if(!projectile_assets::valid(flight))return false;
     const auto &v=p.view;
     if(v.struct_size<sizeof(v)||p.cells.size()!=count||(v.flags&~(NCMM_PRESENT_GPU_EFFECTS|NCMM_PRESENT_AIMING))||v.sky_style>NCMM_SKY_FUNGAL||v.gun_kind>NCMM_GUN_BOW||

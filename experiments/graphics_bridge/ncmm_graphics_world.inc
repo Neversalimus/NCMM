@@ -157,6 +157,7 @@ void graphics_clear_world()
     graphics_world_sources.clear();graphics_world_roofs.clear();graphics_world_derived.clear();graphics_world_sealed.clear();graphics_world_map_identity=nullptr;graphics_world_realm.clear();
     graphics_world_previous_position.reset();graphics_world_ray_position.reset();graphics_world_camera_motion.reset();
     graphics_world_transition_active=graphics_world_vertical_transition_active=false;graphics_world_pending_present=false;graphics_multilevel_frame=nullptr;
+    graphics_clear_lod();
     ++graphics_world_epoch;
 }
 void graphics_world_frame_presented()
@@ -591,6 +592,7 @@ bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_
 #else
 void graphics_world_region_changed_impl(const map *,int32_t,int32_t,int,int,int){}
 int graphics_get_lod(ncmm_graphics_lod_scene_v1 *){return 0;}
+int graphics_get_skyline(ncmm_graphics_skyline_scene_v1 *){return 0;}
 void graphics_clear_world(){graphics_hybrid_detail_storage.clear();graphics_multilevel_frame=nullptr;}
 #endif
 bool graphics_world_needs_redraw(){
@@ -611,6 +613,7 @@ void graphics_world_extracted(double total,size_t active_detail_bytes,size_t det
         graphics_presentation_cells.capacity()*sizeof(graphics_presentation_cells[0])+graphics_creature_snapshots.capacity()*sizeof(graphics_creature_snapshots[0]);
 #if defined(TILES)
     graphics_world_snapshot_growths+=detail_growths;graphics_world_snapshot_reuses+=uint64_t(detail_reused);
+    graphics_world_metrics.snapshot_bytes+=graphics_lod_owned_bytes();
 #else
     (void)detail_growths;(void)detail_reused;
 #endif
@@ -620,6 +623,6 @@ int graphics_get_world_metrics(ncmm_multilevel_metrics_v1 *out)
     if(!graphics_multilevel_frame||active_module_id!=graphics_view.owner||!out||out->struct_size<sizeof(*out))return 0;
     *out=graphics_world_metrics;return 1;
 }
-const ncmm_host_graphics_multilevel_v1 graphics_world_api={1,sizeof(ncmm_host_graphics_multilevel_v1),1,1,
-    graphics_register_world,graphics_enable,graphics_enabled,graphics_get_sprite,graphics_submit_frame,graphics_gpu_submit_world,graphics_get_world_metrics,graphics_get_lod};
+const ncmm_host_graphics_multilevel_v1 graphics_world_api={1,sizeof(ncmm_host_graphics_multilevel_v1),1,2,
+    graphics_register_world,graphics_enable,graphics_enabled,graphics_get_sprite,graphics_submit_frame,graphics_gpu_submit_world,graphics_get_world_metrics,graphics_get_lod,graphics_get_skyline};
 

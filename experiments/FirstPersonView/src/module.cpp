@@ -126,16 +126,31 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
         has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());
     }
-    metadata.horizon.clear();metadata.horizon_revision=0;metadata.horizon_enabled=false;
-    if(active_world&&multilevel&&multilevel->struct_size>=sizeof(*multilevel)&&multilevel->get_lod){
+    metadata.horizon.clear();metadata.skyline.clear();metadata.horizon_revision=0;metadata.horizon_enabled=false;
+    bool replacement_horizon=false;
+    if(active_world&&multilevel&&multilevel->minor>=2&&
+       multilevel->struct_size>=offsetof(ncmm_host_graphics_multilevel_v1,get_skyline)+sizeof(multilevel->get_skyline)&&multilevel->get_skyline){
+        ncmm_graphics_skyline_scene_v1 distant{};distant.struct_size=sizeof(distant);
+        if(multilevel->get_skyline(&distant)&&ncmm_world::valid_skyline(distant)){
+            replacement_horizon=true;
+            if(distant.geography.enabled){
+                if(distant.geography.count)metadata.horizon.assign(distant.geography.patches,distant.geography.patches+distant.geography.count);
+                if(distant.count)metadata.skyline.assign(distant.features,distant.features+distant.count);
+                metadata.horizon_revision=distant.revision;metadata.horizon_enabled=true;
+            }
+        }
+    }
+    if(!replacement_horizon&&active_world&&multilevel&&multilevel->minor>=1&&
+       multilevel->struct_size>=offsetof(ncmm_host_graphics_multilevel_v1,get_lod)+sizeof(multilevel->get_lod)&&multilevel->get_lod){
         ncmm_graphics_lod_scene_v1 distant{};distant.struct_size=sizeof(distant);
         if(multilevel->get_lod(&distant)&&ncmm_world::valid_lod(distant)&&distant.enabled){
             if(distant.count)metadata.horizon.assign(distant.patches,distant.patches+distant.count);
             metadata.horizon_revision=distant.revision;
-            for(float value:{scene->environment.daylight,scene->environment.sun_z,scene->environment.sky_r,scene->environment.sky_g,scene->environment.sky_b,scene->environment.sky_tint})metadata.horizon_revision=first_person::hash_bytes(metadata.horizon_revision,&value,sizeof(value));
             metadata.horizon_enabled=true;
         }
     }
+    if(metadata.horizon_enabled)for(float value:{scene->environment.daylight,scene->environment.sun_z,scene->environment.sky_r,scene->environment.sky_g,scene->environment.sky_b,scene->environment.sky_tint})
+        metadata.horizon_revision=first_person::hash_bytes(metadata.horizon_revision,&value,sizeof(value));
     bool has_creatures=false;
     if(creatures&&creature_state){auto &input=creature_state->input;input.view={};input.view.struct_size=sizeof(input.view);
         if(creatures->get_scene(&input.view)&&input.view.count<=scene->base.cell_count+256){input.creatures.resize(input.view.count);
@@ -224,7 +239,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
             const first_person::hybrid::sprite_provider provider=[](uint32_t cell,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){return hybrid&&hybrid->get_sprite(cell,layer,&sprite)!=0;};
             const bool built=gpu_world->build(*scene,float(yaw),pitch,provider,packet,statistics,available,pose,has_metadata?&metadata:nullptr,has_creatures?creature_state.get():nullptr,width,height,renderer_mode,active_world);
             bool submitted=false;
-            if(built){const auto &base=packet.finish(gpu);packet.scene.producer_cache_bytes+=packet.scratch_bytes();if(active_world){ncmm_gpu_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.base=base;
+            if(built){const auto &base=packet.finish(gpu);packet.scene.producer_cache_bytes+=packet.scratch_bytes()+first_person::hybrid::horizon_owned_bytes(metadata);if(active_world){ncmm_gpu_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.base=base;
                     world.coordinates=active_world->coordinates;world.cell_count=active_world->cell_count;world.origin_x=active_world->origin_x;world.origin_y=active_world->origin_y;world.origin_z=active_world->origin_z;world.level_height=active_world->level_height;
                     submitted=multilevel&&multilevel->submit_gpu(&world);}
                 else submitted=gpu->submit_scene(&base);}
@@ -308,7 +323,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         if(cpu_built){metrics.raster_calls=pixels.raster_calls;metrics.triangles=pixels.submitted_triangles;metrics.geometry_ms=pixels.geometry_ms;metrics.raster_ms=pixels.raster_ms;metrics.effects_ms=pixels.effects_ms;}
         metrics.effects_ms+=weapon_effect_ms;
         metrics.cache_bytes=(pixels.pixels.capacity()+world_pixels.pixels.capacity())*sizeof(uint32_t)+(pixels.depth.capacity()+world_pixels.depth.capacity()+pixels.held_depth.capacity()+world_pixels.held_depth.capacity())*sizeof(float)+
-            (pixels.owners.capacity()+world_pixels.owners.capacity()+pixels.creatures.capacity()+world_pixels.creatures.capacity())*sizeof(int32_t);gpu->submit_cpu_metrics(&metrics);}
+            (pixels.owners.capacity()+world_pixels.owners.capacity()+pixels.creatures.capacity()+world_pixels.creatures.capacity())*sizeof(int32_t)+first_person::hybrid::horizon_owned_bytes(metadata);gpu->submit_cpu_metrics(&metrics);}
     return submitted;
 }
 int render_multilevel(const ncmm_graphics_multilevel_scene_v1 *scene,void *){
@@ -436,6 +451,7 @@ void shutdown() {
     graphics=nullptr;
     commands.clear();
     pixels={};world_pixels={};frame_valid=world_valid=false;
+    first_person::hybrid::clear_radio_lattices();
 }
 const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View",FIRST_PERSON_VERSION,
     caps,sizeof(caps)/sizeof(caps[0]),init,shutdown};

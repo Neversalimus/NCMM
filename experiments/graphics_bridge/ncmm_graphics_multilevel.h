@@ -72,6 +72,25 @@ typedef struct ncmm_graphics_lod_scene_v1 {
     float ground_z,reserved;
     const ncmm_lod_patch_v1 *patches;
 } ncmm_graphics_lod_scene_v1;
+
+/* Optional minor-2 replacement horizon. V1 get_lod and its kinds 0..5 are
+ * unchanged. A feature refers to a ground patch in this complete geography;
+ * that patch has no generic silhouette. No instance contents are published.
+ * RADIO_STANDARD is the authored, fully disclosed standard radio_tower site:
+ * four vertical corner stacks for six 2.5 m levels and a narrow seventh level.
+ * Its nominal profile is 5.81 x 5.81 x 17.5 m, not a measured generic tower. */
+#define NCMM_SKYLINE_MAX_FEATURES 961u
+enum ncmm_skyline_kind {NCMM_SKYLINE_RADIO_STANDARD=1};
+typedef struct ncmm_skyline_feature_v1 {
+    float x,y,z,width,depth,height; /* centre XY, base Z, scene-relative metres */
+    uint32_t kind,rotation,ground_patch,reserved; /* rotation: north/east/south/west */
+} ncmm_skyline_feature_v1;
+typedef struct ncmm_graphics_skyline_scene_v1 {
+    uint32_t struct_size,version,count,reserved;
+    uint64_t revision;
+    ncmm_graphics_lod_scene_v1 geography;
+    const ncmm_skyline_feature_v1 *features;
+} ncmm_graphics_skyline_scene_v1;
 typedef struct ncmm_multilevel_metrics_v1 {
     uint32_t struct_size,available_slices,visible_slices,processed_cells;
     uint32_t frustum_rejected,occlusion_rejected,budget_rejected,submitted_cells;
@@ -89,6 +108,7 @@ typedef struct ncmm_host_graphics_multilevel_v1 {
     int (*submit_gpu)(const ncmm_gpu_multilevel_scene_v1 *);
     int (*get_metrics)(ncmm_multilevel_metrics_v1 *);
     int (*get_lod)(ncmm_graphics_lod_scene_v1 *); /* optional minor 1, size-gated */
+    int (*get_skyline)(ncmm_graphics_skyline_scene_v1 *); /* optional minor 2, size-gated; complete replacement */
 } ncmm_host_graphics_multilevel_v1;
 #ifdef __cplusplus
 }

@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include "skyline_host_fixture.hpp"
 using namespace first_person::hybrid;
 namespace {
 int checks=0;
@@ -45,6 +46,173 @@ struct collector:geometry_sink {
     void skin(const first_person::creature::model &,const first_person::creature::skeleton_pose &,int,vec,int,vec,bool,bool,float,vec)override{}
     void impostor(const first_person::creature::asset &,const first_person::creature::pose_state &,vec,int,int,bool)override{}
 };
+void skyline_host_regression(){
+    namespace host=skyline_host_fixture;
+    using ncmm_world::valid_skyline;
+    host::graphics_clear_lod();check(!host::graphics_lod_owned_bytes(),"provider clear releases all owned geography/feature capacity");
+    for(int seen=0;seen<=4;++seen){
+        host::vision=host::om_vision_level(seen);host::terrain_reads=0;
+        host::graphics_build_lod(0,0,0,24,true);
+        ncmm_graphics_lod_scene_v1 old{};old.struct_size=sizeof(old);check(host::graphics_get_lod(&old),"legacy Host LOD callback remains available");
+        const std::vector<ncmm_lod_patch_v1> frozen(old.patches,old.patches+old.count);const uint64_t revision=old.revision;
+        ncmm_graphics_skyline_scene_v1 skyline{};skyline.struct_size=sizeof(skyline);
+        const auto retained=host::graphics_lod_owned_bytes(),accounted=host::graphics_world_metrics.snapshot_bytes;
+        check(host::graphics_get_skyline(&skyline)&&valid_skyline(skyline),"actual Host skyline producer validates");
+        check(host::graphics_world_metrics.snapshot_bytes-accounted==host::graphics_lod_owned_bytes()-retained,
+              "first lazy replacement allocation is included immediately in active Host snapshot ownership");
+        check(skyline.count==(seen==4?1u:0u),"only fully disclosed standard radio sites publish a typed silhouette");
+        if(seen<4)check(skyline.geography.patches==old.patches&&host::graphics_skyline_patches.capacity()==0,
+            "ordinary/vague geography borrows V1 storage without another allocation or copy");
+        check(host::terrain_reads==(seen?1:0),"unseen terrain is never read to infer a radio profile");
+        if(seen==4){const auto &f=skyline.features[0];
+            check(f.x==133&&f.y==6&&f.z==0&&f.width==5.81f&&f.depth==5.81f&&f.height==17.5f,
+                  "Host profile matches pinned standard mapgen cell centres, footprint and seven real storeys");
+            check(skyline.geography.patches[f.ground_patch].height==0&&frozen[f.ground_patch].height==5,
+                  "replacement horizon removes exactly the duplicate V1 building silhouette");
+            check(skyline.geography.revision!=revision,"replacement ground has its own content revision without altering legacy revision");
+            const ncmm_lod_patch_v1 expected{120,0,0,24,24,5,{.43f,.42f,.39f},NCMM_LOD_BUILDING};
+            check(!std::memcmp(&frozen[f.ground_patch],&expected,sizeof(expected)),"V1 radio remains its original BUILDING box byte for byte");
+        }
+        old.struct_size=sizeof(old);check(host::graphics_get_lod(&old)&&old.revision==revision&&old.count==frozen.size()&&
+            !std::memcmp(old.patches,frozen.data(),frozen.size()*sizeof(frozen[0])),"new callback cannot mutate the legacy array or revision");
+    }
+    host::vision=host::om_vision_level::full;
+    for(const char *id:{"radio_tower_1","radio_tower_quest","station_radio","office_tower","mod_radio_tower","tower"}){
+        host::type=id;host::graphics_build_lod(0,0,0,24,true);
+        ncmm_graphics_skyline_scene_v1 s{};s.struct_size=sizeof(s);check(host::graphics_get_skyline(&s)&&valid_skyline(s)&&!s.count,"unknown radio layouts and generic towers retain legacy geography only");
+    }
+    host::type="radio_tower";host::resident=false;host::terrain_reads=0;host::graphics_build_lod(0,0,0,24,true);
+    ncmm_graphics_skyline_scene_v1 s{};s.struct_size=sizeof(s);
+    check(host::graphics_get_skyline(&s)&&!s.count&&!host::terrain_reads,"unresident overmaps are neither loaded nor used for typed skyline");host::resident=true;
+    constexpr float centers[4][2]={{13,6},{18,13},{11,18},{6,11}};
+    for(int turn=0;turn<4;++turn){host::rotation=turn;host::target_x=-5;host::target_y=-3;host::graphics_build_lod(-7,11,2,24,true);s.struct_size=sizeof(s);
+        check(host::graphics_get_skyline(&s)&&valid_skyline(s)&&s.count==1,"rotated radio at negative coordinates is still a valid authored site");
+        check(s.features[0].x==-120+7+centers[turn][0]&&s.features[0].y==-72-11+centers[turn][1]&&s.features[0].z==-5,
+              "far origin subtraction and all four rotations preserve actual cell-centre anchors");
+    }
+    host::rotation=0;host::target_y=0;
+    for(int x:{0,1,2,3}){host::target_x=x;host::graphics_build_lod(0,0,0,24,true);s.struct_size=sizeof(s);
+        check(host::graphics_get_skyline(&s)&&valid_skyline(s)&&!s.count,"typed silhouette obeys the same near-boundary and distance eligibility as V1");}
+    host::target_x=0;host::graphics_build_lod(13,0,0,24,true);s.struct_size=sizeof(s);
+    check(host::graphics_get_skyline(&s)&&!s.count,"partly clipped OMT cannot publish a full radio silhouette");
+    host::target_x=5;
+    for(bool enabled:{false,true}){host::graphics_build_lod(0,0,enabled?-1:0,24,enabled);s.struct_size=sizeof(s);
+        check(host::graphics_get_skyline(&s)&&valid_skyline(s)&&!s.count&&!s.geography.enabled,"disabled/underground rebuild clears retained typed skyline");}
+    host::graphics_build_lod(0,0,0,24,true);s.struct_size=sizeof(s);check(host::graphics_get_skyline(&s)&&s.count==1,"skyline can rebuild after a clear");
+    host::graphics_multilevel_frame=false;check(!host::graphics_get_skyline(&s),"skyline pointers are callback-scoped");host::graphics_multilevel_frame=true;
+    host::active_module_id=2;check(!host::graphics_get_skyline(&s),"another module cannot read callback-owned skyline");host::active_module_id=1;
+    check(!host::graphics_get_skyline(nullptr),"null caller output is rejected");s.struct_size=sizeof(s)-1;
+    check(!host::graphics_get_skyline(&s),"truncated caller output is rejected before writing");
+    check(host::graphics_lod_owned_bytes()<256u*1024u,"retained Host geography/skyline arrays have a small finite capacity bound");
+    std::cout<<"Radio Host retained geography/feature bytes: "<<host::graphics_lod_owned_bytes()<<" (clear releases all)\n";
+    host::graphics_clear_lod();check(!host::graphics_lod_owned_bytes(),"provider clear releases feature and replacement-ground storage");
+}
+void skyline_render_regression(){
+    ncmm_lod_patch_v1 ground{80,-4.5f,0,24,24,0,{.43f,.42f,.39f},NCMM_LOD_BUILDING};
+    ncmm_skyline_feature_v1 radio{};
+    check(ncmm_world::standard_radio_feature("radio_tower",true,0,ground,24,0,radio),"exact distant radio profile is eligible");
+    ncmm_graphics_skyline_scene_v1 source{sizeof(source),1,1,0,31,
+        {sizeof(ncmm_graphics_lod_scene_v1),1,1,1,30,0,0,&ground},&radio};
+    check(ncmm_world::valid_skyline(source),"typed skyline validates its complete replacement geography");
+    auto bad=source;bad.struct_size=sizeof(bad)-1;check(!ncmm_world::valid_skyline(bad),"truncated skyline payload rejected");
+    bad=source;bad.version=2;check(!ncmm_world::valid_skyline(bad),"unknown skyline payload version rejected");
+    bad=source;bad.reserved=1;check(!ncmm_world::valid_skyline(bad),"unknown skyline payload flags rejected");
+    bad=source;bad.count=NCMM_SKYLINE_MAX_FEATURES+1;check(!ncmm_world::valid_skyline(bad),"feature count is bounded before any array access");
+    bad=source;bad.features=nullptr;check(!ncmm_world::valid_skyline(bad),"nonempty skyline requires an array");
+    bad=source;bad.geography.patches=nullptr;check(!ncmm_world::valid_skyline(bad),"replacement geography requires its own array");
+    bad=source;bad.geography.enabled=0;check(!ncmm_world::valid_skyline(bad),"disabled geography cannot expose a feature");
+    bad=source;bad.geography.version=2;check(!ncmm_world::valid_skyline(bad),"new skyline does not bypass V1 geography validation");
+    const auto good_radio=radio;
+    for(float ncmm_skyline_feature_v1::*member:{&ncmm_skyline_feature_v1::x,&ncmm_skyline_feature_v1::y,&ncmm_skyline_feature_v1::z,
+         &ncmm_skyline_feature_v1::width,&ncmm_skyline_feature_v1::depth,&ncmm_skyline_feature_v1::height}){
+        for(float value:{std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()}){
+            radio=good_radio;radio.*member=value;check(!ncmm_world::valid_skyline(source),"every published geometric field must be finite");}
+    }
+    radio=good_radio;radio.x=513;check(!ncmm_world::valid_skyline(source),"out-of-range feature position rejected");
+    radio=good_radio;radio.z=305;check(!ncmm_world::valid_skyline(source),"feature top cannot exceed bounded world elevation");
+    radio=good_radio;radio.height=18;check(!ncmm_world::valid_skyline(source),"generic guessed tower height is not a standard profile");
+    radio=good_radio;radio.width=6;check(!ncmm_world::valid_skyline(source),"generic guessed tower footprint is not accepted");
+    radio=good_radio;radio.kind=2;check(!ncmm_world::valid_skyline(source),"unknown typed skyline profile rejected");
+    radio=good_radio;radio.rotation=4;check(!ncmm_world::valid_skyline(source),"invalid skyline rotation rejected");
+    radio=good_radio;radio.reserved=1;check(!ncmm_world::valid_skyline(source),"unknown feature flags rejected");
+    radio=good_radio;radio.ground_patch=1;check(!ncmm_world::valid_skyline(source),"feature cannot refer past its ground array");
+    radio=good_radio;radio.x+=1;check(!ncmm_world::valid_skyline(source),"profile centre must match the authored rotated site");radio=good_radio;
+    ground.height=5;check(!ncmm_world::valid_skyline(source),"duplicate legacy box cannot accompany a typed radio");ground.height=0;
+    ground.kind=6;check(!ncmm_world::valid_lod(source.geography)&&!ncmm_world::valid_skyline(source),"V1 kind 6 remains invalid after the additive extension");ground.kind=NCMM_LOD_BUILDING;
+    std::array<ncmm_skyline_feature_v1,2> duplicates{{radio,radio}};bad=source;bad.count=2;bad.features=duplicates.data();
+    check(!ncmm_world::valid_skyline(bad),"one ground patch cannot carry two radio silhouettes");
+    fixture open(1);presentation_data data;
+    data.view.struct_size=sizeof(data.view);data.view.eye_height=1.55f;data.view.body_scale=1;data.view.held_length=.6f;
+    data.cells.resize(open.positions.size());data.horizon_enabled=true;data.horizon_revision=source.revision;data.horizon={ground};data.skyline={radio};
+    collector geometry;frame stats;
+    renderer(open.world.appearance,0,0,{},stats,{},&data,{},nullptr,&open.world).collect(geometry,400,260);
+    vec lo{1000,1000,1000},hi{-1000,-1000,-1000};size_t triangles=0,upper_triangles=0;
+    for(const auto &t:geometry.triangles)if(t.m.texture==&radio_lattice_impostor(false)||t.m.texture==&radio_lattice_impostor(true)){
+        ++triangles;upper_triangles+=t.m.texture==&radio_lattice_impostor(true);
+        check(t.m.cutout&&t.m.distance_lod&&t.m.cell==-1,"radio cutouts are ordinary non-targetable distant depth geometry");
+        for(const auto &v:t.v){lo={std::min(lo.x,v.p.x),std::min(lo.y,v.p.y),std::min(lo.z,v.p.z)};hi={std::max(hi.x,v.p.x),std::max(hi.y,v.p.y),std::max(hi.z,v.p.z)};
+            if(t.m.texture==&radio_lattice_impostor(true))check(std::abs(v.p.x-radio.x)<=.906f&&std::abs(v.p.y-radio.y)<=.906f&&v.p.z>=15,
+                "top remains narrow above six vertical lower storeys");}
+    }
+    check(triangles==16&&upper_triangles==8,"entire radio profile needs sixteen fixed cutout triangles");
+    check(std::abs(hi.x-lo.x-5.81f)<.0001f&&std::abs(hi.y-lo.y-5.81f)<.0001f&&lo.z==0&&hi.z==17.5f,
+          "actual emitted envelope matches the real near tower profile");
+    for(bool top:{false,true}){const auto &image=radio_lattice_impostor(top);const auto &s=image.data;
+        size_t holes=0,wires=0;for(uint32_t y=0;y<s.height;++y)for(uint32_t x=0;x<s.width;++x){holes+=(s.rgba[y*s.pitch_pixels+x]&255)==0;wires+=(s.rgba[y*s.pitch_pixels+x]&255)>64;}
+        check(holes>s.width*s.height*.70&&wires>100,"radio projection retains real lattice openings and actual wires");
+        check((image.sample(.5f,.5f)&255)==0,"empty middle of the real mast is not filled by invented wide diagonal braces");
+    }
+    frame radio_pixels,ground_pixels;
+    check(build_frame(open.world.appearance,0,0,{},radio_pixels,400,260,{},nullptr,nullptr,&data,{},nullptr,&open.world),"CPU renders the authored skyline");
+    auto flat=data;flat.skyline.clear();++flat.horizon_revision;
+    check(build_frame(open.world.appearance,0,0,{},ground_pixels,400,260,{},nullptr,nullptr,&flat,{},nullptr,&open.world),"CPU ground-only control retains the same camera and light");
+    size_t covered=0,high=0;
+    for(size_t i=0;i<radio_pixels.depth.size();++i)if(radio_pixels.depth[i]!=ground_pixels.depth[i]&&std::isfinite(radio_pixels.depth[i])){
+        ++covered;high+=i<size_t(radio_pixels.height/2-25)*radio_pixels.width;check(radio_pixels.owners[i]<0,"radio never publishes a furniture or creature owner");}
+    check(covered>10&&high>2&&covered<3000,"real CPU pixels contain a tall open lattice, not a five-metre broad box");
+    const size_t centre=size_t(radio_pixels.height/2-12)*radio_pixels.width+radio_pixels.width/2;
+    check(radio_pixels.depth[centre]==ground_pixels.depth[centre],"CPU sees through the physical centre gap of the lattice");
+    first_person::gpu::scene_cache cache;first_person::gpu::packet packet;ncmm_gpu_metrics_v1 host{};host.resource_epoch=1;
+    const bool collected=cache.build(open.world.appearance,0,0,{},packet,stats,host,{},&data,nullptr,400,260,NCMM_GPU_FORCE,&open.world);
+    check(collected,("GPU collector builds the same authored profile: "+cache.last_reason).c_str());
+    auto view=packet.finish(nullptr);size_t backgrounds=0;uint64_t key=0;bool cutout=false;std::vector<uint64_t> masks;
+    for(const auto &draw:packet.draws)if(draw.cell==UINT32_MAX&&draw.pass==NCMM_GPU_OPAQUE){++backgrounds;key=draw.mesh_key;}
+    for(uint32_t i=0;i<view.mesh_count;++i)for(uint32_t j=0;j<view.meshes[i].material_count;++j){const auto &m=view.meshes[i].materials[j];
+        if((m.flags&NCMM_GPU_CUTOUT)&&(m.flags&NCMM_GPU_DISTANCE_LOD)){cutout=true;if(std::find(masks.begin(),masks.end(),m.texture_key)==masks.end())masks.push_back(m.texture_key);}}
+    check(backgrounds==1&&cutout&&masks.size()==2,"typed skyline shares the existing single horizon draw and two retained masks");
+    for(const auto mask:masks){bool leased=false;for(uint32_t i=0;i<view.texture_count;++i)leased|=view.textures[i].key==mask;
+        check(leased,"both radio masks retain their owning texture leases in the cold packet");}
+    ncmm_gpu_multilevel_scene_v1 world_gpu{};world_gpu.struct_size=sizeof(world_gpu);world_gpu.version=1;world_gpu.base=view;
+    world_gpu.coordinates=open.world.coordinates;world_gpu.cell_count=open.world.cell_count;world_gpu.origin_x=open.world.origin_x;world_gpu.origin_y=open.world.origin_y;world_gpu.level_height=2.5f;
+    check(!ncmm_gpu::validate(view,&world_gpu),"unchanged GPU V1 contract accepts the typed horizon geometry");
+    first_person::gpu::packet warm;check(cache.build(open.world.appearance,.2f,.01f,{},warm,stats,host,{},&data,nullptr,400,260,NCMM_GPU_FORCE,&open.world),"camera turn keeps authored radio geometry resident");
+    bool retained=false;for(const auto &draw:warm.draws)retained|=draw.cell==UINT32_MAX&&draw.mesh_key==key;
+    check(retained,"fixed radio face cards do not rebuild on a camera turn");
+    first_person::gpu::packet removed;check(cache.build(open.world.appearance,0,0,{},removed,stats,host,{},&flat,nullptr,400,260,NCMM_GPU_FORCE,&open.world),"radio removal invalidates the cached horizon");
+    bool changed=false;for(const auto &draw:removed.draws)changed|=draw.cell==UINT32_MAX&&draw.mesh_key!=key;
+    check(changed,"removed feature cannot remain in retained GPU geometry");
+    presentation_data worst=data;worst.horizon.clear();worst.skyline.clear();++worst.horizon_revision;
+    for(int y=-15;y<=15;++y)for(int x=-15;x<=15;++x){
+        const uint32_t index=uint32_t(worst.horizon.size());worst.horizon.push_back({float(x*24),float(y*24),0,24,24,0,{.43f,.42f,.39f},NCMM_LOD_BUILDING});
+        auto feature=radio;feature.x=x*24+13.f;feature.y=y*24+6.f;feature.ground_patch=index;worst.skyline.push_back(feature);}
+    first_person::gpu::scene_cache worst_cache;first_person::gpu::packet bounded;
+    check(worst_cache.build(open.world.appearance,0,0,{},bounded,stats,host,{},&worst,nullptr,400,260,NCMM_GPU_FORCE,&open.world),"all 961 possible radio sites stay inside the existing first-frame geometry budget");
+    const auto worst_view=bounded.finish(nullptr);uint64_t bytes=0;
+    for(uint32_t i=0;i<worst_view.mesh_count;++i){const auto &mesh=worst_view.meshes[i];bool distant=false;
+        for(uint32_t j=0;j<mesh.material_count;++j)distant|=(mesh.materials[j].flags&NCMM_GPU_DISTANCE_LOD)!=0;
+        if(distant)bytes+=uint64_t(mesh.vertex_count)*sizeof(ncmm_gpu_vertex_v1)+uint64_t(mesh.index_count)*sizeof(uint32_t)+uint64_t(mesh.material_count)*sizeof(ncmm_gpu_material_v1);}
+    check(bytes<4u*1024u*1024u,"maximum typed horizon leaves upload headroom for the nearby world");
+    for(int y=0;y<3;++y){const int i=open.cell(5,y,0);open.positions[i].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP;open.details[i].terrain_shape=NCMM_SHAPE_WALL;}
+    check(build_frame(open.world.appearance,0,0,{},radio_pixels,400,260,{},nullptr,nullptr,&data,{},nullptr,&open.world),"radio and exact foreground architecture render together");
+    check(radio_pixels.depth[size_t(radio_pixels.height/2)*radio_pixels.width+radio_pixels.width/2]<4,"typed horizon cannot change near wall depth or fill a near shaft");
+    check(radio_lattice_owned_bytes()>0&&radio_lattice_owned_bytes()<2u*1024u*1024u&&horizon_owned_bytes(data)>=radio_lattice_owned_bytes()+
+        data.horizon.capacity()*sizeof(ncmm_lod_patch_v1)+data.skyline.capacity()*sizeof(ncmm_skyline_feature_v1),"CPU/GPU accounting includes owned masks and retained metadata arrays");
+    std::cout<<"Radio masks: lower "<<radio_lattice_impostor(false).data.width<<'x'<<radio_lattice_impostor(false).data.height
+             <<", upper "<<radio_lattice_impostor(true).data.width<<'x'<<radio_lattice_impostor(true).data.height
+             <<"; owned mask bytes "<<radio_lattice_owned_bytes()<<"; masks plus retained horizon metadata "<<horizon_owned_bytes(data)
+             <<"; 961-site GPU horizon geometry "<<bytes<<" bytes; radio-only triangles "<<triangles<<'\n';
+    clear_radio_lattices();check(!radio_lattice_owned_bytes(),"module teardown can release all procedural radio masks");
+}
 struct chain_wire {vec from,to;};
 // Recover the centreline from the two actual triangles of each narrow wire
 // quad. Posts and rails have a different section; this does not duplicate the
@@ -186,7 +354,7 @@ int main(int argc,char **argv){try{
         if(argc!=3||std::string(argv[1])!="--chain-captures")throw std::runtime_error("usage: first_person_multilevel_render_tests [--chain-captures directory]");
         chain_captures(std::filesystem::path(argv[2]));return 0;
     }
-    chain_link_regression();
+    chain_link_regression();skyline_host_regression();skyline_render_regression();
     for(const auto &test:{std::pair<const char *,unsigned>{"t_railroad_track_h",1},{"t_railroad_track_on_tie_v",2},{"t_railroad_track_d1",4},{"t_railroad_track_d2",8}}){
         fixture rail(1);rail.slab(0);const int at=rail.cell(6,1,0);std::strcpy(rail.appearance[at].terrain,test.first);
         check(ncmm_rail::track(test.first)&&ncmm_rail::axes(test.first)==test.second,"Native rail suffix selects its physical direction");

@@ -1,4 +1,5 @@
 import hashlib
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -92,6 +93,24 @@ bool cata_tiles::draw_sprite_at() {
             with patch.object(bridge.subprocess, "check_output", return_value="a" * 40):
                 with self.assertRaisesRegex(ValueError, "Unqualified"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
+    def test_multilevel_minor_two_dispatch_preserves_legacy_and_rejects_newer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); self.fixture(root)
+            with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
+                bridge.apply(root)
+            loader = (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8")
+            # Inspect the actual generated dispatch, not a second negotiation
+            # helper which could pass while the inserted Native branch drifted.
+            limits = re.search(r'if\( interface_id && std::string\( interface_id \) == NCMM_GRAPHICS_MULTILEVEL_ID \) \{\s*'
+                               r'return min_major <= (\d+) && min_minor <= (\d+) \? &graphics_world_api : nullptr;', loader)
+            self.assertIsNotNone(limits)
+            major, minor = map(int, limits.groups())
+            for requested_major, requested_minor, accepted in ((1,0,True),(1,1,True),(1,2,True),(1,3,False),(2,0,False)):
+                with self.subTest(major=requested_major, minor=requested_minor):
+                    self.assertEqual(requested_major <= major and requested_minor <= minor, accepted)
+            published = (root / "src/ncmm_graphics_world.inc").read_text(encoding="utf-8")
+            self.assertIn('graphics_world_api={1,sizeof(ncmm_host_graphics_multilevel_v1),1,2,', published)
+            self.assertIn('graphics_get_world_metrics,graphics_get_lod,graphics_get_skyline}', published)
     def test_changed_submap_cache_reset_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root)

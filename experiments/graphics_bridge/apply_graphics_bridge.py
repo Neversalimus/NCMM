@@ -344,7 +344,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {',
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_MULTILEVEL_ID ) {\n'
-        '        return min_major <= 1 && min_minor <= 1 ? &graphics_world_api : nullptr;\n'
+        '        return min_major <= 1 && min_minor <= 2 ? &graphics_world_api : nullptr;\n'
         '    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
         "bool graphics_requires_terrain_pass()\n{",

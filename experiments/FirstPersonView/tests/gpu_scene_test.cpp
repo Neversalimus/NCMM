@@ -438,6 +438,56 @@ int main(int argc,char **argv){
         lawn_backend=nullptr;
     }
     {
+        // Real GPU pixels for the additive radio horizon, with exactly the
+        // same map, camera, time and light in the ground/lattice/V1 controls.
+        namespace fp=first_person;
+        world_visual::fixture f(9);auto &source=f.scene;source.base.camera_x=2.5f;source.base.camera_y=1.5f;
+        std::vector<ncmm_world_cell_v1> xyz(f.cells.size());
+        for(int y=0;y<f.size;++y)for(int x=0;x<f.size;++x){const int i=y*f.size+x;f.cells[i].flags=NCMM_GFX_VISIBLE|NCMM_GFX_NO_FLOOR;
+            f.terrain(i,"t_open_air");xyz[i]={x,y,0,NCMM_WORLD_BODY_VISIBLE,0,0,1};}
+        ncmm_world_slice_v1 slice{0,0,uint32_t(xyz.size()),0,1,1};ncmm_graphics_multilevel_scene_v1 world{};
+        world.struct_size=sizeof(world);world.version=1;world.world_epoch=1817;world.revision=1;world.level_height=2.5f;
+        world.coordinates=xyz.data();world.cell_count=uint32_t(xyz.size());world.slices=&slice;world.slice_count=1;world.appearance=source;
+        auto &data=f.appearance;data.horizon_enabled=true;data.horizon_revision=81;
+        data.horizon={{80,-4.5f,0,24,24,0,{.43f,.42f,.39f},NCMM_LOD_BUILDING}};
+        ncmm_skyline_feature_v1 radio{};require(ncmm_world::standard_radio_feature("radio_tower",true,0,data.horizon[0],9,0,radio),"GPU fixture uses the real authored profile");
+        fp::gpu::scene_cache cache;std::array<std::vector<uint32_t>,3> gpu_pixels;std::array<fp::hybrid::frame,3> cpu;
+        const auto read=[&](){auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"radio GPU readback");
+            auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"radio pixel format");
+            std::vector<uint32_t> pixels(640*480);for(int y=0;y<480;++y)std::memcpy(pixels.data()+y*640,static_cast<const char *>(image->pixels)+y*image->pitch,640*sizeof(uint32_t));
+            SDL_DestroySurface(image);return pixels;};
+        const auto submit=[&](float yaw){fp::gpu::packet packet;fp::hybrid::frame stats;
+            const bool built=cache.build(world.appearance,yaw,0,{},packet,stats,engine.metrics(),{},&data,nullptr,640,480,NCMM_GPU_FORCE,&world);
+            require(built,cache.last_reason.c_str());
+            ncmm_gpu_multilevel_scene_v1 submitted{};submitted.struct_size=sizeof(submitted);submitted.version=1;submitted.base=packet.finish(nullptr);
+            submitted.coordinates=xyz.data();submitted.cell_count=uint32_t(xyz.size());submitted.level_height=2.5f;
+            require(engine.submit(submitted.base,&submitted),engine.metrics().reason);
+            require(engine.metrics().cpu_raster_calls==0,"radio qualification executes the real GPU rasterizer");};
+        for(int mode=0;mode<3;++mode){data.skyline=mode==1?std::vector<ncmm_skyline_feature_v1>{radio}:std::vector<ncmm_skyline_feature_v1>{};
+            data.horizon[0].height=mode==2?5.f:0.f;++data.horizon_revision;
+            require(fp::hybrid::build_frame(world.appearance,0,0,{},cpu[mode],640,480,{},nullptr,nullptr,&data,{},nullptr,&world),"CPU radio reference uses the same frozen scene");
+            submit(0);capture(mode==0?"-radio-ground":mode==1?"-radio-lattice":"-radio-legacy-box");gpu_pixels[mode]=read();
+            require(engine.metrics().target_cell==-1,"distant radio has no actor/interaction target");
+        }
+        size_t gpu_coverage=0,cpu_coverage=0,gpu_high=0,cpu_high=0;
+        for(int y=25;y<240;++y)for(int x=0;x<640;++x){const size_t i=size_t(y)*640+x;
+            const bool g=gpu_pixels[1][i]!=gpu_pixels[0][i],c=cpu[1].pixels[i]!=cpu[0].pixels[i];
+            gpu_coverage+=g;cpu_coverage+=c;gpu_high+=g&&y<210;cpu_high+=c&&y<210;}
+        require(gpu_coverage>10&&gpu_coverage<3000&&gpu_high>2&&cpu_coverage>10&&cpu_coverage<3000&&cpu_high>2,
+                "CPU and GPU pixels both retain the real tall open radio profile");
+        require(gpu_pixels[1][200*640+320]==gpu_pixels[0][200*640+320]&&cpu[1].depth[200*640+320]==cpu[0].depth[200*640+320],
+                "both rasterizers see through the actual empty centre of the radio lattice");
+        require(gpu_pixels[1][230*640+320]==gpu_pixels[0][230*640+320]&&gpu_pixels[2][230*640+320]!=gpu_pixels[0][230*640+320],
+                "typed radio removes the opaque five-metre V1 box instead of drawing over it");
+        data.horizon[0].height=0;data.skyline={radio};++data.horizon_revision;submit(0);capture("-radio-restored");
+        submit(.15f);require(engine.resources().static_upload_bytes()==0&&engine.metrics().generated_meshes==0,"camera turn reuses radio masks and mesh without static upload");capture("-radio-turned");
+        for(int y=0;y<f.size;++y){const int i=y*f.size+5;f.terrain(i,"t_wall");f.details[i].terrain_shape=NCMM_SHAPE_WALL;
+            xyz[i].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE;xyz[i].revision=2;}
+        ++world.revision;submit(0);capture("-radio-near-wall");
+        require(engine.focus_cell()==f.size+5,"exact near wall still owns GPU depth and focus in front of typed skyline");
+        std::printf("GPU radio lattice: %zu pixels (%zu above V1 height); CPU: %zu (%zu high)\n",gpu_coverage,gpu_high,cpu_coverage,cpu_high);
+    }
+    {
         namespace fp=first_person;
         constexpr int side=9,area=side*side;
         std::vector<ncmm_graphics_cell_v1> cells(area*2);std::vector<ncmm_graphics_cell_v2> details(cells.size());std::vector<ncmm_world_cell_v1> xyz(cells.size());
