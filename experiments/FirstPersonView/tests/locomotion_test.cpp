@@ -92,6 +92,48 @@ int main(){
             std::cerr<<"first boundary heading "<<direction<<": expected "<<expected.first<<','<<expected.second<<" actual "<<step.x<<','<<step.y<<'\n';
         require(step.x==expected.first&&step.y==expected.second,"an independent walk crosses the correct first boundary at all eight cardinal/diagonal headings");
     }
+    for(bool cold:{false,true})for(uint64_t first_sample:{99u,100u}){
+        ncmm_graphics_input::router input;
+        input.native_wait(true);
+        ncmm_graphics_input::environment e;
+        e.enabled=e.available=e.focused=e.fps=e.gameplay=true;
+        input.update(e);require(input.capture(),"short-tap model owns its pure input lifetime");
+        input.continuous_walk(true);
+        locomotion tap;if(!cold)tap.clock(100);
+        input.key(ncmm_graphics_input::button::forward,true,false,100);
+        input.key(ncmm_graphics_input::button::forward,false,false,100);
+        auto sample=[&](uint64_t now){
+            const auto intent=input.walking(true,false);
+            if(tap.can_advance(now))input.walking(true);
+            tap.advance(now,0,intent.forward,intent.right,3,open);
+        };
+        sample(first_sample);sample(first_sample);
+        require(!tap.moving()&&near(tap.position().x,0),"zero or backward time never invents motion");
+        sample(first_sample+16);
+        require(tap.position().x>.001f,"a short tap survives zero-delta polls until one real physics step");
+        for(uint64_t now=first_sample+32;now<=first_sample+512;now+=16)sample(now);
+        const auto stopped=tap.position();sample(first_sample+528);
+        require(stopped.x>.001f&&stopped.x<.1f&&near(stopped.x,tap.position().x,.00001f),
+                "the preserved tap is one fractional nudge and then brakes to rest");
+        require(!tap.pending()&&input.issued==0&&input.movements==0,"short-tap presentation never fabricates a costed Native action");
+    }
+    {
+        ncmm_graphics_input::router input;
+        input.native_wait(true);
+        ncmm_graphics_input::environment e;
+        e.enabled=e.available=e.focused=e.fps=e.gameplay=true;
+        input.update(e);require(input.capture(),"cancellation model owns its pure input lifetime");
+        input.continuous_walk(true);
+        for(bool focus_loss:{false,true}){
+            input.key(ncmm_graphics_input::button::forward,true,false,100);
+            input.key(ncmm_graphics_input::button::forward,false,false,100);
+            require(input.walking(true,false).forward==1,"an unconsumed edge is available before cancellation");
+            auto modal=e;if(focus_loss)modal.focused=false;else modal.gameplay=false;
+            input.update(modal);input.update(e);
+            if(focus_loss)require(input.capture(),"focus regain requires fresh explicit capture in the model");
+            require(input.walking(true,false).forward==0,"menus and focus loss cancel a peeked short tap instead of replaying it");
+        }
+    }
     walk.reset();walk.clock(0);
     auto wall=[](int x,int){return x>0;};
     for(unsigned now=16;now<2000;now+=16){walk.advance(now,0,1,1,3,wall);const auto step=walk.pending();if(step)walk.acknowledge(step.x,step.y);}

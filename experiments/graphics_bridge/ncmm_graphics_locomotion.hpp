@@ -61,6 +61,7 @@ public:
     float distance()const{return distance_;}
     float speed()const{return std::hypot(velocity_.x,velocity_.y);}
     bool moving()const{return speed()>.005f||bool(boundary_);}
+    bool can_advance(uint64_t now)const{return clock_ready_&&now>clock_&&!boundary_;}
     void clock(uint64_t now){clock_=now;clock_ready_=true;}
     void stop(uint64_t now){velocity_={};remainder_={};clock(now);}
     void pause(uint64_t now){boundary_={};position_.x=std::clamp(position_.x,-.49999f,.49999f);position_.y=std::clamp(position_.y,-.49999f,.49999f);stop(now);}

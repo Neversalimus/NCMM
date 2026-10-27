@@ -355,7 +355,7 @@ if($StaticStairProbe){
     $soaked=0
 }elseif($FpsInputProbe){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
-    if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.manual_playthrough -ne $false -or @($audit.samples).Count -ne 180){throw 'Native FPS input/action probe is incomplete.'}
+    if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.manual_playthrough -ne $false -or @($audit.samples).Count -ne 184){throw 'Native FPS input/action probe is incomplete.'}
     $soaked=0
 }elseif($TargetHudGallery){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json

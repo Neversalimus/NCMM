@@ -755,6 +755,39 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     Main PR1b's full comparison run40534567570 is preserved. Integration-tier
     dispatches intentionally do not establish the required full qualification.
 
+35. **Retain released taps until a real fractional physics step.** The pure
+    router/solver reproduces lost input when a press and release are drained
+    inside one SDL millisecond: walking consumed the saved edge before advance
+    could integrate any time. Add an explicit non-consuming peek; the Host
+    consumes only when the solver can advance, after collision constraints may
+    have reset its clock. Existing one-argument behavior remains unchanged.
+    Cold clocks, zero/backward time, braking, no fabricated Native action and
+    modal/focus cancellation pass. No new queue, class field, ABI/config change
+    or elapsed-time catch-up is introduced.
+
+    The uncured shared implementation fails the new assertion; two separately
+    compiled controls reject consuming a peek or consuming at zero elapsed time.
+    Full Release and three affected pure CTests pass (.12 s): router3560,
+    locomotion364 and camera36 checks. All288 Python tests pass (20.002 s),
+    including30 FPS verifier tests; the packaged PowerShell runner parses.
+    Evidence `night-short-tap-*`; no local game/SDL/input execution is used.
+
+    Prepare a new actual Native same-batch press/release case for all four
+    keyboard/renderer combinations. It must present a released fractional
+    position twice while retaining physical tile, calendar, moves and action
+    count. This isolated probe declares the valid F5 maximum6 to exceed the
+    existing presentation threshold even at1 ms; the held sub-tile probe keeps
+    its declared minimum1, and ordinary fixture speed is restored. Fresh reports
+    require184 cases, both controlled speeds, release metadata and zero tap move
+    cost/actions. This new184-case Native check is **pending**; earlier180-case
+    evidence must be checked with its exact historical verifier.
+
+    At exact eb816c5, both Windows actual180-case FPS steps finish successfully
+    (1807 19:52:08 UTC,1040 19:52:46) in run40569273849, including the earlier
+    failing W+D assertion. Linux/remaining Native phases still run. These results
+    qualify that bounded stage33 matrix, not this new tap scenario or full
+    current-source qualification. PR1b's long full run is still preserved.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both

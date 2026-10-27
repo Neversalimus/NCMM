@@ -100,7 +100,7 @@ class router {
     void cancel_boundary(){boundary_={};}
     void continuous_walk(bool value){continuous_walk_=value;if(!value)boundary_={};}
     bool continuous_walk()const{return continuous_walk_;}
-    intent walking(bool presentation=false){
+    intent walking(bool presentation=false,bool consume_edge=true){
         if(!continuous_walk_||walking_suspended()||(!waiting_&&!presentation))return {};
         auto value=movement(observed_&~blocked_&movement_mask);
         // The explicit outer Native input lease also owns its pre-poll
@@ -109,7 +109,8 @@ class router {
         if(!waiting_)return value;
         // Preserve a very short press as a fractional nudge, never a full tile.
         if(!value.forward&&!value.right)value=edge_;
-        edge_={};return value;
+        if(consume_edge)edge_={};
+        return value;
     }
     void boundary(int x,int y){
         if(continuous_walk_&&walking_owned()&&pending_.action==command::none&&boundary_.action==command::none&&(x||y))

@@ -16,11 +16,28 @@ class FpsEvidenceTests(unittest.TestCase):
                         self.report['samples'].append(dict(scenario=case,keyboard_mode=mode,renderer=renderer,
                             native_actions=ACTIONS.get(case,1),native_move_cost=0 if case in FREE else 100,direction=i))
                         if case=='continuous_subtile_without_turn':self.report['samples'][-1].update(fractional_distance=.12,presented_frames=3,configured_walking_speed=1)
+                        if case=='tap_subtile_without_turn':self.report['samples'][-1].update(fractional_distance=.02,presented_frames=3,configured_walking_speed=6,tap_released=True)
                         if case=='held_w_three_native_boundaries':self.report['samples'][-1].update(boundary_presented_frames=2,boundary_frozen_frames=0,boundary_max_gap_ms=35)
     def run_report(self):
         (self.root/'first-person-fps-input.json').write_text(json.dumps(self.report))
         return verify(self.root)
-    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],180)
+    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],184)
+    def test_tap_must_release_its_key(self):
+        next(s for s in self.report['samples'] if s['scenario']=='tap_subtile_without_turn')['tap_released']=False
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_tap_requires_one_small_nudge(self):
+        for value in (0,.5,float('nan')):
+            next(s for s in self.report['samples'] if s['scenario']=='tap_subtile_without_turn')['fractional_distance']=value
+            with self.assertRaises(AssertionError):self.run_report()
+    def test_tap_must_not_spend_moves(self):
+        next(s for s in self.report['samples'] if s['scenario']=='tap_subtile_without_turn')['native_move_cost']=1
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_tap_must_not_issue_tile_action(self):
+        next(s for s in self.report['samples'] if s['scenario']=='tap_subtile_without_turn')['native_actions']=1
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_tap_requires_actual_presentations(self):
+        next(s for s in self.report['samples'] if s['scenario']=='tap_subtile_without_turn')['presented_frames']=0
+        with self.assertRaises(AssertionError):self.run_report()
     def test_frozen_post_boundary_frame_is_rejected(self):
         next(s for s in self.report['samples'] if s['scenario']=='held_w_three_native_boundaries')['boundary_frozen_frames']=1
         with self.assertRaises(AssertionError):self.run_report()

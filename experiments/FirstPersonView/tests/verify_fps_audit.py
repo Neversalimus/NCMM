@@ -4,7 +4,7 @@ import argparse,json
 from pathlib import Path
 
 COUNTS={'physical_w_8_yaws':8,'wd_one_diagonal':1,'held_w_three_native_boundaries':1,
-        'wall_blocks_without_turn':1,'continuous_subtile_without_turn':1,'continuous_wall_slide':1,
+        'wall_blocks_without_turn':1,'continuous_subtile_without_turn':1,'tap_subtile_without_turn':1,'continuous_wall_slide':1,
         'inventory_held_w_cancel':1,'focus_resize_dpi_release':3,
         'focus_walk_recovery':1,'teleport_walk_recovery':1,
         'e_native_open':1,'lmb_native_melee':2,'lmb_native_reach':2,'lmb_reach_out_of_range':2,'native_run_crouch_wait':1,
@@ -14,10 +14,10 @@ COUNTS={'physical_w_8_yaws':8,'wd_one_diagonal':1,'held_w_three_native_boundarie
         'e_vehicle_cancel':1,'e_occluded_refusal':1,'grass_native_presentation':1,
         'lmb_fps_gun':1,'lmb_fps_free_fire':1,'rmb_fps_ads_fire':1,'lmb_fps_empty':1,'lmb_fps_bow':1}
 ACTIONS={'held_w_three_native_boundaries':3,'continuous_wall_slide':3,'native_run_crouch_wait':4,
-         'wall_blocks_without_turn':0,'continuous_subtile_without_turn':0,
+         'wall_blocks_without_turn':0,'continuous_subtile_without_turn':0,'tap_subtile_without_turn':0,
          'focus_resize_dpi_release':0,'e_occluded_refusal':0,'grass_native_presentation':0,
          'lmb_reach_out_of_range':0,'lmb_fps_empty':0}
-FREE={'wall_blocks_without_turn','continuous_subtile_without_turn','inventory_held_w_cancel','focus_resize_dpi_release','g_native_pickup_cancel',
+FREE={'wall_blocks_without_turn','continuous_subtile_without_turn','tap_subtile_without_turn','inventory_held_w_cancel','focus_resize_dpi_release','g_native_pickup_cancel',
       'e_ground_item_cancel','e_container_cancel','e_window_cancel','e_npc_cancel',
       'e_terminal_cancel','e_vehicle_cancel','e_occluded_refusal','grass_native_presentation',
       'lmb_reach_out_of_range','lmb_fps_empty'}
@@ -43,11 +43,14 @@ def verify(root):
                 if case in FREE:assert cost==0,'UI/focus event spent Native moves'
                 elif case not in ALLOW_ZERO:
                     assert cost>0,'Gameplay action did not spend Native moves'
-                if case=='continuous_subtile_without_turn':
-                    assert sample['configured_walking_speed']==1,'Sub-tile presentation probe must use the declared F5 minimum'
+                if case in ('continuous_subtile_without_turn','tap_subtile_without_turn'):
+                    expected_speed=6 if case=='tap_subtile_without_turn' else 1
+                    assert sample['configured_walking_speed']==expected_speed,'Sub-tile presentation probe must use its declared controlled F5 speed'
                     distance=sample['fractional_distance'];frames=sample['presented_frames']
                     assert type(distance) in (int,float) and .001<distance<.49,'Missing fractional movement inside the original tile'
                     assert type(frames) is int and frames>=2,'Fractional movement was not presented by Native'
+                    if case=='tap_subtile_without_turn':
+                        assert sample['tap_released'] is True,'Tap probe must release W in the same SDL batch'
                 if case=='held_w_three_native_boundaries':
                     assert type(sample['boundary_presented_frames']) is int and sample['boundary_presented_frames']>=1,'Missing first post-boundary presentation'
                     assert sample['boundary_frozen_frames']==0,'A held walk froze again in the first safe post-boundary frame'

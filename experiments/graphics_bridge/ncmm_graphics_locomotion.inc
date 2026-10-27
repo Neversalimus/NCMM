@@ -83,7 +83,7 @@ void graphics_locomotion_tick(uint64_t now){
     if(!graphics_snapshot_lease.active()||graphics_world_camera_motion.active(now)){
         walk.clock(now);return;
     }
-    const auto intent=graphics_input_router.walking(true);const auto fractional=walk.position();
+    const auto intent=graphics_input_router.walking(true,false);const auto fractional=walk.position();
     if(!intent.forward&&!intent.right&&!walk.moving()&&std::abs(fractional.x)+std::abs(fractional.y)<1e-6f){walk.clock(now);return;}
     avatar &you=get_avatar();map &here=get_map();
     if(you.in_vehicle){walk.reset(now);return;}
@@ -107,6 +107,10 @@ void graphics_locomotion_tick(uint64_t now){
     const float base=std::isfinite(configured)?float(std::clamp(configured,1.0,6.0)):3.f;
     const float stance=you.is_prone()?.3f:you.is_crouching()?.55f:you.is_running()?1.65f:1.f;
     graphics_walk.walking_speed=base*stance*std::clamp(2.f/std::max(2,here.move_cost(you.pos_bub())),.25f,1.f);
+    // Multiple input/presentation polls can share the same SDL millisecond.
+    // Retain a released tap until an actual solver step, after any new-world
+    // constraint has reset its clock. Native/modal fences still clear it.
+    if(walk.can_advance(now))graphics_input_router.walking(true);
     if(walk.advance(now,graphics_camera_yaw,intent.forward,intent.right,graphics_walk.walking_speed,blocked))graphics_mouse_dirty=true;
     graphics_walk.resume_pending=false;
     const auto step=walk.pending();

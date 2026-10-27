@@ -226,6 +226,7 @@
         int direction = -1;
         float fractional_distance=0;uint32_t presented_frames=0;
         uint64_t boundary_frames=0,boundary_frozen_frames=0,boundary_max_gap_ms=0;
+        bool tap_released=false;
     };
     std::vector<sample> samples;
     for (const char *mode : {"keychar", "keycode"}) {
@@ -375,6 +376,27 @@
             sample fractional_sample{"continuous_subtile_without_turn",mode,renderer_mode,0,0};
             fractional_sample.fractional_distance=fractional_distance;
             fractional_sample.presented_frames=graphics_locomotion_audit_frames.load();samples.push_back(fractional_sample);
+            // Press and release in one SDL batch: even when successive polls
+            // share a millisecond, preserve one fractional nudge, never a turn.
+            // Use the declared valid F5 maximum for this probe so even a1 ms
+            // integration step exceeds the existing presentation threshold.
+            get_options().get_option("NCMM_FP_WALK_SPEED").setValue("6");
+            require(world_setting_get_f64("NCMM_FP_WALK_SPEED",3)==6,"fps_tap_probe_speed_not_applied");
+            graphics_locomotion_reset();graphics_locomotion_audit_frames.store(0);
+            const auto tap_origin=you.pos_abs();const auto tap_turn=calendar::turn;
+            const int tap_moves=you.get_moves();const auto tap_actions=graphics_input_router.movements;
+            dispatch(tap(SDL_SCANCODE_W,SDLK_W),1,3000,false,false,true);
+            const auto tap_position=graphics_walk.motion.position();
+            const float tap_distance=std::hypot(tap_position.x,tap_position.y);
+            const bool tap_released=!graphics_input_router.walking_held();
+            require(tap_released&&graphics_locomotion_audit_frames.load()>=2&&
+                    tap_distance>.001f&&tap_distance<.49f&&you.pos_abs()==tap_origin&&calendar::turn==tap_turn&&
+                    you.get_moves()==tap_moves&&graphics_input_router.movements==tap_actions,
+                    "fps_short_tap_lost_or_spent_native_turn");
+            sample tap_sample{"tap_subtile_without_turn",mode,renderer_mode,0,0};
+            tap_sample.fractional_distance=tap_distance;
+            tap_sample.tap_released=tap_released;
+            tap_sample.presented_frames=graphics_locomotion_audit_frames.load();samples.push_back(tap_sample);
             get_options().get_option("NCMM_FP_WALK_SPEED").setValue(previous_walk_speed);
             floor();camera(-ncmm_graphics_camera::pi*.5f,-.08f);warm(renderer_mode);native_redraw();
             const auto slide_origin=you.pos_abs();const int slide_moves=you.get_moves();
@@ -955,10 +977,11 @@
         out.member("renderer", entry.renderer);
         out.member("native_actions", entry.actions);
         out.member("native_move_cost", entry.cost);
-        if(entry.name=="continuous_subtile_without_turn"){
+        if(entry.name=="continuous_subtile_without_turn"||entry.name=="tap_subtile_without_turn"){
             out.member("fractional_distance",entry.fractional_distance);out.member("presented_frames",entry.presented_frames);
-            out.member("configured_walking_speed",1.0);
+            out.member("configured_walking_speed",entry.name=="tap_subtile_without_turn"?6.0:1.0);
         }
+        if(entry.name=="tap_subtile_without_turn")out.member("tap_released",entry.tap_released);
         if(entry.name=="held_w_three_native_boundaries"){
             out.member("boundary_presented_frames",entry.boundary_frames);out.member("boundary_frozen_frames",entry.boundary_frozen_frames);
             out.member("boundary_max_gap_ms",entry.boundary_max_gap_ms);
