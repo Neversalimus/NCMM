@@ -291,20 +291,72 @@ Do not merge or release before the user's separate finalization request.
     (15.48 s). Renderer/module bytes are unchanged by the Host-only range edit;
     the skyline hidden GPU result above remains its applicable device check.
 
-## Working queue
+12. **Static-stair causal recorder, pending Native evidence.** Added a separate
+    exclusive `-StaticStairProbe` for remote Native qualification. It never
+    changes production visibility. Day/dusk/night record normal -> debug night
+    vision -> normal at one declared camera, with exactly two preparation
+    frames before observation. A terrain stair three cells away, furniture-only
+    GOES_UP and hidden chair/item/creature controls distinguish navigation from
+    content permission. Full 97x97 loaded-Z physical ledgers, map-memory getters
+    and resident-only overmap disclosure detect scene/discovery changes.
 
-1. Repeated distance calls within one candidate are removed and component
-   callback counts verified. Obtain the fresh pinned Native profile to choose
-   the next timing bottleneck. Enlarging the existing light-range cache remains
+    Only repeatable, light-stable normal snapshots can enter a CPU-only 2x2
+    BODY/navigation factorial. All four reuse the same owned normal appearance;
+    only the target's BODY and measured missing terrain-navigation bits vary.
+    Matrix00 must match the untouched normal source and actual pixels. Fixed
+    ROI/thresholds require signed interaction >=24 triangles and >=8 pixels at
+    >=4/255 RGB; changed debug illumination alone cannot confirm the cause.
+    Existing CPU raster expiry is respected without fabricated source epochs,
+    and every recorded frame must actually rasterize. The API's normal GPU
+    pointer/identity validation is retained. An inconclusive result is valid;
+    a successful recorder is not a production fix or timing qualification.
+
+    Local checks: 34 deliberately contrived verifier tests, 229 total Python
+    tests, 25 atomic bridge tests, PowerShell parsing and 162 real environment
+    isolation/restoration checks pass. Both pins' required Native APIs were
+    checked against primary source. No local Native executable was launched;
+    actual compilation, ledgers and 9-21 BMP readbacks remain a remote CI gate.
+    No renderer/module bytes changed, so the preceding local GPU check is the
+    applicable device result. Logs: `night-stair-*` and
+    `night-static-stair-verifier.log` in the existing private work directory.
+
+## Fresh profile evidence and working queue
+
+Bounded HTTP-range reads of selected program JSON from run 40425289251 used
+5,133,467 bytes, rather than downloading its multi-gigabyte artifacts. Packaged
+merge `54d8d5f6796a9c3e9c84d118a0afb53bf48d10e9` has the exact tree of parent
+`fc2ada738ca9cf0d0ca2a33582461cba562658cf`; all 102 frozen Git sources and the
+27 shared Native source-receipt inputs match. Private selected receipts and
+raw JSON are in `night-fc2-native-component-profile/`; `profile-summary.json`
+SHA256 `15c558ac119a97c90c2c1f75725ce6333f328134d543fa02eb1d1748bdc3629d`.
+These are controlled Native fixtures, not ordinary gameplay or stage11 results.
+
+Win1040/D3D12 **software Microsoft Basic Render Driver**, VSync 1, 640x480,
+12 accepted steps per scene: first render-frame medians are street 17.49 ms,
+horde 20.27 ms and city 47.50 ms. Per-step paired outer `first_ready` minus
+inner `first_frame` medians are 43.17/61.61/76.25 ms respectively. This gap
+includes avatar movement, refresh, assertions and render bookkeeping; it is
+not the duration of any one Native function. Inclusive snapshot medians are
+5.05/6.04/11.81 ms; geometry preparation 2.42/3.13/6.83 ms. The separate
+gameplay fixture's Native-cache median 31.03 ms (Linux 17.34/16.49 ms) also
+includes forced map-cache invalidation, so it cannot fill the movement gap.
+Windows1807's older gameplay JSON is truncated and excluded.
+
+1. Split the actual movement action/refresh interval into adjacent exclusive
+   wall-time phases without changing the existing Native calls or 12-case
+   matrix. Keep render bookkeeping separate, then use fresh receipts to select
+   a production optimization. Repeated candidate distances are already removed
+   and callback counts verified. Enlarging the existing light-range cache remains
    rejected as a priority: recorded frames already make only 2-15 sight-range
    evaluations for 1400-3000 cache hits.
 2. The typed radio skyline now passes local CPU/GPU/module/Host-source
    controls. Qualify the resulting exact revision in the real pinned Hosts;
    assess distant wire minification in that setting before further changes.
-3. Normal-vision static stairs may be withheld with BODY permissions. This is
-   a hypothesis, not a confirmed current game defect: existing Native fixtures
-   enable night vision. First obtain a causal normal/night-vision pair before
-   changing the deliberate hidden-navigation filter. Any future fix must
+3. Run the stage12 remote normal/debug/normal and factorial diagnostic. Normal
+   static stairs being withheld with BODY remains a hypothesis, not a confirmed
+   current game defect. Before changing the hidden-navigation filter, distinguish
+   a missing target, already-visible stair, light drift and insufficient effect.
+   Any future fix must
    distinguish terrain from furniture and leave hidden contents/focus/exploration
    protected.
 
@@ -321,19 +373,18 @@ remains 21108 pixels on both rasterizers. Existing ADS/objects/muzzle/subway
 brightness checks pass. Real old/new binary pairs also pass as recorded above.
 These local checks do not execute the real Native extraction/input/game loop.
 
-Pushed checkpoint `fc2ada738ca9cf0d0ca2a33582461cba562658cf` has fresh passing
-[GPU Windows/Linux/Clang ASan/UBSan/Vulkan](https://github.com/Neversalimus/NCMM/actions/runs/40425289227),
-[source/package](https://github.com/Neversalimus/NCMM/actions/runs/40425289234)
-and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40425289284) runs.
-In [module/Native run](https://github.com/Neversalimus/NCMM/actions/runs/40425289251),
-both Windows and Linux module jobs pass. Linux reports 45 ordinary, 9 further
-and 20 sanitizer checks passing; the original allocation-family ASan failure
-is resolved on Linux. Both pinned Windows Hosts compiled, passed the early
-Native FPS gate and entered the long gameplay/profile galleries; both Linux
-Hosts compiled and entered actual Native controls/gameplay qualification.
-Full Native qualification and accurate callback-memory checks remain in
-progress. These results do not qualify the subsequent local benchmark or
-skyline stage. The older Native run was superseded by this push.
+Pushed checkpoint `ddfa80284af0eb7d3a6cdf282f3c080b2c4c8bbf` has passing
+[GPU Windows/Linux/Clang ASan/UBSan/Vulkan](https://github.com/Neversalimus/NCMM/actions/runs/40433313797),
+[source/package](https://github.com/Neversalimus/NCMM/actions/runs/40433313786)
+and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40433313762) runs.
+In [module/Native run](https://github.com/Neversalimus/NCMM/actions/runs/40433313767),
+Windows and Linux module jobs pass. Both pinned Windows Hosts compiled and
+entered long gameplay/profile qualification; both Linux Hosts also compiled
+and entered Native controls/gameplay checks. Full Native qualification remains
+pending; these statuses do not qualify the subsequent stage12 recorder. The
+older fc2 Native run was superseded, with its Win1040 gameplay/profile step
+successful but remaining qualification incomplete. Its Linux module sanitizer
+pass resolved the earlier allocation-family mismatch.
 
 Run the affected checks after each edit, then the autonomous local inventory,
 hidden GPU pixels/resource checks, source/package checks and fresh remote

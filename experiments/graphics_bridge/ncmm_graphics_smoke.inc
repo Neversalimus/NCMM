@@ -107,7 +107,15 @@ bool graphics_scene_smoke()
         require( !graphics_view.enabled, "view_not_initially_disabled" );
         press_f6();
         require( graphics_view.enabled, "view_did_not_enable" );
-        if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
+        if( const char *static_stairs=std::getenv( "NCMM_FP_STATIC_STAIRS_ONLY" ) ) {
+            require(std::strcmp(static_stairs,"1")==0&&!std::getenv("NCMM_FP_GAMEPLAY_AUDIT")&&
+                !std::getenv("NCMM_FP_FPS_INPUT_ONLY")&&!std::getenv("NCMM_FP_TARGET_HUD_ONLY")&&
+                !std::getenv("NCMM_FP_SAVE_ONLY")&&!std::getenv("NCMM_FP_CAMERA_INPUT")&&
+                !std::getenv("NCMM_FP_HELD_GALLERY_ONLY")&&!std::getenv("NCMM_FP_MOVEMENT_ONLY")&&
+                !std::getenv("NCMM_FP_GPU_BENCHMARK_ONLY"),"static_stair_probe_requires_exclusive_opt_in");
+            #include "ncmm_graphics_static_stair_audit.inc"
+            press_f6();require(!graphics_view.enabled,"static_stair_f6_restore_failed");
+        } else if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
             #include "ncmm_graphics_multilevel_save_smoke.inc"
         } else if( std::getenv( "NCMM_FP_CAMERA_INPUT" ) ) {
             #include "ncmm_graphics_camera_input.inc"

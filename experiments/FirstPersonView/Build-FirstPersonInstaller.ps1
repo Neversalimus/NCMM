@@ -121,7 +121,7 @@ Copy-Item (Join-Path $PSScriptRoot 'tests/multilevel_fixture.json') $stage
 Copy-Item (Join-Path $PSScriptRoot 'DIAGNOSTICS.md') $stage
 $diagnosticTools=Join-Path $stage 'tests'
 New-Item -ItemType Directory -Force $diagnosticTools | Out-Null
-foreach($tool in @('compare_movement_runs.py','verify_horizon_release.py','Test-BenchmarkEnvironment.ps1','Test-BenchmarkEvidence.ps1','Test-BenchmarkPaths.ps1','Test-BenchmarkCapture.ps1','Test-BenchmarkDataCopy.ps1')){
+foreach($tool in @('compare_movement_runs.py','verify_horizon_release.py','verify_static_stair_audit.py','Test-BenchmarkEnvironment.ps1','Test-BenchmarkEvidence.ps1','Test-BenchmarkPaths.ps1','Test-BenchmarkCapture.ps1','Test-BenchmarkDataCopy.ps1')){
     Copy-Item (Join-Path $PSScriptRoot ('tests/'+$tool)) $diagnosticTools
 }
 

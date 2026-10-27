@@ -1,5 +1,16 @@
 [
   {
+    "type": "furniture",
+    "id": "f_ncmm_static_stair_control",
+    "copy-from": "f_chair",
+    "name": "qualification furniture navigation control",
+    "extend": {
+      "flags": [
+        "GOES_UP"
+      ]
+    }
+  },
+  {
     "type": "terrain",
     "id": "t_ncmm_x9_unknown_floor",
     "copy-from": "t_floor",

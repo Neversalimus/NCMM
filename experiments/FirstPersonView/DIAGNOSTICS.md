@@ -27,6 +27,27 @@ a 1280x720 viewport and Native NPC aggregate health. Each GPU record includes
 its actual backend/device and software-adapter status; the physical window's
 display scale is recorded rather than changed globally.
 
+`-StaticStairProbe` is a separate CPU correctness experiment in an isolated
+Native process. It records day/dusk/night normal -> DEBUG_NIGHTVISION -> normal
+observations without advancing turns or updating discovery. A terrain stair
+2-4 cells from the avatar is compared with a furniture-only GOES_UP control
+and hidden contents behind a wall. Physical state, map memory and resident
+overmap disclosure must remain unchanged. This mode is for remote diagnostic
+qualification; do not run it on a desktop where Native harnesses are forbidden.
+
+`tests/verify_static_stair_audit.py --root <evidence> --output <result.json>`
+checks actual BMP pixels and ledgers. Eligible normal snapshots have four
+CPU-only controls varying target BODY and missing measured terrain navigation
+bits. Matrix00 must reproduce the untouched normal snapshot. Confirmation
+requires a signed factorial interaction of at least 24 triangles and eight
+pixels with RGB interaction at least 4/255 in the predetermined ROI. Missing
+normal targets, changed raw Native illumination or insufficient interaction
+remain inconclusive. Debug renderer colours are recorded separately; only the
+four controls with unchanged normal appearance enter the causal pixel formula.
+A successful recorder does not establish a visibility defect,
+qualify a production fix or measure ordinary gameplay frame times. The
+existing 180-case FPS input matrix remains separate.
+
 ## Native firing UI context
 
 The gameplay audit now dispatches the ordinary game command through SDL input,

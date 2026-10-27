@@ -132,6 +132,8 @@ jobs:
       - name: Native firing pixel verifier negative tests
         run: |
           python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fire_pixels.py -v
+      - name: Static-stair causal evidence verifier negative tests
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_static_stair_audit.py -v
       - name: Record renderer timing and work counters (no FPS threshold)
         run: cmake --build fp-build --config Release --target first_person_measure
       - name: Configure focused cache and facade sanitizers
@@ -477,6 +479,29 @@ jobs:
             ${{ runner.temp }}/fp-fps-input/evidence/*.json
             ${{ runner.temp }}/fp-fps-input/evidence/*.log
             ${{ runner.temp }}/fp-fps-input/evidence/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Observe static stairs without changing discovery or visibility rules
+        timeout-minutes: 12
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --disable-pip-version-check pillow==11.3.0
+          if($LASTEXITCODE -ne 0){throw 'Static-stair pixel verifier dependency unavailable.'}
+          $output=Join-Path $env:RUNNER_TEMP 'fp-static-stair'
+          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -StaticStairProbe -CaptureCrashDump
+          python -B ncmmrepo/experiments/FirstPersonView/tests/verify_static_stair_audit.py --root (Join-Path $output 'evidence') --output installer-result/first-person-static-stair-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Static-stair diagnostic evidence failed verification.'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-static-stair-${{ matrix.build }}
+          path: |
+            ${{ runner.temp }}/fp-static-stair/evidence/*.json
+            ${{ runner.temp }}/fp-static-stair/evidence/*.bmp
+            ${{ runner.temp }}/fp-static-stair/evidence/*.log
+            ${{ runner.temp }}/fp-static-stair/evidence/*.txt
+            installer-result/first-person-static-stair-verified.json
           if-no-files-found: ignore
           retention-days: 7
       - name: Actual SDL mouse rotation and native input snapshot reuse
