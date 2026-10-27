@@ -519,7 +519,84 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     New Native timing and first-frame gains remain pending; allocation counts
     are not measured game-frame improvements.
 
+29. **Proven no-op tile loops in underground actualization.** Actual child
+    captures attribute 7–11 ms median to inclusive actualization, so this targets
+    repeated tile work rather than the already-small bitset rebase. Both pinned
+    primary actualize bodies are identical: 2401 bytes, SHA256
+    `469b917a6c8b6cc465780354731c07c5fbd8b2eda0645c80f643a58cb3d40502`.
+    Every vehicle overflow/refresh, item callback and explosion runs first.
+    The shortcut then requires a still-matching loaded submap, Z-level support,
+    valid underground grid coordinates and uniform storage. Quiet registry
+    checks protect invalid terrain/furniture and missing f_null diagnostics.
+    Eligibility further excludes both emission lists, built-in traps, plants,
+    harvested terrain and tapped maples. Uniform getters supply no explicit
+    traps/radiation; funnels are already disabled underground. The mutable
+    shared field object must actually be empty. Only then can every remaining
+    helper return before effects/RNG, allowing the 144-cell loop to be omitted
+    while retaining the exact last_touched update. Zero elapsed time alone
+    never qualifies. Above-ground, mixed, aliased/non-Z, active or invalid cases
+    retain the complete original loop. New eligibility facts and definition
+    references are created after callbacks and are not retained across one.
+
+    The bridge guards the full primary body and five independent early-return
+    prefixes, preserves every byte outside the bounded shortcut, and copies/
+    receipts the include atomically for both pins. Read-only original Git
+    objects were used instead of the modified probe checkout's working files;
+    one missing 1040 source was fetched within the existing shared 10 MiB cap,
+    verified by full SHA256/Git-blob identity, then only small functions saved.
+
+    Red: the frozen original passes 686 state comparisons, then fails the work
+    gate with 144 -> 144 explicit-trap reads. Green: 144 -> 0 in the eligible
+    model, 691 paired cases / 1384 checks pass, including five callback exception
+    boundaries. Owned active-helper models cover flags, shared fields, invalid
+    IDs/conversions, all grid guards, mapping replacement/materialization,
+    callback ordering, time rewind/zero/positive elapsed and last_touched. They
+    exercise predicates and observable active paths, not complete CDDA helper
+    gameplay. Both pins also share the verified field.cpp blob whose begin/end
+    methods only return the underlying iterators. Three compiled controls reject ignoring the
+    shared field, using a stale submap and gating before item callbacks.
+    Full Release builds; the affected autonomous cache CTest passes in .81 s;
+    78 atomic bridge tests pass, with the final six affected tests rerun after
+    the last adjustment. Unchanged 274 verifier / 50 CTest coverage remains
+    stage28 evidence, not a fresh all-suite claim. Evidence `night-actualize-*`.
+    Actual new Native compilation and elapsed impact remain pending; this is
+    a work-count result, not a measured first-frame or 15 ms improvement.
+
 ## Actual remote evidence and next priorities
+
+**Actual node-transfer revision `2b62a69`, run 40517335063.** Both early
+Windows programs exit0 without wrapper/debugger error or dumps. The source and
+runtime `57fa820f6f05407fc7e2c1dd7b15b99689673b5f` share Git tree
+`804bd3aec63294d262e074dc65c72b0995d1cd47`. Four program JSON members from
+each artifact 12741853595/12742108555 reserve 351232 bytes / 8 MiB; all 288
+action scopes and 144 shift children pass the unchanged strict verification.
+Private `night-movement-2b62a69/` summary SHA256:
+1040 `3a7267a7080a61f7151378d7fd5237442e8f5162a85db41eb04dfe283731673a`,
+1807 `b498b85f646dcc58011e83af10959529a766824841bfa4301b692cf72abe1915`.
+
+Software D3D12 Microsoft Basic Render Driver, 640x480, VSync1; median ms,
+six crossings per row. Independent medians MUST NOT be summed:
+
+| Pin / scene | Crossing action | Inclusive shift | Grid copy/load | Support rebase | Actualize | Reconcile |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1040 street | 28.477 | 15.658 | 5.895 | .808 | 7.256 | 1.484 |
+| 1040 horde | 33.999 | 16.992 | 5.965 | .876 | 8.163 | 1.833 |
+| 1040 city | 44.031 | 18.030 | 5.989 | 1.502 | 8.471 | 1.854 |
+| 1807 street | 53.169 | 19.924 | 7.119 | .870 | 10.176 | 1.652 |
+| 1807 horde | 42.785 | 20.494 | 7.530 | .944 | 10.220 | 1.674 |
+| 1807 city | 58.567 | 23.692 | 7.618 | 1.611 | 10.837 | 1.699 |
+
+Support medians are .81–1.61 ms in this capture, compared with 1.22–2.79 ms
+in the previous independent capture. The allocation control is causal; these
+separate CI machines/runs are not a paired timing experiment. In particular,
+1807 street/horde crossing action medians worsen despite lower support times.
+1807 city actualize p95 remains65.582 ms, copy/load p95 20.010 ms. Ordinary
+support-queue cardinality remains unmeasured. Both module jobs, GPU Windows/
+Linux/Vulkan sanitizers, source/package and runtime pass at exact2b62a69;
+all four complete Native jobs were still running before the next source push.
+This does not qualify stage29, ordinary hardware FPS or first-correct-present.
+Next: validate stage29 in the actual engine; investigate copy/load's terrain
+phase-change scan without omitting original-terrain restoration or freezing.
 
 **Actual child intervals at exact `7c0a8b9`, run 40508748878.** Both early
 Windows programs exit 0 with successful provenance and no wrapper/debugger
@@ -557,7 +634,8 @@ The support queue's ordinary-game cardinality is not measured; this no-turn
 fixture can retain construction work in that queue. New 1040 crossing times
 are worse than 311d717's separate run despite no new production optimization
 between those sources. These results guide attribution, not a paired gain,
-ordinary RTX 4090 FPS or a 15 ms claim. Stage28 timing still needs a new capture.
+ordinary RTX 4090 FPS or a 15 ms claim. At that checkpoint stage28 still needed
+the subsequent capture recorded above.
 
 **Fresh cache-stage evidence at exact `311d717`, run 40501372289.** Both pinned
 Windows Hosts compile, and their early movement programs exit 0 with successful

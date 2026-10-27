@@ -57,6 +57,25 @@ def native_map_shift_original(pin):
     return frozen.split(begin, 1)[1].split(end, 1)[0]
 
 
+def native_actualize_original():
+    frozen = (REPO / "experiments/FirstPersonView/tests/native_actualize_primary.inc").read_text(encoding="utf-8")
+    begin, end = "// BEGIN FROZEN NATIVE ACTUALIZE\n", "// END FROZEN NATIVE ACTUALIZE\n"
+    if frozen.count(begin) != 1 or frozen.count(end) != 1:
+        raise ValueError("Frozen Native actualize fixture differs")
+    return frozen.split(begin, 1)[1].split(end, 1)[0]
+
+
+def native_actualize_prefixes():
+    frozen = (REPO / "experiments/FirstPersonView/tests/native_actualize_primary.inc").read_text(encoding="utf-8")
+    result = {}
+    for name in bridge.NATIVE_ACTUALIZE_PREFIXES:
+        begin = f"// BEGIN FROZEN NATIVE ACTUALIZE PREFIX {name}\n"
+        end = f"// END FROZEN NATIVE ACTUALIZE PREFIX {name}\n"
+        block = frozen.split(begin, 1)[1].split(end, 1)[0]
+        result[name] = block.split('R"NCMM(', 1)[1].split(')NCMM";', 1)[0]
+    return result
+
+
 def native_floor_cache_original():
     frozen = (REPO / "experiments/FirstPersonView/tests/native_floor_cache_fixture.cpp").read_text(encoding="utf-8")
     begin, end = "// BEGIN FROZEN NATIVE FLOOR CACHE\n", "// END FROZEN NATIVE FLOOR CACHE\n"
@@ -91,6 +110,91 @@ def native_item_reconciliation_original(pin):
 
 
 class ApplyTests(unittest.TestCase):
+    def test_actualize_primary_and_source_preserving_fast_path(self):
+        original = native_actualize_original()
+        self.assertEqual((len(original.encode()), hashlib.sha256(original.encode()).hexdigest()),
+                         bridge.NATIVE_ACTUALIZE_ORIGINAL)
+        source = Path(bridge.__file__).with_name("ncmm_graphics_actualize.inc").read_text(encoding="utf-8")
+        source = source[source.index("void map::actualize"):]
+        begin, end = "    // BEGIN PROVEN UNIFORM UNDERGROUND NOOP\n", "    // END PROVEN UNIFORM UNDERGROUND NOOP\n"
+        self.assertEqual(source.count(begin), 1); self.assertEqual(source.count(end), 1)
+        before, rest = source.split(begin, 1)
+        self.assertEqual(before + rest.split(end, 1)[1], original)
+        for name, prefix in native_actualize_prefixes().items():
+            self.assertEqual((len(prefix.encode()), hashlib.sha256(prefix.encode()).hexdigest()),
+                             bridge.NATIVE_ACTUALIZE_PREFIXES[name])
+
+    def test_actualize_patch_retains_surrounding_source_and_helpers(self):
+        original = native_actualize_original()
+        helpers = ''.join(native_actualize_prefixes().values())
+        for pin in bridge.SOURCES:
+            source = "// prefix\n" + helpers + original + "// suffix\n"
+            self.assertEqual(bridge.patch_native_actualize(source, pin),
+                             "// prefix\n" + helpers + '#include "ncmm_graphics_actualize.inc"\n// suffix\n')
+        with self.assertRaisesRegex(ValueError, "actualize"):
+            bridge.patch_native_actualize(source, "unknown")
+
+    def test_actualize_both_pins_copy_and_receipt(self):
+        helper = Path(bridge.__file__).with_name("ncmm_graphics_actualize.inc")
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root, pin)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin): bridge.apply(root)
+                source = (root / "src/map.cpp").read_text(encoding="utf-8")
+                self.assertEqual(source.count('#include "ncmm_graphics_actualize.inc"'), 1)
+                self.assertNotIn("void map::actualize(", source)
+                self.assertEqual((root / "src" / helper.name).read_bytes(), helper.read_bytes())
+                receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))
+                self.assertEqual(receipt["source_commit"], pin)
+                self.assertEqual(receipt["inputs"][helper.name], hashlib.sha256(helper.read_bytes()).hexdigest())
+
+    def test_actualize_changed_missing_and_duplicate_primary_are_atomic(self):
+        original = native_actualize_original()
+        for pin in bridge.SOURCES:
+            for kind in ("changed", "missing", "duplicate"):
+                with self.subTest(pin=pin, kind=kind), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root, pin); path = root / "src/map.cpp"
+                    source = path.read_text(encoding="utf-8")
+                    replacement = {"changed": original.replace("grid.z() >= 0", "grid.z() > 0"),
+                                   "missing": "", "duplicate": original + original}[kind]
+                    path.write_text(source.replace(original, replacement, 1), encoding="utf-8")
+                    (root / "first-person-source.json").write_text('{"unchanged":true}\n', encoding="utf-8")
+                    before = self.fingerprint(root)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                        with self.assertRaisesRegex(ValueError, "actualize"): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
+    def test_actualize_changed_missing_and_duplicate_helper_prefixes_are_atomic(self):
+        for pin in bridge.SOURCES:
+            for name, prefix in native_actualize_prefixes().items():
+                for kind in ("changed", "missing", "duplicate"):
+                    with self.subTest(pin=pin, name=name, kind=kind), tempfile.TemporaryDirectory() as tmp:
+                        root = Path(tmp); self.fixture(root, pin); path = root / "src/map.cpp"
+                        source = path.read_text(encoding="utf-8")
+                        replacement = {"changed": prefix.replace("\n{\n", "\n{\n    native_effect();\n", 1),
+                                       "missing": "", "duplicate": prefix + prefix}[kind]
+                        path.write_text(source.replace(prefix, replacement, 1), encoding="utf-8")
+                        before = self.fingerprint(root)
+                        with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                            with self.assertRaisesRegex(ValueError, "actualize helper"): bridge.apply(root)
+                        self.assertEqual(before, self.fingerprint(root))
+
+    def test_actualize_missing_or_existing_include_is_atomic(self):
+        name = "ncmm_graphics_actualize.inc"
+        for pin in bridge.SOURCES:
+            for existing in (False, True):
+                with self.subTest(pin=pin, existing=existing), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root, pin)
+                    if existing: (root / "src" / name).write_text("existing include\n", encoding="utf-8")
+                    before = self.fingerprint(root); original_read = Path.read_text
+                    def read(path, *args, **kwargs):
+                        if not existing and path == Path(bridge.__file__).with_name(name):
+                            raise FileNotFoundError("missing actualize include")
+                        return original_read(path, *args, **kwargs)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
+                        with self.assertRaises((ValueError, FileNotFoundError)): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
     def test_map_shift_full_primary_and_source_preserving_probes(self):
         source = Path(bridge.__file__).with_name("ncmm_graphics_map_shift.inc").read_text(encoding="utf-8")
         source = source[source.index("void map::shift"):]
@@ -564,6 +668,9 @@ class ApplyTests(unittest.TestCase):
         (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n" + APPARENT_LIGHT_DECLARATIONS)
         (root / "src/lightmap.cpp").write_text('#include "map.h"\n' + apparent_light_original() + '\n' + native_vision_transparency_original() + '\n// Native continuation retained.\n')
         map_cpp='#include "map.h"\n'
+        map_cpp += native_actualize_original()
+        for prefix in native_actualize_prefixes().values():
+            map_cpp += prefix + '}\n' * (prefix.count('{') - prefix.count('}'))
         for signature in ("void map::set_transparency_cache_dirty( const int zlev )",
                           "void map::set_transparency_cache_dirty( const tripoint_bub_ms &p, bool field )",
                           "void map::set_outside_cache_dirty( const int zlev )",

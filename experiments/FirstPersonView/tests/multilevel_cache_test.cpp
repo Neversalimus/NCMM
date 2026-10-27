@@ -1172,12 +1172,14 @@ void test_native_floor_cache();
 void test_native_item_reconciliation();
 void test_native_vision_transparency();
 void test_native_outside_cache();
+int native_actualize_fixture_tests();
 
 int main(){try{
     test_native_floor_cache();
     test_native_item_reconciliation();
     test_native_vision_transparency();
     test_native_outside_cache();
+    native_actualize_fixture_tests();
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
     native_range_checks(check);
