@@ -15,9 +15,10 @@
         bottom.slab_lower=true;
         auto point=[&](float x,float y,float z){return at+vec{x,y,z};};
         const vec a=point(x0,y0,0),b=point(x1,y0,0),c=point(x1,y1,0),d=point(x0,y1,0);
+        const bool whole=x0==0&&y0==0&&x1==1&&y1==1;
+        if(whole&&(flags&NCMM_WORLD_FLOOR_TOP)&&gpu_sink&&gpu_sink->opaque_floor(i,top))return;
         if(flags&NCMM_WORLD_FLOOR_TOP)quad(a,b,c,d,top,{0,0,1},{x0,y0,x1,y1});
         const int below=neighbor(i,0,0,-1);
-        const bool whole=x0==0&&y0==0&&x1==1&&y1==1;
         const bool buried_bottom=whole&&complete_wall(below);
         if((flags&NCMM_WORLD_FLOOR_BOTTOM)&&!buried_bottom)quad(d+vec{0,0,-.08f},c+vec{0,0,-.08f},b+vec{0,0,-.08f},a+vec{0,0,-.08f},bottom,{0,0,-1});
         // Bounded slab thickness closes exposed edges without a second ceiling

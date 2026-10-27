@@ -36,6 +36,7 @@ struct mesh_builder {
 };
 class scene_cache {
     friend struct scene_signature_probe;
+    friend struct floor_template_probe;
     using key=std::tuple<int32_t,int32_t,int32_t>;
     using signature_position=std::array<int32_t,3>; // canonical z/y/x, owned values only
     struct chunk {uint64_t signature=0,touched=0;std::array<std::shared_ptr<const owned_mesh>,2> meshes;};
@@ -96,6 +97,10 @@ class scene_cache {
     // Whole opaque cell templates keep floors and authored furniture in the
     // same draw. Repeated rooms never expand/hash every source triangle again.
     std::unordered_map<uint64_t,std::weak_ptr<const owned_mesh>> prop_templates;
+    // Material content identifies a fixed six-vertex unit TOP quad. World
+    // position, visibility, light and animation remain per-cell/per-instance.
+    static constexpr size_t floor_template_limit=512;
+    std::unordered_map<uint64_t,std::weak_ptr<const owned_mesh>> floor_templates;
     std::array<std::shared_ptr<const owned_mesh>,4*3*4*16> lawns;
     std::shared_ptr<const owned_mesh> lawn_mesh(unsigned variant,unsigned lod,unsigned tint,unsigned mask=0){
         auto &mesh=lawns[((variant*3+lod)*4+tint)*16+mask];if(mesh)return mesh;
@@ -130,6 +135,7 @@ class scene_cache {
         std::vector<bool> dirty_cells;
         std::map<std::pair<int,uint32_t>,mesh_builder> builders;
         std::map<int,std::vector<hybrid::prop_placement>> placed_props;
+        std::vector<std::shared_ptr<const owned_mesh>> floor_meshes;
         // Renderer images are immutable and owned for this collect() call.
         // Hash/copy each observed atlas image once, not once per triangle.
         std::map<const hybrid::image *,std::shared_ptr<const owned_texture>> prepared_textures;
@@ -144,14 +150,15 @@ class scene_cache {
         }
         vec origin(int cell)const{if(cell<0)return {};if(levels){const auto p=xyz.origin(uint32_t(cell));return {p.x,p.y,p.z};}return {float(cell%scene.base.grid_width),float(cell/scene.base.grid_width),0};}
         key cell_key(int cell)const{if(levels){const auto &c=levels->coordinates[cell];return {c.x,c.y,c.z};}return {host.world_origin_x+cell%scene.base.grid_width,host.world_origin_y+cell/scene.base.grid_width,host.world_origin_z};}
-        ncmm_gpu_material_v1 material(const hybrid::material &m,mesh_builder &builder){ncmm_gpu_material_v1 result{};
+        ncmm_gpu_material_v1 material(const hybrid::material &m,mesh_builder *builder=nullptr){ncmm_gpu_material_v1 result{};
             result.color[0]=m.color.x;result.color[1]=m.color.y;result.color[2]=m.color.z;result.color[3]=m.alpha;result.finish=uint32_t(m.finish);result.liquid=m.liquid;result.banks=m.banks;
             result.flags=(m.cutout?NCMM_GPU_CUTOUT:0)|(m.opaque_texture?NCMM_GPU_OPAQUE_TEXTURE:0)|(m.smooth?NCMM_GPU_SMOOTH:0)|(m.creature?NCMM_GPU_CREATURE:0)|
                 (m.spill?NCMM_GPU_SPILL:0)|(m.overlay?NCMM_GPU_HELD_MATERIAL:0)|(m.creature_visual?NCMM_GPU_CREATURE_VISUAL:0)|(m.gpu_backface?NCMM_GPU_CULL_BACK:0)|(m.slab_lower?NCMM_GPU_SLAB_UNDERSIDE:0)|(m.distance_lod?NCMM_GPU_DISTANCE_LOD:0);
             if(m.texture&&m.texture->valid()){const auto &image=m.texture->data;auto &texture=prepared_textures[m.texture];
                 if(!texture)texture=cache.assets.texture(image.width,image.height,image.pitch_pixels,image.rgba);
-                if(texture){result.texture_key=texture->key;result.flags|=NCMM_GPU_TEXTURED;builder.texture(texture);}else fail("GPU scene texture invalid or cache budget exceeded");}
+                if(texture){result.texture_key=texture->key;result.flags|=NCMM_GPU_TEXTURED;if(builder)builder->texture(texture);}else fail("GPU scene texture invalid or cache budget exceeded");}
             return result;}
+        ncmm_gpu_material_v1 material(const hybrid::material &m,mesh_builder &builder){return material(m,&builder);}
     public:
         bool failed=false,warming=false;uint32_t generated_cells=0;
         void fail(const char *reason){failed=true;if(cache.last_reason.empty())cache.last_reason=reason;}
@@ -179,8 +186,51 @@ class scene_cache {
             auto &values=placed_props[cell];if(values.size()>=8){fail("GPU prop assembly budget exceeded");return true;}
             values.push_back(placed);return true;
         }
+        bool opaque_floor(int cell,const hybrid::material &value)override{
+            if(!cache.floor_templates_enabled||!world||cell<0||size_t(cell)>=scene.base.cell_count)return false;
+            const auto &c=scene.base.cells[cell];const auto &d=scene.details[cell];
+            if(d.terrain_shape!=NCMM_SHAPE_FLAT||c.flags&NCMM_GFX_NO_FLOOR||c.furniture[0]||c.item[0]||c.creature[0]||d.field[0]||d.vehicle_features)return false;
+            if(value.alpha!=1.f||!value.opaque_texture||value.cutout||value.liquid||value.spill||value.finish==hybrid::surface::water||
+               value.overlay||value.creature||value.creature_visual||value.grass||value.gpu_billboard||value.gpu_local||value.slab_lower||value.impostor)return false;
+            if(ncmm_rail::bed(c.terrain)||ncmm_rail::track(c.terrain))return false;
+            if(metadata){const auto &extra=metadata->cells[cell];if(extra.gas||extra.liquid||extra.item_liquid||extra.field_liquid)return false;}
+            // Some procedural IDs emit geometry before the vertical-shape
+            // check even with a FLAT alias. Never replace that existing mesh.
+            if(builders.count({cell,NCMM_GPU_OPAQUE})||builders.count({cell,NCMM_GPU_TRANSPARENT})||placed_props.count(cell))return false;
+            if(levels){const uint32_t flags=levels->coordinates[cell].flags;
+                constexpr uint32_t required=NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP;
+                constexpr uint32_t excluded=NCMM_WORLD_FLOOR_BOTTOM|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_UNKNOWN|
+                    NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER|NCMM_WORLD_CONNECTED_UP|NCMM_WORLD_CONNECTED_DOWN|NCMM_WORLD_RAMP_END;
+                if((flags&required)!=required||(flags&excluded))return false;
+                // Absence of an underside does not prove absence of slab
+                // rims. Four actual non-glass floor neighbours do; boundary
+                // cells and every ambiguous/missing neighbour use the slab.
+                for(unsigned side=0;side<4;++side){const int n=xyz.neighbor(uint32_t(cell),side==0?1:side==2?-1:0,side==1?1:side==3?-1:0);
+                    if(n<0||!(levels->coordinates[n].flags&NCMM_WORLD_FLOOR)||(levels->coordinates[n].flags&NCMM_WORLD_GLASS_FLOOR))return false;}
+            }else if(c.flags&NCMM_GFX_CEILING)return false;
+            const auto resolved=material(value);if(failed)return true;
+            // These resources need independent leases; ordinary floor art has
+            // only its resolved colour atlas. Keep other recipes untouched.
+            if(resolved.normal_key||resolved.depth_key||resolved.impostor_span||resolved.impostor_yaw)return false;
+            const uint64_t key=material_key(resolved);std::shared_ptr<const owned_mesh> mesh;
+            const auto found=cache.floor_templates.find(key);if(found!=cache.floor_templates.end())mesh=found->second.lock();
+            if(mesh)++cache.floor_template_reuses;
+            else{mesh_builder builder;const uint32_t slot=builder.material(resolved);
+                if(resolved.texture_key)builder.texture(prepared_textures.find(value.texture)->second);
+                constexpr std::array<vec,6> points{{{0,0,0},{1,0,0},{1,1,0},{0,0,0},{1,1,0},{0,1,0}}};
+                constexpr float uv[6][2]={{0,1},{1,1},{1,0},{0,1},{1,0},{0,0}};
+                builder.mesh.vertices.resize(6);builder.mesh.indices={0,1,2,3,4,5};
+                for(size_t i=0;i<points.size();++i){auto &v=builder.mesh.vertices[i];v.position[0]=points[i].x;v.position[1]=points[i].y;
+                    v.normal[2]=v.face_normal[2]=1;v.uv[0]=uv[i][0];v.uv[1]=uv[i][1];v.material=slot;}
+                mesh=cache.assets.mesh(std::move(builder.mesh));if(!mesh){fail("GPU opaque floor template cache budget exceeded");return true;}
+                ++cache.floor_template_builds;cache.floor_source_triangles+=2;
+                if(cache.floor_templates.size()>=floor_template_limit)cache.floor_templates.clear();cache.floor_templates[key]=mesh;
+            }
+            if(floor_meshes.empty())floor_meshes.resize(scene.base.cell_count);floor_meshes[size_t(cell)]=std::move(mesh);return true;
+        }
         void world_complete()override{
             for(int i=0;i<int(scene.base.cell_count);++i)if(dirty(i)){auto &chunk=cache.chunks[cell_key(i)];chunk={};chunk.signature=signatures[i];
+                if(!floor_meshes.empty())chunk.meshes[NCMM_GPU_OPAQUE]=std::move(floor_meshes[size_t(i)]);
                 const auto props=placed_props.find(i);
                 if(props!=placed_props.end()){
                     auto &builder=builders[{i,NCMM_GPU_OPAQUE}];uint64_t key=mesh_key(builder.mesh);
@@ -564,15 +614,18 @@ public:
     explicit scene_cache(size_t mesh_budget=resources::mesh_limit,size_t texture_budget=resources::texture_limit):assets(mesh_budget,texture_budget){}
     uint32_t generated_cells=0;uint64_t signature_reuses=0;double geometry_ms=0;
     uint32_t prop_template_builds=0,prop_template_reuses=0;uint64_t prop_source_triangles=0;
+    uint32_t floor_template_builds=0,floor_template_reuses=0;uint64_t floor_source_triangles=0;
+    bool floor_templates_enabled=true; // Internal test ablation, never a Host/user setting.
     uint64_t signature_neighbor_queries=0,signature_reused_cells=0,signature_neighborhood_marks=0;
     uint64_t signature_content_reuses=0,signature_content_hashes=0,signature_content_updates=0,signature_content_allocation_bytes=0;
     std::string last_reason;
-    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};item_meshes.clear();sight_mount.reset();lawns={};prop_templates=decltype(prop_templates){};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
+    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};item_meshes.clear();sight_mount.reset();lawns={};prop_templates=decltype(prop_templates){};floor_templates=decltype(floor_templates){};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
         signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_positions=std::vector<signature_position>{};signature_dirty_slots=std::vector<uint8_t>{};signature_reuses=0;
         clear_normalized();coordinate_index.clear();
         prop_template_builds=prop_template_reuses=0;prop_source_triangles=0;
+        floor_template_builds=floor_template_reuses=0;floor_source_triangles=0;
         signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;}
-    size_t bytes()const{return assets.bytes()+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+prop_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(prop_templates.empty()?0:prop_templates.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes()+coordinate_index.bytes();}
+    size_t bytes()const{return assets.bytes()+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+prop_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(prop_templates.empty()?0:prop_templates.bucket_count()*sizeof(void *))+floor_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(floor_templates.empty()?0:floor_templates.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes()+coordinate_index.bytes();}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
                hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr){
         last_reason.clear();
@@ -580,6 +633,7 @@ public:
         const uint64_t world=levels?levels->world_epoch:creatures?creatures->input.view.world_epoch:uint64_t(host.world_origin_z)+1,tileset=creatures?creatures->input.view.tileset_epoch:host.resource_epoch;
         if(world_epoch!=world||tileset_epoch!=tileset){clear();world_epoch=world;tileset_epoch=tileset;}
         prop_template_builds=prop_template_reuses=0;prop_source_triangles=0;
+        floor_template_builds=floor_template_reuses=0;floor_source_triangles=0;
         if(s.base.cell_count>chunks.bucket_count()*chunks.max_load_factor())chunks.reserve(s.base.cell_count);
         ++frame_serial;for(auto i=chunks.begin();i!=chunks.end();){const auto [x,y,z]=i->first;
             if((levels?(z<levels->loaded_min_z||z>levels->loaded_max_z):z!=host.world_origin_z)||x<(levels?levels->origin_x:host.world_origin_x)||y<(levels?levels->origin_y:host.world_origin_y)||int64_t(x)>=int64_t(levels?levels->origin_x:host.world_origin_x)+s.base.grid_width||int64_t(y)>=int64_t(levels?levels->origin_y:host.world_origin_y)+s.base.grid_height)i=chunks.erase(i);else ++i;}

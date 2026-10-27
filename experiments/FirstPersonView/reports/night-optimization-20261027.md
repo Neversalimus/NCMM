@@ -124,11 +124,48 @@ Do not merge or release before the user's separate finalization request.
    did not reproduce the Linux failure on MSVC. Fresh Linux CI is still required.
    Production allocation and all sanitizer settings remain unchanged.
 
+7. **Reuse empty opaque floor recipes before expansion.** GPU content dedup
+   already produced one shared mesh, but first expanded and hashed the same
+   floor separately for every cell. A bounded 512-key weak template cache now
+   shares the fixed TOP quad by the complete resolved GPU material. Individual
+   transforms, cells, light, world-space finishing and grass remain unchanged.
+   The shortcut rejects existing procedural geometry, objects, liquids, rails,
+   glass, ceilings and transitions. Multi-Z also requires TOP-only permission
+   and four actual floor neighbours proving that no slab rim is needed.
+
+   All 18 cold packet identities and 20 negative fixtures match the original
+   generator exactly: geometry, materials, resources, commands and atlas reads.
+   Paired opt-out checks, epochs, lights, negative/distant coordinates, failure
+   recovery, budgets and the 512-key limit pass. Full geometry has 324390 checks;
+   the complete local build, 50 autonomous CTests and hidden render-only RTX
+   4090 suite pass. Grass keeps 45 draws and zero warm static resource uploads.
+
+   Same 97x97 floor, nine fresh producer caches, MSVC Release:
+
+   | CPU producer fixture | Median before -> after | p95 before -> after | Ordinary allocations |
+   | --- | --- | --- | --- |
+   | Legacy flat | 18.1089 -> 6.8751 ms | 20.3940 -> 7.6142 ms | 122877 -> 9979 |
+   | Native-like TOP / 21 loaded Z | 21.1995 -> 9.5144 ms | 24.6963 -> 11.6851 ms | 125093 -> 16803 |
+
+   Allocated bytes fall from 23690857 to 9352428 and from 25404626 to 11657557,
+   respectively. A second pair in the same compiled producer, with only the
+   floor shortcut ablated, checks a mixed floor/wall/table scene over 16 updates:
+   cold median 17.6249 -> 5.5900 ms; first tile-boundary update 3.7677 ->
+   3.3831 ms, boundary median 3.8603 -> 2.8540 ms and p95 5.0214 -> 3.6516 ms.
+   All four action digests, generated-cell arrays and atlas reads match.
+   Local-mutation median/p95 and camera-turn p99 did not improve. Background
+   workload was uncontrolled. These are CPU preparation timings without Native
+   gameplay/extraction, device execution or presentation, not proof of 15 ms
+   game frames or resolved player-visible freezes. Raw pairs and conditions are
+   in `night-floor-preparation-20261027.json`.
+
 ## Working queue
 
-1. Audit temporary per-cell expansion of identical floor meshes before GPU
-   content deduplication. Reuse is useful only with a complete geometry key and
-   proof that edges, UVs, liquids, slabs/Z and source sprites are preserved.
+1. The Host still allocates a fresh `cell_v2` details vector on every callback;
+   the current line matches an allocation stack in the saved Native profile.
+   Reuse the existing bounded callback-loan mechanism while preserving complete
+   value initialization, nested callback lifetime and memory accounting. Pure
+   allocation counts can qualify storage behaviour, not Native frame time.
 2. Distant radio towers are still classified as generic BUILDING horizon
    patches and become wide boxes. Near towers already use lattice geometry.
    A separate compatible skyline representation is needed; do not silently
@@ -153,6 +190,10 @@ checks and the GPU sanitizer also pass; actual Native runs remain in progress.
 The subsequent slab-only edit passed its affected 850221-check pure suite;
 it does not change the compiled module/GPU scene. Fresh Host qualification is
 still required for that header.
+
+The subsequent floor stage passed a fresh full local build, the same 50
+autonomous CTests and the hidden render-only GPU suite. Fresh remote module,
+GPU and Native qualification is still required for the new producer bytes.
 
 CI update: GPU Windows/Linux/Clang ASan/UBSan/Vulkan run 40418690852 passes.
 Windows module checks pass. Linux module job 121909444832 in run 40418690848

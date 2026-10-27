@@ -92,7 +92,7 @@ void distance_benchmark(int rounds,const char *json_path){
             out<<"{\"policy\":\""<<(r.optimized?"optimized":"unculled_reference")<<"\",\"radius\":"<<r.radius<<",\"scene\":\""<<std::array<const char *,4>{"open","forest","vehicles","smoke"}[r.mode]<<"\",\"cached\":"<<(r.cached?"true":"false")<<",\"median_ms\":"<<r.median<<",\"p95_ms\":"<<r.p95<<",\"geometry_cells\":"<<r.cells<<",\"culled_cells\":"<<r.culled<<",\"sky_pixels\":"<<r.sky<<",\"volume_samples\":"<<r.samples<<'}';}
         out<<"]}\n";require(bool(out),"JSON write");}
 }
-void gpu_preparation_benchmark(int rounds,const char *json_path){
+void gpu_preparation_benchmark(int rounds,const char *json_path,bool floor_templates=true){
     using clock=std::chrono::steady_clock;
     constexpr int side=97;
     std::vector<ncmm_graphics_cell_v1> cells(side*side);
@@ -114,9 +114,10 @@ void gpu_preparation_benchmark(int rounds,const char *json_path){
     auto quantile=[](std::vector<double> v,double p){std::sort(v.begin(),v.end());const double at=(v.size()-1)*p;const size_t low=size_t(at);
         return v[low]+(v[std::min(low+1,v.size()-1)]-v[low])*(at-low);};
     std::ofstream out;if(json_path){out.open(json_path);require(bool(out),"GPU preparation JSON");
-        out<<"{\"schema\":1,\"scope\":\"pure GPU producer CPU preparation, no device, upload, raster or presentation; cache clear and digest excluded\",\"timing_is_player_fps\":false,\"width\":1280,\"height\":800,\"side\":97,\"rounds\":"<<rounds<<",\"records\":[";}
+        out<<"{\"schema\":1,\"scope\":\"pure GPU producer CPU preparation, no device, upload, raster or presentation; cache clear and digest excluded\",\"timing_is_player_fps\":false,\"floor_templates\":"<<(floor_templates?"true":"false")<<",\"width\":1280,\"height\":800,\"side\":97,\"rounds\":"<<rounds<<",\"records\":[";}
     for(int mode=0;mode<4;++mode){
         first_person::gpu::scene_cache cache;first_person::gpu::packet packet;frame stats;
+        cache.floor_templates_enabled=floor_templates;
         ncmm_gpu_metrics_v1 host{};host.resource_epoch=1;host.world_origin_x=200;host.world_origin_y=300;
         require(cache.build(scene,0,0,provider,packet,stats,host,{},&meta,nullptr,1280,800,NCMM_GPU_FORCE),"GPU preparation warmup");
         std::vector<double> samples;std::vector<uint32_t> rebuilt;uint64_t digest=1469598103934665603ull;
@@ -159,6 +160,7 @@ int main(int argc,char **argv){
     using clock=std::chrono::steady_clock;
     const int rounds=argc>1?std::max(1,std::atoi(argv[1])):12;
     if(argc>2&&std::string(argv[2])=="gpu-preparation"){gpu_preparation_benchmark(rounds,argc>3?argv[3]:nullptr);return 0;}
+    if(argc>2&&std::string(argv[2])=="gpu-preparation-reference-floor"){gpu_preparation_benchmark(rounds,argc>3?argv[3]:nullptr,false);return 0;}
     if(argc>2&&std::string(argv[2])=="viewmodel"){viewmodel_benchmark(rounds,argc>3?argv[3]:nullptr);return 0;}
     if(argc>2&&std::string(argv[2])=="distance"){distance_benchmark(rounds,argc>3?argv[3]:nullptr);return 0;}
     for(int mode=0;mode<5;++mode){

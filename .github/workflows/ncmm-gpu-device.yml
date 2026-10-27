@@ -140,10 +140,10 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'bb4099d9eb5802d0e173ce9d7b21d5756643ca3ef9e7927c6cf223f23244a8ba',
             'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'c170dd70d01dfd4c5b9858aedb5bc558d013a2d768b3b1cc4b044241d74448ba',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d',
-            'experiments/FirstPersonView/src/gpu_scene.hpp':'8b2d96373d429947265a6f550bf23acf16fb220959f07c5f49027fdc87fc81ba',
-            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'e27af536d529abb8619487fe0d93ac09a896e31834596f490f80ebd913574c36',
+            'experiments/FirstPersonView/src/gpu_scene.hpp':'f6dba5fac4068558ec149b4d365a0b1e01483386e454059c2933d893134999c7',
+            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'230282fcb9793604de741dfb2498d1aa4e7fd521b22366c93218ab05d7179059',
             'experiments/FirstPersonView/tests/viewmodel_gpu_test.cpp':'4297305f7cc2f99026373322b42b6bcc07ec97c01da8af706a564296608bd3ef',
-            'experiments/FirstPersonView/src/multilevel_geometry.inc':'3385140595d8b82e9274850d0fe7c1b3cee1e3dd9ceacb09ffb82944d98518c3',
+            'experiments/FirstPersonView/src/multilevel_geometry.inc':'cc5ce5897e54a51201c0db60ab579fba2c4ac78c489d44e22fd7426c7fe62f0f',
             'experiments/FirstPersonView/src/grass.inc':'d9ccc9eb4c0f0e0fb92f074cdee8bed96b27ea9a3f3f87a6c7262d8bdc16c5b8',
             'experiments/FirstPersonView/tests/gpu_scene_test.cpp':'7bea6cc1134fbc0f570d6330974f7ffd9def21fb54665b79b57889ca324f15a3',
             'experiments/graphics_bridge/ncmm_graphics_grass.hpp':'f8ac493f441696db0e0f24453d605348346c418a767ff5272e002d0f52c45899',
@@ -225,12 +225,13 @@ jobs:
             'experiments/FirstPersonView/tests/multilevel_cache_test.cpp':'aef30cbbcf3d605e0a339b79ea69a637f90352689cbc3337d4b1f08a0e4d9cba',
             'experiments/graphics_bridge/ncmm_world_cache.hpp':'1654fe269657a29f90f01608963e39f1646f4e781583de53935ac3b374187d1a',
             'experiments/graphics_bridge/ncmm_graphics_ballistic_aim.hpp':'5e62d0a60fd889f1f5e25b8b58e54c2c925b05278653cc5111d9c6e4afed860d',
-            'experiments/FirstPersonView/tests/gpu_geometry_test.cpp':'93fc54245c93aad162dcf708561e8350c11f9fcac46fac25b03055402a51755f',
+            'experiments/FirstPersonView/tests/gpu_geometry_test.cpp':'62a8921f0a46205c6059c5cbc721959d440d8d26cf49db56421a9f72bc8905dd',
             'experiments/FirstPersonView/reports/night-gpu-preparation-20261027.json':'cabaa6ae7340c273e7cab5014bc11902ce00c0547124ecf65f1dfe60e410b60b',
-            'experiments/FirstPersonView/tests/renderer_benchmark.cpp':'c6e91ff126477a877e9d6df34bf7dd61c834a8fe40efb321dad249c628d5d8a6',
+            'experiments/FirstPersonView/tests/renderer_benchmark.cpp':'76cb9a4121e0d23a070fc102c9798f1a6a72ff534b031b1f7a50c27d07870693',
             'experiments/FirstPersonView/tests/multilevel_gpu_cache_test.cpp':'b634888a686ecc7b07b527a0595c7447351e451ac540955417d8ccc96a7439f5',
             'experiments/FirstPersonView/src/architecture.inc':'5c031bb8ea4555a3686637942ef1ed8fea6143c9f86597240e0de1310e9036d0',
-            'experiments/FirstPersonView/tests/multilevel_render_test.cpp':'3ba5b47e70d8d378239117a1a11bb9820f99fd7116c1f73b6c8ad41870889aed'}
+            'experiments/FirstPersonView/tests/multilevel_render_test.cpp':'3ba5b47e70d8d378239117a1a11bb9820f99fd7116c1f73b6c8ad41870889aed',
+            'experiments/FirstPersonView/reports/night-floor-preparation-20261027.json':'5d4afcd594806e387299b8914c676a8fc652b5cc2dec3e657f48984b95450dc3'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')

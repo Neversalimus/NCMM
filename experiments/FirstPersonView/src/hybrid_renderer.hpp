@@ -229,6 +229,10 @@ struct geometry_sink {
     virtual bool arms(const viewmodel::submission &){return false;}
     virtual bool item(const held::submission &){return false;}
     virtual bool prop(const prop_placement &,int){return false;}
+    // Optional producer shortcut for an otherwise empty opaque TOP-only cell.
+    // The material has already passed all ground/rail/liquid overrides. CPU
+    // and other sinks retain the ordinary quad/slab path by returning false.
+    virtual bool opaque_floor(int,const material &){return false;}
     virtual void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,
                       vec origin,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)=0;
     virtual void impostor(const creature::asset &asset,const creature::pose_state &pose,vec origin,int cell,int lod,bool targetable)=0;
@@ -1086,7 +1090,8 @@ class renderer {
                 if(ncmm_rail::bed(c.terrain))floor=rail_bed(i);
                 const uint32_t liquid=terrain_liquid(i);
                 if(liquid){floor.texture=nullptr;floor.color=liquid_color(liquid);floor.finish=surface::water;floor.liquid=liquid;floor.banks=liquid_banks(i);}
-                quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
+                if(!gpu_sink||!gpu_sink->opaque_floor(i,floor))
+                    quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
             }
             if(!world_data&&(c.flags&NCMM_GFX_CEILING)&&(!d.vehicle_features||(d.terrain_flags&NCMM_SURFACE_TERRAIN_CEILING)))ceiling(i,x,y);
             if(world_data&&!(world_flags(i)&NCMM_WORLD_BODY_VISIBLE))continue;
