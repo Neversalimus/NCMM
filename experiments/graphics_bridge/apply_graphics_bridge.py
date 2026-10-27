@@ -68,6 +68,24 @@ def patch_native_update_map(text, identity):
     return text[:begin] + '#include "ncmm_graphics_update_map.inc"\n' + text[begin + patched_length:]
 
 
+NATIVE_FLOOR_CACHE_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (2349, "80c7cfd987d5550275fd2eabf182d2027591c99d22fa8ca58024da46c2495eb6"),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (2349, "80c7cfd987d5550275fd2eabf182d2027591c99d22fa8ca58024da46c2495eb6"),
+}
+
+
+def patch_native_floor_cache(text, identity):
+    signature = "bool map::build_floor_cache( const int zlev )\n"
+    if identity not in NATIVE_FLOOR_CACHE_ORIGINALS or text.count(signature) != 1:
+        raise ValueError("Experimental bridge Native floor-cache source differs")
+    length, digest = NATIVE_FLOOR_CACHE_ORIGINALS[identity]
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native floor-cache source differs")
+    return text[:begin] + '#include "ncmm_graphics_floor_cache.inc"\n' + text[begin + length:]
+
+
 SUBMAP_CACHE_RESET = """        // New submap changes the content of the map and all caches must be recalculated
         set_transparency_cache_dirty( z );
         set_seen_cache_dirty( z );
@@ -507,6 +525,7 @@ void initialize();''')
     game_cpp=replace(game_cpp,'#include "game.h"','#include "game.h"\n#include "ncmm_graphics_move_diagnostics.hpp"')
     if '#include "ncmm_loader.h"' not in game_cpp:
         game_cpp=replace(game_cpp,'#include "game.h"','#include "game.h"\n#include "ncmm_loader.h"')
+    map_cpp=patch_native_floor_cache(map_cpp,identity)
     map_cpp,game_cpp=patch_native_cache_resets(map_cpp,game_cpp)
     game_cpp=patch_native_update_map(game_cpp,identity)
     # Identifier-based graphics semantics can change even when Native lighting
@@ -526,7 +545,7 @@ void initialize();''')
     updates["map.cpp"]=map_cpp
     updates["game.cpp"]=game_cpp
     updates["lightmap.cpp"]=patch_native_apparent_light(read("lightmap.cpp"),identity)
-    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
+    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_floor_cache.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")

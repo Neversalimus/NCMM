@@ -47,7 +47,86 @@ def native_update_map_original():
         raise ValueError("Frozen Native update_map fixture differs")
     return frozen.split(begin, 1)[1].split(end, 1)[0]
 
+
+def native_floor_cache_original():
+    frozen = (REPO / "experiments/FirstPersonView/tests/native_floor_cache_fixture.cpp").read_text(encoding="utf-8")
+    begin, end = "// BEGIN FROZEN NATIVE FLOOR CACHE\n", "// END FROZEN NATIVE FLOOR CACHE\n"
+    if frozen.count(begin) != 1 or frozen.count(end) != 1:
+        raise ValueError("Frozen Native floor-cache fixture differs")
+    return frozen.split(begin, 1)[1].split(end, 1)[0]
+
+
 class ApplyTests(unittest.TestCase):
+    def test_floor_cache_primary_and_source_preserving_fast_path(self):
+        original = native_floor_cache_original()
+        self.assertEqual(len(original.encode("utf-8")), 2349)
+        self.assertEqual(hashlib.sha256(original.encode("utf-8")).hexdigest(),
+                         "80c7cfd987d5550275fd2eabf182d2027591c99d22fa8ca58024da46c2495eb6")
+        source = Path(bridge.__file__).with_name("ncmm_graphics_floor_cache.inc").read_text(encoding="utf-8")
+        source = source[source.index("bool map::build_floor_cache"):]
+        begin, end = "            // BEGIN UNIFORM NATIVE FLOOR CACHE\n", "            // END UNIFORM NATIVE FLOOR CACHE\n"
+        self.assertEqual(source.count(begin), 1)
+        self.assertEqual(source.count(end), 1)
+        before, rest = source.split(begin, 1)
+        self.assertEqual(before + rest.split(end, 1)[1], original)
+
+    def test_floor_cache_patch_retains_surrounding_native_source_both_pins(self):
+        original = native_floor_cache_original()
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin):
+                source = "// Native prefix.\n" + original + "// Native suffix.\n"
+                self.assertEqual(bridge.patch_native_floor_cache(source, pin),
+                                 '// Native prefix.\n#include "ncmm_graphics_floor_cache.inc"\n// Native suffix.\n')
+
+    def test_floor_cache_both_pins_source_copy_and_receipt(self):
+        helper = Path(bridge.__file__).with_name("ncmm_graphics_floor_cache.inc")
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin): bridge.apply(root)
+                source = (root / "src/map.cpp").read_text(encoding="utf-8")
+                self.assertEqual(source.count('#include "ncmm_graphics_floor_cache.inc"'), 1)
+                self.assertNotIn("bool map::build_floor_cache", source)
+                self.assertIn("void map::set_floor_cache_dirty", source)
+                self.assertIn("void map::on_field_modified", source)
+                self.assertEqual((root / "src" / helper.name).read_bytes(), helper.read_bytes())
+                receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))
+                self.assertEqual(receipt["source_commit"], pin)
+                self.assertEqual(receipt["inputs"][helper.name], hashlib.sha256(helper.read_bytes()).hexdigest())
+
+    def test_floor_cache_changed_missing_and_duplicate_primary_are_atomic(self):
+        for pin in bridge.SOURCES:
+            for kind in ("changed", "missing", "duplicate"):
+                with self.subTest(pin=pin, kind=kind), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root); path = root / "src/map.cpp"
+                    source = path.read_text(encoding="utf-8")
+                    original = native_floor_cache_original()
+                    replacement = {"changed": original.replace("return zlevels;", "return true;"),
+                                   "missing": "", "duplicate": original + original}[kind]
+                    path.write_text(source.replace(original, replacement, 1), encoding="utf-8")
+                    (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                    before = self.fingerprint(root)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                        with self.assertRaisesRegex(ValueError, "floor-cache"): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
+    def test_floor_cache_missing_or_existing_include_is_atomic(self):
+        name = "ncmm_graphics_floor_cache.inc"
+        for pin in bridge.SOURCES:
+            for existing in (False, True):
+                with self.subTest(pin=pin, existing=existing), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root)
+                    if existing: (root / "src" / name).write_text("existing floor-cache include\n", encoding="utf-8")
+                    (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                    before = self.fingerprint(root); original_read = Path.read_text
+                    def read(path, *args, **kwargs):
+                        if not existing and path == Path(bridge.__file__).with_name(name):
+                            raise FileNotFoundError("missing floor-cache include")
+                        return original_read(path, *args, **kwargs)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
+                        with self.assertRaises((ValueError, FileNotFoundError)): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
     def test_update_map_primary_and_source_preserving_markers(self):
         original = native_update_map_original()
         self.assertEqual(len(original.encode()), 3205)
@@ -129,7 +208,7 @@ class ApplyTests(unittest.TestCase):
                           "void map::set_outside_cache_dirty( const int zlev )",
                           "void map::set_floor_cache_dirty( const int zlev )"):
             map_cpp+=signature+"\n{\n}\n"
-        (root / "src/map.cpp").write_text(map_cpp+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
+        (root / "src/map.cpp").write_text(map_cpp+native_floor_cache_original()+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );\n        if( next_action.type == input_event_t::timeout ) {\n        }\n    inp_mngr.set_timeout( old_timeout );\n    return *result;\n}\n')
         (root / "src/input.cpp").write_text('#include "input.h"\nvoid input_manager::wait_for_any_key()\n{\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n    if( needupdate ) {\n        try_sdl_update();\n    }\n}\n')

@@ -307,11 +307,79 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     Full Release, 50 inventoried autonomous CTests (16.14 s), 46 atomic bridge
     tests and 263 Python verifier tests pass. Evidence prefixes
     `night-submap-profile-*`. Injected test clocks are not performance data;
-    actual Native inner timings and compilation still require the remote run.
+    actual Native inner timings and compilation required the remote run;
+    the resulting exact-`7f0ea25` receipts are recorded below.
     Recorded timings include diagnostic probe overhead. No gameplay call,
     renderer, visibility rule or game-input harness was changed by this stage.
 
+22. **Resolve uniform Native floor predicates once.** Exact primary
+    `map::build_floor_cache` at both pins is 2349 bytes, SHA256
+    `80c7cfd987d5550275fd2eabf182d2027591c99d22fa8ca58024da46c2495eb6`.
+    After its original two submap lookups and null/debug guards, fully uniform
+    current/lower blocks resolve the same terrain-hole OR and actual shared
+    `f_null` canopy once. All mixed blocks retain the entire old loop. Invalid
+    integer IDs and absent null-string registration also fall back, preserving
+    every original diagnostic. Uncovered gaps fill exactly twelve Y-ranges,
+    respecting the full cache stride; dirty/no-floor-gaps/return stay exact.
+    No cache, visibility, actualization or gameplay call is skipped.
+
+    An unchanged extraction first passed 452 independent primary-oracle cases
+    and then failed only the uniform read-count assertion. After: 453 cases /
+    8829965 checks pass, including every full-grid bit, ordered nonuniform
+    reads, diagnostics, modded null canopy, missing submaps, lowest Z, no-Z
+    aliasing and bounds guards. In the all-uniform 11x11 case, terrain and
+    furniture getters each decrease 17424 -> 121. Removing only the fast block
+    restores the full primary body. Both exact-pin adaptations are guarded
+    atomically, copied and included in source receipts.
+
+    Full Release, the same 50 inventoried autonomous CTests (14.73 s), 51 atomic
+    bridge tests and 263 Python tests pass. Evidence `night-floor-*`.
+    Independent read-only source review found no residual defect. Native
+    compilation/runtime qualification of these new bytes is pending. The
+    component call reduction is not a measured Native/frame-time improvement;
+    the observed 17-32 ms cache cost below covers all of `build_map_cache`.
+
 ## Actual remote evidence and next priorities
+
+**Submap attribution at exact `7f0ea25`, run 40481073067.** Both Windows
+movement programs exit0 with successful provenance, no wrapper/debugger error
+or dump. Runtime merge `d55d606928b7d99b49742f70e17ffebc3e84400d` and PR head
+have identical tree `0150cff20dde6bd06426e69aab92b2769f7318e9`; both engine
+pins match. Only four program JSON members per artifact were read, with 338681
+bytes reserved against an 8 MiB cap, including metadata reservation. Private
+receipts: `night-movement-7f0ea25/{12724516435,12724581265}/`.
+
+All 24 records / 288 steps have strict complete inner receipts: exactly one
+`update_map` invocation per accepted action, exact rebases and cross-action
+coordinates, no nesting/reuse/drop/exception/protocol error, and all adjacent
+outer durations conserved (maximum recorded residual0). Inner durations are
+contained in the measured move, not added to it. Historical `1a951e1` is
+correctly rejected as lacking these inner receipts.
+
+640x480 GPU mode, VSync1, **software D3D12 Microsoft Basic Render Driver**:
+independent medians in milliseconds (they need not sum):
+
+| Pin / scene | No shift action | Crossing action | Inside update_map | map::shift | build_map_cache |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1040 street | .397 | 40.572 | 40.209 | 21.958 | 17.137 |
+| 1040 horde | .410 | 50.488 | 50.098 | 22.654 | 25.619 |
+| 1040 city | .404 | 55.360 | 54.938 | 23.667 | 29.107 |
+| 1807 street | .399 | 50.976 | 50.576 | 21.876 | 27.629 |
+| 1807 horde | .380 | 50.652 | 50.263 | 22.184 | 27.258 |
+| 1807 city | .378 | 60.947 | 60.557 | 23.440 | 32.493 |
+
+Rebase/NPC medians are .18-.21 ms; invalidation .003-.006 ms; spawn .67-.83 ms;
+overmap .12-.15 ms; action time outside update_map .36-.42 ms. City cache
+tails remain large: 1040 p95/max89.424/90.138 ms, 1807 p95/max98.158/117.101.
+1807 city spawn has a 36.282 ms maximum despite its .822 ms median. This
+selects submap shift and cache construction for further investigation. It
+does not justify skipping actualization, item/craft reconciliation, spawn or
+discovery. It is diagnostic CI evidence, not ordinary RTX4090 play, paired
+before/after improvement or a measured floor-cache duration.
+
+Independent strict summary SHA256: 1040
+`5277cbe869ab4a47cd810d0cb15fe2555e8845a29788ea8746da139cdbf76317`;
+1807 `ff95351752ed01be215de9d97592142d2544a438a2309d512de5b80d2a4b7453`.
 
 **Stair evidence at exact `2ce404d`, run 40441923163.** Packaged runtime merge
 `0fa01998b3a7f037306f058902d7f4ab203c6d89` and PR head have identical tree
@@ -456,8 +524,21 @@ inputs at exact `1a951e1` with the bridge's universal-newline handling; patched
 Native bodies were not independently reconstructed by that comparison.
 Stage20 fixes the demonstrated observer contradiction and adds precise failure
 forwarding; its connection to those exits remains a hypothesis until rerun.
-No full Native pass is claimed. Local stages18-21 require their own exact-source
-Host qualification after publishing.
+No full Native pass is claimed for that older run.
+
+At exact `7f0ea25`, [main run40481073067](https://github.com/Neversalimus/NCMM/actions/runs/40481073067)
+compiles all four pinned Hosts. Both module jobs and Windows early
+actions/stairs/movement gates pass. **Actual Linux Native1040 job122111496632
+passes in full**: controls, camera, FPS, held, target and gameplay each exit0
+without timeout, including the previously failing multilevel control. CI
+diagnostics were read only through Code Review; the log view is truncated,
+so the complete job conclusion and six reported process results establish
+this bounded claim. Linux1807 and the longer Windows qualification were still
+running at this checkpoint. No full main-run pass is claimed. The independent
+[GPU Windows/Linux/Vulkan/sanitizers](https://github.com/Neversalimus/NCMM/actions/runs/40481073086),
+[source/package](https://github.com/Neversalimus/NCMM/actions/runs/40481073024)
+and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40481072968) pass.
+Subsequent stage22 Host bytes require their own remote qualification.
 
 The freshly rebuilt hidden render-only RTX 4090 controls retain
 45 grass draws, zero CPU world raster, zero warm static uploads and 21108 open

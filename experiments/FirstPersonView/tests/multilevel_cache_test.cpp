@@ -1168,7 +1168,10 @@ template<class Check> void candidate_range_checks(Check check){
              <<", statically unconsumed="<<skippable<<", total lightcache misses "<<before_misses<<" -> "<<after_misses<<" (injected Native policies, not timing)\n";
 }
 
+void test_native_floor_cache();
+
 int main(){try{
+    test_native_floor_cache();
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
     native_range_checks(check);
