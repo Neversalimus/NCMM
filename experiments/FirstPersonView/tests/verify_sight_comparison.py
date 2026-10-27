@@ -23,7 +23,7 @@ def verify(report, scene):
     require(scene in SCENES, 'Unknown sight comparison scene')
     require(type(report) is dict, 'Missing sight comparison object')
     for key in ('success', 'actual_cdda_sdl', 'same_process', 'origin_preserved',
-                'moves_preserved', 'calendar_preserved'):
+                'moves_preserved', 'calendar_preserved', 'metric_preserved'):
         require(report.get(key) is True, 'Missing exact true receipt: '+key)
     for key in ('manual_playthrough', 'gpu_execution_measured', 'first_correct_present_measured'):
         require(report.get(key) is False, 'Incorrect qualification scope: '+key)
@@ -31,9 +31,9 @@ def verify(report, scene):
                            timing='steady_clock_wall_batch_ms',
                            world_state='warmed_native_caches_no_simulation_turns',
                            reference='original_sight_formula_generic_forwarding',
-                           candidate='exact_square_row_distance_original_exponent').items():
+                           candidate='exact_standard_integer_distance_original_exponent').items():
         require(report.get(key) == value, 'Incorrect comparison identity: '+key)
-    for key, value in dict(schema=2, width=132, height=132, layers=21, max_view_distance=60,
+    for key, value in dict(schema=3, width=132, height=132, layers=21, max_view_distance=60,
                            offset_distance=0, repetitions=8,
                            protected_native_bytes=132*132*21*13).items():
         require(type(report.get(key)) is int and report[key] == value,
@@ -46,6 +46,10 @@ def verify(report, scene):
     require(0 <= origin[0] < 132 and 0 <= origin[1] < 132 and -10 <= origin[2] <= 10,
             'Native origin outside protected grids')
     require(report.get('direction') in ('up', 'both'), 'Changed Native cast directions')
+    metric=report.get('distance_metric')
+    require(metric in ('square','circular'), 'Missing Native distance metric')
+    require(report.get('candidate_shortcut') == {'square':'square_row','circular':'circular_table'}[metric],
+            'Incorrect Native distance shortcut identity')
     before_identity = report.get('native_before')
     require(digest(before_identity), 'Invalid Native cache identity')
     samples = report.get('samples')
@@ -55,7 +59,7 @@ def verify(report, scene):
         require(type(sample) is dict and type(sample.get('sample')) is int and sample['sample'] == index,
                 'Missing, duplicate or reordered pair')
         require(sample.get('reference_first') is (index % 2 == 0), 'Nonalternating measurement order')
-        for key in ('output_bits_equal', 'protected_native_bytes_equal'):
+        for key in ('output_bits_equal', 'protected_native_bytes_equal', 'metric_preserved'):
             require(sample.get(key) is True, 'Failed exact comparison: '+key)
         require(type(sample.get('output_floats_compared')) is int and
                 sample['output_floats_compared'] == 132*132*21, 'Incomplete XYZ output comparison')
@@ -70,7 +74,8 @@ def verify(report, scene):
         ratio = cached[-1] / reference[-1]
         require(math.isfinite(ratio), 'Nonfinite comparison ratio')
         ratios.append(ratio)
-    return dict(scene=scene, pairs=9, repetitions=8, first_reference_ms=reference[0],
+    return dict(scene=scene, distance_metric=metric, candidate_shortcut=report['candidate_shortcut'],
+                pairs=9, repetitions=8, first_reference_ms=reference[0],
                 first_candidate_ms=cached[0], reference_median_ms=statistics.median(reference),
                 candidate_median_ms=statistics.median(cached),
                 paired_ratio_median=statistics.median(ratios),

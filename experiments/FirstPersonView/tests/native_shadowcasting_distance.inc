@@ -156,7 +156,7 @@ static void split_span( cata::list<span<T>> &spans,
     current_transparency = new_transparency;
 }
 
-template<bool NCMM_SQUARE, int xx_transform, int xy_transform, int yx_transform, int yy_transform, int z_transform, typename T,
+template<int NCMM_DISTANCE_MODE, int xx_transform, int xy_transform, int yx_transform, int yy_transform, int z_transform, typename T,
          T( *calc )( const T &, const T &, const int & ),
          bool( *is_transparent )( const T &, const T & ),
          T( *accumulate )( const T &, const T &, const int & )>
@@ -297,7 +297,9 @@ static void cast_horizontal_zlight_segment(
                         current_transparency = new_transparency;
                     }
 
-                    const int dist = ( NCMM_SQUARE ? ncmm_test_row_distance( distance ) : rl_dist( tripoint_rel_ms::zero, delta ) ) + offset_distance;
+                    const int dist = ( NCMM_DISTANCE_MODE == 1 ? ncmm_test_row_distance( distance ) :
+                      ( NCMM_DISTANCE_MODE == 2 ? ncmm_test_circle_distance( delta ) :
+                        rl_dist( tripoint_rel_ms::zero, delta ) ) ) + offset_distance;
                     last_intensity = calc( numerator, this_span->cumulative_value, dist );
 
                     if( !floor_block ) {
@@ -353,7 +355,7 @@ static void cast_horizontal_zlight_segment(
     }
 }
 
-template<bool NCMM_SQUARE, int x_transform, int y_transform, int z_transform, typename T,
+template<int NCMM_DISTANCE_MODE, int x_transform, int y_transform, int z_transform, typename T,
          T( *calc )( const T &, const T &, const int & ),
          bool( *is_transparent )( const T &, const T & ),
          T( *accumulate )( const T &, const T &, const int & )>
@@ -469,7 +471,9 @@ static void cast_vertical_zlight_segment(
                         current_transparency = new_transparency;
                     }
 
-                    const int dist = ( NCMM_SQUARE ? ncmm_test_row_distance( distance ) : rl_dist( tripoint_rel_ms::zero, delta ) ) + offset_distance;
+                    const int dist = ( NCMM_DISTANCE_MODE == 1 ? ncmm_test_row_distance( distance ) :
+                      ( NCMM_DISTANCE_MODE == 2 ? ncmm_test_circle_distance( delta ) :
+                        rl_dist( tripoint_rel_ms::zero, delta ) ) ) + offset_distance;
                     last_intensity = calc( numerator, this_span->cumulative_value, dist );
 
                     if( !floor_block ) {
@@ -525,7 +529,7 @@ static void cast_vertical_zlight_segment(
     }
 }
 
-template<bool NCMM_SQUARE, typename T, T( *calc )( const T &, const T &, const int & ),
+template<int NCMM_DISTANCE_MODE, typename T, T( *calc )( const T &, const T &, const int & ),
          bool( *is_transparent )( const T &, const T & ),
          T( *accumulate )( const T &, const T &, const int & )>
 void ncmm_cast_zlight_implementation(
@@ -540,60 +544,60 @@ void ncmm_cast_zlight_implementation(
         // @..
         //  ..
         //   .
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 0, 1, 1, 0, -1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 0, 1, 1, 0, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // @
         // ..
         // ...
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 1, 0, 0, 1, -1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 1, 0, 0, 1, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         //   .
         //  ..
         // @..
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 0, -1, 1, 0, -1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 0, -1, 1, 0, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // ...
         // ..
         // @
-        cast_horizontal_zlight_segment < NCMM_SQUARE, -1, 0, 0, 1, -1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, -1, 0, 0, 1, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // ..@
         // ..
         // .
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 0, 1, -1, 0, -1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 0, 1, -1, 0, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         //   @
         //  ..
         // ...
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 1, 0, 0, -1, -1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 1, 0, 0, -1, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // .
         // ..
         // ..@
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 0, -1, -1, 0, -1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 0, -1, -1, 0, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // ...
         //  ..
         //   @
-        cast_horizontal_zlight_segment < NCMM_SQUARE, -1, 0, 0, -1, -1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, -1, 0, 0, -1, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
 
         // Straight down
         // @.
         // ..
-        cast_vertical_zlight_segment < NCMM_SQUARE, 1, 1, -1, T, calc, is_transparent, accumulate > (
+        cast_vertical_zlight_segment < NCMM_DISTANCE_MODE, 1, 1, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // ..
         // @.
-        cast_vertical_zlight_segment < NCMM_SQUARE, 1, -1, -1, T, calc, is_transparent, accumulate > (
+        cast_vertical_zlight_segment < NCMM_DISTANCE_MODE, 1, -1, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // .@
         // ..
-        cast_vertical_zlight_segment < NCMM_SQUARE, -1, 1, -1, T, calc, is_transparent, accumulate > (
+        cast_vertical_zlight_segment < NCMM_DISTANCE_MODE, -1, 1, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // ..
         // .@
-        cast_vertical_zlight_segment < NCMM_SQUARE, -1, -1, -1, T, calc, is_transparent, accumulate > (
+        cast_vertical_zlight_segment < NCMM_DISTANCE_MODE, -1, -1, -1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
     }
 
@@ -602,60 +606,60 @@ void ncmm_cast_zlight_implementation(
         // @..
         //  ..
         //   .
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 0, 1, 1, 0, 1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 0, 1, 1, 0, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // @
         // ..
         // ...
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 1, 0, 0, 1, 1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 1, 0, 0, 1, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // ..@
         // ..
         // .
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 0, -1, 1, 0, 1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 0, -1, 1, 0, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         //   @
         //  ..
         // ...
-        cast_horizontal_zlight_segment < NCMM_SQUARE, -1, 0, 0, 1, 1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, -1, 0, 0, 1, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         //   .
         //  ..
         // @..
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 0, 1, -1, 0, 1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 0, 1, -1, 0, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // ...
         // ..
         // @
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 1, 0, 0, -1, 1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 1, 0, 0, -1, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // .
         // ..
         // ..@
-        cast_horizontal_zlight_segment < NCMM_SQUARE, 0, -1, -1, 0, 1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, 0, -1, -1, 0, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // ...
         //  ..
         //   @
-        cast_horizontal_zlight_segment < NCMM_SQUARE, -1, 0, 0, -1, 1, T, calc, is_transparent, accumulate > (
+        cast_horizontal_zlight_segment < NCMM_DISTANCE_MODE, -1, 0, 0, -1, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
 
         // Straight up
         // @.
         // ..
-        cast_vertical_zlight_segment < NCMM_SQUARE, 1, 1, 1, T, calc, is_transparent, accumulate > (
+        cast_vertical_zlight_segment < NCMM_DISTANCE_MODE, 1, 1, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // ..
         // @.
-        cast_vertical_zlight_segment < NCMM_SQUARE, 1, -1, 1, T, calc, is_transparent, accumulate > (
+        cast_vertical_zlight_segment < NCMM_DISTANCE_MODE, 1, -1, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // .@
         // ..
-        cast_vertical_zlight_segment < NCMM_SQUARE, -1, 1, 1, T, calc, is_transparent, accumulate > (
+        cast_vertical_zlight_segment < NCMM_DISTANCE_MODE, -1, 1, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
         // ..
         // .@
-        cast_vertical_zlight_segment < NCMM_SQUARE, -1, -1, 1, T, calc, is_transparent, accumulate > (
+        cast_vertical_zlight_segment < NCMM_DISTANCE_MODE, -1, -1, 1, T, calc, is_transparent, accumulate > (
             output_caches, input_arrays, floor_caches, origin, offset_distance, numerator );
     }
 }

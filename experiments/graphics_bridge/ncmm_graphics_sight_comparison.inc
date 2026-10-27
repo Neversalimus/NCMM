@@ -11,6 +11,7 @@
     const auto profile_origin = you.pos_bub();
     const int profile_moves = you.get_moves();
     const auto profile_time = calendar::turn;
+    const bool profile_circular_distance = trigdist;
     const auto direction = here.get_cache_ref( profile_origin.z() ).no_floor_gaps ?
                            vertical_direction::UP : vertical_direction::BOTH;
     std::array<std::unique_ptr<sight_grid>, OVERMAP_LAYERS> original, cached;
@@ -72,7 +73,7 @@
     std::ofstream sight_stream( path );
     JsonOut sight_report( sight_stream );
     sight_report.start_object();
-    sight_report.member( "schema", 2 );
+    sight_report.member( "schema", 3 );
     sight_report.member( "scene", scene );
     sight_report.member( "actual_cdda_sdl", true );
     sight_report.member( "manual_playthrough", false );
@@ -83,7 +84,9 @@
     sight_report.member( "gpu_execution_measured", false );
     sight_report.member( "first_correct_present_measured", false );
     sight_report.member( "reference", "original_sight_formula_generic_forwarding" );
-    sight_report.member( "candidate", "exact_square_row_distance_original_exponent" );
+    sight_report.member( "candidate", "exact_standard_integer_distance_original_exponent" );
+    sight_report.member( "distance_metric", profile_circular_distance ? "circular" : "square" );
+    sight_report.member( "candidate_shortcut", profile_circular_distance ? "circular_table" : "square_row" );
     sight_report.member( "width", MAPSIZE_X );
     sight_report.member( "height", MAPSIZE_Y );
     sight_report.member( "layers", OVERMAP_LAYERS );
@@ -114,7 +117,8 @@
         for( size_t z = 0; z < OVERMAP_LAYERS; ++z )
             same_bits &= std::memcmp( original[z].get(), cached[z].get(), sizeof( sight_grid ) ) == 0;
         const auto identity = native_identity( false );
-        comparison_ok &= same_bits && identity.first && identity.second == initial_identity.second;
+        const bool metric_preserved = trigdist == profile_circular_distance;
+        comparison_ok &= same_bits && identity.first && identity.second == initial_identity.second && metric_preserved;
         sight_report.start_object();
         sight_report.member( "sample", sample );
         sight_report.member( "reference_first", reference_first );
@@ -125,6 +129,7 @@
         sight_report.member( "reference_digest", output_identity( original_output ) );
         sight_report.member( "candidate_digest", output_identity( cached_output ) );
         sight_report.member( "protected_native_bytes_equal", identity.first );
+        sight_report.member( "metric_preserved", metric_preserved );
         sight_report.member( "native_after", identity.second );
         sight_report.end_object();
         if( !comparison_ok ) break;
@@ -132,11 +137,13 @@
     const bool origin_preserved = you.pos_bub() == profile_origin;
     const bool moves_preserved = you.get_moves() == profile_moves;
     const bool calendar_preserved = calendar::turn == profile_time;
-    comparison_ok &= origin_preserved && moves_preserved && calendar_preserved;
+    const bool metric_preserved = trigdist == profile_circular_distance;
+    comparison_ok &= origin_preserved && moves_preserved && calendar_preserved && metric_preserved;
     sight_report.end_array();
     sight_report.member( "origin_preserved", origin_preserved );
     sight_report.member( "moves_preserved", moves_preserved );
     sight_report.member( "calendar_preserved", calendar_preserved );
+    sight_report.member( "metric_preserved", metric_preserved );
     sight_report.member( "success", comparison_ok );
     sight_report.end_object();
     sight_stream.flush();

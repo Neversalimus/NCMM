@@ -7,19 +7,20 @@ from verify_sight_comparison import SCENES, verify, verify_directory
 
 
 def valid(scene='street'):
-    report = dict(schema=2, success=True, scene=scene, actual_cdda_sdl=True,
+    report = dict(schema=3, success=True, scene=scene, actual_cdda_sdl=True,
                   manual_playthrough=False, same_process=True, origin_preserved=True,
-                  moves_preserved=True, calendar_preserved=True, gpu_execution_measured=False,
+                  moves_preserved=True, calendar_preserved=True, metric_preserved=True,
+                  distance_metric='square', candidate_shortcut='square_row', gpu_execution_measured=False,
                   first_correct_present_measured=False, scope='native_3d_caster_only',
                   timing='steady_clock_wall_batch_ms',
                   world_state='warmed_native_caches_no_simulation_turns',
                   reference='original_sight_formula_generic_forwarding',
-                  candidate='exact_square_row_distance_original_exponent', width=132, height=132,
+                  candidate='exact_standard_integer_distance_original_exponent', width=132, height=132,
                   layers=21, max_view_distance=60, offset_distance=0, repetitions=8,
                   protected_native_bytes=132*132*21*13, numerator=1.0,
                   origin=[60,60,0], direction='up', native_before='1456712345671234567')
     report['samples'] = [dict(sample=i, reference_first=i % 2 == 0,
-        output_bits_equal=True, protected_native_bytes_equal=True,
+        output_bits_equal=True, protected_native_bytes_equal=True, metric_preserved=True,
         output_floats_compared=132*132*21, reference_digest='123456789', candidate_digest='123456789',
         native_after=report['native_before'], reference_wall_ms=32.0, candidate_wall_ms=36.0)
         for i in range(9)]
@@ -29,6 +30,19 @@ def valid(scene='street'):
 class SightComparisonTests(unittest.TestCase):
     def test_previous_exponent_cache_report_cannot_qualify_distance_candidate(self):
         report=valid(); report.update(schema=1,candidate='retained_exact_one_entry_cache')
+        with self.assertRaises(ValueError): verify(report,'street')
+
+    def test_previous_square_only_report_cannot_qualify_standard_candidate(self):
+        report=valid(); report.update(schema=2,candidate='exact_square_row_distance_original_exponent')
+        with self.assertRaises(ValueError): verify(report,'street')
+
+    def test_metric_and_each_pair_preservation_are_required(self):
+        report=valid(); report.update(distance_metric='circular',candidate_shortcut='circular_table')
+        self.assertEqual(verify(report,'street')['pairs'],9)
+        for key,value in (('distance_metric','unknown'),('candidate_shortcut','square_row'),('metric_preserved',False)):
+            changed=copy.deepcopy(report); changed[key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError): verify(changed,'street')
+        report['samples'][3]['metric_preserved']=False
         with self.assertRaises(ValueError): verify(report,'street')
 
     def test_regression_remains_a_valid_measurement_without_speed_gate(self):

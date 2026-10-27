@@ -1,6 +1,7 @@
 #pragma once
 #if !defined(NCMM_SHADOWCAST_MODEL)
 #include "shadowcasting.h"
+#include "line.h"
 #endif
 #include <chrono>
 #include <cstdint>

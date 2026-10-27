@@ -157,15 +157,18 @@ class ApplyTests(unittest.TestCase):
             actual = bridge.patch_native_shadowcasting(cpp, header, pin)
             self.assertNotIn('ncmm_calc', actual)
             restored = actual.replace('#include <type_traits>\n', '', 1)
+            restored = restored.replace('#include "ncmm_graphics_sight_distance.hpp"\n', '', 1)
             self.assertTrue(restored.endswith('\n#include "ncmm_graphics_sight_reference.inc"\n'))
             restored = restored.removesuffix('\n#include "ncmm_graphics_sight_reference.inc"\n')
-            self.assertEqual(restored.count('template<bool NCMM_SQUARE, int '), 2)
-            restored = restored.replace('template<bool NCMM_SQUARE, int ', 'template<int ')
-            restored = restored.replace('template<bool NCMM_SQUARE, typename T,', 'template<typename T,', 1)
+            self.assertEqual(restored.count('template<int NCMM_DISTANCE_MODE, int '), 2)
+            restored = restored.replace('template<int NCMM_DISTANCE_MODE, int ', 'template<int ')
+            restored = restored.replace('template<int NCMM_DISTANCE_MODE, typename T,', 'template<typename T,', 1)
             restored = restored.replace('void ncmm_cast_zlight_implementation(\n', 'void cast_zlight(\n', 1)
-            self.assertEqual(restored.count('< NCMM_SQUARE, '), 24)
-            restored = restored.replace('< NCMM_SQUARE, ', '< ')
-            distance='( NCMM_SQUARE ? distance : rl_dist( tripoint_rel_ms::zero, delta ) )'
+            self.assertEqual(restored.count('< NCMM_DISTANCE_MODE, '), 24)
+            restored = restored.replace('< NCMM_DISTANCE_MODE, ', '< ')
+            distance=('( NCMM_DISTANCE_MODE == 1 ? distance :\n'
+                '                      ( NCMM_DISTANCE_MODE == 2 ? ncmm_graphics_shadowcasting::bounded_circular_distance( delta.x(), delta.y(), delta.z() ) :\n'
+                '                        rl_dist( tripoint_rel_ms::zero, delta ) ) )')
             self.assertEqual(restored.count(distance), 2)
             restored = restored.replace(distance, 'rl_dist( tripoint_rel_ms::zero, delta )')
             restored = restored.replace('#include "ncmm_graphics_sight_dispatch.inc"\n\n', '', 1)
@@ -182,9 +185,12 @@ class ApplyTests(unittest.TestCase):
             actual=bridge.patch_native_shadowcasting(cpp,header,pin)
             actual=actual[actual.index('// historically 8 bits is enough'):]
             actual=actual.removesuffix('\n#include "ncmm_graphics_sight_reference.inc"\n')
-            self.assertEqual(actual.count('( NCMM_SQUARE ? distance : rl_dist('),2)
-            actual=actual.replace('( NCMM_SQUARE ? distance : rl_dist(',
-                '( NCMM_SQUARE ? ncmm_test_row_distance( distance ) : rl_dist(')
+            self.assertEqual(actual.count('NCMM_DISTANCE_MODE == 1 ? distance'),2)
+            actual=actual.replace('NCMM_DISTANCE_MODE == 1 ? distance',
+                'NCMM_DISTANCE_MODE == 1 ? ncmm_test_row_distance( distance )')
+            circle='ncmm_graphics_shadowcasting::bounded_circular_distance( delta.x(), delta.y(), delta.z() )'
+            self.assertEqual(actual.count(circle),2)
+            actual=actual.replace(circle,'ncmm_test_circle_distance( delta )')
             self.assertEqual(actual,frozen)
         numerical=(directory/'native_distance_primary.inc').read_text(encoding='utf-8')
         numerical=numerical[numerical.index('inline float trig_dist'):]
@@ -209,7 +215,7 @@ class ApplyTests(unittest.TestCase):
                 with patch.object(bridge.subprocess,'check_output',return_value=pin): bridge.apply(root)
                 self.assertEqual((root/'src/shadowcasting.h').read_bytes(),header)
                 receipt=json.loads((root/'first-person-source.json').read_text(encoding='utf-8'))
-                for name in ('ncmm_graphics_sight_dispatch.inc','ncmm_graphics_sight_reference.hpp',
+                for name in ('ncmm_graphics_sight_dispatch.inc','ncmm_graphics_sight_distance.hpp','ncmm_graphics_sight_reference.hpp',
                              'ncmm_graphics_sight_reference.inc','ncmm_graphics_sight_comparison.inc'):
                     data=Path(bridge.__file__).with_name(name).read_bytes()
                     self.assertEqual((root/'src'/name).read_bytes(),data)
@@ -230,7 +236,7 @@ class ApplyTests(unittest.TestCase):
                         self.assertEqual(before,self.fingerprint(root))
 
     def test_sight_comparison_missing_or_existing_helpers_are_atomic(self):
-        for name in ('ncmm_graphics_sight_reference.hpp','ncmm_graphics_sight_reference.inc',
+        for name in ('ncmm_graphics_sight_distance.hpp','ncmm_graphics_sight_reference.hpp','ncmm_graphics_sight_reference.inc',
                      'ncmm_graphics_sight_comparison.inc'):
             for pin in bridge.SOURCES:
                 for existing in (False,True):

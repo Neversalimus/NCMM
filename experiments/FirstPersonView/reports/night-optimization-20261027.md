@@ -1099,6 +1099,70 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     not record which distance metric was active; add explicit metric identity
     and preservation before attributing any shortcut's measured effect.
 
+46. **Prepare exact circular distance for the standard sight path.** Extend
+    stage43's compile-time dispatch with an immutable10801-byte table, restricted
+    to the exact standard callback triple and nonnegative bounded offsets.
+    Exhaustive Native numerical comparison covers all226981 supported XYZ
+    deltas, including double-to-float-to-int rounding. No first-use allocation,
+    initialization or Native pointer is retained. Unknown callbacks and circular
+    offsets outside the table domain keep original live Native distance calls.
+    The public signature, traversal, exponent formula and output remain intact.
+
+    The actual emitted-body model passes525 pairs/693961 checks. Standard
+    helper calls10702148 ->0, split5351074 exact rows/5351074 table results;
+    exponent requests remain10702148. Twenty-four negative-offset cases and
+    live-metric generic callbacks protect fallback. Seven separately compiled
+    bad variants (old five, wrong table and missing offset guard) all fail.
+    Control summary6773d4271003c4302892aac752897f4c77826fc34c1b013eac5b88b2725cad1b.
+    This is exact-value source-model evidence, not Native performance.
+
+    Schema3 records the actual distance metric, selected standard shortcut and
+    metric preservation at each pair boundary. Fourteen receipt tests reject
+    old square-only/exponent-cache reports and inconsistent metric identity.
+    The collector never writes the metric. An owned model tests both metrics
+    across six scene contracts plus changed output, Native bytes, failed IO and
+    persistent metric mutation. The first mutation control toggled eight times,
+    restoring its state at the observed pair boundary; that failed-control
+    output is retained. Its corrected persistent-change control is rejected
+    even with identical outputs/Native bytes. Model actual_cdda_sdl=false is
+    still rejected by the Native gate. Collector summary
+    f52228ba65578046d75ef552672e3be6270988d9b5655669ab6040af569efa1f.
+
+    Full Release,302 Python tests(19.154s),the new math CTest(3.16s),PowerShell
+    syntax and96 atomic tests pass. The first atomic attempt has61 temporary-
+    write ENOSPC errors; the physical C: volume subsequently reports67GiB free.
+    Repeating with temporary files on the existing G: build drive passes all96
+    tests in36.370s; final include-order validation repeats all96 in36.478s.
+    No user files or measured evidence are deleted. Hardware
+    rendering is unchanged and its previous hidden render-only checks are not
+    rerun. Actual Native compilation and schema3 timing remain pending.
+
+47. **Stage43 actual Native timings do not establish a useful gain.** Both
+    exact7dd6365 short Windows programs exit0 without wrapper/debugger error or
+    dump. Seven selected JSON members per artifact12776488290/12777387677 use
+    367196/8388608 reserved bytes. The measured7dd verifier is loaded from its
+    Git object and independently matched to that revision's frozen source hash,
+    not the now-changed working verifier. All54 pairs retain exact output and
+    protected Native bytes; accompanying matrices validate288 actions/144 cache
+    children. Summaryda8526b3334b4e5c84f87be0bbe85c8e7985a6348a94f720bbe1e62a5e1bbd55.
+
+    Candidate/original medians(ms),1040 street/horde/city:
+    5.734/5.691,6.490/6.476,8.220/8.235;1807:
+    5.731/5.780,6.403/6.450,8.164/8.259. Paired ratios respectively
+    1.0057/1.0030/1.0029 and.9914/.9943/.9854. First city1040 worsens
+    14.668 ->24.320ms. These near-unity warmed-caster results neither establish
+    a material benefit nor meet the first-frame goal. Schema2 lacks the active
+    metric; shortcut selection and component attribution cannot be inferred.
+    Stage46 addresses that diagnostic gap and adds the circular candidate.
+    Independent software action times remain mixed and are not a causal frame
+    comparison. Keep the full eae and7dd runs; new table bytes need their own
+    Native compilation/comparison before any integration/performance claim.
+    The earlier f6ac integration run40586668131 now finishes all seven actual
+    Host/module/planning jobs successfully; its final required gate fails
+    solely because the selected integration tier is insufficient for full
+    qualification. That completed diagnostic branch can be reused without
+    cancelling its functional work.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both

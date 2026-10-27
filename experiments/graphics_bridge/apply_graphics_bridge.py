@@ -112,8 +112,9 @@ def patch_native_shadowcasting(text, header, identity):
     if text.count(NATIVE_SHADOWCAST_RADIUS) != 2 or text.count(NATIVE_SHADOWCAST_CALC) != 2:
         raise ValueError("Experimental bridge Native shadowcasting call sites differ")
     # The complete pinned bodies bound both non-row deltas by the positive
-    # row distance. Native square_dist is their maximum. Select this exact
-    # identity once per standard sight cast, never inside the hot cell loop.
+    # row distance. Native square_dist is their maximum; bounded circular
+    # distances use an exact immutable integer table. Select once per standard
+    # sight cast, never reload the metric inside the hot cell loop.
     # Unknown callbacks retain live rl_dist calls, including their side effects.
     outer = 'template<typename T, T( *calc )( const T &, const T &, const int & ),'
     explicit = "// I can't figure out how to make implicit instantiation work"
@@ -123,16 +124,22 @@ def patch_native_shadowcasting(text, header, identity):
         raise ValueError("Experimental bridge Native distance dispatch anchors differ")
     text = text.replace('#include "shadowcasting.h"\n',
         '#include "shadowcasting.h"\n#include <type_traits>\n', 1)
-    text = text.replace('template<int ', 'template<bool NCMM_SQUARE, int ')
+    # The Native constant must be declared by the complete original include
+    # prefix before the table's compile-time domain assertion is parsed.
+    text = text.replace('#include "point.h"\n',
+        '#include "point.h"\n#include "ncmm_graphics_sight_distance.hpp"\n', 1)
+    text = text.replace('template<int ', 'template<int NCMM_DISTANCE_MODE, int ')
     text = text.replace(outer,
-        'template<bool NCMM_SQUARE, typename T, T( *calc )( const T &, const T &, const int & ),', 1)
+        'template<int NCMM_DISTANCE_MODE, typename T, T( *calc )( const T &, const T &, const int & ),', 1)
     text = text.replace('void cast_zlight(\n', 'void ncmm_cast_zlight_implementation(\n', 1)
     text, calls = re.subn(r'(cast_(?:horizontal|vertical)_zlight_segment\s*<) ',
-                         r'\1 NCMM_SQUARE, ', text)
+                         r'\1 NCMM_DISTANCE_MODE, ', text)
     if calls != 24:
         raise ValueError("Experimental bridge Native distance dispatch calls differ")
     text = text.replace('rl_dist( tripoint_rel_ms::zero, delta )',
-        '( NCMM_SQUARE ? distance : rl_dist( tripoint_rel_ms::zero, delta ) )')
+        '( NCMM_DISTANCE_MODE == 1 ? distance :\n'
+        '                      ( NCMM_DISTANCE_MODE == 2 ? ncmm_graphics_shadowcasting::bounded_circular_distance( delta.x(), delta.y(), delta.z() ) :\n'
+        '                        rl_dist( tripoint_rel_ms::zero, delta ) ) )')
     text = text.replace(explicit, '#include "ncmm_graphics_sight_dispatch.inc"\n\n'+explicit, 1)
     return text + '\n#include "ncmm_graphics_sight_reference.inc"\n'
 
@@ -787,7 +794,7 @@ void initialize();''')
     lightmap_cpp=patch_native_apparent_light(read("lightmap.cpp"),identity)
     updates["lightmap.cpp"]=patch_native_vision_transparency(lightmap_cpp,identity)
     updates["shadowcasting.cpp"]=patch_native_shadowcasting(read("shadowcasting.cpp"),read("shadowcasting.h"),identity)
-    for name in ("ncmm_graphics_sight_dispatch.inc", "ncmm_graphics_sight_reference.hpp",
+    for name in ("ncmm_graphics_sight_dispatch.inc", "ncmm_graphics_sight_distance.hpp", "ncmm_graphics_sight_reference.hpp",
                  "ncmm_graphics_sight_reference.inc", "ncmm_graphics_sight_comparison.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)

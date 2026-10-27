@@ -15,12 +15,17 @@ void cast_zlight(
         if constexpr( calc == ::sight_calc && is_transparent == ::sight_check &&
                       accumulate == ::accumulate_transparency ) {
             if( !trigdist ) {
-                ncmm_cast_zlight_implementation<true, T, calc, is_transparent, accumulate>(
+                ncmm_cast_zlight_implementation<1, T, calc, is_transparent, accumulate>(
+                    output_caches, input_arrays, floor_caches, origin, offset_distance, numerator, dir );
+                return;
+            }
+            if( offset_distance >= 0 && offset_distance <= MAX_VIEW_DISTANCE ) {
+                ncmm_cast_zlight_implementation<2, T, calc, is_transparent, accumulate>(
                     output_caches, input_arrays, floor_caches, origin, offset_distance, numerator, dir );
                 return;
             }
         }
     }
-    ncmm_cast_zlight_implementation<false, T, calc, is_transparent, accumulate>(
+    ncmm_cast_zlight_implementation<0, T, calc, is_transparent, accumulate>(
         output_caches, input_arrays, floor_caches, origin, offset_distance, numerator, dir );
 }
