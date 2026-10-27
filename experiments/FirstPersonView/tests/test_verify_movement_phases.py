@@ -178,4 +178,70 @@ class PayloadMatrixTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'trusted source'):
                 verify_payload_file_matrix(files,self.entries(files),[])
 
+class NativeSubmapPhaseTests(unittest.TestCase):
+    """Fabricated protocol fixtures; none of these numbers measure performance."""
+    def valid_record(self):
+        record = NativeActionPhaseTests().valid_record()
+        previous = [60, 60]
+        for row in record['native_step_phases']['samples']:
+            input_xy = [p+b-a for p,a,b in zip(previous, row['from'], row['to'])]
+            shift_xy = [(v-60)//12 for v in input_xy]
+            output_xy = [v-s*12 for v,s in zip(input_xy, shift_xy)]
+            shifted = shift_xy != [0, 0]
+            labels = ['entry', 'route', 'shift', 'rebase_load_npcs', 'invalidate', 'build', 'spawn', 'overmap', 'exit'] if shifted else [
+                'entry', 'route', 'zero_position', 'zero_overmap', 'exit']
+            row['native_submap_updates'] = dict(schema=1, clock='std::chrono::steady_clock', units='milliseconds',
+                diagnostic_probe_overhead_included=True, claimed=True, reused_storage=False, nested_capture=False,
+                counter_overflow=False, invocations=1, recorded=1, dropped=0, max_depth=1,
+                exceptional_invocations=0, protocol_errors=0, events=[dict(ordinal=0, depth=1, parent_ordinal=-1,
+                    input_xy=input_xy, output_xy=output_xy,
+                    shift_xy=shift_xy, z_level_changed=False, shift_known=True,
+                    complete=True, exceptional=False, boundary_labels=labels,
+                    boundary_offsets_ms=[.01*(i+1) for i in range(len(labels))])])
+            previous = output_xy
+        return record
+
+    def test_complete_internal_matrix_and_historical_absence(self):
+        result = native_step_phases(self.valid_record(), require_submaps=True)['submap_updates']
+        self.assertTrue(result['available']); self.assertEqual(len(result['samples']), 12)
+        self.assertEqual(result['samples'][1]['shift_xy'], [0, -1])
+        old = NativeActionPhaseTests().valid_record()
+        self.assertFalse(native_step_phases(old)['submap_updates']['available'])
+        with self.assertRaisesRegex(ValueError, 'submap receipt missing'): native_step_phases(old, require_submaps=True)
+
+    def test_missing_and_partial_receipts_rejected(self):
+        record = self.valid_record(); del record['native_step_phases']['samples'][0]['native_submap_updates']
+        with self.assertRaises(ValueError): native_step_phases(record, require_submaps=True)
+        with self.assertRaisesRegex(ValueError, 'Partial'): native_step_phases(record)
+
+    def test_individually_valid_events_from_other_actions_are_rejected(self):
+        record = self.valid_record(); rows = record['native_step_phases']['samples']
+        rows[0]['native_submap_updates'], rows[2]['native_submap_updates'] = rows[2]['native_submap_updates'], rows[0]['native_submap_updates']
+        with self.assertRaisesRegex(ValueError, 'submap action mapping'):
+            native_step_phases(record, require_submaps=True)
+
+    def test_nested_overflow_reused_and_exceptional_capture_rejected(self):
+        for name, value in (('nested_capture', True), ('counter_overflow', True), ('reused_storage', True),
+                            ('dropped', 1), ('invocations', 0), ('invocations', 2), ('recorded', 0),
+                            ('max_depth', 2), ('exceptional_invocations', 1), ('protocol_errors', 1), ('claimed', False)):
+            record = self.valid_record(); record['native_step_phases']['samples'][0]['native_submap_updates'][name] = value
+            with self.subTest(name=name, value=value), self.assertRaises(ValueError): native_step_phases(record, require_submaps=True)
+
+    def test_event_identity_rebase_and_privacy_of_scope_rejected(self):
+        for name, value in (('ordinal', 1), ('depth', 2), ('parent_ordinal', 0), ('input_xy', [65, 66]),
+                            ('output_xy', [65, 85]), ('shift_xy', [1, 0]), ('complete', False), ('shift_known', False),
+                            ('exceptional', True), ('z_level_changed', True)):
+            record = self.valid_record(); record['native_step_phases']['samples'][0]['native_submap_updates']['events'][0][name] = value
+            with self.subTest(name=name), self.assertRaises(ValueError): native_step_phases(record, require_submaps=True)
+
+    def test_missing_misassigned_overlapping_and_outside_action_boundaries_rejected(self):
+        for mode in ('missing', 'labels', 'backwards', 'outside', 'nan'):
+            record = self.valid_record(); event = record['native_step_phases']['samples'][1]['native_submap_updates']['events'][0]
+            if mode == 'missing': event['boundary_offsets_ms'].pop()
+            if mode == 'labels': event['boundary_labels'][3] = 'build'
+            if mode == 'backwards': event['boundary_offsets_ms'][3] = 0
+            if mode == 'outside': event['boundary_offsets_ms'][-1] = .6
+            if mode == 'nan': event['boundary_offsets_ms'][3] = math.nan
+            with self.subTest(mode=mode), self.assertRaises(ValueError): native_step_phases(record, require_submaps=True)
+
 if __name__=='__main__':unittest.main()

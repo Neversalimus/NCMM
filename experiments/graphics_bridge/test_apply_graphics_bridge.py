@@ -39,13 +39,79 @@ def apparent_light_original():
         raise ValueError("Frozen Native apparent-light fixture differs")
     return frozen.split(begin, 1)[1].split(end, 1)[0]
 
+
+def native_update_map_original():
+    frozen = (REPO / "experiments/FirstPersonView/tests/trace_platform_test.cpp").read_text(encoding="utf-8")
+    begin, end = "// BEGIN FROZEN NATIVE UPDATE MAP\n", "// END FROZEN NATIVE UPDATE MAP\n"
+    if frozen.count(begin) != 1 or frozen.count(end) != 1:
+        raise ValueError("Frozen Native update_map fixture differs")
+    return frozen.split(begin, 1)[1].split(end, 1)[0]
+
 class ApplyTests(unittest.TestCase):
+    def test_update_map_primary_and_source_preserving_markers(self):
+        original = native_update_map_original()
+        self.assertEqual(len(original.encode()), 3205)
+        self.assertEqual(hashlib.sha256(original.encode()).hexdigest(),
+                         'bfb01cf4e07c99f1b41ebd460c81531fb8ff33e0c9800e58cf13e30201253a4b')
+        source = Path(bridge.__file__).with_name('ncmm_graphics_update_map.inc').read_text(encoding='utf-8')
+        source = source[source.index('point_rel_sm game::update_map'):]
+        stripped = ''.join(line for line in source.splitlines(keepends=True) if 'ncmm_move_scope' not in line)
+        self.assertEqual(stripped.replace(bridge.NATIVE_UPDATE_MAP_RESET_SCOPE, '', 1), original)
+        self.assertEqual(stripped.count(bridge.NATIVE_UPDATE_MAP_RESET_SCOPE), 1)
+
+    def test_update_map_both_pins_receipts_and_global_tls_include(self):
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                with patch.object(bridge.subprocess, 'check_output', return_value=pin): bridge.apply(root)
+                receipt = json.loads((root/'first-person-source.json').read_text(encoding='utf-8'))
+                for name in ('ncmm_graphics_move_diagnostics.hpp', 'ncmm_graphics_update_map.inc'):
+                    content = Path(bridge.__file__).with_name(name).read_bytes()
+                    self.assertEqual((root/'src'/name).read_bytes(), content)
+                    self.assertEqual(receipt['inputs'][name], hashlib.sha256(content).hexdigest())
+                for name, anchor in (('game.cpp', '#include "game.h"'), ('ncmm_loader.cpp', '#include "ncmm_loader.h"')):
+                    source = (root/'src'/name).read_text(encoding='utf-8')
+                    self.assertEqual(source.count('#include "ncmm_graphics_move_diagnostics.hpp"'), 1)
+                    self.assertLess(source.index(anchor), source.index('#include "ncmm_graphics_move_diagnostics.hpp"'))
+                    namespace = re.search(r'namespace\s*\{', source)
+                    if namespace: self.assertLess(source.index('#include "ncmm_graphics_move_diagnostics.hpp"'), namespace.start())
+                source = (root/'src/game.cpp').read_text(encoding='utf-8')
+                self.assertEqual(source.count('#include "ncmm_graphics_update_map.inc"'), 1)
+                self.assertIn('// Native continuation retained.', source)
+
+    def test_update_map_changed_and_duplicate_primary_are_atomic(self):
+        for pin in bridge.SOURCES:
+            for duplicate in (False, True):
+                with self.subTest(pin=pin, duplicate=duplicate), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root); game = root/'src/game.cpp'
+                    text = game.read_text(encoding='utf-8')
+                    game.write_text(text+native_update_map_original() if duplicate else text.replace('load_npcs();', 'different_load_npcs();'), encoding='utf-8')
+                    before = self.fingerprint(root)
+                    with patch.object(bridge.subprocess, 'check_output', return_value=pin):
+                        with self.assertRaisesRegex(ValueError, 'update_map|cache.reset'): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
+    def test_update_map_missing_or_existing_include_is_atomic(self):
+        for pin in bridge.SOURCES:
+            for name in ('ncmm_graphics_move_diagnostics.hpp', 'ncmm_graphics_update_map.inc'):
+                for existing in (False, True):
+                    with self.subTest(pin=pin, name=name, existing=existing), tempfile.TemporaryDirectory() as tmp:
+                        root = Path(tmp); self.fixture(root)
+                        if existing: (root/'src'/name).write_text('existing file\n')
+                        before = self.fingerprint(root); original_read = Path.read_text
+                        def read(path, *args, **kwargs):
+                            if not existing and path == Path(bridge.__file__).with_name(name): raise FileNotFoundError('missing diagnostic include')
+                            return original_read(path, *args, **kwargs)
+                        with patch.object(bridge.subprocess, 'check_output', return_value=pin), patch.object(Path, 'read_text', read):
+                            with self.assertRaises((ValueError, FileNotFoundError)): bridge.apply(root)
+                        self.assertEqual(before, self.fingerprint(root))
+
     def fixture(self, root):
         (root / "src").mkdir()
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/game.h").write_text("        bool save();\n")
-        (root / "src/game.cpp").write_text('#include "game.h"\n'+bridge.REBASE_CACHE_RESET+'\n')
+        (root / "src/game.cpp").write_text('#include "game.h"\n'+native_update_map_original()+'\n// Native continuation retained.\n')
         (root / "src/vehicle_use.cpp").write_text(NATIVE_TOGGLE)
         (root / "src/debug.cpp").write_text('#include "debug.h"\nstd::string ncmm_debug_report_text( const std::string &text )\n{ return text; }\nvoid native_debug_window() {\n    for( bool stop = false; !stop; ) {\n    }\n}\n')
         options='static void ncmm_apply_deferred_option_value( const std::string &, options_manager::cOpt & );\n// NCMM v8.7.6.6 stale world-option repair:\n'

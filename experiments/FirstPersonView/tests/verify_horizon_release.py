@@ -115,7 +115,49 @@ NATIVE_STEP_LABELS = ('move', 'post_action_checks', 'view_center', 'reset_light_
                       'refresh_return', 'render_call', 'outer_tail')
 
 
-def native_step_phases(record, *, required=True):
+def native_submap_update(row, *, required=False):
+    """One synchronous Native call; nested/incomplete captures never qualify."""
+    value = row.get('native_submap_updates')
+    if value is None and not required:
+        return dict(available=False, reason='Historical report has no internal submap scopes')
+    require(type(value) is dict, 'Native submap receipt missing')
+    require(type(value.get('schema')) is int and value['schema'] == 1
+            and value.get('clock') == 'std::chrono::steady_clock' and value.get('units') == 'milliseconds'
+            and value.get('diagnostic_probe_overhead_included') is True, 'Invalid Native submap clock/schema')
+    require(value.get('claimed') is True, 'Native submap capture not claimed')
+    for name in ('reused_storage', 'nested_capture', 'counter_overflow'):
+        require(value.get(name) is False, 'Invalid Native submap capture: ' + name)
+    for name, expected in (('invocations', 1), ('recorded', 1), ('dropped', 0), ('max_depth', 1),
+                           ('exceptional_invocations', 0), ('protocol_errors', 0)):
+        require(type(value.get(name)) is int and value[name] == expected, 'Invalid Native submap count: ' + name)
+    events = value.get('events')
+    require(type(events) is list and len(events) == 1 and type(events[0]) is dict, 'Invalid Native submap event matrix')
+    event = events[0]
+    for name, expected in (('ordinal', 0), ('depth', 1), ('parent_ordinal', -1)):
+        require(type(event.get(name)) is int and event[name] == expected, 'Nested or misassigned Native submap event')
+    require(event.get('shift_known') is True and event.get('complete') is True
+            and event.get('exceptional') is False and event.get('z_level_changed') is False,
+            'Incomplete or exceptional Native submap event')
+    for name in ('input_xy', 'output_xy', 'shift_xy'):
+        require(type(event.get(name)) is list and len(event[name]) == 2
+                and all(type(v) is int and -(1 << 31) <= v < 1 << 31 for v in event[name]), 'Invalid Native submap coordinates')
+    require(all(a-b == s*12 for a,b,s in zip(event['input_xy'], event['output_xy'], event['shift_xy']))
+            and all(60 <= v < 72 for v in event['output_xy']), 'Native submap rebase identity failed')
+    labels = ['entry', 'route', 'zero_position', 'zero_overmap', 'exit'] if event['shift_xy'] == [0, 0] else [
+        'entry', 'route', 'shift', 'rebase_load_npcs', 'invalidate', 'build', 'spawn', 'overmap', 'exit']
+    offsets = event.get('boundary_offsets_ms')
+    require(event.get('boundary_labels') == labels and type(offsets) is list and len(offsets) == len(labels),
+            'Missing or misassigned Native submap boundaries')
+    require(all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in offsets)
+            and all(a <= b for a,b in zip(offsets, offsets[1:]))
+            and offsets[-1] <= row['phase_wall_ms'][0] + .003, 'Overlapping or uncontained Native submap scopes')
+    return dict(available=True, input_xy=event['input_xy'], output_xy=event['output_xy'],
+                shift_xy=event['shift_xy'], elapsed_ms=offsets[-1]-offsets[0],
+                phases={a+'_to_'+b: y-x for a,b,x,y in zip(labels, labels[1:], offsets, offsets[1:])},
+                scope='Synchronous wall scopes include diagnostic probes; not independent GPU/CPU execution')
+
+
+def native_step_phases(record, *, required=True, require_submaps=False):
     """Adjacent Native-call wall scopes; render is inclusive of its inner frame."""
     receipt = record.get('native_step_phases')
     if receipt is None and not required:
@@ -134,6 +176,7 @@ def native_step_phases(record, *, required=True):
     scalar = lambda value: type(value) in (int, float) and math.isfinite(value)
     route = ((1, 0, 0), (0, -1, 0), (-1, 0, 0), (0, 1, 0))
     previous_to = None
+    submaps = []
     for step, row in enumerate(rows):
         require(type(row['step']) is int and row['step'] == step, 'Reordered Native action samples')
         index = row['frame_index']
@@ -166,6 +209,12 @@ def native_step_phases(record, *, required=True):
         previous_to = row['to']
         require(all(type(row[name]) is int and -(1 << 31) <= row[name] < 1 << 31 for name in ('moves_before', 'moves_after'))
                 and row['moves_after'] < row['moves_before'], 'Native movement did not consume action cost')
+        submap = native_submap_update(row, required=require_submaps)
+        if submap['available'] and submaps and submaps[-1]['available']:
+            require(submap['input_xy'] == [p+d for p,d in zip(submaps[-1]['output_xy'], route[step % 4])],
+                    'Native submap action mapping changed')
+        submaps.append(submap)
+    require(all(s['available'] for s in submaps) or not any(s['available'] for s in submaps), 'Partial Native submap matrix')
     return dict(available=True, clock=receipt['clock'], units='milliseconds', samples=count,
                 phases={name: dict(median_ms=percentile([row['phase_wall_ms'][i] for row in rows], .5),
                                    p95_ms=percentile([row['phase_wall_ms'][i] for row in rows], .95),
@@ -173,6 +222,7 @@ def native_step_phases(record, *, required=True):
                         for i, name in enumerate(NATIVE_STEP_LABELS)},
                 render_bookkeeping_median_ms=percentile([row['render_bookkeeping_wall_ms'] for row in rows], .5),
                 max_abs_accounting_residual_ms=max(abs(row['residual_wall_ms']) for row in rows),
+                submap_updates=dict(available=all(s['available'] for s in submaps), samples=submaps),
                 scope='Synchronous Native-call wall times; render_call includes first_frame, never add both; not on-core CPU or GPU execution')
 
 
@@ -252,7 +302,7 @@ def verify(args):
         matrix.add(key)
         require(record["native_steps"] == 12, "Native steps missing")
         phases = frame_phases(record)
-        action_phases = native_step_phases(record)
+        action_phases = native_step_phases(record, require_submaps=True)
         frame = samples(record, "first_frame_after_step_samples_ms", 12)
         ready = samples(record, "first_ready_samples_ms", 12)
         cold = samples(record, "cold_rotation_samples_ms", 48)

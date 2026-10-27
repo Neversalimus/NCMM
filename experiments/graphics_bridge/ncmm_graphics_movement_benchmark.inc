@@ -105,7 +105,7 @@
             std::vector<double> geometry_ms,resource_ms;std::vector<uint64_t> range_evaluations,range_hits,ray_hits,ray_misses,geometry_hits,geometry_misses,roof_misses,source_misses,geometry_revisions,material_evaluations,material_hits;
             std::vector<double> native_tiles_ms,perspective_ms,present_ms,unattributed_ms,extract_ms,callback_ms,upload_ms,record_ms,submit_ms;
             std::vector<uint32_t> first_frame_indices;
-            struct native_step_sample {native_step_points points;tripoint_abs_ms from,to;int moves_before=0,moves_after=0;};
+            struct native_step_sample {native_step_points points;tripoint_abs_ms from,to;int moves_before=0,moves_after=0;ncmm_graphics_move_diagnostics::action_record submaps;};
             std::vector<native_step_sample> native_step_samples;native_step_samples.reserve(steps);
             std::vector<double> thread_cpu_ms,process_cpu_ms,sprite_readback_ms;
             std::vector<uint64_t> sprite_readback_attempts,sprite_cache_bytes,gpu_generated_cells,native_atlas_cache_bytes;
@@ -219,7 +219,10 @@
                 first_frame_indices.push_back(uint32_t(frame_ms.size()));
                 native_step_sample action_sample{};auto &points=action_sample.points;
                 const auto before=you.pos_abs();const int moves=you.get_moves();const auto begin=clock::now();points[0]=begin;
-                const bool moved=avatar_action::move(you,here,route[step%4]);points[1]=clock::now();require(moved,"movement_native_walk_failed");
+                bool moved=false;
+                {ncmm_graphics_move_diagnostics::action_capture capture(action_sample.submaps);
+                    moved=avatar_action::move(you,here,route[step%4]);}
+                points[1]=clock::now();require(moved,"movement_native_walk_failed");
                 require(you.pos_abs()!=before&&you.get_moves()<moves,"movement_native_cost_missing");points[2]=clock::now();
                 refresh(&points);points[8]=clock::now();render(true);points[9]=clock::now();points[10]=clock::now();
                 // Keep the original first-ready boundary before sample storage.
@@ -308,7 +311,23 @@
                 report.member("moves_before",sample.moves_before);report.member("moves_after",sample.moves_after);
                 report.member("boundary_offsets_ms",offsets);report.member("phase_wall_ms",durations);
                 report.member("first_ready_wall_ms",first_ms[sample_index]);report.member("first_frame_wall_ms",first_frame_ms[sample_index]);
-                report.member("render_bookkeeping_wall_ms",durations[8]-first_frame_ms[sample_index]);report.member("residual_wall_ms",first_ms[sample_index]-accounted);report.end_object();}
+                report.member("render_bookkeeping_wall_ms",durations[8]-first_frame_ms[sample_index]);report.member("residual_wall_ms",first_ms[sample_index]-accounted);
+                // Serialization is after the original first-ready boundary.
+                // Nested records are inclusive; qualification rejects them.
+                const auto &sub=sample.submaps;report.member("native_submap_updates");report.start_object();
+                report.member("schema",1);report.member("clock","std::chrono::steady_clock");report.member("units","milliseconds");report.member("diagnostic_probe_overhead_included",true);
+                report.member("claimed",sub.claimed);report.member("reused_storage",sub.reused_storage);report.member("nested_capture",sub.nested_capture);report.member("counter_overflow",sub.counter_overflow);
+                report.member("invocations",sub.invocations);report.member("recorded",sub.recorded);report.member("dropped",sub.dropped);report.member("max_depth",sub.max_depth);
+                report.member("exceptional_invocations",sub.exceptional_invocations);report.member("protocol_errors",sub.protocol_errors);report.member("events");report.start_array();
+                for(size_t e=0;e<sub.recorded&&e<ncmm_graphics_move_diagnostics::event_capacity;++e){const auto &event=sub.events[e];
+                    std::vector<std::string> labels;std::vector<double> boundaries;
+                    for(size_t b=0;b<event.count&&b<ncmm_graphics_move_diagnostics::boundary_capacity;++b){labels.emplace_back(ncmm_graphics_move_diagnostics::label(event.tags[b]));
+                        boundaries.push_back(std::chrono::duration<double,std::milli>(event.points[b]-sample.points[0]).count());}
+                    report.start_object();report.member("ordinal",event.ordinal);report.member("depth",event.depth);report.member("parent_ordinal",event.parent_ordinal);
+                    report.member("input_xy",event.input_xy);report.member("output_xy",event.output_xy);report.member("shift_xy",event.shift_xy);report.member("z_level_changed",event.z_level_changed);
+                    report.member("shift_known",event.shift_known);report.member("complete",event.complete);report.member("exceptional",event.exceptional);
+                    report.member("boundary_labels",labels);report.member("boundary_offsets_ms",boundaries);report.end_object();}
+                report.end_array();report.end_object();report.end_object();}
             report.end_array();report.end_object();
             report.member("first_ready_median_ms",percentile(first_ms,.5));report.member("first_ready_p95_ms",percentile(first_ms,.95));report.member("easing_median_ms",percentile(easing_ms,.5));report.member("easing_p95_ms",percentile(easing_ms,.95));
             report.member("cold_rotation_samples_ms",cold_turn_ms);report.member("warm_rotation_samples_ms",warm_turn_ms);

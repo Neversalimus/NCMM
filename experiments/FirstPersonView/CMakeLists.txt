@@ -195,7 +195,7 @@ foreach(pair "locomotion|locomotion_test" "camera_motion|camera_motion_test" "co
   endif()
 endforeach()
 option(FIRST_PERSON_BUILD_GPU_TESTS "Qualify actual shared-device SDL_GPU geometry and UI" OFF)
-add_executable(first_person_trace_platform_tests tests/trace_platform_test.cpp)
+add_executable(first_person_trace_platform_tests tests/trace_platform_test.cpp tests/move_diagnostics_cross_tu.cpp)
 first_person_target(first_person_trace_platform_tests)
 add_test(NAME first_person_trace_platform COMMAND first_person_trace_platform_tests)
 add_test(NAME first_person_trace_capture_counter COMMAND first_person_trace_platform_tests capture)

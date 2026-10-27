@@ -202,7 +202,8 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     factorial verification remains strict and separate; 17 new negative tests
     plus the prior 34 pass. Runner AST, isolated schema1/2 acceptance and 0/3
     rejection, and 162 environment-isolation checks pass without a game launch.
-    **Actual post-fix Native receipt and ordinary performance remain pending.**
+    **Actual post-fix Native receipt is recorded below; ordinary performance
+    remains unqualified.**
 
 18. **Avoid unused static-detail Native reads.** Non-BODY details always read
     terrain, furniture and top RGB, even for a lower-only slab or an already
@@ -274,6 +275,36 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     `night-observer-contract-{red,after,full-build,final}*`. This repairs a proven
     test-contract contradiction; whether it explains the observed Linux exit191
     still requires the new exact-source remote Native run.
+
+21. **Adjacent submap-shift diagnostics, opt-in only.** Earlier receipts mix
+    fast in-submap actions with 40-66 ms crossings. The exact 3205-byte Native
+    `game::update_map` body, identical at both pins (SHA256
+    `bfb01cf4e07c99f1b41ebd460c81531fb8ff33e0c9800e58cf13e30201253a4b`),
+    now has bounded stack-owned wall-clock markers around its unchanged route,
+    shift, actor/NPC rebase, all-Z invalidation, cache build, spawn and overmap
+    calls. Removing only the markers and existing stage14 reset-scope line
+    restores the entire primary body exactly. In ordinary calls the capture
+    stays disabled, with no clocks, allocations or retained Native references.
+    The benchmark activates it only around the existing move call; original
+    eleven outer boundaries and first-ready storage/serialization order remain.
+
+    Fail-before actual-source control: all 60 Native oracle pairs agreed, but
+    zero internal invocations were recorded. After: 60/60 and 513 pure checks,
+    including actual two-translation-unit TLS sharing, disabled probes, call
+    order/arguments/NPCs/positions/cost/return, exceptions, reentry and overflow.
+    Strict report verification rejects partial, reused, nested, dropped,
+    exceptional, backward or out-of-action scopes and inconsistent rebases.
+    A second fail-before control demonstrated that individually valid events
+    could be assigned to different actions; consecutive rebased coordinates
+    are now tied to the existing absolute route. Historical absence stays
+    explicitly unavailable; new qualification requires the complete receipt.
+
+    Full Release, 50 inventoried autonomous CTests (16.14 s), 46 atomic bridge
+    tests and 263 Python verifier tests pass. Evidence prefixes
+    `night-submap-profile-*`. Injected test clocks are not performance data;
+    actual Native inner timings and compilation still require the remote run.
+    Recorded timings include diagnostic probe overhead. No gameplay call,
+    renderer, visibility rule or game-input harness was changed by this stage.
 
 ## Actual remote evidence and next priorities
 
@@ -408,7 +439,9 @@ Pushed `1a951e156562478ae1632857c207f5768ca5084e` has passing
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40448928727).
 Its [main run](https://github.com/Neversalimus/NCMM/actions/runs/40448928678)
 compiled all four actual Hosts. Both Windows early actions/stairs/movement
-steps passed; longer gameplay/final gates remain pending. Both Linux controls
+steps passed, but both longer Creature/appearance/gameplay smoke jobs later
+failed (exit191), so the main run and final required qualification failed.
+Both Linux controls
 failed (exit191, no timeout): their program smoke reports
 `multilevel_real_sdl_render_failed`, after 12 complete multilevel records through
 stairs CPU/GPU and before stairs_down. Selected program JSON receipts are in
@@ -418,7 +451,7 @@ inputs at exact `1a951e1` with the bridge's universal-newline handling; patched
 Native bodies were not independently reconstructed by that comparison.
 Stage20 fixes the demonstrated observer contradiction and adds precise failure
 forwarding; its connection to those exits remains a hypothesis until rerun.
-No full Native pass is claimed. Local stages18-20 require their own exact-source
+No full Native pass is claimed. Local stages18-21 require their own exact-source
 Host qualification after publishing.
 
 The freshly rebuilt hidden render-only RTX 4090 controls retain
