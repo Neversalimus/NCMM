@@ -320,6 +320,16 @@ Do not merge or release before the user's separate finalization request.
     applicable device result. Logs: `night-stair-*` and
     `night-static-stair-verifier.log` in the existing private work directory.
 
+    Native follow-up: actual 21b3878 Windows/Linux compilation caught a protected
+    `map::get_field` restoration call, missing scoped flag names and GCC's
+    misleading-indentation Werror. Removed the unnecessary field copy/assignment
+    under the existing enforced empty-field seed guard; restore uses public
+    clear_fields. Qualified GOES_UP and braced the scalar loop. These are
+    recorder integration errors, not stair evidence. The real compiler failure
+    is preserved in the Code Review tool jobs 121981509837/121981510076, with a
+    compact private `night-stair-21b-compile-errors.json` receipt. The corrected
+    bridge's 25 atomic tests pass; fresh Native compilation remains required.
+
 13. **Measure the Native action/refresh gap, without changing it.** The existing
     movement benchmark now records eleven adjacent steady-clock boundaries per
     accepted step: move, assertions, view center, light reset, map-cache build,
@@ -428,18 +438,18 @@ remains 21108 pixels on both rasterizers. Existing ADS/objects/muzzle/subway
 brightness checks pass. Real old/new binary pairs also pass as recorded above.
 These local checks do not execute the real Native extraction/input/game loop.
 
-Pushed checkpoint `ddfa80284af0eb7d3a6cdf282f3c080b2c4c8bbf` has passing
-[GPU Windows/Linux/Clang ASan/UBSan/Vulkan](https://github.com/Neversalimus/NCMM/actions/runs/40433313797),
-[source/package](https://github.com/Neversalimus/NCMM/actions/runs/40433313786)
-and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40433313762) runs.
-In [module/Native run](https://github.com/Neversalimus/NCMM/actions/runs/40433313767),
-Windows and Linux module jobs pass. Both pinned Windows Hosts compiled and
-entered long gameplay/profile qualification; both Linux Hosts also compiled
-and entered Native controls/gameplay checks. Full Native qualification remains
-pending; these statuses do not qualify the subsequent stage12 recorder. The
-older fc2 Native run was superseded, with its Win1040 gameplay/profile step
-successful but remaining qualification incomplete. Its Linux module sanitizer
-pass resolved the earlier allocation-family mismatch.
+Pushed checkpoint `21b3878c3612c04f071cc87db8e3cb65a65192da` has passing
+[GPU Windows/Linux/Clang ASan/UBSan/Vulkan](https://github.com/Neversalimus/NCMM/actions/runs/40440858188),
+[source/package](https://github.com/Neversalimus/NCMM/actions/runs/40440858196)
+and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40440858342) runs.
+Its [actual Native builds](https://github.com/Neversalimus/NCMM/actions/runs/40440858328)
+failed on the recorder integration errors recorded under stage12; no Native
+experiment or new timing ran. Requalify the corrected recorder before reading
+any success claim into those three infrastructure passes. Earlier ddfa802
+Windows/Linux module jobs and both pins' Host compilations passed, then their
+long Native qualification was superseded. The older fc2 Win1040 gameplay/profile
+step passed, and its Linux module sanitizer pass resolved the earlier
+allocation-family mismatch; neither result qualifies subsequent Host bytes.
 
 Run the affected checks after each edit, then the autonomous local inventory,
 hidden GPU pixels/resource checks, source/package checks and fresh remote

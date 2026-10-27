@@ -46,7 +46,7 @@
     const auto omt_center=project_to<coords::omt>(original_position);
     const tripoint_abs_omt omt_min(omt_center.x()-15,omt_center.y()-15,low),omt_max(omt_center.x()+15,omt_center.y()+15,high);
 
-    struct saved_tile {tripoint_bub_ms p;ter_id terrain;furn_id furniture;field fields;std::vector<item> items;};
+    struct saved_tile {tripoint_bub_ms p;ter_id terrain;furn_id furniture;std::vector<item> items;};
     std::vector<saved_tile> saved;
     monster *hidden_monster=nullptr;
     struct fixture_restore {
@@ -56,7 +56,7 @@
         ~fixture_restore(){
             if(subject)get_creature_tracker().remove(*subject);
             for(auto &entry:saved){here.ter_set(entry.p,entry.terrain);here.furn_set(entry.p,entry.furniture);
-                here.clear_fields(entry.p);here.get_field(entry.p)=entry.fields;here.i_clear(entry.p);
+                here.clear_fields(entry.p);here.i_clear(entry.p);
                 for(auto &object:entry.items)here.add_item(entry.p,std::move(object));}
             you.setpos(here,here.get_bub(position),false);you.set_moves(moves);calendar::turn=time;get_weather().weather_id=weather;
             if(you.has_trait(trait_id("DEBUG_NIGHTVISION"))!=vision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
@@ -75,7 +75,7 @@
         // This probe restores only the empty-field smoke seed. Restoring an
         // arbitrary copied field would also need submap field-count updates.
         require(tile.get_field().field_count()==0,"static_stair_seed_fields_not_empty");
-        saved.push_back({p,tile.get_ter(),tile.get_furn(),tile.get_field(),{}});
+        saved.push_back({p,tile.get_ter(),tile.get_furn(),{}});
         for(const auto &object:tile.get_items())saved.back().items.push_back(object);
         here.furn_set(p,furn_id("f_null"));here.clear_fields(p);here.i_clear(p);
         const bool wall=std::abs(dx)==4||std::abs(dy)==4;
@@ -92,10 +92,10 @@
     require(!get_creature_tracker().creature_at(here.get_bub(hidden_control)),"static_stair_hidden_control_occupied");
     hidden_monster=g->place_critter_at(mtype_id("mon_zombie"),here.get_bub(hidden_control));
     require(hidden_monster!=nullptr,"static_stair_hidden_monster_missing");
-    require(here.ter(here.get_bub(target)).obj().has_flag(TFLAG_GOES_UP)&&
-        !here.furn(here.get_bub(target)).obj().has_flag(TFLAG_GOES_UP)&&
-        !here.ter(here.get_bub(furniture_control)).obj().has_flag(TFLAG_GOES_UP)&&
-        here.furn(here.get_bub(furniture_control)).obj().has_flag(TFLAG_GOES_UP),"static_stair_control_provenance_wrong");
+    require(here.ter(here.get_bub(target)).obj().has_flag(ter_furn_flag::TFLAG_GOES_UP)&&
+        !here.furn(here.get_bub(target)).obj().has_flag(ter_furn_flag::TFLAG_GOES_UP)&&
+        !here.ter(here.get_bub(furniture_control)).obj().has_flag(ter_furn_flag::TFLAG_GOES_UP)&&
+        here.furn(here.get_bub(furniture_control)).obj().has_flag(ter_furn_flag::TFLAG_GOES_UP),"static_stair_control_provenance_wrong");
     get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("cpu");
     graphics_smoke_seconds=1000.5;
     // Memory preparation may allocate/load memory pages, so it is deliberately
@@ -163,7 +163,8 @@
         out.camera={graphics_camera_yaw,graphics_camera_pitch};out.eye=graphics_eye_height();out.seconds=graphics_presentation_seconds();
         hash scalar;for(int n:out.avatar)scalar.integer(n);for(int n:out.origin)scalar.integer(n);scalar.integer(out.moves);scalar.integer(out.hp);scalar.integer(out.hp_max);
         scalar.integer(out.turn);scalar.text(out.weather);scalar.integer(out.winddirection);scalar.integer(out.windspeed);scalar.integer(out.lightning);
-        for(float n:out.camera)scalar.real(n);scalar.real(out.eye);scalar.real(out.seconds);out.scalar_digest=scalar.str();
+        for(float n:out.camera){scalar.real(n);}
+        scalar.real(out.eye);scalar.real(out.seconds);out.scalar_digest=scalar.str();
         hash conserved;conserved.text(out.scalar_digest);for(const auto &part:out.physical)if(part.first!="light"){conserved.text(part.first);conserved.integer(part.second.count);conserved.text(part.second.digest.str());}
         conserved.text(out.memory.digest.str());conserved.integer(out.memory.count);conserved.integer(out.memory_valid);conserved.integer(out.memory_show);
         conserved.text(out.overmap.digest.str());conserved.integer(out.overmap.count);conserved.integer(out.resident);out.nonlight_digest=conserved.str();return out;
@@ -222,7 +223,7 @@
                 b.terrain,b.furniture,b.item,b.creature,b.field,b.raw_terrain,b.raw_furniture,b.ambient,b.light,b.published_light);};
     auto inspect=[&](const ncmm_graphics_multilevel_scene_v1 &w,const tripoint_abs_ms &position){cell_observation out;
         const auto p=here.get_bub(position);const auto tile=std::as_const(here).maptile_at(p);
-        out.raw_terrain=tile.get_ter().id().str();out.raw_furniture=tile.get_furn().id().str();out.terrain_up=tile.get_ter().obj().has_flag(TFLAG_GOES_UP);out.furniture_up=tile.get_furn().obj().has_flag(TFLAG_GOES_UP);
+        out.raw_terrain=tile.get_ter().id().str();out.raw_furniture=tile.get_furn().id().str();out.terrain_up=tile.get_ter().obj().has_flag(ter_furn_flag::TFLAG_GOES_UP);out.furniture_up=tile.get_furn().obj().has_flag(ter_furn_flag::TFLAG_GOES_UP);
         out.sees=you.sees(here,p);out.ambient=here.ambient_light_at(p);const auto &rgb=here.get_cache_ref(p.z()).light_color_cache[p.x()][p.y()];out.light={rgb.r,rgb.g,rgb.b};
         for(uint32_t i=0;i<w.cell_count;++i){const auto &c=w.coordinates[i];if(c.x!=position.x()||c.y!=position.y()||c.z!=position.z())continue;
             out.present=true;out.index=int(i);out.flags=c.flags;out.direction=c.direction;const auto &s=w.appearance.base.cells[i];

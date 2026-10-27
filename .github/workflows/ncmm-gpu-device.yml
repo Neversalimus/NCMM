@@ -243,7 +243,7 @@ jobs:
             'experiments/FirstPersonView/tests/multilevel_fixture.json':'a2c163ed73ca4ccab4383d32eef11b7688d415fb019f845b362592a9c158bf39',
             'experiments/FirstPersonView/tests/test_verify_static_stair_audit.py':'746f6cbae63217683d824b4fe2ddbd13d543130bf4308cf9c294f61f7f5400f2',
             'experiments/FirstPersonView/tests/verify_static_stair_audit.py':'09b520e96b7daef2db8b92ab2ba00f963142e17bb78152381d2a467531b63f70',
-            'experiments/graphics_bridge/ncmm_graphics_static_stair_audit.inc':'a46affd998d07594d0580682223d205d8359a4143b767fceb9b0f63d2fe9f312',
+            'experiments/graphics_bridge/ncmm_graphics_static_stair_audit.inc':'b726074818d98e88b562582102b44d08451c0a8a387ecd4b47902786002092bd',
             'experiments/FirstPersonView/tests/test_verify_movement_phases.py':'39cd040b43b99ef2731175aefe36f4b31685dae5093ec454eb717b6f65f1708a',
             'experiments/FirstPersonView/tests/verify_horizon_release.py':'c86a39b681ae793f56341c43e7f86f725d81b60427d742520530f2527e14a2f9'}
           for name,expected in files.items():
