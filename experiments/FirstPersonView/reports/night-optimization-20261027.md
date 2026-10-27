@@ -1047,6 +1047,58 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     Keep full PR eae and prior diagnostic f6ac running; reuse the completed
     older sight-diagnostic branch for this bounded next comparison.
 
+44. **Defer blind removal of the Native2D pass.** The exact cached1807
+    cata_tiles.cpp blobc4b85c1cab06e23f5633f847a2d1d042969ff361 is verified
+    against pinned Git metadata. Its1056-line draw function mutates draw and
+    overlay caches, clears temporary terrain/furniture/etc overrides, changes
+    map-memory decoration and consumes one-shot hit/line/weather/cursor queues.
+    Existing fallback must not consume those queues twice. This is not a
+    side-effect-free raster call which can simply be removed for a timing win.
+    Metadata proves cata_tiles.cpp,its header and sdltiles.cpp all differ at1040;
+    complete1040 CPP files exceed the remaining source budget. Only479 bytes
+    of metadata are returned, with12291 conservatively reserved;161994 bytes
+    remain in the existing10MiB ledger. No new Native source body is fetched.
+    Evidence `night-terrain-raster-source-audit/`. No production edit or gain
+    is claimed; separating Native facts/queue consumption from raster submission
+    remains a larger follow-up requiring exact two-pin source and fallback proof.
+
+45. **Strengthen Linux qualification and investigate circular distance.** At
+    exacteae/merge9e8a85a both actual Linux Native jobs complete all six modes
+    (controls/camera/FPS/held/target/gameplay), twelve exit0 processes without
+    timeout. Every process row matches the Code Review-only log receipt despite
+    truncation of the complete logs. Each source receipt independently matches
+    101 copied inputs against the exact eae Git tree. Patched Native translation
+    units are not independently reconstructed by that copied-input check.
+    Four actual184-case matrices (FPS and gameplay at each pin) pass their exact
+    eae verifier, including released taps and diagonal chords. Both artifacts
+    12773991938/12773662355 are read through selected program JSON ranges only,
+    2202642/8388608 reserved bytes. Strict summary SHA256
+    `f2179f3ddd0729b625474e42a276bc8f6338c72f598fcb1f8ecec2d8e0cf90f9`.
+    Software Vulkan/functional results do not qualify RTX/15ms or stage43 bytes.
+
+    Private negative-offset testing preserves the first full-radius varying-haze
+    probe's20s timeout. A second bounded open/solid/wall model retains the same
+    four negative offsets and passes24 pairs/528 checks, both metrics, exact
+    outputs/input bytes/distance order. It is not a performance result.
+    Summary692d88fa6ff2c973fd0c2a8034629bb7325aba68732cba8fb04c635cacf0ad15.
+
+    A separate private circular candidate uses an immutable10801-byte table of
+    exact integer distances, with original generic/out-of-range fallback.
+    All498 pairs/693339 checks and226981 exhaustive actual-Native numerical
+    deltas agree, including Native's double-to-float-to-int rounding. Standard
+    helper calls10702148 ->0; exponent calls remain10702148. Seven alternating
+    observer-free timing pairs improve all eight paired median ratios: square
+    .6049/.8529/.8784/.9160; circular.7245/.8252/.8301/.8884. All eight first
+    samples improve in this model. The table compiles under default constexpr
+    limits and adds no first-use runtime initialization. Raw/summary/source
+    hashes stay private in `night-sight-circle-table-model/`, summary SHA256
+    `6847ea3365bc99f9d08d4c076798d5ac2921ce9d69cec4ca84a5d4bf3dc8d48d`.
+    Owned coordinate/grid/fragment context, background scheduling and lack of
+    Native execution prevent a game-performance claim. No table production
+    edit is retained at this checkpoint. The current Native comparison does
+    not record which distance metric was active; add explicit metric identity
+    and preservation before attributing any shortcut's measured effect.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
