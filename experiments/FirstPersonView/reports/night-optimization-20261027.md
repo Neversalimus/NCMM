@@ -668,6 +668,25 @@ pass, and all four pinned Hosts compile. Full Native gameplay/appearance jobs
 are still running at this checkpoint. No new full Native pass, ordinary
 RTX4090 frame time, first-correct-present or15 ms result is claimed.
 
+**Current stair regression readbacks at the same `1bdb0cd` tree.** Artifacts
+12750617022/12749498670 contain successful exact-runtime CPU-raster diagnostic
+processes. Three program JSON members per pin and only four selected BMPs
+across both pins reserve328974 bytes /8 MiB, including metadata. Full native
+physical/memory/overmap ledgers, hidden furniture/contents/focus and repeated
+normal input/pixels remain unchanged in every day/dusk/night record.
+
+1807 night again verifies retained geometry without BODY: normal_static equals
+normal_after pixel-for-pixel; removing only navigation semantics changes106
+triangles and29741 ROI pixels. The normal flight/rails and their removal control
+were visually inspected. Both normal night BMP hashes remain exactly the
+previous `1a951e1` hashes:1040 `84b026e7bf4ce9c433ce4272661fda78971a7fcd8e5278d73047a01299505872`,
+1807 `25177b5c18781cb28d7cee679a6aa310e6793de45efd1b11767fb0e9adcd782a`.
+1040 remains causally inconclusive because BODY is already visible; this is
+not a general visibility or performance qualification. Private receipts and
+lossless readback previews: `night-static-stair-1bdb0cd/`; independent summary
+SHA256 `c7aefa84844a9547aecd01d8d0d8ae6c903424cd5735ee59f431ad5144cedf79`.
+No local Native game was launched and no renderer suite was rerun.
+
 **Actual underground-loop revision `aff7dd7`, run40525583050.** Both early
 Windows programs exit0 without wrapper/debugger error or dumps. Runtime
 `ce3d5328b61c3906ffd15e04306a934f08eb72bc` shares the saved source tree
