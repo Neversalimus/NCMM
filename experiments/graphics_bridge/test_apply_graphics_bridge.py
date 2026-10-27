@@ -56,6 +56,14 @@ def native_floor_cache_original():
     return frozen.split(begin, 1)[1].split(end, 1)[0]
 
 
+def native_vision_transparency_original():
+    frozen = (REPO / "experiments/FirstPersonView/tests/native_vision_transparency_fixture.cpp").read_text(encoding="utf-8")
+    begin, end = "// BEGIN FROZEN NATIVE VISION TRANSPARENCY\n", "// END FROZEN NATIVE VISION TRANSPARENCY\n"
+    if frozen.count(begin) != 1 or frozen.count(end) != 1:
+        raise ValueError("Frozen Native vision-transparency fixture differs")
+    return frozen.split(begin, 1)[1].split(end, 1)[0]
+
+
 def native_item_reconciliation_original(pin):
     labels = dict(zip(bridge.SOURCES, ("1040", "1807")))
     frozen = (REPO / "experiments/FirstPersonView/tests/native_item_reconciliation_fixture.cpp").read_text(encoding="utf-8")
@@ -66,6 +74,75 @@ def native_item_reconciliation_original(pin):
 
 
 class ApplyTests(unittest.TestCase):
+    def test_vision_transparency_frozen_body_and_source_preservation(self):
+        original = native_vision_transparency_original()
+        self.assertEqual(len(original.encode("utf-8")), 3826)
+        self.assertEqual(hashlib.sha256(original.encode("utf-8")).hexdigest(),
+                         "5dec4f06915166dad4638e9656dbd9f672acb20bc82a8b74ebe84a8bea229d5d")
+        source = Path(bridge.__file__).with_name("ncmm_graphics_vision_transparency.inc").read_text(encoding="utf-8")
+        source = source[source.index("bool map::build_vision_transparency_cache"):]
+        begin, end = "            // BEGIN UNIFORM NATIVE VISION TRANSPARENCY\n", "            // END UNIFORM NATIVE VISION TRANSPARENCY\n"
+        self.assertEqual(source.count(begin), 1); self.assertEqual(source.count(end), 1)
+        prefix, rest = source.split(begin, 1)
+        self.assertEqual(prefix + rest.split(end, 1)[1], original)
+
+    def test_vision_transparency_patch_retains_surrounding_native_source(self):
+        original = native_vision_transparency_original()
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin):
+                source = "// prefix\n" + original + "// suffix\n"
+                self.assertEqual(bridge.patch_native_vision_transparency(source, pin),
+                                 '// prefix\n#include "ncmm_graphics_vision_transparency.inc"\n// suffix\n')
+
+    def test_vision_transparency_both_pins_source_copy_and_receipt(self):
+        name = "ncmm_graphics_vision_transparency.inc"
+        helper = Path(bridge.__file__).with_name(name)
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root, pin)
+                with patch.object(bridge.subprocess, "check_output", return_value=pin): bridge.apply(root)
+                source = (root / "src/lightmap.cpp").read_text(encoding="utf-8")
+                self.assertEqual(source.count(f'#include "{name}"'), 1)
+                self.assertEqual(source.count('#include "ncmm_graphics_apparent_light.inc"'), 1)
+                self.assertNotIn("bool map::build_vision_transparency_cache", source)
+                self.assertIn("// Native continuation retained.", source)
+                self.assertEqual((root / "src" / name).read_bytes(), helper.read_bytes())
+                receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))
+                self.assertEqual(receipt["source_commit"], pin)
+                self.assertEqual(receipt["inputs"][name], hashlib.sha256(helper.read_bytes()).hexdigest())
+
+    def test_vision_transparency_changed_missing_and_duplicate_primary_are_atomic(self):
+        for pin in bridge.SOURCES:
+            for kind in ("changed", "missing", "duplicate"):
+                with self.subTest(pin=pin, kind=kind), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root, pin); path = root / "src/lightmap.cpp"
+                    source = path.read_text(encoding="utf-8"); original = native_vision_transparency_original()
+                    replacement = {"changed": original.replace("map_cache.transparency_cache_dirty.reset();", "map_cache.transparency_cache_dirty.set();"),
+                                   "missing": "", "duplicate": original + original}[kind]
+                    path.write_text(source.replace(original, replacement, 1), encoding="utf-8")
+                    (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                    before = self.fingerprint(root)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin):
+                        with self.assertRaisesRegex(ValueError, "vision-transparency"): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
+    def test_vision_transparency_missing_or_existing_include_is_atomic(self):
+        name = "ncmm_graphics_vision_transparency.inc"
+        for pin in bridge.SOURCES:
+            for existing in (False, True):
+                with self.subTest(pin=pin, existing=existing), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp); self.fixture(root, pin)
+                    if existing: (root / "src" / name).write_text("existing vision-transparency include\n", encoding="utf-8")
+                    (root / "first-person-source.json").write_text('{"unchanged_receipt":true}\n', encoding="utf-8")
+                    before = self.fingerprint(root); original_read = Path.read_text
+                    def read(path, *args, **kwargs):
+                        if not existing and path == Path(bridge.__file__).with_name(name):
+                            raise FileNotFoundError("missing vision-transparency include")
+                        return original_read(path, *args, **kwargs)
+                    with patch.object(bridge.subprocess, "check_output", return_value=pin), patch.object(Path, "read_text", read):
+                        with self.assertRaises((ValueError, FileNotFoundError)): bridge.apply(root)
+                    self.assertEqual(before, self.fingerprint(root))
+
     def test_item_reconciliation_frozen_bodies_and_source_preservation(self):
         expected = {
             "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (4665, "43e9d5dff43780bc726edd5ce0798ecd7161dc6a8978072349f3d4b4088c2f82", "map_cursor( get_abs( p ) )"),
@@ -293,7 +370,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src/creature.h").write_text('#include <array>\nclass Creature {\n    public:\n        ~Creature() override;\n};\n')
         (root / "src/overmapbuffer.h").write_text("        bool has( const point_abs_om &p );\n")
         (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n" + APPARENT_LIGHT_DECLARATIONS)
-        (root / "src/lightmap.cpp").write_text('#include "map.h"\n' + apparent_light_original() + '\n// Native continuation retained.\n')
+        (root / "src/lightmap.cpp").write_text('#include "map.h"\n' + apparent_light_original() + '\n' + native_vision_transparency_original() + '\n// Native continuation retained.\n')
         map_cpp='#include "map.h"\n'
         for signature in ("void map::set_transparency_cache_dirty( const int zlev )",
                           "void map::set_transparency_cache_dirty( const tripoint_bub_ms &p, bool field )",
@@ -551,7 +628,9 @@ bool cata_tiles::draw_sprite_at() {
                 with patch.object(bridge.subprocess, "check_output", return_value=pin):
                     bridge.apply(root)
                 actual = (root / "src/lightmap.cpp").read_text(encoding="utf-8")
-                self.assertEqual(actual, original.replace(apparent_light_original(), '#include "ncmm_graphics_apparent_light.inc"\n', 1))
+                expected = original.replace(apparent_light_original(), '#include "ncmm_graphics_apparent_light.inc"\n', 1)
+                expected = expected.replace(native_vision_transparency_original(), '#include "ncmm_graphics_vision_transparency.inc"\n', 1)
+                self.assertEqual(actual, expected)
                 self.assertEqual((root / "src/ncmm_graphics_apparent_light.inc").read_bytes(), Path(bridge.__file__).with_name("ncmm_graphics_apparent_light.inc").read_bytes())
                 self.assertIn(APPARENT_LIGHT_DECLARATIONS, (root / "src/map.h").read_text(encoding="utf-8"))
                 receipt = json.loads((root / "first-person-source.json").read_text(encoding="utf-8"))

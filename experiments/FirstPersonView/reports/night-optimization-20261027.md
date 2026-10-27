@@ -372,6 +372,41 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     gain remain pending; the compiler's possible existing loop hoisting is not
     measured. Getter counts alone establish no Native or first-frame speedup.
 
+24. **Resolve empty uniform vision-transparency predicates once.** Both pinned
+    `map::build_vision_transparency_cache` primary bodies are identical: 3826
+    bytes, SHA256
+    `5dec4f06915166dad4638e9656dbd9f672acb20bc82a8b74ebe84a8bea229d5d`.
+    After the original null/debug and dirty-bit guards, a valid uniform terrain
+    without TRANSLUCENT proves that its old 12x12 loop has no writes. Only that
+    loop is skipped. Invalid IDs and translucent/mixed submaps keep the old
+    path. The initial full memcpy, posture/coverage handling, accumulated dirty,
+    player-cell reopening, dirty-bit reset and return remain unchanged.
+
+    Red: 447 semantic cases match before the getter-count assertion fails.
+    Green: 447 cases / 18617133 checks, with every float cache bit and protected
+    state retained, including signed zeros, NaN payloads, infinities and
+    subnormals. All/none/partial dirty masks, missing submaps, invalid IDs,
+    player/Z/coverage/posture combinations and ordered required reads are
+    covered. Uniform non-translucent getter/obj/flag calls each 17424 -> 121;
+    translucent fallback pays one additional pure read. Range responses and
+    light sentinels are explicitly injected model values, not reconstructed
+    Native iterator implementations or numeric constants.
+
+    Full Release and the same 50 inventoried autonomous CTests pass (17.77 s).
+    Initial atomic testing exposed an old whole-lightmap expectation that
+    omitted the second extraction; it now checks both independent frozen
+    replacements and still compares the entire surrounding source. After:
+    all 61 atomic bridge tests pass. Unchanged verifier coverage remains the
+    stage22 263-test pass. Evidence `night-vision-*`. Independent read-only
+    review found no residual defect. New Native compilation/runtime and any
+    elapsed/frame-time improvement remain pending.
+
+    The retained primary generic_factory.h (both pins, blob
+    `65ae31e67f8e5632ea67c2944329f98f247a45f4`) also confirms stage22's quiet
+    invalid-f_null eligibility check: negative CID caching makes later find_id
+    return false without another lookup, but convert still emits its warning
+    after every false result. The check does not consume fallback diagnostics.
+
 ## Actual remote evidence and next priorities
 
 **Submap attribution at exact `7f0ea25`, run 40481073067.** Both Windows
@@ -574,7 +609,7 @@ claimed. The independent
 [GPU Windows/Linux/Vulkan/sanitizers](https://github.com/Neversalimus/NCMM/actions/runs/40481073086),
 [source/package](https://github.com/Neversalimus/NCMM/actions/runs/40481073024)
 and [runtime](https://github.com/Neversalimus/NCMM/actions/runs/40481072968) pass.
-Subsequent stages22-23 Host bytes require their own remote qualification.
+Subsequent stages22-24 Host bytes require their own remote qualification.
 
 The freshly rebuilt hidden render-only RTX 4090 controls retain
 45 grass draws, zero CPU world raster, zero warm static uploads and 21108 open
