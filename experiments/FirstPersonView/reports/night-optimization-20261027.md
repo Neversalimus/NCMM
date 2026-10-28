@@ -148,6 +148,17 @@ not a fresh game benchmark. No Native game/input/mouse/focus is used.
 | Lazy mixed-lower floor reuse, stage60 | Three designs each preserve940 cases/24723071 checks, but broader seven-scene inline/noinline timings regress common paths. Best target-only gains are insufficient; production floor unchanged. |
 | Alpha-blend fast paths, stage64 |3,670,016 exact blend cases and270 frames/3,203,001 painted samples pass, but seven paired workloads show mixed-alpha blend1.207x and mixed flash1.121x. Reject; no robust smoke gain. Private `night-weapon-blend-model64-r3/` and `night-weapon-blend-timing64/`. |
 
+Stage67 also rejects CPU retained-coordinate integration. The private full
+renderer preserves224 frames/3,143 assertions,12,364,800 pixels and4,356,630
+volume samples across turns, camera offsets, replacement source buffers,
+light/epoch/origin/grid/Z-window changes and release. Seven alternating pairs
+per six cold/warm workloads give a.75169 warm sparse ratio, but cold dense
+1.08448 (1.89129→2.03434ms) and cold small1.03766. A warm gain does not justify
+a first-use regression or extra832944–1354896 retained bytes. The first large
+timing fixture correctly failed the65536-cell admission limit; its partial
+measurements are excluded. Production CPU/index/module bytes remain unchanged.
+Evidence: `night-cpu-coordinate-model67/` and `night-cpu-coordinate-timing67-r2/`.
+
 ## Remote qualification and next steps
 
 - Full `eae8d02`, run40580475214: all8 jobs pass. Source-bound selected
