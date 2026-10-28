@@ -114,7 +114,33 @@ fresh image/frame/geometry/raster/effect/counter fields. Missing data remains
 unavailable; stale/duplicate/wrong-image reports are rejected. Components may
 overlap and must not be summed. No extra render/poll/wait/clock/allocation.
 318 Python,96 atomic two-pin tests,61 fake-clock checks and10 compiled bad
-controls pass; actual schema3 data is pending run40629160097.
+controls pass; both actual schema3 reports from run40629160097 are verified below.
+
+Schema3 actual1040 now verifies artifact12792943027 (38865 ZIP bytes), all
+five program JSONs/106 copied inputs/privateSDL/source/Host/module and exit0.
+Summary SHA256 `966a1546c71c1e6f7d542f6c25077119a637c5313f9e90fb4678979ff2c1bebf`.
+25 callbacks/26 turns;9811 source cells and21 slices per callback. The eight
+empty CPU callbacks have module80.9638ms/frame80.9578ms, geometry42.29395ms,
+raster30.49035ms, effects.09745ms medians, three raster calls/22886 triangles,
+23078240 cache bytes. Components may overlap. This directs the next CPU work
+toward scene preparation/raster, not tiny effects. It remains a WARP controlled
+fixture with the viewport interference below;1807 and full qualification are
+pending. No ordinary/RTX/15ms conclusion or causal revision comparison.
+Raw `night-turn-616d718/strict-early-turn-1040.json`;104341/8388608 transfer bytes
+reserved so far. Texture analysis already shares identical sources within each
+callback; inspect terrain-feather profile repetition instead of duplicating it.
+
+Schema3 actual1807 independently verifies artifact12793781179 (39098 ZIP
+bytes), the same106 inputs/privateSDL/clean process/source identities and
+25 callbacks/26 turns. Summary SHA256
+`1d82f1419d26423e488a61ad277c90ed0dbd28dd0fe51fddf9513301fc2349db`.
+12522 cells/21 slices; emptyCPU frame98.6679ms, geometry52.27765ms,
+raster34.9698ms, effects.1424ms; three raster calls/27724 triangles and
+23078240 bytes. Both artifacts reserve143379/8388608 bytes. The priority is
+consistent across pins, not a causal or equal-scene performance comparison.
+Whole integration/full qualification and new volume-source Native CI remain
+pending. The next bounded experiment targets repeated terrain-feather
+calculations; no new renderer edit has yet been made.
 
 ### Stage69: isolate diagnostic viewport interference
 
@@ -207,8 +233,8 @@ Evidence: `night-cpu-coordinate-model67/` and `night-cpu-coordinate-timing67-r2/
   and independent exact-source verification. No artifacts from another source
   may qualify the changed volume renderer in local `1c5ce96`.
 
-Next: consume fresh per-callback CPU data and prioritize its largest measured
-component. Investigate viewport alternation only with a separate controlled
+Next: target the measured geometry/raster cost. The private terrain-feather
+profile experiment is underway; its Native impact remains unqualified. Investigate viewport alternation only with a separate controlled
 fixture; preserve old measurements. Keep current full PR run intact. Push
 tested work to an available existing diagnostic branch when appropriate;
 retain draft/review and no-release boundaries. CI logs exclusively CodeReview
