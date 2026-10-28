@@ -52,9 +52,25 @@ bool map::build_floor_cache( const int zlev )
                     if( !has_gap ) {
                         continue;
                     }
+                    // Uniform upper gaps keep the original ordered lower
+                    // furniture reads, without repeating upper predicates.
+                    if( below_submap && !below_submap->is_uniform() ) {
+                        for( int sx = 0; sx < SEEX; ++sx ) {
+                            for( int sy = 0; sy < SEEY; ++sy ) {
+                                point_sm_ms sp( sx, sy );
+                                if( below_submap->get_furn( sp ).obj().has_flag( ter_furn_flag::TFLAG_SUN_ROOF_ABOVE ) ) {
+                                    continue;
+                                }
+                                const point p( sx + smx * SEEX, sy + smy * SEEY );
+                                floor_cache[p.x][p.y] = false;
+                                no_floor_gaps = false;
+                            }
+                        }
+                        continue;
+                    }
                     // A solid current floor is independent of lower storage.
                     // Gaps still require uniform lower furniture for this fast
-                    // path; mixed roofs retain the exact per-cell loop below.
+                    // bulk path; mixed roofs keep per-cell furniture reads.
                     // Missing string-ID conversion can itself diagnose.
                     if( ( !below_submap || below_submap->is_uniform() ) &&
                         ( !below_submap || furn_str_id::NULL_ID().is_valid() ) ) {

@@ -444,6 +444,14 @@ void run_cases()
              "Native solid floors do not consult lower furniture even when it is mixed" );
     require( mixed_result.second.terrain_reads <= 121 && !mixed_result.second.furniture_reads,
              "uniform solid floor predicates are resolved once despite mixed lower storage (fail-before control)" );
+    scenario gaps_above_mixed = solid_above_mixed; gaps_above_mixed.uniform_flags = 1;
+    const auto gap_result = paired( gaps_above_mixed );
+    std::cout << "Native uniform gaps over mixed lower roofs: terrain " << gap_result.first.terrain_reads << " -> " << gap_result.second.terrain_reads
+              << ", furniture " << gap_result.first.furniture_reads << " -> " << gap_result.second.furniture_reads << '\n';
+    require( gap_result.first.terrain_reads == 17424 && gap_result.first.furniture_reads == 17424,
+             "Native mixed lower roofs require every per-cell furniture predicate" );
+    require( gap_result.second.terrain_reads <= 121 && gap_result.second.furniture_reads == 17424,
+             "uniform gap predicate is resolved once while retaining every mixed lower roof read (fail-before control)" );
     std::cout << "Native floor-cache component: " << cases << " cases / " << checks << " checks passed; no Native timing claim\n";
 }
 } // namespace native_floor_cache_fixture

@@ -1321,6 +1321,27 @@ No current-source, hardware, first-correct-frame or15ms qualification follows.
 The source-matched reader/verifier for new26-turn attribution is prepared;
 its actual Native program reports remain pending, as does floor52's CI.
 
+**54. Reuse the uniform upper gap predicate, retaining every mixed lower roof.**
+Stage52 still falls back to144 repeated upper predicates when the upper terrain
+is uniformly open but lower furniture is mixed(17545 reads including its quiet
+probe). After the same valid-ID and gap checks, run only the original ordered
+lower `SUN_ROOF_ABOVE` loop. Preserve every lower lookup/flag/invalid-ID
+diagnostic, floor-bit write and `no_floor_gaps` update. No new Native API or
+retained state is introduced; the nonuniform/invalid upper fallback stays exact.
+
+The new last work assertion fails on stage52 after all semantic cases pass.
+Afterward,859 cases/22663405 checks pass(1.47s), covering both52's matrices
+and the new full11x11 gap-over-mixed case. Original Native upper terrain reads
+17424 ->121, lower furniture reads17424 ->17424; no-Z aliases and all roof
+exceptions remain in the independent frozen-oracle comparison. The number of
+fixture checks falls because each eliminated getter itself had a bounds check.
+This is measured work reduction, not Native timing or frame-speed evidence.
+Full Release build and5 affected two-pin atomic preparation tests pass(1.974s).
+Two new compiled wrong controls (ignored mixed roofs, invalid terrain resolved
+once) fail the independent output/diagnostic oracle. Source transfer budget is
+unchanged; actual Native qualification for52/54 is still pending the next
+useful CI checkpoint. No local game/input/renderer run was used.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
