@@ -255,6 +255,28 @@ Native terrain comparison is running; do not change that proof's PR head.
 Evidence: `night-world-order-model73-r2/`, `night-world-order-timing73-r2/`,
 `night-stage73-release-build.txt`, `night-stage73-affected-tests.txt`.
 
+## Stage75 — durable owned-child receipts (local; rerun pending)
+
+The new same-Host1807 comparison reaches its first reference child but times
+out after600s. CodeReview job122667781069 confirms the timeout; the source-bound
+program receipt has no completed trials, and both original module and fixture
+are restored. There is no paired Native timing or image qualification yet.
+The internal phase is still unknown; do not label this a game crash or extend
+the deadline without evidence. The ordinary automatic48d8c23 qualification
+continues separately; keep its exact PR head until diagnostics are retained.
+
+The local runner now saves typed child states before launch, while running and
+on timeout/launch error/exit, including PID, bounded wall interval and exit code.
+It logs bounded Native phase names into the normal CI log every30s for later
+CodeReview diagnosis; raw stdout/progress text is not repackaged into program
+JSON. The original600s limit, owned-child cleanup, unchanged-Host checks, full
+capture equality and module restoration remain. Final pair verification records
+its own failure stage. Twelve mock/receipt/negative tests pass; no real local
+child, window or input is launched. This improves diagnostic completeness;
+it does not yet fix the Native comparison's internal timeout cause.
+Evidence: `night-stage75-pair1807-final-review.json`,
+`night-terrain-48d8c23/12797852135/`, `night-stage75-child-receipt-tests-r2.txt`.
+
 ## Rejected experiments
 
 | Experiment | Reason not retained |
@@ -301,6 +323,15 @@ Native compilation, exact captures and paired timings still require CI; this
 stage is diagnostic infrastructure, not another measured game speedup.
 Private checkpoints: `night-terrain-dll72/`, `night-stage72-verifier-tests-r2.txt`.
 
+Stage74 rejects deferred CPU analyses for simple GPU ground. The full model
+preserves60 CPU frames/901 assertions/4,608,000 pixels and255,928,400 complete
+emitted GPU values, including texture bytes, but32px pavement collection has
+1.12444 paired ratio (+.0375ms).128px gains of about.15ms are not a robust
+reason for another preparation path. No production74 renderer change.
+The first fixture used an incorrect held/item override and failed compilation;
+it has no measurement and is excluded. Evidence: `night-ground-prepare-model74-r2/`
+and `night-ground-prepare-timing74/` (seven pairs per16 CPU/collection workloads).
+
 ## Remote qualification and next steps
 
 - Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
@@ -320,8 +351,9 @@ Private checkpoints: `night-terrain-dll72/`, `night-stage72-verifier-tests-r2.tx
 - Terrain71 `1407dd4`, integration40637761432: module jobs pass; actual Native
   jobs remain running. Preserve the run and its source identity.
 
-Next: complete and run the source-bound same-Host terrain comparison, then target
-remaining measured geometry/raster cost. Keep draft/review and no-release
+Next: diagnose the bounded Native terrain timeout through CodeReview and retain
+current48d8c23 ordinary full results; then run the repaired source-bound comparison.
+Continue targeting measured geometry/raster cost. Keep draft/review and no-release
 boundaries. CI logs exclusively CodeReview at the current PR head; metadata and
 program JSON are not log fallbacks. The upstream Native transfer ledger has
 161994 bytes remaining; no upstream source body was fetched during stages57–72.

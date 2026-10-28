@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import struct
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -203,6 +204,46 @@ class TerrainRunnerGuardTests(unittest.TestCase):
             for path in (root, root / '..' / 'escape'):
                 with self.assertRaises(ValueError):
                     run_terrain_pair.below(path, root)
+
+
+class TerrainChildReceiptTests(unittest.TestCase):
+    """Only mocked children; no Native process, window, or input is launched."""
+    def exercise(self, behavior):
+        with tempfile.TemporaryDirectory(prefix='terrain-child-') as temporary:
+            root = Path(temporary)
+            process = unittest.mock.Mock(pid=123)
+            process.poll.return_value = None
+            def wait(timeout):
+                if behavior == 'timeout' and timeout == 600:
+                    raise subprocess.TimeoutExpired('contrived-owned-child', timeout)
+                process.poll.return_value = -9 if behavior == 'timeout' else 0
+                return process.poll.return_value
+            process.wait.side_effect = wait
+            launch_error = OSError('contrived launch failure') if behavior == 'launch' else None
+            with patch('run_terrain_pair.require_ci'), patch('subprocess.Popen', return_value=process, side_effect=launch_error):
+                if behavior in ('launch', 'timeout'):
+                    with self.assertRaises((OSError, subprocess.TimeoutExpired)):
+                        run_terrain_pair.run_child(['never-launched'], root, {}, root, {'source_commit': '1' * 40})
+                else:
+                    run_terrain_pair.run_child(['never-launched'], root, {}, root, {'source_commit': '1' * 40})
+            result = json.loads((root / 'process.json').read_text())
+            self.assertGreater(result['ended_ns'], result['started_ns'])
+            self.assertEqual(result['source_commit'], '1' * 40)
+            self.assertEqual(result['state'], {'launch': 'launch-failed', 'timeout': 'timeout', 'success': 'exited'}[behavior])
+            if behavior == 'timeout':
+                process.kill.assert_called_once()
+                self.assertTrue(result['timeout'])
+                self.assertEqual(result['exit_code'], -9)
+            elif behavior == 'launch':
+                self.assertIsNone(result['pid'])
+                self.assertEqual(result['error_type'], 'OSError')
+            else:
+                self.assertEqual(result['exit_code'], 0)
+                self.assertIsNone(result['error_type'])
+
+    def test_success_receipt(self): self.exercise('success')
+    def test_timeout_receipt_survives_owned_child_cleanup(self): self.exercise('timeout')
+    def test_launch_error_receipt_survives(self): self.exercise('launch')
 
 
 if __name__ == '__main__':

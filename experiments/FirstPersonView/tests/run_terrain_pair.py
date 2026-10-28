@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 from verify_terrain_profile import SCENES, verify as verify_profile
@@ -49,6 +50,69 @@ def below(path, parent):
     if not path.is_relative_to(parent) or path == parent:
         raise ValueError('Fixture/build output must stay below the named CI root.')
     return path
+
+
+def run_child(command, game, env, directory, identity, timeout=600):
+    require_ci(os.environ)
+    result = dict(identity, exit_code=None, pid=None, started_ns=time.time_ns(),
+                  ended_ns=None, timeout=False, state='launching', error_type=None)
+    path = directory / 'process.json'
+    save(path, result)
+    active = None
+    stopped = threading.Event()
+    monitor = None
+    def progress_log():
+        # CI diagnostics stay in the CI log, consumed through Code Review.
+        # Do not repackage progress text or child stdout as program JSON evidence.
+        while not stopped.wait(30):
+            phase = 'startup'
+            progress = game / 'ncmm/first-person-audit-progress.txt'
+            try:
+                if progress.stat().st_mtime_ns >= result['started_ns']:
+                    with progress.open('rb') as stream:
+                        value = stream.read(256).decode('ascii', errors='replace').strip()
+                    if re.fullmatch(r'[a-z0-9_-]{1,128}', value):
+                        phase = value
+            except OSError:
+                pass
+            elapsed = max(0, (time.time_ns() - result['started_ns']) / 1e9)
+            print(f"Terrain owned child pid={result['pid']} elapsed_s={elapsed:.1f} phase={phase}", flush=True)
+    try:
+        startup = subprocess.STARTUPINFO() if sys.platform == 'win32' else None
+        if startup:
+            startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startup.wShowWindow = subprocess.SW_HIDE
+        with (directory / 'stdout.log').open('wb') as stdout, (directory / 'stderr.log').open('wb') as stderr:
+            active = subprocess.Popen(command, cwd=game, env=env, startupinfo=startup, stdout=stdout, stderr=stderr)
+            result.update(pid=active.pid, state='running')
+            save(path, result)
+            monitor = threading.Thread(target=progress_log, daemon=True)
+            monitor.start()
+            try:
+                result['exit_code'] = active.wait(timeout=timeout)
+                result['state'] = 'exited'
+            except subprocess.TimeoutExpired:
+                result.update(timeout=True, state='timeout')
+                raise
+    except Exception as error:
+        result['error_type'] = type(error).__name__
+        if result['state'] == 'launching':
+            result['state'] = 'launch-failed'
+        raise
+    finally:
+        stopped.set()
+        if monitor:
+            monitor.join(timeout=2)
+        try:
+            if active and active.poll() is None:
+                active.kill()
+                active.wait(timeout=15)
+        finally:
+            if active:
+                result['exit_code'] = active.poll()
+            result['ended_ns'] = time.time_ns()
+            save(path, result)
+    return result
 
 
 def run(args):
@@ -111,15 +175,17 @@ def run(args):
                    reference_kind='current-source-with-pre71-terrain-include',
                    fixture_files_sha256=sha(out / 'fixture-files.json'), fixture_digest=assets_digest,
                    pairs=args.pairs, trials=[], module_restored=False,
-                   ordinary_game_performance=False, gpu_execution_timestamps_available=False)
+                   ordinary_game_performance=False, gpu_execution_timestamps_available=False,
+                   phase='prepared', active_trial=None, failure_type=None, failure_stage=None)
     save(out / 'pair.json', receipt)
-    active = None
     try:
         for pair in range(args.pairs):
             for order in range(2):
                 kind = ('reference', 'current')[(pair + order) % 2]
                 directory = out / f'pair-{pair + 1:02d}-{kind}'
                 directory.mkdir()
+                receipt.update(phase='reset-world', active_trial=directory.name)
+                save(out / 'pair.json', receipt)
                 shutil.copyfile(reference_dll if kind == 'reference' else current_copy, module)
                 module_hash = sha(module)
                 if sha(host) != receipt['host_sha256']:
@@ -133,28 +199,17 @@ def run(args):
                     game / 'ncmm' / f'first-person-gpu-{scene}-640x480-{mode}.bmp'
                     for scene in SCENES for mode in ('cpu', 'gpu')]
                 old_times = {p: p.stat().st_mtime_ns if p.exists() else None for p in paths}
-                startup = subprocess.STARTUPINFO()
-                startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                startup.wShowWindow = subprocess.SW_HIDE
-                started = time.time_ns()
-                with (directory / 'stdout.log').open('wb') as stdout, (directory / 'stderr.log').open('wb') as stderr:
-                    active = subprocess.Popen([str(host), '--ncmm-gameplay-smoke', '--seed',
-                                               'ncmm-gameplay-0121', '--userdir', str(game)],
-                                              cwd=game, env=env, startupinfo=startup,
-                                              stdout=stdout, stderr=stderr)
-                    try:
-                        code = active.wait(timeout=600)
-                    except subprocess.TimeoutExpired:
-                        active.kill()
-                        active.wait(timeout=15)
-                        raise
-                result = dict(exit_code=code, pid=active.pid, source_commit=head,
-                              engine_commit=bundle['source_commit'], host_sha256=sha(host),
-                              module_sha256=sha(module), fixture_digest=assets_digest,
-                              started_ns=started, ended_ns=time.time_ns(), timeout=False)
-                active = None
+                receipt['phase'] = 'child'
+                save(out / 'pair.json', receipt)
+                identity = dict(source_commit=head, engine_commit=bundle['source_commit'],
+                                host_sha256=sha(host), module_sha256=sha(module), fixture_digest=assets_digest)
+                result = run_child([str(host), '--ncmm-gameplay-smoke', '--seed', 'ncmm-gameplay-0121',
+                                    '--userdir', str(game)], game, env, directory, identity)
+                result.update(host_sha256=sha(host), module_sha256=sha(module))
                 save(directory / 'process.json', result)
-                if code != 0 or result['host_sha256'] != receipt['host_sha256'] or result['module_sha256'] != module_hash:
+                receipt['phase'] = 'validate-report'
+                save(out / 'pair.json', receipt)
+                if result['exit_code'] != 0 or result['host_sha256'] != receipt['host_sha256'] or result['module_sha256'] != module_hash:
                     raise ValueError('Native child failed or binary identity changed.')
                 for path in paths:
                     if not path.is_file() or path.stat().st_mtime_ns == old_times[path]:
@@ -167,10 +222,10 @@ def run(args):
                                              process_sha256=sha(directory / 'process.json'),
                                              images={p.name: sha(directory / p.name) for p in paths[1:]}))
                 save(out / 'pair.json', receipt)
+    except Exception as error:
+        receipt.update(failure_type=type(error).__name__, failure_stage=receipt['phase'])
+        raise
     finally:
-        if active and active.poll() is None:
-            active.kill()
-            active.wait(timeout=15)
         shutil.copyfile(current_copy, module)
         receipt['module_restored'] = sha(module) == expected_current
         receipt['fixture_restored'] = all(sha(game / name) == value for name, value in immutable.items())
@@ -178,7 +233,17 @@ def run(args):
     if not receipt['module_restored'] or not receipt['fixture_restored']:
         raise ValueError('Native fixture/bundle restoration failed.')
     from verify_terrain_pair import verify
-    save(out / 'verified.json', verify(out))
+    receipt.update(phase='verify-pairs', active_trial=None)
+    save(out / 'pair.json', receipt)
+    try:
+        verified = verify(out)
+    except Exception as error:
+        receipt.update(failure_type=type(error).__name__, failure_stage=receipt['phase'])
+        save(out / 'pair.json', receipt)
+        raise
+    receipt['phase'] = 'complete'
+    save(out / 'pair.json', receipt)
+    save(out / 'verified.json', verified)
     print('Same-Host terrain pair, exact captures, clean exits and source binding PASS')
 
 
