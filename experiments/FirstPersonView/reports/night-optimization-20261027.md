@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated29 October2026, through stage104. Baseline `1284537`; working branch
-`codex/fpv-stair-ray-scalar-20261029`; latest delivered release [PR228](https://github.com/Neversalimus/NCMM/pull/228).
+Updated29 October2026, through stage106. Baseline `1284537`; working branch
+`codex/fpv-stair-cpu-gpu-attribution-20261029`; latest delivered release [PR229](https://github.com/Neversalimus/NCMM/pull/229).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -55,6 +55,16 @@ TEST installers, source proof and checksums are [published](https://github.com/N
 This delivered version does not include later229-233 or stage104. Their heads
 and earlier qualification receipts remain fixed. PR229 full8has now passed;
 its exact primary package/resource qualification is still pending.
+
+## F102 delivery checkpoint
+
+PR229/F102 snapshot-entry reuse passed all8jobs of full40731702421, all3GPU
+jobs and source audit. Both primary release JSONs match the exact packages;
+all38payloads/106Native inputs/171frozen sources/104resources and licenses
+were verified. Main0e59906preserves the2feedJSONs and every other path equals
+qualified F102. The [two TEST installers](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-f102c628188f), source proof and checksums are published;
+anonymous HEAD200and exact lengths pass without body downloads. Prior A9/CDB/
+B9F/B81 remain available. Later230-234and stages104-106are not in this release.
 
 ## Retained changes
 
@@ -1139,6 +1149,45 @@ No release binary was rebuilt and this archive is not a new game version.
 Existing full qualification gates are unchanged. Numeric/source evidence:
 `night-stair-ray-attribution-20261029.json`.
 
+## Stage105 — integer geometry-slot experiment held
+
+The bounded dense slot fits32*97*97=301088, so a private variant kept the
+intermediates as int before converting the final index to size_t. All8550973
+checks,327680rays/8480344queries, query order, cache counters/bytes and104byte
+sizeof agree. Seven fixed alternating pairs x12cache/ray cases pass the
+original3%control/two2%gains helper guard. Upstairs/downstairs paired costs
+improve2.53/8.01%, but cold grid regresses2.60%paired and5.9681→6.6265ms
+(11.03%)independent medians. XYZ-tie paired and up-glass independent medians
+also regress. For the first-updated-frame objective this candidate is held,
+not promoted. This is a conservative decision after a passing helper gate,
+not a claim that its declared gate failed. No rerun-until-pass, module build,
+CTest or new Native CI for unchanged production. Raw168lanes are retained.
+
+## Stage106 — real stairs in both CPU and GPU modes
+
+Source inspection confirms that the earlier four stairs, including104split
+captures, run after warm(cpu). Newly verified F102 primary reports contain
+CPU-only combined stair medians142.24455ms(1040)and90.5162ms(1807), four
+samples each. Later combat callbacks use GPU, but those are not stair frames.
+The two runs are software-CI context, not a causal before/after or RTX result.
+
+The opt-in audit now resets the same fixture and warms each backend outside
+measurement. Four actual Native moves plus first frames run on CPU, then four
+on GPU. Schema2requires both groups in order, correct adjacent floors, true
+requested first-frame backend (GPU fallback cannot qualify), complete wall
+partitions and five fresh contained host stages. Native movement cost/state,
+camera continuity and displayed-eye visibility guards remain. The existing
+26turn schema3is unchanged. After the probe CPU is restored for later fixtures.
+
+19attribution tests with18negative stair cases and96atomic transform tests
+pass. The ordinary module/renderer/ray/cache/asset source and ABI are unchanged;
+the existing104Release build/51non-device CTests are not repeated. Native-only
+audit compilation and actual8transition capture require full current-source
+CI on a separate head;230-234heads remain fixed. No local game/input/device,
+mouse/focus or subagent. Stair-freeze elimination and ordinary15ms are still
+unqualified. Numeric/source evidence including held105:
+`night-stair-cpu-gpu-attribution-20261029.json`.
+
 ## Earlier qualification receipts retained from stage99
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
@@ -1183,13 +1232,14 @@ Existing full qualification gates are unchanged. Numeric/source evidence:
 
 ## Remote qualification and next steps
 
-Qualify stage104 on a separate exact source head, with the restored original
-baseline transport and four new stair action/first-frame captures. Preserve
-229-233heads and their existing receipts. Parent233full cannot qualify after
-the expired baseline failure; do not rerun it unchanged. Main and installers
-remain qualified B81. Current104stair-delay reduction and ordinary15ms remain
-unqualified until actual current-source evidence supports them.
+Keep230-234exact capture heads.234has the original four CPU-only split stair
+captures and restored original0.13baseline transport.106extends diagnosis to
+both backends on a separate full Native source. Read the exact current-source
+action/first-frame partitions before selecting a fix for the dominating phase;
+do not substitute warm helper gains for an ordinary ascent-latency result.
+Main and published installers remain fully qualified F102.
 
-CI logs are read only through CodeReview at exact PR heads. Numerical JSON
-readers retain inventory-first exact allowlists and shared8MiB limits. No
-unchanged rejected timing reruns or model/WARP-to-RTX performance claims.
+CI logs use CodeReview only.234plan raw-log requests returned provider502;
+there is no CLI/log-artifact fallback. Primary numerical JSON remains exact
+allowlist/inventory-first/shared8MiB. F102early profiles used284844bytes; no
+full report ZIP or log members.105timings are immutable and not rerun.

@@ -151,22 +151,22 @@ def verify(report):
 
 
 
-STAIR_SCOPE = 'real vertical_move and first successful render/present in adjacent separate captures; setup and easing settle excluded'
+STAIR_SCOPE = 'CPU then GPU real vertical_move and first successful render/present in adjacent separate captures; fixture reset, warm-up and easing settle excluded'
 
 
 def verify_stair_transitions(report):
     require(report.get('actual_cdda_sdl') is True and report.get('manual_playthrough') is False,
             'controlled real Native stair report required')
     data = report.get('stair_transition_diagnostics')
-    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 1 and
+    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 2 and
             data.get('scope') == STAIR_SCOPE and data.get('ordinary_performance_measurement') is False and
             data.get('gpu_execution_measured') is False, 'stair timing scope differs')
     rows = data.get('samples')
-    require(type(rows) is list and len(rows) == 4, 'four ordered stair transitions required')
+    require(type(rows) is list and len(rows) == 8, 'four CPU and four GPU stair transitions required')
     totals = []
-    for index, (row, direction) in enumerate(zip(rows, (1, -1, -1, 1))):
+    for index, (row, direction) in enumerate(zip(rows, (1, -1, -1, 1)*2)):
         require(type(row) is dict and row.get('successful_present') is True and
-                row.get('requested_renderer') in ('cpu', 'gpu', 'auto'), 'missing successful stair frame')
+                row.get('requested_renderer') == ('cpu' if index < 4 else 'gpu'), 'missing successful stair frame')
         for name in ('from_z', 'to_z', 'delta'):
             require(type(row.get(name)) is int and -128 <= row[name] <= 128, 'invalid stair '+name)
         require(row['delta'] == direction and row['to_z'] == row['from_z'] + direction,
@@ -192,6 +192,9 @@ def verify_stair_transitions(report):
         frame = row['first_frame']
         require(frame['outer_draws'] > 0 and frame['cpu_draws'] + frame['gpu_draws'] > 0 and
                 detail['first_frame']['callbacks']['world_callbacks'] > 0, 'no perspective in first stair frame')
+        expected_mode = row['requested_renderer']
+        require(frame[expected_mode+'_draws'] > 0 and frame[('gpu' if expected_mode == 'cpu' else 'cpu')+'_draws'] == 0,
+                'first stair frame did not use the requested backend')
         stages = row.get('frame_stages')
         expected = {'full_frame_wall_ms','native_cache_cpu_ms','native_tiles_cpu_ms','perspective_callback_wall_ms','actual_present_wall_ms'}
         require(type(stages) is dict and stages.keys() == expected, 'fresh stair frame stages missing')
@@ -201,4 +204,4 @@ def verify_stair_transitions(report):
         detail.update(from_z=row['from_z'],to_z=row['to_z'],delta=row['delta'],frame_stages=stages)
         totals.append(detail)
     require(rows[-1]['to_z'] == rows[0]['from_z'], 'stair sequence does not return to its source')
-    return dict(success=True,transitions=4,ordinary_performance_measurement=False,gpu_execution_measured=False,samples=totals)
+    return dict(success=True,transitions=8,renderers=['cpu','gpu'],ordinary_performance_measurement=False,gpu_execution_measured=False,samples=totals)

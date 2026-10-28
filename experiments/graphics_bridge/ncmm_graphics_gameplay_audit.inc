@@ -100,7 +100,7 @@
     struct stair_sample {int from_z=0,to_z=0,delta=0;std::string requested_renderer;
         ncmm_graphics_turn_diagnostics::turn_record action,first_frame;
         std::map<std::string,double> frame_stages;};
-    std::vector<stair_sample> stair_samples;stair_samples.reserve(4);
+    std::vector<stair_sample> stair_samples;stair_samples.reserve(8);
 
     auto measured_native_turn=[&](int initial_enemies,int round,const char *failure){
         turn_sample sample{initial_enemies,round,get_option<std::string>("NCMM_FIRST_PERSON_RENDERER"),{}};
@@ -186,7 +186,10 @@
         for(const auto &cr:graphics_creature_snapshots)require(cr.world_x!=hidden->pos_abs().x()||cr.world_y!=hidden->pos_abs().y()||cr.world_z!=hidden->pos_abs().z(),"audit_hidden_enemy_identity_published");
         here.ter_set(point_at(0,-1),ter_id("t_floor"));clear_monsters();graphics_clear_creatures();camera(-ncmm_graphics_camera::pi*.5f,-.08f);
     });
-    action("native_stairs_and_basement",[&](){you.setpos(here,point_at(0,0),false);graphics_clear_world();render();
+    action("native_stairs_and_basement",[&](){
+        // Keep each backend's fixture and warm-up outside the captured move/frame.
+        // Both modes execute the real Native transition, including map rebasing.
+        for(const char *mode:{"cpu","gpu"}){floor();warm(mode);
         for(int direction:{1,-1}){here.ter_set(point_at(0,0),ter_id(direction>0?"t_stairs_up":"t_stairs_down"));here.ter_set(point_at(0,0,direction),ter_id(direction>0?"t_stairs_down":"t_stairs_up"));refresh();render();
             for(int delta:{direction,-direction}){const int z=you.posz(),moves=you.get_moves();const float eye=z*2.5f+graphics_eye_height();
                 stair_sample sample;sample.from_z=z;sample.delta=delta;sample.requested_renderer=get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");
@@ -201,6 +204,8 @@
                     render();capture.complete();}
                 require(ncmm_graphics_turn_diagnostics::valid(sample.action)&&ncmm_graphics_turn_diagnostics::valid(sample.first_frame),"audit_stair_partition_invalid");
                 require(sample.first_frame.outer_draws&&sample.first_frame.cpu_draws+sample.first_frame.gpu_draws,"audit_stair_first_frame_missing_perspective");
+                require(std::string(mode)=="gpu"?sample.first_frame.gpu_draws>0&&sample.first_frame.cpu_draws==0:
+                    sample.first_frame.cpu_draws>0&&sample.first_frame.gpu_draws==0,"audit_stair_first_frame_backend_changed");
                 for(size_t i=0;i<frame_stage_names.size();++i){const auto &values=stages[frame_stage_names[i]];require(values.size()==previous_counts[i]+1,"audit_stair_frame_stage_not_fresh");sample.frame_stages[frame_stage_names[i]]=values.back();}
                 stages["native_stair_move_wall_ms"].push_back(sample.action.wall_ns/1000000.0);
                 stages["native_stair_first_frame_wall_ms"].push_back(sample.first_frame.wall_ns/1000000.0);
@@ -209,6 +214,8 @@
                 require(std::abs(shown-eye)<.1f,"audit_stair_first_frame_discontinuous");
                 require(std::abs(graphics_world_ray_eye.z-(shown-you.posz()*NCMM_WORLD_LEVEL_HEIGHT))<.1f,"audit_stair_visibility_detached_from_display_eye");
                 stages["native_stair_first_ready_wall_ms"].push_back(milliseconds(begin));settle();require(you.pos_abs()==pos&&you.get_moves()==moves-spent,"audit_stair_easing_changed_native_cost");}}
+        }
+        warm("cpu");
         here.ter_set(point_at(0,0),ter_id("t_floor"));here.ter_set(point_at(0,0,1),ter_id("t_floor"));you.set_base_height(400);render();require(graphics_world_ray_eye.z>0&&graphics_world_ray_eye.z<=NCMM_WORLD_LEVEL_HEIGHT-.17f,"audit_giant_camera_passed_ceiling");you.set_base_height(175);here.ter_set(point_at(0,0,1),ter_id("t_open_air"));
     });
     action("rapid_tall_avatar_stairs_respect_scene_bounds",[&](){
@@ -303,9 +310,9 @@
         report.member("requested_renderer",s.requested_renderer);
         write_timing(t);report.end_object();
     }report.end_array();report.end_object();
-    require(stair_samples.size()==4,"audit_stair_samples_missing");
-    report.member("stair_transition_diagnostics");report.start_object();report.member("schema",1);
-    report.member("scope","real vertical_move and first successful render/present in adjacent separate captures; setup and easing settle excluded");
+    require(stair_samples.size()==8,"audit_stair_samples_missing");
+    report.member("stair_transition_diagnostics");report.start_object();report.member("schema",2);
+    report.member("scope","CPU then GPU real vertical_move and first successful render/present in adjacent separate captures; fixture reset, warm-up and easing settle excluded");
     report.member("ordinary_performance_measurement",false);report.member("gpu_execution_measured",false);
     report.member("samples");report.start_array();for(const auto &s:stair_samples){report.start_object();
         report.member("from_z",s.from_z);report.member("to_z",s.to_z);report.member("delta",s.delta);report.member("requested_renderer",s.requested_renderer);

@@ -29,7 +29,7 @@ target_audit = verify_target_audit(a.root)
 turn_attribution = verify_turn_attribution(r)
 stair_attribution = verify_stair_transitions(r)
 assert r['native_action_stages']['native_game_turn_wall_ms']['samples']==8
-assert r['native_action_stages']['native_stair_first_ready_wall_ms']['samples']==4
+assert r['native_action_stages']['native_stair_first_ready_wall_ms']['samples']==8
 assert [t['spawned'] for t in r['combat_trials']]==[1,5,20]
 assert all(t['native_turns']==6 and t['observed_enemy_attacks']>0 and t['avatar_debug_protection']
            and t['avatar_stamina_reset_each_turn'] and t['avatar_combat_state_reset_each_turn'] for t in r['combat_trials'])
