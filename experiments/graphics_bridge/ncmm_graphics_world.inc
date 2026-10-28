@@ -498,9 +498,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
     graphics_world_material_evaluations=material_definitions.evaluations+elevated_material_definitions.evaluations;
     graphics_world_material_hits=material_definitions.hits+elevated_material_definitions.hits;
     graphics_world_snapshot_candidates=candidates.size();
-    if(candidates.size()>NCMM_WORLD_MAX_CELLS){std::stable_sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return a.distance<b.distance;});
-        graphics_world_metrics.budget_rejected=uint32_t(candidates.size()-NCMM_WORLD_MAX_CELLS);candidates.resize(NCMM_WORLD_MAX_CELLS);
-        std::sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return ncmm_world::order(a.world)<ncmm_world::order(b.world);});
+    if(candidates.size()>NCMM_WORLD_MAX_CELLS){
+        graphics_world_metrics.budget_rejected=uint32_t(candidates.size()-NCMM_WORLD_MAX_CELLS);
+        ncmm_world::retain_nearest_candidates(candidates,NCMM_WORLD_MAX_CELLS);
     } // The uncapped z/y/x traversal is already in canonical order.
     auto cell_loan=graphics_world_cell_storage.acquire();auto &cells=cell_loan.get();cell_loan.resize_for_reuse(candidates.size());
     auto position_loan=graphics_world_position_storage.acquire();auto &positions=position_loan.get();

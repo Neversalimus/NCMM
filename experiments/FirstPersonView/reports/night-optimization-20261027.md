@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated29 October2026, through stage106. Baseline `1284537`; working branch
-`codex/fpv-stair-cpu-gpu-attribution-20261029`; latest delivered release [PR229](https://github.com/Neversalimus/NCMM/pull/229).
+Updated29 October2026, through stage108. Baseline `1284537`; working branch
+`codex/fpv-world-budget-selection-20261029`; latest delivered release [PR229](https://github.com/Neversalimus/NCMM/pull/229).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -1188,6 +1188,46 @@ mouse/focus or subagent. Stair-freeze elimination and ordinary15ms are still
 unqualified. Numeric/source evidence including held105:
 `night-stair-cpu-gpu-attribution-20261029.json`.
 
+## Stage107 — opening witnesses held
+
+Three bounded owned sealed-plane variants retained exact1,317,326checks and
+75,272post-proof ray cases each. Central stairs halve source callbacks; shifted
+stairs also avoid the complete prefix. However each of the three fixed7pair
+series violates its original3%control guard. The final existing-vector witness
+removes the extra64byte object layout, but corner/unknown/water/warm controls
+still regress. All are held; production cache source is byte-unchanged. No
+unchanged reruns, relaxed thresholds or ordinary ascent-gain claim. Full raw
+lanes and the repaired pre-compilation Windows launch failures are preserved
+in `night-sealed-opening-held-20261029.json`.
+
+## Stage108 — exact nearest selection above the snapshot cap
+
+The over65536candidate branch fully sorted every admitted candidate by distance
+before trimming, then canonically sorted the retained set. Replace the first
+sort with nth_element ordered by finite distance then canonical Z/Y/X. Because
+the input traversal is already unique canonical XYZ, the same stable-tie set
+and final order remain. Under/equal-cap behavior, all source reads/permissions,
+radius, payloads and ABI stay unchanged; no new cache or persistent state.
+
+The private exact original-fragment model preserves7,375,656selected payloads;
+the repository helper matrix preserves5,531,742more, including signed zero,
+cap0/49/65536/above input, boundaries and32*97*97cells. Reversed tie selection
+and missing canonical output are both rejected. The first all-equal negative
+fixture was vacuous on MSVC and was repaired;50initial passing tests remain,
+only the changed failed test was rebuilt/rerun. Release+51non-device+96atomic
+tests pass. The ordinary ray/visibility/device/SDL/asset code is unchanged.
+
+Seven fixed alternating pairs x8cases x3selections pass all original guards;
+paired ratios span.1318–.5139. Per-selection helper medians, derived from the
+three-selection raw lanes: barely-over10.0517→4.0118ms, radial-city8.6695→
+4.0315ms, ordered maximum12.7498→1.7186ms, seven bands18.0786→8.5863ms.
+The80byte model removes one temporary allocation and up to11.49MiB per
+selection. Input cloning is outside timing; input candidates still exist.
+These are isolated Host selection costs, not whole-frame/RTX gains or proof
+that ordinary staircase freezes are fixed. Report/source/raw proofs:
+`night-world-budget-selection-20261029.json`. Full exact-source CI and Native
+stair samples remain necessary; keep234/235capture heads untouched.
+
 ## Earlier qualification receipts retained from stage99
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
@@ -1232,14 +1272,13 @@ unqualified. Numeric/source evidence including held105:
 
 ## Remote qualification and next steps
 
-Keep230-234exact capture heads.234has the original four CPU-only split stair
-captures and restored original0.13baseline transport.106extends diagnosis to
-both backends on a separate full Native source. Read the exact current-source
-action/first-frame partitions before selecting a fix for the dominating phase;
-do not substitute warm helper gains for an ordinary ascent-latency result.
-Main and published installers remain fully qualified F102.
+Preserve230-235exact capture heads.234has four CPU-only split stair records;
+235has eight CPU/GPUrecords and both module suites/all3GPUjobs pass. Actual
+Native jobs/captures remain in progress.108changes only over-budget selection,
+so it receives separate full exact-source CI. Main/installers remain F102.
+Read action/first-frame phase evidence before claiming a staircase fix.
 
-CI logs use CodeReview only.234plan raw-log requests returned provider502;
-there is no CLI/log-artifact fallback. Primary numerical JSON remains exact
-allowlist/inventory-first/shared8MiB. F102early profiles used284844bytes; no
-full report ZIP or log members.105timings are immutable and not rerun.
+CI logs use CodeReview only.234plan raw-log requests previously returned502;
+no CLI/log-artifact fallback. Primary numerical JSON remains inventory-first,
+exact allowlist and shared8MiB. No new Native source body was transferred.
+Stages105/107are held; their fixed timings are immutable and not rerun.

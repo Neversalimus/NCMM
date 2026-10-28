@@ -1,0 +1,1218 @@
+{
+  "schema": 1,
+  "stage": 108,
+  "source_parent": "2f10c03201830cc9925267b53333e2e14bb04a5e",
+  "source_files": {
+    "experiments/graphics_bridge/ncmm_world_policy.hpp": "936cc107be1833a7d1011555b1cd041ce0f5e6c322c6c3615a10e88c8799478a",
+    "experiments/graphics_bridge/ncmm_graphics_world.inc": "7d9e56759122f2f46bbd7ebf3aae64c74bf92b025e33b3acda656d673d239633",
+    "experiments/FirstPersonView/tests/multilevel_cache_test.cpp": "f49096300b96f8324507f21b39b762f299e7fe4678a64a9382e2e849d71a62ba"
+  },
+  "problem": "Above65536 admitted world candidates, Native stable-sorts the complete list by distance, trims it, then sorts the retained cells by canonical XYZ. The first complete sort needs transient buffers and orders candidates that are immediately discarded.",
+  "change": "Partition the deterministic total order (finite squared distance, then canonical Z/Y/X) at the existing cap, resize, and canonically sort only the retained candidates. The initial world traversal is already unique canonical Z/Y/X, so tie selection equals the old stable distance sort. Under/equal-cap caller behavior, source reads, permissions, payloads, radius and ABI remain unchanged.",
+  "helper": "namespace ncmm_world {\n// Input is the unique finite-distance canonical Z/Y/X world traversal.\n// Stable distance sorting selects the same set as ordering by distance then\n// original canonical position. Partition that total order before sorting only\n// the retained set back into canonical order; no temporary sort buffer.\ntemplate<class Candidate> void retain_nearest_candidates(std::vector<Candidate> &candidates,size_t maximum){\n    if(candidates.size()<=maximum)return;\n    std::nth_element(candidates.begin(),candidates.begin()+maximum,candidates.end(),[](const auto &a,const auto &b){\n        if(a.distance!=b.distance)return a.distance<b.distance;\n        return order(a.world)<order(b.world);\n    });\n    candidates.resize(maximum);\n    std::sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return order(a.world)<order(b.world);});\n}\n}\n",
+  "correctness": {
+    "private_checks": 576,
+    "private_selected_payloads": 7375656,
+    "repository_selected_payloads": 5531742,
+    "negative_controls": 2,
+    "cases": "Empty/small/under/equal/over65536/up to32*97*97, caps0/49/65536/greater than input, radial/random/ordered/reverse/equal/banded distances, signed zero, full world and opaque payload preservation.",
+    "negative_control_repair": "The old all-equal distance-only nth_element control happened to preserve input order in MSVC and was not distinguishable. Replaced with an explicit reversed tie order in a mixed-distance boundary. Both reversed ties and missing final XYZ order are now rejected."
+  },
+  "protocol": {
+    "source": "2f10c03201830cc9925267b53333e2e14bb04a5e",
+    "world_source_sha256": "a44059d616a76ab927cbd3eeed846b82f4e88e5912c55a4fdbd0e62f4443dabc",
+    "fragment_sha256": "f2031f350111c401ba05c4cc7af8e5f2b055bacd2dd16e734caab86d4cb29e1f",
+    "helper_sha256": "c2f938306c6b84b1e542a7cfc65bce329c287c77a24217727bd52ded4714c641",
+    "hypothesis": "The over65536 candidate branch fully stable-sorts all admitted cells by distance then sorts the retained subset by XYZ. A deterministic nth_element(distance,canonicalXYZ) chooses the same stable-tie set and removes the full temporary sort buffer.",
+    "preconditions": "Actual caller traverses each loaded Z ascending, each Y ascending then X ascending; unique XYZ and bounded finite squared distances. Under/equal-cap path is untouched. Full payloads, cap count, budget_rejected and canonical output must agree.",
+    "correctness": "Exact original source fragment against the new helper; empty/small/equal/over65536/max32x97x97, distance ties, ordered/reverse/random/radial scenes, caps0/49/65536/larger than input, all complete candidate bytes. A final tie-breaking negative control is required before any promotion.",
+    "timing": "Seven fixed alternating pairs x8over-cap cases x3identical selections. Input vector cloning outside the selection timer; report total3selection milliseconds, comparisons, allocations and allocated bytes. All paired controls<=1.03; at least2cases<=.90. No unchanged rerun or threshold changes.",
+    "scope": "The actual owned Host selection fragment with an opaque12byte position token instead of a Native position class. Not complete extraction, Native, ordinary frame or RTX GPU measurement.",
+    "production_changed": false,
+    "local_native": false,
+    "local_device": false,
+    "mouse_or_focus": false,
+    "subagents": false
+  },
+  "comparisons": [
+    {
+      "workload": "barely_over",
+      "before_ms": 30.155,
+      "after_ms": 12.0355,
+      "paired_ratio": 0.4027503932692239,
+      "before_allocations": 3,
+      "after_allocations": 0,
+      "before_allocated_bytes": 7864560,
+      "after_allocated_bytes": 0,
+      "selections_per_lane": 3,
+      "before_per_selection_ms": 10.051666666666668,
+      "after_per_selection_ms": 4.011833333333334,
+      "before_allocated_bytes_per_selection": 2621520
+    },
+    {
+      "workload": "radial_city",
+      "before_ms": 26.0086,
+      "after_ms": 12.0944,
+      "paired_ratio": 0.45851025112216426,
+      "before_allocations": 3,
+      "after_allocations": 0,
+      "before_allocated_bytes": 11290800,
+      "after_allocated_bytes": 0,
+      "selections_per_lane": 3,
+      "before_per_selection_ms": 8.669533333333334,
+      "after_per_selection_ms": 4.031466666666667,
+      "before_allocated_bytes_per_selection": 3763600
+    },
+    {
+      "workload": "ordered_maximum",
+      "before_ms": 38.2495,
+      "after_ms": 5.1557,
+      "paired_ratio": 0.13179933431839214,
+      "before_allocations": 3,
+      "after_allocations": 0,
+      "before_allocated_bytes": 36130560,
+      "after_allocated_bytes": 0,
+      "selections_per_lane": 3,
+      "before_per_selection_ms": 12.749833333333333,
+      "after_per_selection_ms": 1.7185666666666668,
+      "before_allocated_bytes_per_selection": 12043520
+    },
+    {
+      "workload": "equal_distances",
+      "before_ms": 10.5394,
+      "after_ms": 3.6649,
+      "paired_ratio": 0.3462560475003665,
+      "before_allocations": 3,
+      "after_allocations": 0,
+      "before_allocated_bytes": 11290800,
+      "after_allocated_bytes": 0,
+      "selections_per_lane": 3,
+      "before_per_selection_ms": 3.5131333333333337,
+      "after_per_selection_ms": 1.2216333333333333,
+      "before_allocated_bytes_per_selection": 3763600
+    },
+    {
+      "workload": "boundary_ties",
+      "before_ms": 40.1557,
+      "after_ms": 20.179,
+      "paired_ratio": 0.5139240816226605,
+      "before_allocations": 3,
+      "after_allocations": 0,
+      "before_allocated_bytes": 18065280,
+      "after_allocated_bytes": 0,
+      "selections_per_lane": 3,
+      "before_per_selection_ms": 13.385233333333334,
+      "after_per_selection_ms": 6.726333333333333,
+      "before_allocated_bytes_per_selection": 6021760
+    },
+    {
+      "workload": "reverse_distance",
+      "before_ms": 16.6484,
+      "after_ms": 3.9085,
+      "paired_ratio": 0.23542659010142783,
+      "before_allocations": 3,
+      "after_allocations": 0,
+      "before_allocated_bytes": 11290800,
+      "after_allocated_bytes": 0,
+      "selections_per_lane": 3,
+      "before_per_selection_ms": 5.5494666666666665,
+      "after_per_selection_ms": 1.3028333333333333,
+      "before_allocated_bytes_per_selection": 3763600
+    },
+    {
+      "workload": "multilevel_bands",
+      "before_ms": 44.7752,
+      "after_ms": 13.3601,
+      "paired_ratio": 0.3055736915556064,
+      "before_allocations": 3,
+      "after_allocations": 0,
+      "before_allocated_bytes": 36130560,
+      "after_allocated_bytes": 0,
+      "selections_per_lane": 3,
+      "before_per_selection_ms": 14.925066666666666,
+      "after_per_selection_ms": 4.453366666666667,
+      "before_allocated_bytes_per_selection": 12043520
+    },
+    {
+      "workload": "seven_distance_bands",
+      "before_ms": 54.2357,
+      "after_ms": 25.759,
+      "paired_ratio": 0.47425751437545116,
+      "before_allocations": 3,
+      "after_allocations": 0,
+      "before_allocated_bytes": 36130560,
+      "after_allocated_bytes": 0,
+      "selections_per_lane": 3,
+      "before_per_selection_ms": 18.078566666666667,
+      "after_per_selection_ms": 8.586333333333334,
+      "before_allocated_bytes_per_selection": 12043520
+    }
+  ],
+  "raw_rows": [
+    {
+      "pair": 0,
+      "kind": 0,
+      "candidate": false,
+      "ms": 28.0978,
+      "checksum": 1890089369444329894,
+      "allocations": 3,
+      "allocated_bytes": 7864560
+    },
+    {
+      "pair": 0,
+      "kind": 0,
+      "candidate": true,
+      "ms": 11.3164,
+      "checksum": 1890089369444329894,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 0,
+      "kind": 1,
+      "candidate": false,
+      "ms": 23.5385,
+      "checksum": 201824696468064082,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 0,
+      "kind": 1,
+      "candidate": true,
+      "ms": 11.0306,
+      "checksum": 201824696468064082,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 0,
+      "kind": 2,
+      "candidate": false,
+      "ms": 41.2749,
+      "checksum": 12204747934992341871,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 0,
+      "kind": 2,
+      "candidate": true,
+      "ms": 5.0967,
+      "checksum": 12204747934992341871,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 0,
+      "kind": 3,
+      "candidate": false,
+      "ms": 10.9136,
+      "checksum": 12204747934991720877,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 0,
+      "kind": 3,
+      "candidate": true,
+      "ms": 3.7789,
+      "checksum": 12204747934991720877,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 0,
+      "kind": 4,
+      "candidate": false,
+      "ms": 41.2239,
+      "checksum": 11192294340144270039,
+      "allocations": 3,
+      "allocated_bytes": 18065280
+    },
+    {
+      "pair": 0,
+      "kind": 4,
+      "candidate": true,
+      "ms": 19.7994,
+      "checksum": 11192294340144270039,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 0,
+      "kind": 5,
+      "candidate": false,
+      "ms": 14.5792,
+      "checksum": 15457428537895071356,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 0,
+      "kind": 5,
+      "candidate": true,
+      "ms": 2.9615,
+      "checksum": 15457428537895071356,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 0,
+      "kind": 6,
+      "candidate": false,
+      "ms": 47.8691,
+      "checksum": 2024899992083363633,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 0,
+      "kind": 6,
+      "candidate": true,
+      "ms": 13.2293,
+      "checksum": 2024899992083363633,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 0,
+      "kind": 7,
+      "candidate": false,
+      "ms": 56.2292,
+      "checksum": 13910306983927016126,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 0,
+      "kind": 7,
+      "candidate": true,
+      "ms": 25.759,
+      "checksum": 13910306983927016126,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 1,
+      "kind": 0,
+      "candidate": true,
+      "ms": 12.0355,
+      "checksum": 1890089369444329894,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 1,
+      "kind": 0,
+      "candidate": false,
+      "ms": 30.155,
+      "checksum": 1890089369444329894,
+      "allocations": 3,
+      "allocated_bytes": 7864560
+    },
+    {
+      "pair": 1,
+      "kind": 1,
+      "candidate": true,
+      "ms": 11.3219,
+      "checksum": 201824696468064082,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 1,
+      "kind": 1,
+      "candidate": false,
+      "ms": 25.0372,
+      "checksum": 201824696468064082,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 1,
+      "kind": 2,
+      "candidate": true,
+      "ms": 4.2297,
+      "checksum": 12204747934992341871,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 1,
+      "kind": 2,
+      "candidate": false,
+      "ms": 38.2495,
+      "checksum": 12204747934992341871,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 1,
+      "kind": 3,
+      "candidate": true,
+      "ms": 3.8332,
+      "checksum": 12204747934991720877,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 1,
+      "kind": 3,
+      "candidate": false,
+      "ms": 10.5394,
+      "checksum": 12204747934991720877,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 1,
+      "kind": 4,
+      "candidate": true,
+      "ms": 19.4446,
+      "checksum": 11192294340144270039,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 1,
+      "kind": 4,
+      "candidate": false,
+      "ms": 37.407,
+      "checksum": 11192294340144270039,
+      "allocations": 3,
+      "allocated_bytes": 18065280
+    },
+    {
+      "pair": 1,
+      "kind": 5,
+      "candidate": true,
+      "ms": 3.8788,
+      "checksum": 15457428537895071356,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 1,
+      "kind": 5,
+      "candidate": false,
+      "ms": 16.6484,
+      "checksum": 15457428537895071356,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 1,
+      "kind": 6,
+      "candidate": true,
+      "ms": 14.2144,
+      "checksum": 2024899992083363633,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 1,
+      "kind": 6,
+      "candidate": false,
+      "ms": 46.0988,
+      "checksum": 2024899992083363633,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 1,
+      "kind": 7,
+      "candidate": true,
+      "ms": 24.9875,
+      "checksum": 13910306983927016126,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 1,
+      "kind": 7,
+      "candidate": false,
+      "ms": 58.3693,
+      "checksum": 13910306983927016126,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 2,
+      "kind": 0,
+      "candidate": false,
+      "ms": 30.178,
+      "checksum": 1890089369444329894,
+      "allocations": 3,
+      "allocated_bytes": 7864560
+    },
+    {
+      "pair": 2,
+      "kind": 0,
+      "candidate": true,
+      "ms": 12.43,
+      "checksum": 1890089369444329894,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 2,
+      "kind": 1,
+      "candidate": false,
+      "ms": 26.0086,
+      "checksum": 201824696468064082,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 2,
+      "kind": 1,
+      "candidate": true,
+      "ms": 12.714,
+      "checksum": 201824696468064082,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 2,
+      "kind": 2,
+      "candidate": false,
+      "ms": 39.1178,
+      "checksum": 12204747934992341871,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 2,
+      "kind": 2,
+      "candidate": true,
+      "ms": 5.1557,
+      "checksum": 12204747934992341871,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 2,
+      "kind": 3,
+      "candidate": false,
+      "ms": 10.804,
+      "checksum": 12204747934991720877,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 2,
+      "kind": 3,
+      "candidate": true,
+      "ms": 3.3103,
+      "checksum": 12204747934991720877,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 2,
+      "kind": 4,
+      "candidate": false,
+      "ms": 38.5534,
+      "checksum": 11192294340144270039,
+      "allocations": 3,
+      "allocated_bytes": 18065280
+    },
+    {
+      "pair": 2,
+      "kind": 4,
+      "candidate": true,
+      "ms": 20.179,
+      "checksum": 11192294340144270039,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 2,
+      "kind": 5,
+      "candidate": false,
+      "ms": 17.4014,
+      "checksum": 15457428537895071356,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 2,
+      "kind": 5,
+      "candidate": true,
+      "ms": 3.1402,
+      "checksum": 15457428537895071356,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 2,
+      "kind": 6,
+      "candidate": false,
+      "ms": 44.7752,
+      "checksum": 2024899992083363633,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 2,
+      "kind": 6,
+      "candidate": true,
+      "ms": 13.3601,
+      "checksum": 2024899992083363633,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 2,
+      "kind": 7,
+      "candidate": false,
+      "ms": 54.2357,
+      "checksum": 13910306983927016126,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 2,
+      "kind": 7,
+      "candidate": true,
+      "ms": 26.1394,
+      "checksum": 13910306983927016126,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 3,
+      "kind": 0,
+      "candidate": true,
+      "ms": 12.2331,
+      "checksum": 1890089369444329894,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 3,
+      "kind": 0,
+      "candidate": false,
+      "ms": 31.5754,
+      "checksum": 1890089369444329894,
+      "allocations": 3,
+      "allocated_bytes": 7864560
+    },
+    {
+      "pair": 3,
+      "kind": 1,
+      "candidate": true,
+      "ms": 12.1354,
+      "checksum": 201824696468064082,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 3,
+      "kind": 1,
+      "candidate": false,
+      "ms": 25.4396,
+      "checksum": 201824696468064082,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 3,
+      "kind": 2,
+      "candidate": true,
+      "ms": 6.0136,
+      "checksum": 12204747934992341871,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 3,
+      "kind": 2,
+      "candidate": false,
+      "ms": 39.1043,
+      "checksum": 12204747934992341871,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 3,
+      "kind": 3,
+      "candidate": true,
+      "ms": 2.8473,
+      "checksum": 12204747934991720877,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 3,
+      "kind": 3,
+      "candidate": false,
+      "ms": 8.9764,
+      "checksum": 12204747934991720877,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 3,
+      "kind": 4,
+      "candidate": true,
+      "ms": 20.992,
+      "checksum": 11192294340144270039,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 3,
+      "kind": 4,
+      "candidate": false,
+      "ms": 40.8465,
+      "checksum": 11192294340144270039,
+      "allocations": 3,
+      "allocated_bytes": 18065280
+    },
+    {
+      "pair": 3,
+      "kind": 5,
+      "candidate": true,
+      "ms": 5.1362,
+      "checksum": 15457428537895071356,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 3,
+      "kind": 5,
+      "candidate": false,
+      "ms": 16.1056,
+      "checksum": 15457428537895071356,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 3,
+      "kind": 6,
+      "candidate": true,
+      "ms": 14.9769,
+      "checksum": 2024899992083363633,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 3,
+      "kind": 6,
+      "candidate": false,
+      "ms": 49.0124,
+      "checksum": 2024899992083363633,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 3,
+      "kind": 7,
+      "candidate": true,
+      "ms": 25.0701,
+      "checksum": 13910306983927016126,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 3,
+      "kind": 7,
+      "candidate": false,
+      "ms": 55.0901,
+      "checksum": 13910306983927016126,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 4,
+      "kind": 0,
+      "candidate": false,
+      "ms": 30.2432,
+      "checksum": 1890089369444329894,
+      "allocations": 3,
+      "allocated_bytes": 7864560
+    },
+    {
+      "pair": 4,
+      "kind": 0,
+      "candidate": true,
+      "ms": 12.9567,
+      "checksum": 1890089369444329894,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 4,
+      "kind": 1,
+      "candidate": false,
+      "ms": 27.9284,
+      "checksum": 201824696468064082,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 4,
+      "kind": 1,
+      "candidate": true,
+      "ms": 12.1487,
+      "checksum": 201824696468064082,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 4,
+      "kind": 2,
+      "candidate": false,
+      "ms": 33.5458,
+      "checksum": 12204747934992341871,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 4,
+      "kind": 2,
+      "candidate": true,
+      "ms": 5.9868,
+      "checksum": 12204747934992341871,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 4,
+      "kind": 3,
+      "candidate": false,
+      "ms": 8.8834,
+      "checksum": 12204747934991720877,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 4,
+      "kind": 3,
+      "candidate": true,
+      "ms": 2.4534,
+      "checksum": 12204747934991720877,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 4,
+      "kind": 4,
+      "candidate": false,
+      "ms": 37.4236,
+      "checksum": 11192294340144270039,
+      "allocations": 3,
+      "allocated_bytes": 18065280
+    },
+    {
+      "pair": 4,
+      "kind": 4,
+      "candidate": true,
+      "ms": 19.4993,
+      "checksum": 11192294340144270039,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 4,
+      "kind": 5,
+      "candidate": false,
+      "ms": 16.8838,
+      "checksum": 15457428537895071356,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 4,
+      "kind": 5,
+      "candidate": true,
+      "ms": 4.4407,
+      "checksum": 15457428537895071356,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 4,
+      "kind": 6,
+      "candidate": false,
+      "ms": 41.548,
+      "checksum": 2024899992083363633,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 4,
+      "kind": 6,
+      "candidate": true,
+      "ms": 11.583,
+      "checksum": 2024899992083363633,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 4,
+      "kind": 7,
+      "candidate": false,
+      "ms": 52.5027,
+      "checksum": 13910306983927016126,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 4,
+      "kind": 7,
+      "candidate": true,
+      "ms": 24.8998,
+      "checksum": 13910306983927016126,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 5,
+      "kind": 0,
+      "candidate": true,
+      "ms": 11.903,
+      "checksum": 1890089369444329894,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 5,
+      "kind": 0,
+      "candidate": false,
+      "ms": 29.8969,
+      "checksum": 1890089369444329894,
+      "allocations": 3,
+      "allocated_bytes": 7864560
+    },
+    {
+      "pair": 5,
+      "kind": 1,
+      "candidate": true,
+      "ms": 9.798,
+      "checksum": 201824696468064082,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 5,
+      "kind": 1,
+      "candidate": false,
+      "ms": 26.9173,
+      "checksum": 201824696468064082,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 5,
+      "kind": 2,
+      "candidate": true,
+      "ms": 6.0034,
+      "checksum": 12204747934992341871,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 5,
+      "kind": 2,
+      "candidate": false,
+      "ms": 32.2625,
+      "checksum": 12204747934992341871,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 5,
+      "kind": 3,
+      "candidate": true,
+      "ms": 3.7497,
+      "checksum": 12204747934991720877,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 5,
+      "kind": 3,
+      "candidate": false,
+      "ms": 10.7214,
+      "checksum": 12204747934991720877,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 5,
+      "kind": 4,
+      "candidate": true,
+      "ms": 20.6693,
+      "checksum": 11192294340144270039,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 5,
+      "kind": 4,
+      "candidate": false,
+      "ms": 41.4014,
+      "checksum": 11192294340144270039,
+      "allocations": 3,
+      "allocated_bytes": 18065280
+    },
+    {
+      "pair": 5,
+      "kind": 5,
+      "candidate": true,
+      "ms": 4.0875,
+      "checksum": 15457428537895071356,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 5,
+      "kind": 5,
+      "candidate": false,
+      "ms": 17.3621,
+      "checksum": 15457428537895071356,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 5,
+      "kind": 6,
+      "candidate": true,
+      "ms": 16.0876,
+      "checksum": 2024899992083363633,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 5,
+      "kind": 6,
+      "candidate": false,
+      "ms": 41.5155,
+      "checksum": 2024899992083363633,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 5,
+      "kind": 7,
+      "candidate": true,
+      "ms": 26.1854,
+      "checksum": 13910306983927016126,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 5,
+      "kind": 7,
+      "candidate": false,
+      "ms": 53.3384,
+      "checksum": 13910306983927016126,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 6,
+      "kind": 0,
+      "candidate": false,
+      "ms": 29.3015,
+      "checksum": 1890089369444329894,
+      "allocations": 3,
+      "allocated_bytes": 7864560
+    },
+    {
+      "pair": 6,
+      "kind": 0,
+      "candidate": true,
+      "ms": 11.8771,
+      "checksum": 1890089369444329894,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 6,
+      "kind": 1,
+      "candidate": false,
+      "ms": 26.3776,
+      "checksum": 201824696468064082,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 6,
+      "kind": 1,
+      "candidate": true,
+      "ms": 12.0944,
+      "checksum": 201824696468064082,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 6,
+      "kind": 2,
+      "candidate": false,
+      "ms": 34.1722,
+      "checksum": 12204747934992341871,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 6,
+      "kind": 2,
+      "candidate": true,
+      "ms": 4.1494,
+      "checksum": 12204747934992341871,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 6,
+      "kind": 3,
+      "candidate": false,
+      "ms": 8.6989,
+      "checksum": 12204747934991720877,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 6,
+      "kind": 3,
+      "candidate": true,
+      "ms": 3.6649,
+      "checksum": 12204747934991720877,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 6,
+      "kind": 4,
+      "candidate": false,
+      "ms": 40.1557,
+      "checksum": 11192294340144270039,
+      "allocations": 3,
+      "allocated_bytes": 18065280
+    },
+    {
+      "pair": 6,
+      "kind": 4,
+      "candidate": true,
+      "ms": 20.3228,
+      "checksum": 11192294340144270039,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 6,
+      "kind": 5,
+      "candidate": false,
+      "ms": 15.5032,
+      "checksum": 15457428537895071356,
+      "allocations": 3,
+      "allocated_bytes": 11290800
+    },
+    {
+      "pair": 6,
+      "kind": 5,
+      "candidate": true,
+      "ms": 3.9085,
+      "checksum": 15457428537895071356,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 6,
+      "kind": 6,
+      "candidate": false,
+      "ms": 42.0765,
+      "checksum": 2024899992083363633,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 6,
+      "kind": 6,
+      "candidate": true,
+      "ms": 12.9473,
+      "checksum": 2024899992083363633,
+      "allocations": 0,
+      "allocated_bytes": 0
+    },
+    {
+      "pair": 6,
+      "kind": 7,
+      "candidate": false,
+      "ms": 52.1929,
+      "checksum": 13910306983927016126,
+      "allocations": 3,
+      "allocated_bytes": 36130560
+    },
+    {
+      "pair": 6,
+      "kind": 7,
+      "candidate": true,
+      "ms": 26.2354,
+      "checksum": 13910306983927016126,
+      "allocations": 0,
+      "allocated_bytes": 0
+    }
+  ],
+  "all_original_timing_guards_pass": true,
+  "memory": "For the80byte opaque-position candidate model, temporary stable-sort allocation is removed: one allocation per selection becomes zero; up to12043520bytes per selection become zero. This does not remove the input candidate vector or claim whole-game RSS/VRAM reductions.",
+  "local_checks": {
+    "success": true,
+    "source_parent": "2f10c03201830cc9925267b53333e2e14bb04a5e",
+    "branch": "codex/fpv-world-budget-selection-20261029",
+    "files": {
+      "experiments/graphics_bridge/ncmm_world_policy.hpp": "936cc107be1833a7d1011555b1cd041ce0f5e6c322c6c3615a10e88c8799478a",
+      "experiments/graphics_bridge/ncmm_graphics_world.inc": "7d9e56759122f2f46bbd7ebf3aae64c74bf92b025e33b3acda656d673d239633",
+      "experiments/FirstPersonView/tests/multilevel_cache_test.cpp": "f49096300b96f8324507f21b39b762f299e7fe4678a64a9382e2e849d71a62ba"
+    },
+    "original_canonical_git_sha256": {
+      "experiments/graphics_bridge/ncmm_world_policy.hpp": "a27452c292bd18a10408aa29cb7e452e9406c46a17c777c65607df35d11aa1cf",
+      "experiments/graphics_bridge/ncmm_graphics_world.inc": "a44059d616a76ab927cbd3eeed846b82f4e88e5912c55a4fdbd0e62f4443dabc",
+      "experiments/FirstPersonView/tests/multilevel_cache_test.cpp": "fe1aa8209e94145482124a56f51635dc2729d6f716ec530c2e604331ebd322e7"
+    },
+    "model": "night-world-budget108/summary.json",
+    "production_modified": true,
+    "no_native": true,
+    "no_device": true,
+    "no_mouse_or_focus": true,
+    "no_subagents": true,
+    "full_release_build": true,
+    "non_device_ctest": 51,
+    "atomic_source_transform_tests": 96,
+    "ctest_evidence": "50unchanged passing tests from the initial51test run, plus the repaired/now passing multilevel_cache test. Only its diagnostic/negative-fixture test code changed after the initial run; production source did not change. No broad unchanged rerun.",
+    "repaired_negative_control": "The old all-equal distance-only nth_element control happened to preserve input order in MSVC and was not distinguishable. Replaced with an explicit reversed tie order in a mixed-distance boundary. Both reversed ties and missing final XYZ order are now rejected.",
+    "negative_controls": 2,
+    "source_verification": true,
+    "abi_unchanged": true,
+    "selected_payload_and_order_unchanged": true,
+    "local_native": false,
+    "local_device": false,
+    "mouse_or_focus": false,
+    "subagents": false,
+    "unchanged_attribution_tests_not_repeated": true,
+    "scope": "Only over-budget Host selection and owned shared helper/tests change. All GPU/SDL/shader/device, visibility/rays, assets and ABI are unchanged. Actual Native compilation and ordinary stair latency remain pending CI."
+  },
+  "limits": [
+    "Only the actual owned selection fragment with an opaque12byte position token was timed. Input cloning is outside its timer; each raw lane sums three selections. Not complete Native extraction, whole frame, GPU execution, ordinary RTX4090 FPS or15ms qualification.",
+    "The shared helper/module Release build and51non-device tests pass, plus96atomic source-transform tests. The initial full test run passed50; its new negative fixture was repaired and only that failed test was rebuilt/rerun. Production performance code did not change after its passing model.",
+    "All actual Native builds, package/resource proofs and ordinary stair latency still require exact-head CI. Preserve230-235source heads. No installer contains108yet; released/main F102remains unchanged.",
+    "Shaders/SDL/device/asset/visibility/ray code and ABI are unchanged. No local Native/input/device execution, mouse/focus, UAC or subagents."
+  ],
+  "evidence_sha256": {
+    "night-world-budget108/protocol.json": "c15e77a4820d14e72285ab5898cabcbfc6104f072cf7c60fa966a0736e6eb9b0",
+    "night-world-budget108/driver.cpp": "0dd5c161347fe18c29cdad033104f96e34367a1da05634153a13c837679bdca2",
+    "night-world-budget108/original-fragment.inc": "f2031f350111c401ba05c4cc7af8e5f2b055bacd2dd16e734caab86d4cb29e1f",
+    "night-world-budget108/helper.hpp": "d99decbbfa4a4be098e392c07ea1b6c91367aa2221527b3e6def1a9de0f93906",
+    "night-world-budget108/summary.json": "0db9035e50a6b863b33574ca7dcdc424ff32f0e00200960a4999e85bf39bedd2",
+    "night-stage108-build-test-summary.json": "aaf72573d9bc781175831667e11b351caebd2a21e2af14a1c9befc4879481166",
+    "night-stage108-release-build.txt": "ff25b915d588c7f3563713880bcd7bf7c40f5b1e8fbe46aa13d12807d38b254f",
+    "night-stage108-tests.txt": "f724c4dc510e48484c9d0cb457e5bcfdc687950c911c45524358cf2c420b9299",
+    "night-stage108-test-repair-build.txt": "facc125544a41856453e557fe649ad4391cc49f11641509967b4e3bf693a6302",
+    "night-stage108-repaired-cache-test.txt": "6bac9055c1f3deaf05d684456c158e5febf51c6f5789b244049ae168663cd3bb",
+    "night-stage108-atomic-transform-tests.txt": "bbae04cc48c77221541a2c89745c9ac5d94f3ab5062ddc53af028a6b64585c80"
+  }
+}
