@@ -300,7 +300,8 @@ jobs:
             'experiments/FirstPersonView/tests/verify_turn_attribution.py':'79698661ec654c168726c8363e0490937321079c4368aed93c429656f9763391',
             'experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc':'bd4ef1a6578d66613562205d893eb016c304ab245181945c416660985e094300',
             'experiments/graphics_bridge/ncmm_graphics_turn_diagnostics.hpp':'d051001d07ca0f96ff237311b6023c760ded327fcd7e6f19b44c537d1a76cbb0',
-            'experiments/graphics_bridge/ncmm_graphics_gpu.inc':'5d0a87a08ca73fa48b64cfa26f7a1b059bbc807fc6cd9c71878bf5b5cdbe7e4e'}
+            'experiments/graphics_bridge/ncmm_graphics_gpu.inc':'5d0a87a08ca73fa48b64cfa26f7a1b059bbc807fc6cd9c71878bf5b5cdbe7e4e',
+            'experiments/FirstPersonView/src/volumes.inc':'928984f0bbaf7d2fb386a388a21c7d5eb0e884fdb5b3b5c55890e74c419bfdb6'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')

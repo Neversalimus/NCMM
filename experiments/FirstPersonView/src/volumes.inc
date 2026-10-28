@@ -44,6 +44,13 @@
         const float time=float(std::fmod(s.environment.animation_seconds,1000.0));
         const float extent_x=std::max(eye.x,float(base.grid_width)-eye.x),extent_y=std::max(eye.y,float(base.grid_height)-eye.y);
         const float effect_range=std::max(19.0f,std::hypot(extent_x,extent_y));
+        struct glow_source{vec position,delta,color;float depth,strength;};
+        std::array<glow_source,12> glow_sources{};size_t glow_count=0;
+        for(int i:sources){const auto &d=extra(i);const vec source=cell_center(i,1.15f),delta=source-eye;
+            const float distance=std::sqrt(dot(delta,delta));
+            glow_sources[glow_count++]={source,delta,{d.source_r,d.source_g,d.source_b},view(source).z,
+                std::min(.32f,std::sqrt(d.source_light)*.023f)/(1+distance*.13f)};
+        }
         std::atomic<uint64_t> sample_count{0};
         effects::rows(uint32_t(f.effect_height),f.effects.size(),[&](uint32_t begin,uint32_t end){
         uint64_t marched=0;
@@ -109,14 +116,12 @@
                     t+=interval;
                 }
             }
-            for(int i:sources){const auto &d=extra(i);const vec source=cell_center(i,1.15f);
-                const vec q=view(source);if(q.z<.12f||q.z>stop+.12f)continue;
-                const float distance=std::sqrt(dot(source-eye,source-eye));
-                const float t=dot(source-eye,ray)/std::max(.001f,dot(ray,ray));
-                if(t<0||t>stop)continue;const vec diff=source-(eye+ray*t);const float radius2=dot(diff,diff);
-                const float strength=std::min(.32f,std::sqrt(d.source_light)*.023f)/(1+distance*.13f);
-                const float glow=strength/(1+radius2*18);
-                const float a=(1-alpha)*glow;sum=sum+vec{d.source_r,d.source_g,d.source_b}*a;alpha+=a;
+            for(size_t source_index=0;source_index<glow_count;++source_index){const auto &source=glow_sources[source_index];
+                if(source.depth<.12f||source.depth>stop+.12f)continue;
+                const float t=dot(source.delta,ray)/std::max(.001f,dot(ray,ray));
+                if(t<0||t>stop)continue;const vec diff=source.position-(eye+ray*t);const float radius2=dot(diff,diff);
+                const float glow=source.strength/(1+radius2*18);
+                const float a=(1-alpha)*glow;sum=sum+source.color*a;alpha+=a;
             }
             if(s.environment.fog_density>.025f&&(!world_data||s.environment.outdoors)){const float height=std::max(0.0f,(eye+ray*stop*.5f).z);
                 const float mist=clamp(stop*s.environment.fog_density*.13f/(1+height*.3f));

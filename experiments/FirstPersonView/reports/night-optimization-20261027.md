@@ -1645,6 +1645,38 @@ Private evidence: `night-weapon-blend-model64-r3/summary.json` and
 `night-weapon-blend-timing64/summary.json`. Next inspect repeated camera/source
 invariants in volumetric-light preparation while actual schema3 is pending.
 
+**65. Prepare fixed volumetric-light source values once per CPU frame.**
+The software atmosphere pass recomputed every light's world position,
+camera depth, distance and attenuation in every effect pixel. A fixed12-entry
+stack array prepares these frame invariants once. Selection/stable ordering,
+propagated RGB, ray samples, occlusion, fog, range and arithmetic inside each
+sample remain unchanged; no ABI, persistent cache, quality or settings change.
+A frozen full-renderer comparison passes168 scenes/2,268 assertions with
+16,329,600 exact RGBA pixels, identical effect/depth/identity buffers and
+7,729,476 unchanged integration samples, including three Z levels, camera
+offsets, ties,16 candidate sources and0/1 threshold values. Initial fixture
+linkage/invalid-metadata failures were corrected before qualification.
+
+Seven alternating same-process pairs per eight workloads (64 warm-world
+renders/lane) give12-light640x480 effect medians4.29994→3.98633ms, full
+render5.81375→5.49528ms; paired ratios.92746/.93979.320x240 twelve-light
+fire/occluded effect ratios.89956/.86904;572x600 ratio.95933. One-light
+ratio1.00835 is unchanged within noise; inactive code does not execute the
+new preparation. Keep the bounded saving, not a broad FPS claim. These owned
+CPU renderer measurements do not qualify Native action/RTX GPU/present/15ms.
+
+Full Release and six affected CTests(3.07s) pass. A newly rebuilt hidden
+render-only RTX4090 control passes:21 fallbackADS,12 authoredADS,34 objects,
+two muzzle composites,45 grass draws, zero warm static uploads, CPU/GPU
+multi-Z open21108/closed0 pixels and subway dark0.00. It uses no Native game,
+input, mouse or focus. Add the affected volume source to the frozen workflow:
+171 exact indexed hashes. Native/schema3 CI remains tied to616d718; no causal
+Native gain or new full qualification is claimed for these changed bytes.
+Evidence: `night-volume-sources-model65-r4`, `night-volume-sources-timing65`,
+`night-stage65-{affected-tests,hidden-render,release-build}.txt` and
+`night-stage65-index-identity.json`. Next consume the pending fresh Native CPU
+callback data, then prioritize the largest measured phase.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
