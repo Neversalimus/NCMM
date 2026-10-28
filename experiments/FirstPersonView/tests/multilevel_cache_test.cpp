@@ -1,5 +1,6 @@
 #include "ncmm_world_cache.hpp"
 #include "ncmm_graphics_invalidation.hpp"
+#include "ncmm_graphics_shapes.hpp"
 #include <iostream>
 #include <cstring>
 #include <type_traits>
@@ -1175,6 +1176,78 @@ void test_native_outside_cache();
 int native_actualize_fixture_tests();
 int native_phase_scan_fixture_tests();
 
+// The expected surface comes from an independent absolute-XYZ map. The actual
+// Host helper also runs before appearance has been attached to the sparse world.
+template<class Check> void substrate_checks(Check check){
+    auto require=[&](bool value,const char *message){if(!value)std::cerr<<"Visible substrate: "<<message<<'\n';check(value);};
+    using cell=ncmm_graphics_cell_v1;using detail=ncmm_graphics_cell_v2;
+    using xyz=std::tuple<int,int,int>;
+    auto copy=[](char (&out)[128],const std::string &value){if(value.size()<sizeof(out))std::copy(value.begin(),value.end(),out);};
+    uint32_t state=0x9837ac91u;auto next=[&](){state=state*1664525u+1013904223u;return state;};
+    const std::array<const char *,9> ids{{"t_grass","t_dirt","t_sand","t_water_sh","t_fungus","t_floor_wood","t_pavement","t_open_air","t_floor_with_a_long_identifier_to_exercise_owned_copying"}};
+    const std::array<uint32_t,7> shapes{{NCMM_SHAPE_FLAT,NCMM_SHAPE_WATER,NCMM_SHAPE_BRIDGE,NCMM_SHAPE_WALL,NCMM_SHAPE_TREE,NCMM_SHAPE_SHRUB,NCMM_SHAPE_PLANT}};
+    for(int trial=0;trial<384;++trial){
+        const int side=std::array<int,4>{{3,5,9,17}}[size_t(trial)%4],levels=trial%3*2+1,low=-levels/2;
+        const int ox=trial%2?INT32_MAX-100:INT32_MIN+100,oy=trial%3? -1000000:1000000;
+        std::vector<cell> cells;std::vector<detail> initial;std::vector<ncmm_world_cell_v1> positions;
+        std::map<xyz,size_t> address;
+        const bool legacy=trial%7==0;
+        for(int z=low;z<low+(legacy?1:levels);++z)for(int y=0;y<side;++y)for(int x=0;x<side;++x){
+            if(!legacy&&next()%5==0)continue;
+            cell c{};detail d{};const auto random=next();
+            c.flags=(random%7?uint32_t(NCMM_GFX_VISIBLE):0u)|(random%11?0u:uint32_t(NCMM_GFX_NO_FLOOR));
+            const char *id=ids[next()%ids.size()];std::strcpy(c.terrain,id);
+            if(random%13==0){std::fill(std::begin(c.terrain),std::end(c.terrain)-1,'x');c.terrain[127]='\0';}
+            std::memset(&d,int(random%251),sizeof(d));d.terrain_shape=shapes[next()%shapes.size()];
+            std::fill(std::begin(d.ground),std::end(d.ground),'\0');std::strcpy(d.ground,"t_fallback_with_long_previous_surface");
+            address[{ox+x,oy+y,z}]=cells.size();cells.push_back(c);initial.push_back(d);
+            positions.push_back({ox+x,oy+y,z,NCMM_WORLD_BODY_VISIBLE,0,0,1});
+        }
+        ncmm_graphics_scene_v1 base{};base.grid_width=base.grid_height=side;base.cell_count=cells.size();base.cells=cells.data();
+        ncmm_graphics_multilevel_scene_v1 world{};world.origin_x=ox;world.origin_y=oy;world.loaded_min_z=low;world.loaded_max_z=low+levels-1;
+        world.coordinates=positions.data();world.cell_count=uint32_t(positions.size());
+        auto expected=initial;
+        const std::array<xyz,4> directions{{{0,1,0},{0,-1,0},{1,0,0},{-1,0,0}}};
+        auto vertical=[](uint32_t shape){return shape!=NCMM_SHAPE_FLAT&&shape!=NCMM_SHAPE_WATER&&shape!=NCMM_SHAPE_BRIDGE;};
+        for(size_t i=0;i<expected.size();++i){
+            if(!(cells[i].flags&NCMM_GFX_VISIBLE)||!vertical(initial[i].terrain_shape))continue;
+            const auto &p=positions[i];
+            for(const auto &delta:directions){
+                const auto found=address.find({p.x+std::get<0>(delta),p.y+std::get<1>(delta),p.z});
+                if(found==address.end())continue;const size_t j=found->second;
+                if(!(cells[j].flags&NCMM_GFX_VISIBLE)||(cells[j].flags&NCMM_GFX_NO_FLOOR)||vertical(initial[j].terrain_shape))continue;
+                const auto shape=initial[i].terrain_shape;
+                const bool plant=shape==NCMM_SHAPE_TREE||shape==NCMM_SHAPE_SHRUB||shape==NCMM_SHAPE_PLANT;
+                const std::string id=cells[j].terrain;
+                if(plant&&id.find("dirt")==std::string::npos&&id.find("grass")==std::string::npos&&id.find("sand")==std::string::npos&&id.find("water")==std::string::npos&&id.find("fungus")==std::string::npos)continue;
+                std::fill(std::begin(expected[i].ground),std::end(expected[i].ground),'\0');copy(expected[i].ground,id);break;
+            }
+        }
+        auto actual=initial;
+        static_detail_fixture::graphics_populate_substrates(base,actual,legacy?nullptr:&world,copy);
+        for(size_t i=0;i<actual.size();++i)require(std::memcmp(&actual[i],&expected[i],sizeof(detail))==0,"complete detail bytes preserve visibility, same Z, order, plant soil, missing cells and 127-byte IDs");
+        if(!legacy){
+            world.appearance.base=base;auto bound=initial;
+            static_detail_fixture::graphics_populate_substrates(base,bound,&world,copy);
+            for(size_t i=0;i<bound.size();++i)require(std::memcmp(&bound[i],&actual[i],sizeof(detail))==0,"appearance publication timing cannot change the chosen surface");
+        }
+    }
+    // Explicitly distinguish all four priorities and exclude an invisible
+    // preferred neighbour without consulting any Native map accessor.
+    for(bool hidden:{false,true})for(int preferred=0;preferred<4;++preferred){
+        std::vector<cell> cells(9);std::vector<detail> details(9);std::vector<ncmm_world_cell_v1> positions;
+        for(int y=0;y<3;++y)for(int x=0;x<3;++x){const auto i=size_t(y*3+x);cells[i].flags=NCMM_GFX_VISIBLE;details[i].terrain_shape=NCMM_SHAPE_WALL;positions.push_back({x,y,0,NCMM_WORLD_BODY_VISIBLE,0,0,1});}
+        const std::array<int,4> neighbors{{7,1,5,3}};const std::array<const char *,4> floors{{"t_floor_south","t_floor_north","t_floor_east","t_floor_west"}};
+        for(int d=preferred;d<4;++d){details[size_t(neighbors[size_t(d)])].terrain_shape=NCMM_SHAPE_FLAT;std::strcpy(cells[size_t(neighbors[size_t(d)])].terrain,floors[size_t(d)]);}
+        if(hidden)cells[size_t(neighbors[size_t(preferred)])].flags=0;
+        ncmm_graphics_scene_v1 base{};base.grid_width=base.grid_height=3;base.cell_count=cells.size();base.cells=cells.data();
+        ncmm_graphics_multilevel_scene_v1 world{};world.coordinates=positions.data();world.cell_count=9;
+        static_detail_fixture::graphics_populate_substrates(base,details,&world,copy);
+        const char *wanted=hidden?(preferred<3?floors[size_t(preferred+1)]:""):floors[size_t(preferred)];
+        require(std::strcmp(details[4].ground,wanted)==0,"visible neighbour priority remains south, north, east, west");
+    }
+}
+
 int main(){try{
     test_native_floor_cache();
     test_native_item_reconciliation();
@@ -1190,6 +1263,7 @@ int main(){try{
     geometry_border_checks(check);
     unperceived_terrain_stair_checks(check);
     static_detail_checks(check);
+    substrate_checks(check);
     candidate_range_checks(check);
     {
         int identities[2]{};

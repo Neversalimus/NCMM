@@ -1,0 +1,1081 @@
+{
+  "schema": 1,
+  "source_parent": "59f2b5eeb8cd461e93fa63f1fa49493231c01818",
+  "problem": "The Native world snapshot has its canonical sparse coordinates but an empty appearance until graphics_draw_hybrid publishes the completed scene. Constructing the indexed coordinates adapter earlier validates the empty grid, rejects its scene and returns-1 for every substrate neighbour. Vertical terrain then keeps the generic floor/dirt fallback even when a compatible visible floor is beside it.",
+  "change": "Move the existing visible-neighbour substrate pass into the already copied static-detail include. Use the canonical sparse XYZ adapter before appearance is bound, and reuse the already-owned string for the selected copy. No Native map read or permission changes.",
+  "source_files": {
+    "experiments/graphics_bridge/ncmm_graphics_static_detail.inc": "49d9a68d87ba468219dc0aac95c3634208343ecd704c8c6e9f3fb96f0707d03f",
+    "experiments/graphics_bridge/ncmm_graphics_hybrid.inc": "a3e4827726e80ce717ac922935ebb01e053242eb79c4260f3b95837f7cfa0641",
+    "experiments/FirstPersonView/tests/multilevel_cache_test.cpp": "a82b0fbe224a56b824c407061f68a8f6c3597cbad5a404a5854fe5bf20b1dcd7",
+    "experiments/graphics_bridge/test_apply_graphics_bridge.py": "fc9d64af4334eafabbebdfa79a63e690ad8045a8249127c1468723c4c8fed7aa"
+  },
+  "functional_proof": {
+    "checks": 163623,
+    "randomized_scenes": 384,
+    "explicit_priority_cases": 8,
+    "complete_detail_bytes": true,
+    "fixtures": [
+      "Sparse1/3/5 levels before and after appearance publication",
+      "Same-XY cells on different Z",
+      "Absent/invisible/no-floor/vertical neighbours",
+      "South/north/east/west priority",
+      "Legacy world-null dense grid",
+      "Plant-compatible and incompatible floors",
+      "Near-INT32 coordinate limits",
+      "127-character identifiers and longer previous destination IDs"
+    ],
+    "independent_oracle": "Absolute-XYZ std::map plus an independently expressed floor eligibility/order policy; the real Host helper supplies the actual result.",
+    "negative_controls": [
+      {
+        "name": "positive",
+        "exit_code": 0,
+        "helper_sha256": "49d9a68d87ba468219dc0aac95c3634208343ecd704c8c6e9f3fb96f0707d03f"
+      },
+      {
+        "name": "old-indexed-bug",
+        "exit_code": 1,
+        "helper_sha256": "b0e57dee57136933ad9e742fd9fc9dda6425608498163c265f35e2cb4561b1c0"
+      },
+      {
+        "name": "ignore-visible-neighbor",
+        "exit_code": 1,
+        "helper_sha256": "209e81833292db950748191f05756afc0259776c7a478535e1ffa5b659a597dc"
+      },
+      {
+        "name": "wrong-z",
+        "exit_code": 1,
+        "helper_sha256": "368a6d1a47b71cafe97645942deff504732ad6b14a84436efdc57f94f7b1feb0"
+      },
+      {
+        "name": "wrong-priority",
+        "exit_code": 1,
+        "helper_sha256": "288d3de173a7a1b15a34fd8bc363d7dab31b55aed483c2551b47c1de0955f41b"
+      }
+    ],
+    "initial_test_build_issue": "Initial attempt linked the entire cache test without its six separate fixture TUs; linker failed before any test ran. Raw initial build.txt is retained. This focused runner invokes only the new portable substrate suite; full linked cache target remains required."
+  },
+  "optimization": "Pass the already-owned ground string to copy_id instead of constructing a second temporary from the same128-byte terrain identifier. This is byte-exact against the independently corrected substrate pass, including destination clearing. No dense index, persistent cache or extra Native query is introduced.",
+  "scope": {
+    "scope": "Complete corrected visible-substrate pass only, source-bound Host helper with an empty prepublication appearance and actual owned ABI arrays. Reference already fixes the old broken neighbour lookup; this comparison does not treat the incorrect shipped output as equivalent.",
+    "pairs": 9,
+    "workloads": 12,
+    "alternating_order": true,
+    "acceptance": "Every substantial paired median no worse than3percent; empty/small absolute regression at most50ns per pass. At least two long-ID workloads improve at least5percent paired. All complete detail bytes identical and long-ID temporary allocations halved.",
+    "excluded": "Native map queries, full extraction, GPU rendering, Present, input latency, cold processes and ordinary frame-rate measurements.",
+    "background": "User programs untouched; no concurrent local performance experiment."
+  },
+  "comparisons": [
+    {
+      "scene": "empty",
+      "before_median_ms": 2.887e-06,
+      "after_median_ms": 2.7137e-06,
+      "median_pair_ratio": 0.8931470128322867
+    },
+    {
+      "scene": "all_flat9409",
+      "before_median_ms": 0.0096631,
+      "after_median_ms": 0.009729699999999999,
+      "median_pair_ratio": 1.0141865410273514
+    },
+    {
+      "scene": "city_long9409",
+      "before_median_ms": 0.4144683333333333,
+      "after_median_ms": 0.3175966666666667,
+      "median_pair_ratio": 0.7884118926451372
+    },
+    {
+      "scene": "trees_long9409",
+      "before_median_ms": 0.4555391666666667,
+      "after_median_ms": 0.406485,
+      "median_pair_ratio": 0.8564501489199421
+    },
+    {
+      "scene": "city_long28227",
+      "before_median_ms": 1.6708944444444445,
+      "after_median_ms": 1.3307944444444444,
+      "median_pair_ratio": 0.8227356038093266
+    },
+    {
+      "scene": "trees_long65536",
+      "before_median_ms": 7.061975,
+      "after_median_ms": 5.669675,
+      "median_pair_ratio": 0.8028455212599874
+    },
+    {
+      "scene": "grass_short9409",
+      "before_median_ms": 0.26686444444444446,
+      "after_median_ms": 0.2592361111111111,
+      "median_pair_ratio": 0.9409167367535743
+    },
+    {
+      "scene": "city_short9409",
+      "before_median_ms": 0.2271761111111111,
+      "after_median_ms": 0.2156561111111111,
+      "median_pair_ratio": 0.9657164943942591
+    },
+    {
+      "scene": "legacy_long9409",
+      "before_median_ms": 0.254429,
+      "after_median_ms": 0.1492405,
+      "median_pair_ratio": 0.5672487909308551
+    },
+    {
+      "scene": "sparse_long3z",
+      "before_median_ms": 1.3856458333333332,
+      "after_median_ms": 1.1840125,
+      "median_pair_ratio": 0.8394328720104546
+    },
+    {
+      "scene": "hidden9409",
+      "before_median_ms": 0.00550132,
+      "after_median_ms": 0.00475304,
+      "median_pair_ratio": 0.8519843366800807
+    },
+    {
+      "scene": "small49",
+      "before_median_ms": 0.00034351250000000004,
+      "after_median_ms": 0.00025922499999999997,
+      "median_pair_ratio": 0.7953114421123899
+    }
+  ],
+  "raw_paired_lanes": [
+    {
+      "scene": "empty",
+      "pair": 0,
+      "iterations": 1000000,
+      "before_total_ms": 3.1594,
+      "after_total_ms": 3.4698
+    },
+    {
+      "scene": "empty",
+      "pair": 1,
+      "iterations": 1000000,
+      "before_total_ms": 4.0289,
+      "after_total_ms": 3.5984
+    },
+    {
+      "scene": "empty",
+      "pair": 2,
+      "iterations": 1000000,
+      "before_total_ms": 3.445,
+      "after_total_ms": 3.2405
+    },
+    {
+      "scene": "empty",
+      "pair": 3,
+      "iterations": 1000000,
+      "before_total_ms": 2.5046,
+      "after_total_ms": 3.9843
+    },
+    {
+      "scene": "empty",
+      "pair": 4,
+      "iterations": 1000000,
+      "before_total_ms": 3.0508,
+      "after_total_ms": 2.1782
+    },
+    {
+      "scene": "empty",
+      "pair": 5,
+      "iterations": 1000000,
+      "before_total_ms": 2.5647,
+      "after_total_ms": 2.2681
+    },
+    {
+      "scene": "empty",
+      "pair": 6,
+      "iterations": 1000000,
+      "before_total_ms": 2.6163,
+      "after_total_ms": 2.7137
+    },
+    {
+      "scene": "empty",
+      "pair": 7,
+      "iterations": 1000000,
+      "before_total_ms": 2.5499,
+      "after_total_ms": 2.2318
+    },
+    {
+      "scene": "empty",
+      "pair": 8,
+      "iterations": 1000000,
+      "before_total_ms": 2.887,
+      "after_total_ms": 2.2088
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 0,
+      "iterations": 2000,
+      "before_total_ms": 20.3511,
+      "after_total_ms": 17.4423
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 1,
+      "iterations": 2000,
+      "before_total_ms": 20.1466,
+      "after_total_ms": 18.8053
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 2,
+      "iterations": 2000,
+      "before_total_ms": 19.3262,
+      "after_total_ms": 20.0951
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 3,
+      "iterations": 2000,
+      "before_total_ms": 18.1967,
+      "after_total_ms": 19.9119
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 4,
+      "iterations": 2000,
+      "before_total_ms": 19.1872,
+      "after_total_ms": 19.4594
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 5,
+      "iterations": 2000,
+      "before_total_ms": 17.8541,
+      "after_total_ms": 21.229
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 6,
+      "iterations": 2000,
+      "before_total_ms": 20.8134,
+      "after_total_ms": 18.4839
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 7,
+      "iterations": 2000,
+      "before_total_ms": 19.1829,
+      "after_total_ms": 20.8038
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 8,
+      "iterations": 2000,
+      "before_total_ms": 20.3268,
+      "after_total_ms": 17.8246
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 0,
+      "iterations": 120,
+      "before_total_ms": 49.7362,
+      "after_total_ms": 41.6982
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 1,
+      "iterations": 120,
+      "before_total_ms": 51.9805,
+      "after_total_ms": 35.2704
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 2,
+      "iterations": 120,
+      "before_total_ms": 47.7524,
+      "after_total_ms": 38.1116
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 3,
+      "iterations": 120,
+      "before_total_ms": 49.2112,
+      "after_total_ms": 37.072
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 4,
+      "iterations": 120,
+      "before_total_ms": 58.8557,
+      "after_total_ms": 38.2882
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 5,
+      "iterations": 120,
+      "before_total_ms": 54.1138,
+      "after_total_ms": 37.3094
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 6,
+      "iterations": 120,
+      "before_total_ms": 47.2191,
+      "after_total_ms": 37.2281
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 7,
+      "iterations": 120,
+      "before_total_ms": 48.6379,
+      "after_total_ms": 42.1879
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 8,
+      "iterations": 120,
+      "before_total_ms": 51.4944,
+      "after_total_ms": 42.7644
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 0,
+      "iterations": 120,
+      "before_total_ms": 58.0248,
+      "after_total_ms": 51.8811
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 1,
+      "iterations": 120,
+      "before_total_ms": 51.7515,
+      "after_total_ms": 44.2072
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 2,
+      "iterations": 120,
+      "before_total_ms": 57.9506,
+      "after_total_ms": 49.6318
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 3,
+      "iterations": 120,
+      "before_total_ms": 54.2603,
+      "after_total_ms": 48.8774
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 4,
+      "iterations": 120,
+      "before_total_ms": 53.2848,
+      "after_total_ms": 52.8147
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 5,
+      "iterations": 120,
+      "before_total_ms": 58.9165,
+      "after_total_ms": 46.5919
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 6,
+      "iterations": 120,
+      "before_total_ms": 60.2299,
+      "after_total_ms": 48.7782
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 7,
+      "iterations": 120,
+      "before_total_ms": 51.9332,
+      "after_total_ms": 45.4174
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 8,
+      "iterations": 120,
+      "before_total_ms": 54.6647,
+      "after_total_ms": 45.59
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 0,
+      "iterations": 36,
+      "before_total_ms": 60.661,
+      "after_total_ms": 47.2282
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 1,
+      "iterations": 36,
+      "before_total_ms": 60.1522,
+      "after_total_ms": 49.1938
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 2,
+      "iterations": 36,
+      "before_total_ms": 56.3704,
+      "after_total_ms": 47.9086
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 3,
+      "iterations": 36,
+      "before_total_ms": 60.3697,
+      "after_total_ms": 51.0081
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 4,
+      "iterations": 36,
+      "before_total_ms": 61.8167,
+      "after_total_ms": 50.8588
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 5,
+      "iterations": 36,
+      "before_total_ms": 58.7517,
+      "after_total_ms": 46.783
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 6,
+      "iterations": 36,
+      "before_total_ms": 60.8673,
+      "after_total_ms": 45.2663
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 7,
+      "iterations": 36,
+      "before_total_ms": 56.0584,
+      "after_total_ms": 51.2503
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 8,
+      "iterations": 36,
+      "before_total_ms": 56.2286,
+      "after_total_ms": 47.238
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 0,
+      "iterations": 16,
+      "before_total_ms": 91.3509,
+      "after_total_ms": 77.1311
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 1,
+      "iterations": 16,
+      "before_total_ms": 93.9081,
+      "after_total_ms": 81.8081
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 2,
+      "iterations": 16,
+      "before_total_ms": 100.2891,
+      "after_total_ms": 77.3638
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 3,
+      "iterations": 16,
+      "before_total_ms": 112.9916,
+      "after_total_ms": 90.7148
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 4,
+      "iterations": 16,
+      "before_total_ms": 99.3365,
+      "after_total_ms": 92.9598
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 5,
+      "iterations": 16,
+      "before_total_ms": 113.7654,
+      "after_total_ms": 101.7391
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 6,
+      "iterations": 16,
+      "before_total_ms": 123.5625,
+      "after_total_ms": 94.868
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 7,
+      "iterations": 16,
+      "before_total_ms": 119.1891,
+      "after_total_ms": 94.7361
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 8,
+      "iterations": 16,
+      "before_total_ms": 118.6556,
+      "after_total_ms": 80.33
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 0,
+      "iterations": 180,
+      "before_total_ms": 48.0356,
+      "after_total_ms": 45.1975
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 1,
+      "iterations": 180,
+      "before_total_ms": 49.7987,
+      "after_total_ms": 46.5778
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 2,
+      "iterations": 180,
+      "before_total_ms": 49.5048,
+      "after_total_ms": 49.4609
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 3,
+      "iterations": 180,
+      "before_total_ms": 47.2897,
+      "after_total_ms": 45.4293
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 4,
+      "iterations": 180,
+      "before_total_ms": 46.8156,
+      "after_total_ms": 49.8658
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 5,
+      "iterations": 180,
+      "before_total_ms": 53.0927,
+      "after_total_ms": 48.4225
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 6,
+      "iterations": 180,
+      "before_total_ms": 46.7054,
+      "after_total_ms": 46.6625
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 7,
+      "iterations": 180,
+      "before_total_ms": 47.1697,
+      "after_total_ms": 40.8988
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 8,
+      "iterations": 180,
+      "before_total_ms": 51.7012,
+      "after_total_ms": 46.7396
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 0,
+      "iterations": 180,
+      "before_total_ms": 43.616,
+      "after_total_ms": 34.9024
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 1,
+      "iterations": 180,
+      "before_total_ms": 41.815,
+      "after_total_ms": 38.8181
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 2,
+      "iterations": 180,
+      "before_total_ms": 37.2103,
+      "after_total_ms": 38.5771
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 3,
+      "iterations": 180,
+      "before_total_ms": 41.1364,
+      "after_total_ms": 39.7261
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 4,
+      "iterations": 180,
+      "before_total_ms": 40.8917,
+      "after_total_ms": 37.3864
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 5,
+      "iterations": 180,
+      "before_total_ms": 38.3826,
+      "after_total_ms": 40.7464
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 6,
+      "iterations": 180,
+      "before_total_ms": 39.7714,
+      "after_total_ms": 39.0263
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 7,
+      "iterations": 180,
+      "before_total_ms": 40.5421,
+      "after_total_ms": 40.4941
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 8,
+      "iterations": 180,
+      "before_total_ms": 41.2754,
+      "after_total_ms": 38.2277
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 0,
+      "iterations": 200,
+      "before_total_ms": 56.0932,
+      "after_total_ms": 31.3719
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 1,
+      "iterations": 200,
+      "before_total_ms": 62.0615,
+      "after_total_ms": 29.8481
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 2,
+      "iterations": 200,
+      "before_total_ms": 48.6191,
+      "after_total_ms": 28.3782
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 3,
+      "iterations": 200,
+      "before_total_ms": 64.3677,
+      "after_total_ms": 36.5125
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 4,
+      "iterations": 200,
+      "before_total_ms": 50.7494,
+      "after_total_ms": 33.3171
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 5,
+      "iterations": 200,
+      "before_total_ms": 51.0665,
+      "after_total_ms": 28.6428
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 6,
+      "iterations": 200,
+      "before_total_ms": 50.8858,
+      "after_total_ms": 27.2648
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 7,
+      "iterations": 200,
+      "before_total_ms": 48.3179,
+      "after_total_ms": 35.2315
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 8,
+      "iterations": 200,
+      "before_total_ms": 43.5196,
+      "after_total_ms": 28.0311
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 0,
+      "iterations": 48,
+      "before_total_ms": 64.9944,
+      "after_total_ms": 53.7416
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 1,
+      "iterations": 48,
+      "before_total_ms": 68.5978,
+      "after_total_ms": 58.1474
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 2,
+      "iterations": 48,
+      "before_total_ms": 66.511,
+      "after_total_ms": 58.5304
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 3,
+      "iterations": 48,
+      "before_total_ms": 64.191,
+      "after_total_ms": 52.2982
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 4,
+      "iterations": 48,
+      "before_total_ms": 67.3499,
+      "after_total_ms": 57.0856
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 5,
+      "iterations": 48,
+      "before_total_ms": 60.394,
+      "after_total_ms": 59.1818
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 6,
+      "iterations": 48,
+      "before_total_ms": 66.9672,
+      "after_total_ms": 51.9133
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 7,
+      "iterations": 48,
+      "before_total_ms": 69.0355,
+      "after_total_ms": 56.8326
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 8,
+      "iterations": 48,
+      "before_total_ms": 63.513,
+      "after_total_ms": 53.3149
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 0,
+      "iterations": 2500,
+      "before_total_ms": 14.7606,
+      "after_total_ms": 12.5758
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 1,
+      "iterations": 2500,
+      "before_total_ms": 15.1502,
+      "after_total_ms": 10.1501
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 2,
+      "iterations": 2500,
+      "before_total_ms": 13.6355,
+      "after_total_ms": 13.1492
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 3,
+      "iterations": 2500,
+      "before_total_ms": 15.6559,
+      "after_total_ms": 12.4783
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 4,
+      "iterations": 2500,
+      "before_total_ms": 10.5164,
+      "after_total_ms": 11.7962
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 5,
+      "iterations": 2500,
+      "before_total_ms": 14.3997,
+      "after_total_ms": 11.8826
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 6,
+      "iterations": 2500,
+      "before_total_ms": 10.3312,
+      "after_total_ms": 11.462
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 7,
+      "iterations": 2500,
+      "before_total_ms": 13.7533,
+      "after_total_ms": 10.5152
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 8,
+      "iterations": 2500,
+      "before_total_ms": 10.7839,
+      "after_total_ms": 13.3127
+    },
+    {
+      "scene": "small49",
+      "pair": 0,
+      "iterations": 40000,
+      "before_total_ms": 12.2382,
+      "after_total_ms": 8.7904
+    },
+    {
+      "scene": "small49",
+      "pair": 1,
+      "iterations": 40000,
+      "before_total_ms": 14.4167,
+      "after_total_ms": 10.0257
+    },
+    {
+      "scene": "small49",
+      "pair": 2,
+      "iterations": 40000,
+      "before_total_ms": 14.1301,
+      "after_total_ms": 12.7495
+    },
+    {
+      "scene": "small49",
+      "pair": 3,
+      "iterations": 40000,
+      "before_total_ms": 11.816,
+      "after_total_ms": 9.3974
+    },
+    {
+      "scene": "small49",
+      "pair": 4,
+      "iterations": 40000,
+      "before_total_ms": 17.3957,
+      "after_total_ms": 11.4707
+    },
+    {
+      "scene": "small49",
+      "pair": 5,
+      "iterations": 40000,
+      "before_total_ms": 13.7405,
+      "after_total_ms": 12.0334
+    },
+    {
+      "scene": "small49",
+      "pair": 6,
+      "iterations": 40000,
+      "before_total_ms": 13.3321,
+      "after_total_ms": 10.369
+    },
+    {
+      "scene": "small49",
+      "pair": 7,
+      "iterations": 40000,
+      "before_total_ms": 11.9479,
+      "after_total_ms": 9.9109
+    },
+    {
+      "scene": "small49",
+      "pair": 8,
+      "iterations": 40000,
+      "before_total_ms": 17.2978,
+      "after_total_ms": 15.8979
+    }
+  ],
+  "allocation_and_output_cases": [
+    {
+      "scene": "empty",
+      "cells": 0,
+      "compared_bytes": 0,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 1469598103934665603
+    },
+    {
+      "scene": "all_flat9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 183119432162490539
+    },
+    {
+      "scene": "city_long9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 4518,
+      "after_allocations": 2259,
+      "before_allocated_bytes": 289152,
+      "after_allocated_bytes": 144576,
+      "output_hash": 6846991644512112614
+    },
+    {
+      "scene": "trees_long9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 4706,
+      "after_allocations": 2353,
+      "before_allocated_bytes": 301184,
+      "after_allocated_bytes": 150592,
+      "output_hash": 6794247994819114079
+    },
+    {
+      "scene": "city_long28227",
+      "cells": 28227,
+      "compared_bytes": 9145548,
+      "before_allocations": 15806,
+      "after_allocations": 7903,
+      "before_allocated_bytes": 1011584,
+      "after_allocated_bytes": 505792,
+      "output_hash": 15753568724632348703
+    },
+    {
+      "scene": "trees_long65536",
+      "cells": 65536,
+      "compared_bytes": 21233664,
+      "before_allocations": 41932,
+      "after_allocations": 20966,
+      "before_allocated_bytes": 2683648,
+      "after_allocated_bytes": 1341824,
+      "output_hash": 5860274222930290011
+    },
+    {
+      "scene": "grass_short9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 10384870719377965546
+    },
+    {
+      "scene": "city_short9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 5168950412221641307
+    },
+    {
+      "scene": "legacy_long9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 4518,
+      "after_allocations": 2259,
+      "before_allocated_bytes": 289152,
+      "after_allocated_bytes": 144576,
+      "output_hash": 6846991644512112614
+    },
+    {
+      "scene": "sparse_long3z",
+      "cells": 22581,
+      "compared_bytes": 7316244,
+      "before_allocations": 11234,
+      "after_allocations": 5617,
+      "before_allocated_bytes": 718976,
+      "after_allocated_bytes": 359488,
+      "output_hash": 15658585757028727911
+    },
+    {
+      "scene": "hidden9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 5175023742983626666
+    },
+    {
+      "scene": "small49",
+      "cells": 49,
+      "compared_bytes": 15876,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 11806292671339313003
+    }
+  ],
+  "compared_output_bytes": 59050944,
+  "observations": "Nine alternating pairs x12 workloads. Corrected city9409 .414468->.317597ms paired.788412; trees9409 .455539->.406485ms paired.856450; city28227 1.670894->1.330794ms paired.822736; trees65536 7.061975->5.669675ms paired.802846. Long-ID helper allocations halve, e.g4518->2259 for9409 city and41932->20966 for65536 trees. These are per-pass transient allocator calls/bytes, not persistent RSS or VRAM.",
+  "controls": "All-flat9409 paired1.01419 (1.42percent regression); all controls pass the predeclared3percent paired/50ns small absolute guard. Individual lanes vary. Timing begins with existing arrays and reused inputs, not fresh Native extraction or a cold process.",
+  "local_tests": {
+    "source_parent": "59f2b5eeb8cd461e93fa63f1fa49493231c01818",
+    "files": {
+      "experiments/graphics_bridge/ncmm_graphics_static_detail.inc": "49d9a68d87ba468219dc0aac95c3634208343ecd704c8c6e9f3fb96f0707d03f",
+      "experiments/graphics_bridge/ncmm_graphics_hybrid.inc": "a3e4827726e80ce717ac922935ebb01e053242eb79c4260f3b95837f7cfa0641",
+      "experiments/FirstPersonView/tests/multilevel_cache_test.cpp": "a82b0fbe224a56b824c407061f68a8f6c3597cbad5a404a5854fe5bf20b1dcd7",
+      "experiments/graphics_bridge/test_apply_graphics_bridge.py": "fc9d64af4334eafabbebdfa79a63e690ad8045a8249127c1468723c4c8fed7aa"
+    },
+    "originals": {
+      "experiments/graphics_bridge/ncmm_graphics_static_detail.inc": "bd9b69c0e9eed8111bcc58051acaf2992c7ed2d9a6a44e8f3bda59e7c341b539",
+      "experiments/graphics_bridge/ncmm_graphics_hybrid.inc": "5ac2b3a0987664fb7f04a231d5bea74a5a1bac3b3a8f8a3817937c66285bc597",
+      "experiments/FirstPersonView/tests/multilevel_cache_test.cpp": "f1708151e59a1d3a589c7885ebcb1476a752ab2840557b065e8f1d32c6ec9b39",
+      "experiments/graphics_bridge/test_apply_graphics_bridge.py": "f505472fce3b912d39b3953b8bf9f48553c30d39096b0d02edceaf642f52e3d6"
+    },
+    "change": "Move the existing visible-neighbour substrate pass into the already copied static-detail include. Use the canonical sparse XYZ adapter before appearance is bound, and reuse the already-owned string for the selected copy. No Native map read or permission changes.",
+    "copied_native_source_inventory_unchanged": true,
+    "all_world_positions_and_z_unchanged": true,
+    "abi_unchanged": true,
+    "local_native": false,
+    "local_device": false,
+    "mouse_or_focus": false,
+    "subagents": false,
+    "success": true,
+    "full_release_build": true,
+    "non_device_tests": 51,
+    "atomic_source_transform_tests": 96,
+    "substrate_helper_checks": 163623,
+    "negative_controls": 4,
+    "device_repeat_reason": "Module renderer, assets and device code are unchanged. The changed Host pass is directly exercised by the owned source regression; no local Native game or input test is allowed."
+  },
+  "limitations": [
+    "The benchmark reference already repairs the failed neighbour lookup. The previous broken world pass skipped this useful work and produced different ground IDs; the reported speedup is not a whole-game gain over that broken output. Restoring the visible substrate necessarily adds real work relative to a skipped lookup.",
+    "No Native gameplay occurrence rate, first-correct-present, ordinary movement/shooting latency, GPU time, ordinary RTX4090 frame rate or15ms qualification is established.",
+    "No local game or input harness is run. Full current-source Windows/Linux Native qualification remains required before merge/installer publication."
+  ],
+  "published_installers_include_this_change": false,
+  "published_installer_source": "cdb929b3453acd88ecc3d525daea5dcea0dba884",
+  "remote_full_qualification_pending": true,
+  "local_native": false,
+  "local_device_window": false,
+  "mouse_or_focus": false,
+  "subagents": false,
+  "evidence_sha256": {
+    "night-substrate98/source-identity.json": "b47998c2e2876083756855aeceaecdeec808bea657aba8245ec232ce80ccbedd",
+    "night-substrate98-guards/summary.json": "14a7a4ed05aed02555afb9c70654317f0445211446cdcf4441e9a51ee84cac31",
+    "night-substrate98-final-guards/summary.json": "c5c1dbdc5d9826987451fc9a65fbf963a0937cb444900b6bb31772f196ab1a5c",
+    "night-substrate-copy98/summary.json": "1a7d43cb67f0a08795d0f942cc7b58c4279804863dd774b7e6ad8615942df158",
+    "night-substrate-copy98/protocol.json": "457433e407b7cdabf600ccc42196b1fc2fe93dac8c8d8872136ef29f5cdebae6",
+    "night-substrate-copy98/exact.csv": "91bf06ec4d4c5ec869b0c79f4dbb238adccff8a648e32918d88c6b658ea070cb",
+    "night-substrate-copy98/timing.csv": "ce91597fcb7318356a9bdd46fbac8db9d998d16b0449275bf2a2aafe147b86ff",
+    "night-stage98-source-identity.json": "052a7bda81158863213b06856fa767d0aaaa5c2cd0e8925bf8ee9d591e24cfcb",
+    "night-stage98-build-test-summary.json": "84cd67e99e5f5e7bd2d40fa61ff9307ae47b86962e5485d418c9ddce6d4219be",
+    "night-stage98-release-build.txt": "402ac6d157fd54c1f5e1e9eaec6b3763946dbcd528f3912e04b6a06cb56f285e",
+    "night-stage98-tests.txt": "d25556c2aa868e1378c934ebec073928a1082168456248b0b59d9bdb4e13b95a",
+    "night-stage98-test-inventory.json": "aa49ff625dcb6c8868e4d44c3ede9a2d038abfee078c76b4e651e20b60b09f3c",
+    "night-stage98-atomic-transform-tests.txt": "8369c23d9cdd14e6105830ba373e020be59e68d75717a31ccf491ebd78dba96c"
+  }
+}

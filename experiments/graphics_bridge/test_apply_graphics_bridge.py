@@ -1080,6 +1080,8 @@ bool cata_tiles::draw_sprite_at() {
                 self.assertEqual((root / "src" / helper.name).read_bytes(), helper.read_bytes())
                 hybrid = (root / "src/ncmm_graphics_hybrid.inc").read_text(encoding="utf-8")
                 self.assertEqual(hybrid.count('#include "ncmm_graphics_static_detail.inc"'), 1)
+                self.assertEqual(hybrid.count("graphics_populate_substrates(base,details,world,copy_id);"), 1)
+                self.assertNotIn("ncmm_world::coordinates world_coordinates(world,true)", hybrid)
                 call = "if(graphics_populate_static_detail(here,p,d,world,facade_lights,i,terrain_shape,copy_id))continue;"
                 self.assertEqual(hybrid.count(call), 1)
                 self.assertIn(call + "\n        const ter_t &ter = here.ter( p ).obj(); const furn_t &furn = here.furn( p ).obj();", hybrid)
