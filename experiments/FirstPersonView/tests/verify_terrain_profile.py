@@ -1,5 +1,6 @@
 """Strict controlled Native terrain scene profile; ordinary-game FPS is excluded."""
 import argparse
+import hashlib
 import json
 import math
 import statistics
@@ -8,7 +9,31 @@ from pathlib import Path
 from verify_gpu_profile import verify as verify_phases
 
 SCENES = ('terrain-grass', 'terrain-road', 'terrain-mixed')
-MATERIALS = ('t_pavement', 't_gravel', 't_dirt', 't_grass')
+MATERIALS = ('t_pavement', 't_concrete', 't_dirt', 't_grass')
+
+
+def native_material_definitions(directory):
+    """Read the installed core definitions before any reference build/child.
+
+    Native performs is_valid() again before conversion. Unknown string IDs
+    must fail a gate, rather than opening CDDA's blocking debug dialog.
+    """
+    directory = Path(directory)
+    found = {}
+    for path in sorted(directory.rglob('*.json')):
+        data = json.loads(path.read_text(encoding='utf-8-sig'))
+        for value in data if isinstance(data, list) else [data]:
+            if not isinstance(value, dict) or value.get('type') != 'terrain':
+                continue
+            ids = value.get('id', [])
+            for name in [ids] if isinstance(ids, str) else ids:
+                if name in MATERIALS:
+                    found[name] = dict(path=path.relative_to(directory).as_posix(),
+                                       sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+    missing = sorted(set(MATERIALS) - found.keys())
+    if missing:
+        raise ValueError('Controlled Native terrain IDs are undefined: ' + ', '.join(missing))
+    return found
 
 
 def layout_digest(scene):
@@ -28,9 +53,10 @@ def layout_digest(scene):
 
 
 def verify(report):
-    assert report['schema'] == 2 and report['terrain_profile_only'] is True
+    assert report['schema'] == 3 and report['terrain_profile_only'] is True
     assert report['ordinary_performance_measurement'] is False
     assert report['terrain_grid_side'] == 97
+    assert report['terrain_material_ids'] == list(MATERIALS)
     assert report['stable_cpu_binary'] is False
     assert 'cpu_algorithm_commit' not in report and 'stable_main_commit' not in report
     result = verify_phases(report, expected_scenes=SCENES)

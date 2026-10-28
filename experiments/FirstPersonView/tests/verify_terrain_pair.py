@@ -8,7 +8,7 @@ import re
 import statistics
 import struct
 
-from verify_terrain_profile import SCENES, verify as verify_profile
+from verify_terrain_profile import MATERIALS, SCENES, verify as verify_profile
 
 REFERENCE_SHA = '4b9a36a62151216e0b44ac82aaa277c273d7e989591868c9ac4b6902bb0d86ec'
 ENGINES = ('3f7fb352bf492ba521bd9408a0c9f6ce239e8d83', '074aa98bd5be3de4c35f154082db32a0e63bb0f1')
@@ -53,7 +53,9 @@ def distribution(values):
 def verify(root):
     root = Path(root)
     manifest = read(root / 'pair.json')
-    assert manifest['schema'] == 1
+    assert manifest['schema'] == 2
+    assert manifest['terrain_fixture_schema'] == 3
+    assert manifest['terrain_material_ids'] == list(MATERIALS)
     assert manifest['ordinary_game_performance'] is False
     assert manifest['gpu_execution_timestamps_available'] is False
     assert manifest['module_restored'] is True and manifest['fixture_restored'] is True
@@ -72,6 +74,13 @@ def verify(root):
     assert digest(root / 'fixture-files.json') == manifest['fixture_files_sha256']
     fixture = read(root / 'fixture-files.json')
     assert fixture and all(re.fullmatch('[0-9a-f]{64}', v) for v in fixture.values())
+    definitions = manifest['terrain_material_definitions']
+    assert set(definitions) == set(MATERIALS)
+    for value in definitions.values():
+        path = value['path']
+        assert re.fullmatch(r'[A-Za-z0-9_./-]+\.json', path)
+        assert not path.startswith('/') and '..' not in path.split('/')
+        assert fixture['data/json/furniture_and_terrain/' + path] == value['sha256']
     assert hashlib.sha256(json.dumps(fixture, sort_keys=True).encode()).hexdigest() == manifest['fixture_digest']
     bundle = read(root / 'bundle.json')
     assert bundle['schema'] == 1 and bundle['ncmm_source_commit'] == manifest['source_commit']

@@ -4,6 +4,9 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
     const bool focused=std::getenv("NCMM_FP_GPU_BENCHMARK_ONLY")!=nullptr;
     const bool terrain_profile=std::getenv("NCMM_FP_TERRAIN_PROFILE")!=nullptr;
     require(!terrain_profile||focused,"terrain_profile_requires_focused_mode");
+    const std::array<const char *,4> terrain_materials={"t_pavement","t_concrete","t_dirt","t_grass"};
+    if(terrain_profile)for(const char *id:terrain_materials)
+        require(ter_str_id(id).is_valid(),"terrain_profile_unknown_terrain");
     int benchmark_scenario=-1;
     auto progress=[&](const std::string &phase){if(focused){std::ofstream journal(game_root()/"ncmm/first-person-audit-progress.txt");journal<<phase<<'\n';}};
     SDL_Renderer *renderer=get_sdl_renderer().get();
@@ -45,8 +48,9 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
         const double index=p*(values.size()-1);const size_t low=size_t(index),high=std::min(low+1,values.size()-1);return values[low]+(values[high]-values[low])*(index-low);};
     auto elapsed=[](benchmark_clock::time_point begin){return std::chrono::duration<double,std::milli>(benchmark_clock::now()-begin).count();};
     require(!terrain_profile||!stable_cpu,"terrain_profile_requires_current_host");
-    std::ofstream stream(game_root()/"ncmm"/(terrain_profile?"first-person-terrain-benchmark.json":stable_cpu?"first-person-gpu-benchmark-stable-cpu.json":"first-person-gpu-benchmark.json"));JsonOut report(stream);report.start_object();report.member("schema",terrain_profile?2:1);
-    if(terrain_profile){report.member("terrain_profile_only",true);report.member("ordinary_performance_measurement",false);report.member("terrain_grid_side",97);}
+    std::ofstream stream(game_root()/"ncmm"/(terrain_profile?"first-person-terrain-benchmark.json":stable_cpu?"first-person-gpu-benchmark-stable-cpu.json":"first-person-gpu-benchmark.json"));JsonOut report(stream);report.start_object();report.member("schema",terrain_profile?3:1);
+    if(terrain_profile){report.member("terrain_profile_only",true);report.member("ordinary_performance_measurement",false);report.member("terrain_grid_side",97);
+        report.member("terrain_material_ids");report.start_array();for(const char *id:terrain_materials)report.write(std::string(id));report.end_array();}
     report.member("actual_cdda_sdl",true);report.member("player_fps",false);
     if(!terrain_profile)report.member("cpu_algorithm_commit","a434a820aaa5b0bec7611474f8e01ff9b2b77432");
     report.member("focused_reproduction",focused);report.member("phase_samples_available",true);
@@ -92,10 +96,10 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
         if(scenario==9){for(int y=-3;y>=-13;--y)for(int x=-5;x<=5;++x)here.add_field(tripoint_bub_ms(center.x()+x,center.y()+y,0),field_type_str_id(x<0?"fd_smoke":"fd_toxic_gas").id(),3);}
         if(scenario>=10&&scenario<14){const int count=std::array<int,4>{1,10,50,100}[size_t(scenario-10)];you.setpos(here,tripoint_bub_ms(center.x(),center.y()+25,0),false);g->ter_view_p=you.pos_bub();
             for(int n=0;n<count;++n)group.push_back(spawn(species[n%8],tripoint_bub_ms(center.x()-9+(n%10)*2,center.y()+7-(n/10)*2,0)));}
-        if(terrain_profile){const char *materials[]={"t_pavement","t_gravel","t_dirt","t_grass"};
+        if(terrain_profile){
             progress("gpu_benchmark_terrain_setup_"+std::to_string(scenario));
             for(int y=-48;y<=48;++y)for(int x=-48;x<=48;++x){const int kind=scenario==14?3:scenario==15?(x<=0?0:3):((x+48)/2+(y+48)/2)%4;
-                here.ter_set(tripoint_bub_ms(center.x()+x,center.y()+y,0),ter_id(materials[kind]));}}
+                here.ter_set(tripoint_bub_ms(center.x()+x,center.y()+y,0),ter_id(terrain_materials[kind]));}}
         refresh_caches();
         auto terrain_digest=[&](){uint64_t value=1469598103934665603ULL;
             if(terrain_profile)for(int y=-48;y<=48;++y)for(int x=-48;x<=48;++x){

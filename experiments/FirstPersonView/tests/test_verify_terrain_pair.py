@@ -15,7 +15,7 @@ from unittest.mock import patch
 import run_terrain_pair
 from verify_gpu_profile import verify as verify_focused
 from verify_terrain_pair import digest, verify as verify_pair
-from verify_terrain_profile import SCENES, layout_digest, verify as verify_profile
+from verify_terrain_profile import MATERIALS, SCENES, layout_digest, native_material_definitions, verify as verify_profile
 
 
 def report(scenes=SCENES):
@@ -42,7 +42,7 @@ def report(scenes=SCENES):
                 ('frame_wall', 4.), ('native_tiles_wall', 1.), ('perspective_wall', 1.),
                 ('actual_present_wall', 1.), ('unattributed_wall', 1.))})
             records.append(r)
-    return dict(schema=2, terrain_profile_only=True, ordinary_performance_measurement=False,
+    return dict(schema=3, terrain_material_ids=list(MATERIALS), terrain_profile_only=True, ordinary_performance_measurement=False,
                 terrain_grid_side=97, stable_cpu_binary=False, actual_cdda_sdl=True,
                 focused_reproduction=True, phase_samples_available=True, player_fps=False,
                 gpu_timestamps_available=False, records=records)
@@ -53,6 +53,35 @@ def write(path, value):
 
 
 class TerrainProfileTests(unittest.TestCase):
+    def test_legacy_or_different_material_fixture_is_rejected(self):
+        for change in (lambda r: r.update(schema=2),
+                       lambda r: r.update(terrain_material_ids=['t_pavement', 't_gravel', 't_dirt', 't_grass']),
+                       lambda r: r.update(terrain_material_ids=list(reversed(MATERIALS)))):
+            value = report()
+            change(value)
+            with self.assertRaises(AssertionError):
+                verify_profile(value)
+
+    def test_missing_native_materials_fail_before_conversion(self):
+        with tempfile.TemporaryDirectory(prefix='terrain-definition-') as folder:
+            path = Path(folder) / 'fixture.json'
+            write(path, [dict(type='terrain', id=name) for name in MATERIALS if name != 't_concrete'])
+            with self.assertRaisesRegex(ValueError, 'undefined: t_concrete'):
+                native_material_definitions(folder)
+            write(path, [dict(type='terrain', id=name) for name in MATERIALS])
+            definitions = native_material_definitions(folder)
+            self.assertEqual(set(definitions), set(MATERIALS))
+            self.assertTrue(all(value == dict(path='fixture.json', sha256=digest(path))
+                                for value in definitions.values()))
+
+    def test_native_material_list_and_preconversion_guard_agree(self):
+        source = Path(__file__).resolve().parents[2] / 'graphics_bridge/ncmm_gpu_benchmark.inc'
+        body = source.read_text(encoding='utf-8')
+        declaration = 'const std::array<const char *,4> terrain_materials={'
+        names = body.split(declaration, 1)[1].split('};', 1)[0]
+        self.assertEqual(json.loads('[' + names + ']'), list(MATERIALS))
+        self.assertLess(body.index('ter_str_id(id).is_valid()'), body.index('ter_id(terrain_materials[kind])'))
+
     def check_profile(self, value):
         with redirect_stdout(io.StringIO()):
             return verify_profile(value)
@@ -94,9 +123,12 @@ class TerrainPairTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         source, engine = '1' * 40, '3f7fb352bf492ba521bd9408a0c9f6ce239e8d83'
-        fixture = {'config/options.json': '8' * 64}
+        fixture = {'config/options.json': '8' * 64,
+                   'data/json/furniture_and_terrain/fixture.json': '9' * 64}
         write(self.root / 'fixture-files.json', fixture)
-        self.manifest = dict(schema=1, source_commit=source, source_tree='2' * 40, engine_commit=engine,
+        self.manifest = dict(schema=2, terrain_fixture_schema=3, terrain_material_ids=list(MATERIALS),
+            terrain_material_definitions={name: dict(path='fixture.json', sha256='9' * 64) for name in MATERIALS},
+            source_commit=source, source_tree='2' * 40, engine_commit=engine,
             workflow_run='123', host_sha256='3' * 64, current_module_sha256='4' * 64,
             reference_module_sha256='5' * 64, reference_include_sha256=run_terrain_pair.REFERENCE_SHA,
             reference_include_commit=run_terrain_pair.REFERENCE_COMMIT, current_include_sha256='6' * 64,

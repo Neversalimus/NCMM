@@ -16,7 +16,7 @@ import sys
 import threading
 import time
 
-from verify_terrain_profile import SCENES, verify as verify_profile
+from verify_terrain_profile import MATERIALS, SCENES, native_material_definitions, verify as verify_profile
 
 REFERENCE_SHA = '4b9a36a62151216e0b44ac82aaa277c273d7e989591868c9ac4b6902bb0d86ec'
 REFERENCE_COMMIT = 'fdbba45f9082986202bd05db521bc315e9be4744'
@@ -136,6 +136,7 @@ def run(args):
     expected_current = bundle['files']['code_mods/FirstPersonView/ncmm_mod.dll']
     if sha(host) != bundle['host_sha256'] or sha(module) != expected_current:
         raise ValueError('Prepared Host/module does not match the verified bundle.')
+    terrain_definitions = native_material_definitions(game / 'data/json/furniture_and_terrain')
     reference = Path(__file__).parent / 'reference/terrain_edges_pre71.inc'
     if sha(reference) != REFERENCE_SHA:
         raise ValueError('Historical terrain include changed.')
@@ -167,7 +168,9 @@ def run(args):
     env = {k: v for k, v in os.environ.items() if not k.startswith('NCMM_FP_')}
     env.update(NCMM_FP_GPU_BENCHMARK_ONLY='1', NCMM_FP_TERRAIN_PROFILE='1',
                NCMM_FP_APPEARANCE_SMOKE='1', SDL_ASSERT='abort')
-    receipt = dict(schema=1, source_commit=head, source_tree=tree, engine_commit=bundle['source_commit'],
+    receipt = dict(schema=2, terrain_fixture_schema=3, terrain_material_ids=list(MATERIALS),
+                   terrain_material_definitions=terrain_definitions,
+                   source_commit=head, source_tree=tree, engine_commit=bundle['source_commit'],
                    workflow_run=os.environ['GITHUB_RUN_ID'], host_sha256=sha(host),
                    current_module_sha256=expected_current, reference_module_sha256=reference_hash,
                    reference_include_sha256=REFERENCE_SHA, reference_include_commit=REFERENCE_COMMIT,

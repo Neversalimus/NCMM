@@ -481,6 +481,57 @@ advancing that diagnostic branch may supersede it. PR223 full48 is preserved.
 Evidence: `night-stage82-diagnostic-review-{122700193431,122700193403,122700193436}.json`,
 `night-terrain-82b21e6/12802481666/`, `night-stage82-atomic-transform-tests.txt`.
 
+## Stages83–84 — reject or hold speculative CPU shortcuts
+
+Stage83 skips unused material-footprint calculations in a private CPU model.
+All168 frame comparisons remain exact, but seven alternating fresh-frame pairs
+regress common small/dense/city workloads by1.6–2.5%. No production change.
+Evidence: `night-unused-footprint-{model,timing}83/`.
+
+Stage84 attributes repeated texture analysis in constructed47045-cell CPU
+scenes, then tests an owned, mutation-checked cross-callback cache privately.
+The initial deep-copy variant regresses cleanup-inclusive cold frames by11.2%
+and is rejected. Shared ownership preserves168 frames/16,329,600 pixels;
+8,717 direct assertions cover pitched rows, mutation, ownership, eviction,
+live memory limits and allocation failure. One intermediate variant fails
+compilation and supplies no measurements. All variants/raw records remain.
+
+Seven alternating pairs show useful warm512-source64px reuse:83.2695→52.3138ms,
+paired ratio.61103. True first-call data do not establish a robust cold benefit;
+cleanup-inclusive cold costs remain recorded separately. Changing all512
+sources each rebuilt frame regresses80.2478→85.5982ms (paired1.05567), with
+zero hits. The cache is NOT integrated or enabled. Actual Native hit rate and
+first-action evidence are needed before considering that memory/latency tradeoff.
+Evidence: `night-analysis-cache-model84-r4/`, `night-analysis-cache-timing84-r3/`,
+`night-analysis-cache-first-use84-r3/`, `night-analysis-cache-churn84-r4/`.
+
+## Stage85 — repair the invalid controlled terrain fixture (CI pending)
+
+Both exact-head ec1 Native CodeReview excerpts remain in
+`gpu_benchmark_terrain_setup_16` from60s through570s before the600s timeout.
+Read-only audits of both existing, SHA-verified1040/1807 distribution archives
+confirm `t_gravel` is undefined; actual gravel is `t_railroad_rubble`. Use valid
+`t_concrete` for the non-earth stone control without introducing rail geometry.
+This matches the failing first mixed-material setup; the corrected Native
+rerun is still needed to close the causal diagnosis. No local Native run.
+
+Validate all four core material definitions in Python before any reference
+build or child, and again in Native with `ter_str_id::is_valid()` before
+conversion. Invalid IDs now fail the diagnostic gate rather than reaching
+CDDA's blocking invalid-ID path. Bind material names and defining-file hashes
+to the immutable fixture receipt. Version the changed fixture explicitly:
+profile schema3, pair receipt schema2. Old/different fixtures are rejected.
+Default non-terrain profile schema and ordinary game data remain unchanged.
+
+All16 receipt/material guards and96 atomic source-transform tests pass.
+Both installed core definitions match the corresponding verified ZIP bytes.
+No upstream source/network body was fetched. Same97×97 grid,96 steady frames,
+three scenes,14 alternating children and600s child deadline; no weaker gate.
+Actual Host compilation and corrected Native captures remain CI work.
+Evidence: `night-stage85-{terrain-guard-tests,atomic-transform-final}.txt`,
+`night-stage85-pinned-{native-preflight,archive-definitions}.json` and
+`night-stage85-ec1-fine-review-{122735136124,122735136065}.json`.
+
 ## Remote qualification and next steps
 
 - Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
@@ -499,9 +550,13 @@ Evidence: `night-stage82-diagnostic-review-{122700193431,122700193403,1227001934
   verified above. Cross-run timings are not a paired causal comparison.
 - Terrain71 `1407dd4`, integration40637761432: all7 planning/module/actual
   Native jobs pass; required122673470673 fails at the integration tier.
-- Current PR `48d8c23`, full40643681993: both module/Linux Native jobs and
-  independent GPU40643681893/runtime40643681914/source40643681897 pass;
-  Windows ordinary full galleries remain running. Preserve its source and logs.
+- `48d8c23`, [full40643681993](https://github.com/Neversalimus/NCMM/actions/runs/40643681993):
+  all8 jobs pass, including both Windows Native jobs and required122760580661.
+  Final1040/1807 CodeReview excerpts each show21-scene/224-load paired gates
+  passing; excerpts are120000 characters and explicitly truncated. Final logs
+  and source identities are retained before advancing PR223. Independent GPU
+  40643681893/runtime40643681914/source40643681897 also pass. This qualifies
+  functional full48, not later CPU changes, causal A/B gains or ordinary15ms.
 - Failed optional pair40643770328: both Windows first reference children hit
   600s; both Linux/module jobs pass. No Native A/B measurements qualify.
 - Repair82b integration40653873199 completed: both Linux/module-Linux jobs pass;
@@ -510,8 +565,9 @@ Evidence: `night-stage82-diagnostic-review-{122700193431,122700193403,1227001934
   setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
   protected PR223 full48 remains unchanged until its final logs are retained.
 
-Next: obtain the finer mixed-scene setup phase through draft224 CodeReview and
-retain current48d8c23 ordinary full results; keep its source stable until then.
+Next: push the completed CPU stages and85 fixture fix to draft223 and dispatch
+the corrected same-Host comparison. Preserve draft224 ec1 full40664250771 while
+it finishes; read its final logs at that exact head through CodeReview.
 Continue targeting measured geometry/raster cost. Keep draft/review and no-release
 boundaries. CI logs exclusively CodeReview at the current PR head; metadata and
 program JSON are not log fallbacks. The upstream Native transfer ledger has
