@@ -1361,6 +1361,33 @@ No new test matrix or local game run is needed for this reversible CI ordering
 change. Actual early artifact availability is pending the next current-source
 run; the already running jobs keep their original workflow snapshots.
 
+**56. Preserve complete eae qualification before advancing the draft PR.**
+Full run40580475214 now passes all eight jobs, including both Windows and both
+actual Linux Hosts and required gate122573299563. Code Review is read while
+the PR still points at exact `eae8d02`: both Windows jobs conclude success;
+each retained120000-character tail contains two21-scene/224-record multilevel
+PASS rows. Their early process rows remain truncated; the full3601-character
+required-gate log is retained through Code Review, with no fallback log source.
+
+Read the same seven selected program JSONs from1807 artifact12784926062
+(169704730-byte ZIP). Both artifacts together reserve755962/8388608 bytes,
+not their full archives. Source/runtime exact-tree, engine/Host/module identity,
+eight clean focused exits,112 paired keys and adjacent partitions verify on
+both pins.1807 summary SHA256
+`b7b38442d67b65c201bd5e6fd9677c7c8371ddb01e42e728c7a420f248ec8372`.
+Its descriptive medians improve in65 and worsen in47 cases(median ratio.9936;
+31 changed triangle counts). Stage53's1040 summary remains unchanged. These
+software whole-feature snapshots do not establish a general frame gain or
+qualify later Native distance, turn or floor bytes.
+
+The independent5eb integration checkpoint now passes both actual Linux jobs
+and both Windows184-case FPS/gameplay verification steps. Its real26-turn
+reports still await later artifact uploads; the new early upload55 applies
+only to a following run. Preserve that checkpoint and full12a7; advance the
+draft PR only after saving the completed old-head evidence. New52/54 floor
+and55 artifact-order code still require their own current-head CI. No main
+merge, installer release, feed publication or15ms/hardware claim is made.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
