@@ -407,6 +407,40 @@ ordinary FPS or15ms. Release and7 affected CTests pass (3.03s).
 Evidence: `night-project-view-model79/{summary,near-summary-r2}.json`,
 `night-project-view-timing79/summary.json`, `night-stage79-affected-tests.txt`.
 
+## Stage80 — allocate texture references by requested layer (local; Native pending)
+
+The callback used one12-layer pointer table for every cell, including unused
+layers. It now allocates each requested layer separately, preserving all12
+layers, per-cell/held memoization, borrowed source lifetime and provider calls.
+For65536 cells, one/three active layers use.5/1.5MiB rather than6MiB of pointer
+storage. The renderer object adds264 bytes; requesting all12 layers keeps the
+same heap payload and uses up to12 allocations instead of one. Nothing survives
+the callback, and no range, source, geometry or quality setting changes.
+
+Exact models preserve168 frames/16,329,600 pixels and60 frames/255,928,400
+complete emitted GPU values. Another15,345 assertions cover all cell/held
+layers, invalid sizes/pitch/providers, prepare transitions, memoization and
+exact provider call order at1/225/12789/47045/65536 cells. First two auxiliary
+launches failed CMD path parsing and supplied no measurements; normalized
+Windows paths pass. Their failure records remain retained.
+
+Seven alternating fresh-frame pairs: dense47045-cell CPU50.93063→48.14113ms,
+paired ratio.92926; city50.09900→47.07638ms, ratio.92340. The constructed
+21-slice12789-cell model is15.26100→15.19088ms (.99040); it is not Native.
+The first small legacy guard regresses1.89%. A predetermined128-build/lane
+confirmation still has small225-cell ratio1.01132 (independent medians
+2.49275→2.57417ms); small675-cell multilevel.98643. Retain the bounded
+small-scene cost for the large-scene CPU and memory benefit; do not present
+it as a universal speedup. Background applications remain running.
+
+Release/7 affected CTests pass (3.07s), as does the affected hidden render-only
+RTX4090 suite: full GPU path, zero warm static uploads, ADS,34 objects, stairs,
+grass, multiZ and subway lighting. No local Native/input/focus or mouse use.
+These models and correctness checks do not qualify ordinary GPU FPS, Present,
+action-to-first-correct-game-frame or15ms.
+Evidence: `night-image-layers-model80-r3/`, `night-image-layers-timing80/`,
+`night-image-layers-small-confirm80/`, `night-stage80-*-tests.txt` and hidden-render.
+
 ## Remote qualification and next steps
 
 - Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.

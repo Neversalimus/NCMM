@@ -327,7 +327,8 @@ class renderer {
     }
     float fog_density(int i)const{return world_data&&(world_flags(i)&NCMM_WORLD_ROOFED)?0.f:s.environment.fog_density+.003f;}
     using sprite_key=std::tuple<uintptr_t,uint32_t,uint32_t,uint32_t>;
-    std::vector<image *> image_refs;std::array<image *,NCMM_GFX_GLOVE_RIGHT+1> held_refs{};
+    // Allocate callback-local references only for layers this scene requests.
+    std::array<std::vector<image *>,NCMM_GFX_GLOVE_RIGHT+1> image_refs;std::array<image *,NCMM_GFX_GLOVE_RIGHT+1> held_refs{};
     std::map<sprite_key,image> images;std::vector<triangle> transparent,opaque,overlay;
     std::map<std::tuple<uint32_t,int,int>,int> vehicle_mounts;
     struct vehicle_palette {vec color{};float weight=0;};
@@ -366,8 +367,9 @@ class renderer {
         if(i==UINT32_MAX)ref=&held_refs[layer];
         else {
             if(i>=base.cell_count)return nullptr;
-            if(image_refs.empty())image_refs.resize(base.cell_count*(NCMM_GFX_GLOVE_RIGHT+1),nullptr);
-            ref=&image_refs[size_t(i)*(NCMM_GFX_GLOVE_RIGHT+1)+layer];
+            auto &refs=image_refs[layer];
+            if(refs.empty())refs.resize(base.cell_count,nullptr);
+            ref=&refs[i];
         }
         if(*ref){if(prepare&&(*ref)->valid()&&(*ref)->filtered.empty())(*ref)->analyse();return *ref;}
         image img;img.data.struct_size=sizeof(img.data);
