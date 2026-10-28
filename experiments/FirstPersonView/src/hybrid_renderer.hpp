@@ -1150,9 +1150,15 @@ class renderer {
         // CPU rasterization benefits from front-to-back depth rejection. GPU
         // collection retains complete cell-local meshes; its collector emits
         // the final cell/pass order independently of this traversal.
-        if(!gpu_sink)std::stable_sort(order.begin(),order.end(),[&](int a,int b){
-            const vec a_delta=cell_center(a)-eye,b_delta=cell_center(b)-eye;
-            return dot(a_delta,a_delta)<dot(b_delta,b_delta);});
+        if(!gpu_sink&&order.size()>1){
+            // Resolve each distance once. Rank only selected cells, and keep
+            // their source order when equal; hidden cells need no rank storage.
+            struct ranked_cell {float distance;int index;};
+            std::vector<ranked_cell> ranked;ranked.reserve(order.size());
+            for(int i:order){const vec delta=cell_center(i)-eye;ranked.push_back({dot(delta,delta),i});}
+            std::stable_sort(ranked.begin(),ranked.end(),[](const ranked_cell &a,const ranked_cell &b){return a.distance<b.distance;});
+            for(size_t n=0;n<order.size();++n)order[n]=ranked[n].index;
+        }
         for(int pass=0;pass<2;++pass)for(int i:order){const vec at=cell_origin(i);const int x=int(at.x),y=int(at.y);const auto &c=base.cells[i];const auto &d=s.details[i];
             if(pass==1){
             if(world_data)world_slab(i);

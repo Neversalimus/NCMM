@@ -227,6 +227,34 @@ mouse/focus/subagent is used locally. Evidence: `night-terrain-feather-model71`,
 `night-terrain-feather-timing71`, `night-stage71-{release-build,affected-tests,
 hidden-render}.txt` and `night-stage71-index-identity.json`.
 
+## Stage73 — exact CPU cell ordering (local; Native qualification pending)
+
+CPU world sorting recomputed each cell's squared distance for many comparisons.
+The retained variant ranks only selected cells once, keeps the stable equal-key
+order and restores the same index traversal. GPU collection and persistent
+caches are unchanged. Scratch ranks cost8 bytes per selected cell, plus the
+larger stable-sort temporary buffer; at the65536-cell limit the incremental
+scratch bound is approximately640KiB. Empty/single-cell orders allocate nothing.
+
+The private full renderer preserves168 frames/2,268 assertions/16,329,600
+pixels/7,729,476 volume samples, depth and owner/creature IDs and work counters.
+Seven alternating pairs per six fresh-build workloads give paired ratios:
+small legacy.96681, small multilevel.98498, five-level dense.94880,
+constructed21-slice.95004, hidden dense.99590, five-level city.97322.
+Dense medians50.753→48.48325ms; the constructed21-slice scene has12,789
+cells and17.10975→16.451625ms. Hidden independent medians2.03524→2.10468ms
+diverge from the paired ratio: no reliable hidden-scene speedup is claimed.
+These are CPU models under background load, not captured Native/GPU/Present
+timings. Ordinary15ms and any RTX4090 gain remain unqualified.
+
+The initial all-source-cell distance table is rejected: hidden dense1.03918x
+and unnecessary allocation despite sparse/empty output. Both experiment variants
+and their timings are preserved. The retained source passes the Release build
+and7 affected CTests (3.06s). Keep this commit local while the exact48d8c23
+Native terrain comparison is running; do not change that proof's PR head.
+Evidence: `night-world-order-model73-r2/`, `night-world-order-timing73-r2/`,
+`night-stage73-release-build.txt`, `night-stage73-affected-tests.txt`.
+
 ## Rejected experiments
 
 | Experiment | Reason not retained |
