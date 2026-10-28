@@ -781,7 +781,11 @@ class renderer {
         }});
     }
     #include "architecture.inc"
+    #if defined(NCMM_TERRAIN_EDGES_REFERENCE)
+    #include NCMM_TERRAIN_EDGES_REFERENCE
+    #else
     #include "terrain_edges.inc"
+    #endif
     #include "world_objects.inc"
     void architecture(int i,uint32_t shape,uint32_t layer){
         if(world_data&&layer==NCMM_GFX_TERRAIN&&(world_flags(i)&(NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP)))return; // World flags own the complete transition geometry.

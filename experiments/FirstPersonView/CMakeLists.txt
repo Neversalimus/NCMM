@@ -115,6 +115,24 @@ set_target_properties(first_person_support PROPERTIES POSITION_INDEPENDENT_CODE 
 add_library(ncmm_mod SHARED src/module.cpp)
 target_compile_definitions(ncmm_mod PRIVATE NCMM_MOD_BUILD)
 set_target_properties(ncmm_mod PROPERTIES PREFIX "" OUTPUT_NAME "ncmm_mod")
+
+# A separate diagnostic DLL differs only in the pinned pre-71 terrain blend.
+# Normal builds keep the production include and acquire no runtime branch.
+set(FIRST_PERSON_TERRAIN_REFERENCE_SOURCE "" CACHE FILEPATH "Pinned terrain reference include for developer comparisons")
+if(FIRST_PERSON_TERRAIN_REFERENCE_SOURCE)
+  if(NOT EXISTS "${FIRST_PERSON_TERRAIN_REFERENCE_SOURCE}")
+    message(FATAL_ERROR "Terrain reference include is missing")
+  endif()
+  file(SHA256 "${FIRST_PERSON_TERRAIN_REFERENCE_SOURCE}" terrain_reference_hash)
+  if(NOT terrain_reference_hash STREQUAL "4b9a36a62151216e0b44ac82aaa277c273d7e989591868c9ac4b6902bb0d86ec")
+    message(FATAL_ERROR "Terrain reference include differs from the frozen pre-71 source")
+  endif()
+  add_library(ncmm_mod_terrain_reference SHARED EXCLUDE_FROM_ALL src/module.cpp)
+  first_person_target(ncmm_mod_terrain_reference)
+  target_compile_definitions(ncmm_mod_terrain_reference PRIVATE NCMM_MOD_BUILD
+    NCMM_TERRAIN_EDGES_REFERENCE="${FIRST_PERSON_TERRAIN_REFERENCE_SOURCE}")
+  set_target_properties(ncmm_mod_terrain_reference PROPERTIES PREFIX "" OUTPUT_NAME "ncmm_mod_terrain_reference")
+endif()
 first_person_target(ncmm_mod)
 if(WIN32)
   add_executable(ncmm_native_dump_analyzer tests/native_dump_analyzer.cpp)

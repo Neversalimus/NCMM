@@ -247,31 +247,54 @@ timing fixture correctly failed the65536-cell admission limit; its partial
 measurements are excluded. Production CPU/index/module bytes remain unchanged.
 Evidence: `night-cpu-coordinate-model67/` and `night-cpu-coordinate-timing67-r2/`.
 
+## Stage72 — same-Host terrain ablation (Native result pending)
+
+The previous Native smoke/creature profile resets pavement and cannot isolate
+mixed-ground feather work. An explicit CI dispatch now selects grass control,
+straight road and mixed pavement/gravel/dirt/grass in a fixed97×97 physical grid.
+It records warmup phases separately from96 steady frames; CPU geometry/recording
+remains distinct from GPU execution, which is unavailable.
+
+A separate CMake target compiles the current module with one frozen pre-71
+terrain include (SHA256 `4b9a36a6…0d86ec`). Default builds use the production
+include without a runtime branch. The CI runner reuses the existing FPS fixture
+and module build, preserves the same Host, alternates seven reference/current
+pairs, restores the production DLL and clears the temporary CMake option.
+It refuses local execution. No local Native, SDL window, focus or input was used.
+
+The pure shared-module gate passes24 cases,177 checks and1,924,596 exact pixels.
+The initial gate test exposed Windows short/long-path normalization; the corrected
+runner passes9 positive/negative receipt tests, including partial pairs, stale
+source/module, failed exit, changed image, wrong phases and local-launch refusal.
+The ordinary two-scene profile gate remains unchanged. The existing module and
+GPU-geometry CTests and96 atomic source-transform tests pass. The benchmark
+environment isolation passes174 checks.
+Native compilation, exact captures and paired timings still require CI; this
+stage is diagnostic infrastructure, not another measured game speedup.
+Private checkpoints: `night-terrain-dll72/`, `night-stage72-verifier-tests-r2.txt`.
+
 ## Remote qualification and next steps
 
-- Full `eae8d02`, run40580475214: all8 jobs pass. Source-bound selected
-  reports and CodeReview tails were saved before PR advancement. It does not
-  qualify later distance/floor/volume source bytes.
+- Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
 - Full `12a7abcd`, [run40600292716](https://github.com/Neversalimus/NCMM/actions/runs/40600292716):
-  all8 jobs, including the required gate122619592124, now pass. Exact run/head
-  and job conclusions are saved in `night-stage66-12a7-full-status.json`.
-  Historical logs are not queried against the later PR head.
-- Current PR `cdf6f79`, full40615847078: both module/Linux Native jobs pass;
-  both Windows gameplay/focused checks pass, galleries/paired benchmark remain
-  in progress. Independent GPU40615847005/source40615847050/runtime40615846995
-  pass. No full current-CDF qualification yet.
-- Diagnostic `2d9401b`, integration40619494293: seven executable jobs pass,
-  required gate fails at the integration tier; do not label the full run green.
-- Fresh schema3 `616d718`, integration40629160097: pending. Read only the five
-  selected early program JSONs with source/run identity, bounded HTTP ranges
-  and independent exact-source verification. No artifacts from another source
-  may qualify the changed volume renderer in local `1c5ce96`.
+  all8 jobs pass, including required122619592124.
+- Current PR `cdf6f79`, [full40615847078](https://github.com/Neversalimus/NCMM/actions/runs/40615847078):
+  all8 jobs now pass, including Windows1040/1807, both actual Linux jobs and
+  required122663447792 (`REQUIRED_TIER=full`, `SELECTED_TIER=full`). Windows
+  CodeReview excerpts show both21-scene/224-load paired gates passing.
+  Independent GPU40615847005/source40615847050/runtime40615846995 also pass.
+  This qualifies CDF, not later volume/terrain sources or ordinary15ms frames.
+- `616d718`, integration40629160097, and volume65 `fdbba45`,
+  integration40633375838: all7 planning/module/actual Native jobs pass; their
+  required gates fail because the selected integration tier is insufficient
+  for full qualification. The schema3 baseline CPU profiles are independently
+  verified above. Cross-run timings are not a paired causal comparison.
+- Terrain71 `1407dd4`, integration40637761432: module jobs pass; actual Native
+  jobs remain running. Preserve the run and its source identity.
 
-Next: target the measured geometry/raster cost. The private terrain-feather
-profile experiment is underway; its Native impact remains unqualified. Investigate viewport alternation only with a separate controlled
-fixture; preserve old measurements. Keep current full PR run intact. Push
-tested work to an available existing diagnostic branch when appropriate;
-retain draft/review and no-release boundaries. CI logs exclusively CodeReview
-at current PR head; metadata/program JSON are not log fallbacks. Native source
-transfer ledger has161994 bytes remaining; no new upstream body was fetched
-during stages57–66. Continue solo until user finalization or a real limit.
+Next: complete and run the source-bound same-Host terrain comparison, then target
+remaining measured geometry/raster cost. Keep draft/review and no-release
+boundaries. CI logs exclusively CodeReview at the current PR head; metadata and
+program JSON are not log fallbacks. The upstream Native transfer ledger has
+161994 bytes remaining; no upstream source body was fetched during stages57–72.
+Continue solo until user finalization or a real limit.
