@@ -2,7 +2,7 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage71. Baseline `1284537`; working branch
+Updated28 October2026, through stage88. Baseline `1284537`; working branch
 `codex/fpv-0131-fps-controls-20261024`; draft [PR223](https://github.com/Neversalimus/NCMM/pull/223).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
@@ -39,6 +39,9 @@ measured summaries or derive new data from old truncated reports.
 | FPS controls | Correct held tap/chord and recovery state without manufacturing extra Native actions. Current controlled184-case matrices cover added W+D/tap cases. Physical input during ordinary play is not qualified by these fixtures. |
 | CPU volumetric light, stage65 | Prepare up to12 source positions, camera depths and attenuations once per frame on the stack. Same source order, propagated RGB, range, occlusion and ray sampling; no persistent cache/ABI/settings change. |
 | Terrain feather, stage71 | Compute the existing edge-width profile once per texture row/column; skip finite-color additions with exactly zero weight. Preserve every texture pixel, floor triangle, material, range and source call. |
+| CPU ordering/projection, stages73/79 | Compute selected-cell distance once for stable ordering and reuse exact uncut view transforms. Complete frame and near-plane scalar proofs; broad isolated CPU gains about1.5–5%, not Native/RTX latency qualification. |
+| Ground templates, stage76 | Reuse identical owned blends within one callback after all original provider reads. Mixed32 CPU8.819→5.039ms; CPU preparation for GPU8.805→.939ms in controlled models. No state survives the callback. |
+| Texture reference storage, stage80 | Allocate only requested layers.65536 cells/three layers use1.5MiB rather than6MiB pointer storage. Large CPU models improve about7%; small long control costs about1%. |
 
 Historical local producer measurements are not a universal speedup: the
 stationary-boundary first sample worsened2.5233→2.9792ms despite a lower
@@ -531,6 +534,27 @@ Actual Host compilation and corrected Native captures remain CI work.
 Evidence: `night-stage85-{terrain-guard-tests,atomic-transform-final}.txt`,
 `night-stage85-pinned-{native-preflight,archive-definitions}.json` and
 `night-stage85-ec1-fine-review-{122735136124,122735136065}.json`.
+
+## Stages86–88 — additional cold-frame candidates not retained
+
+All candidates remain private; production texture analysis and lookup are
+unchanged. Same-process full CPU timings include fresh analysis and previous
+frame cleanup under background applications. They do not qualify Native,
+GPU execution, Present or15ms. Raw short/failed and successful records remain.
+
+| Candidate | Correctness and reason not to retain |
+| --- | --- |
+|86: hoist2×2 mip row addresses |168 exact frames; seven pairs×6 fresh frames across7 source sets.64px/512-source ratio.97930, but small control1.07108 and32px common1.00503. Initial auxiliary link response-file creation fails and supplies no data; corrected environment passes. `night-image-mip-{model86-r2,timing86}/`. |
+|87: alpha0/255 shortcuts |168 exact frames plus262144 padded source pixels/all256 channel-alpha combinations,2572 assertions. Per-pixel branch improves opaque64px/512 ratio.94431 but fractional32px regresses1.03644. Once-per-image selection preserves the fractional loop, yet13-workload guards remain mixed: r2 odd33 ratio1.01822; r3 common32/64-source1.05461, fractional64px1.02279. No robust broad basis. `night-image-alpha-{model,timing}87{-r2,-r3}/`. |
+|88: callback-local hashed image map |168 exact CPU frames. Seven pairs×6 frames/13 source sets: fractional64px ratio.94440, cutout32px1.03284,128px1.02069, small fractional1.02477. Not retained; no direct rehash/GPU proof or hardware rerun is claimed. `night-image-map-{model,timing}88/`. |
+
+Both currenta9 module jobs pass, including Windows47 CTests and Linux
+sanitizer controls. Source/GPU/runtime checks report success in metadata;
+two runtime-log reads return providerHTTP502, with no CLI/log fallback.
+Current full40674207425 and corrected terrain40674244460 Native jobs remain
+running at fixeda9. Earlier ec1 full40664250771 has both actual Linux jobs
+and both module jobs passing; Windows full captures remain running. Preserve
+both PR heads and meaningful captures.
 
 ## Remote qualification and next steps
 
