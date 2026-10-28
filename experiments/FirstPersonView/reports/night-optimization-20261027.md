@@ -1267,6 +1267,32 @@ Host compilations pass so far. Full12a7 Linux jobs also pass; Windows full
 qualification and per-turn attribution are still pending. Next inspect the
 existing floor fast path's unnecessarily coupled current/below uniform guard.
 
+**52. Resolve uniform solid floors independently of mixed lower storage.**
+The existing fast path required both current and lower submaps to be uniform
+before even testing whether the current floor has a gap. The frozen Native
+predicate never consults lower furniture for a solid current floor. Move only
+the lower-uniform guard to the gap/furniture branch. Retain original lower
+submap lookups, missing-data diagnostics, per-cell mixed-roof handling, invalid
+ID fallback, `f_null` conversion rules, dirty/return values and full-grid writes.
+No invalidation, visibility, geometry, Z level or view range is skipped.
+
+Add396 combinations of uniform upper terrain over mixed lower furniture,
+including all16 gap masks, no-Z aliasing, bottom/top levels, 1/11-submap
+extents, invalid IDs, missing lower submaps and absent `f_null`. Before the
+change,856 semantic cases pass and the new last work assertion correctly
+fails(17424 ->17424 reads). Afterward,858 cases/23657400 checks pass(1.30s).
+Solid 11x11 upper grids over mixed lower grids now use17424 ->121 terrain
+reads and0 ->0 furniture reads. This is a component-work result, not a frame
+time or general99% speedup. Fully uniform earlier cases retain their fast path.
+
+Full Release build passes;5 affected atomic preparation tests pass for both
+pins(1.867s). Two separately compiled wrong controls are rejected: treating
+mixed lower roofs as uniform changes floor bits, and resolving an invalid
+terrain once drops original diagnostics. Stage50's310 Python/96 full atomic
+tests are not rerun unchanged merely to accumulate passes. New Native Host
+bytes still need isolated CI; preserve both full runs and the pending turn
+attribution run instead of cancelling them for this small following change.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both

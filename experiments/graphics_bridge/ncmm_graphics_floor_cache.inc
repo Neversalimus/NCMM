@@ -39,7 +39,7 @@ bool map::build_floor_cache( const int zlev )
             // A uniform submap has one terrain and the actual shared f_null.
             // Resolve their unchanged predicate once, retaining the original
             // loop for every mixed or invalid definition and its diagnostics.
-            if( cur_submap->is_uniform() && ( !below_submap || below_submap->is_uniform() ) ) {
+            if( cur_submap->is_uniform() ) {
                 const ter_id uniform_terrain = cur_submap->get_ter( point_sm_ms::zero );
                 // The pinned terrain is_valid() has no external definition.
                 // This is generic_factory's exact quiet integer bounds test.
@@ -52,9 +52,12 @@ bool map::build_floor_cache( const int zlev )
                     if( !has_gap ) {
                         continue;
                     }
-                    // Missing string-ID conversion can itself diagnose. Fall
-                    // back before that conversion to preserve every message.
-                    if( !below_submap || furn_str_id::NULL_ID().is_valid() ) {
+                    // A solid current floor is independent of lower storage.
+                    // Gaps still require uniform lower furniture for this fast
+                    // path; mixed roofs retain the exact per-cell loop below.
+                    // Missing string-ID conversion can itself diagnose.
+                    if( ( !below_submap || below_submap->is_uniform() ) &&
+                        ( !below_submap || furn_str_id::NULL_ID().is_valid() ) ) {
                         const furn_id uniform_furniture = below_submap ?
                                                           below_submap->get_furn( point_sm_ms::zero ) : furn_id();
                         if( !below_submap || uniform_furniture.is_valid() ) {

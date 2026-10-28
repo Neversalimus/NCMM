@@ -406,6 +406,19 @@ void run_cases()
         scenario s; s.width = 11; s.terrain_shape = 3; s.furniture_shape = 2;
         s.zlevels = zlevels; s.f_null_sun = roof; s.z = z; s.seed = 7; paired( s );
     }
+    // Uniform current terrain does not imply a uniform lower storey. A solid
+    // current floor never reads lower furniture; a gap still needs each actual
+    // SUN_ROOF_ABOVE predicate, including invalid and missing lower definitions.
+    for( unsigned mask = 0; mask < 16; ++mask ) for( int lower_shape : {1, 2} )
+        for( bool zlevels : {false, true} ) for( int z : {-OVERMAP_DEPTH, 0, 10} ) for( int width : {1, 11} ) {
+            scenario s; s.uniform_flags = mask; s.furniture_shape = lower_shape;
+            s.zlevels = zlevels; s.z = z; s.width = width; paired( s );
+        }
+    for( unsigned mask : {0u, 1u, 15u} ) for( int kind = 0; kind < 4; ++kind ) {
+        scenario s; s.width = 3; s.uniform_flags = mask; s.furniture_shape = 1;
+        s.invalid_uniform_terrain = kind == 0; s.invalid_nonuniform_furniture = kind == 1;
+        s.missing = kind == 2 ? 2 : 0; s.absent_f_null_registry = kind == 3; paired( s );
+    }
     for( bool zlevels : {false, true} ) for( bool roof : {false, true} ) for( bool nonuniform : {false, true} ) {
         scenario s; s.uniform_flags = 1; s.absent_f_null_registry = true;
         s.zlevels = zlevels; s.f_null_sun = roof; s.terrain_shape = nonuniform ? 4 : 0;
@@ -423,6 +436,14 @@ void run_cases()
     require( result.first.terrain_reads == 17424 && result.first.furniture_reads == 17424, "the frozen baseline performs 144 terrain/furniture reads per submap" );
     require( result.second.terrain_reads <= 121 && result.second.furniture_reads <= 121,
              "fully uniform 11x11 floor build requires at most one terrain and one furniture read per submap (fail-before control)" );
+    scenario solid_above_mixed; solid_above_mixed.width = 11; solid_above_mixed.furniture_shape = 1;
+    const auto mixed_result = paired( solid_above_mixed );
+    std::cout << "Native uniform solid floors over mixed lower submaps: terrain " << mixed_result.first.terrain_reads << " -> " << mixed_result.second.terrain_reads
+              << ", furniture " << mixed_result.first.furniture_reads << " -> " << mixed_result.second.furniture_reads << '\n';
+    require( mixed_result.first.terrain_reads == 17424 && !mixed_result.first.furniture_reads,
+             "Native solid floors do not consult lower furniture even when it is mixed" );
+    require( mixed_result.second.terrain_reads <= 121 && !mixed_result.second.furniture_reads,
+             "uniform solid floor predicates are resolved once despite mixed lower storage (fail-before control)" );
     std::cout << "Native floor-cache component: " << cases << " cases / " << checks << " checks passed; no Native timing claim\n";
 }
 } // namespace native_floor_cache_fixture
