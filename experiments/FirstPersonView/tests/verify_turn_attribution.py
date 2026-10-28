@@ -1,13 +1,16 @@
 """Validate per-turn inclusive wall intervals; these are not pure AI/GPU times."""
+import math
 
 GROUPS = ((1, 6), (5, 6), (20, 6), (0, 8))
 DRAW_SCOPE = 'union of outermost graphics_draw callbacks inside do_turn'
 OTHER_SCOPE = 'other Native work, UI, waits and scheduling; not pure AI'
 CALLBACK_SCOPE = 'adjacent outermost callback wall phases; module includes submission/waits, not GPU execution'
+CPU_SCOPE = 'fresh validated submit_cpu_metrics event inside this module call; reported components may overlap'
 BOUNDARIES = ('entry', 'native_cache_begin', 'native_cache_end', 'visibility_begin',
               'visibility_end', 'module_begin', 'module_end', 'returned')
 PHASES = ('dispatch_ns', 'native_cache_ns', 'pre_visibility_ns', 'visibility_ns',
           'post_visibility_ns', 'module_ns', 'presentation_tail_ns')
+CPU_TIMES = ('frame_ms', 'geometry_ms', 'raster_ms', 'effects_ms')
 
 
 def require(condition, message):
@@ -40,6 +43,8 @@ def verify_callbacks(sample):
                     f'invalid callback {key}')
         for key in ('image_width', 'image_height'):
             integer(row.get(key), 2**32-1, key)
+        integer(row.get('source_cells'), 2**32-1, 'source_cells')
+        integer(row.get('source_slices'), 63, 'source_slices')
         points = row.get('boundaries')
         require(type(points) is list and 2 <= len(points) <= len(BOUNDARIES), 'partial callback boundaries')
         expected = BOUNDARIES[:len(points)-1] + ('returned',)
@@ -49,12 +54,33 @@ def verify_callbacks(sample):
             offsets.append(integer(point.get('offset_ns'), 2**63-1, 'callback offset_ns'))
         require(offsets[0] == 0 and offsets == sorted(offsets), 'overlapping or backwards callback phases')
         total += offsets[-1]
+        cpu = row.get('cpu_metrics')
+        require(type(cpu) is dict, 'explicit CPU metric availability required')
+        reports = integer(cpu.get('reports'), 1, 'CPU reports')
+        require(type(cpu.get('available')) is bool and cpu['available'] == (reports == 1),
+                'CPU report availability differs')
+        for key, limit in (('width', 8192), ('height', 8192), ('raster_calls', 2**32-1),
+                           ('triangles', 2**64-1), ('cache_bytes', 2**64-1)):
+            integer(cpu.get(key), limit, 'CPU '+key)
+        for key in CPU_TIMES:
+            require(type(cpu.get(key)) in (int, float) and math.isfinite(cpu[key]) and cpu[key] >= 0,
+                    'invalid CPU '+key)
+        if reports:
+            require(mode == 'cpu' and len(points) == len(BOUNDARIES) and
+                    cpu['width'] == row['image_width'] and cpu['height'] == row['image_height'],
+                    'CPU metrics differ from their actual module image')
+            require(cpu['frame_ms'] <= (offsets[6]-offsets[5])/1e6 + .003,
+                    'CPU frame report is outside its captured module interval')
+        else:
+            require(all(cpu[key] == 0 for key in ('width', 'height', 'raster_calls', 'triangles', 'cache_bytes') + CPU_TIMES),
+                    'unavailable CPU metrics contain stale data')
         key = mode + '_draws' if row['rendered'] else 'skipped_draws'
         counts[key] += 1
         if row['rendered'] and mode != 'legacy':
             require(len(points) == len(BOUNDARIES), 'successful world callback is missing phases')
             require(all(1 <= row[key] <= 8192 for key in ('viewport_width', 'viewport_height', 'image_width', 'image_height')),
                     'successful world image has invalid or missing dimensions')
+            require(row['source_slices'] >= 1, 'successful world callback is missing source dimensions')
             result['world_callbacks'] += 1
             for key, before, after in zip(PHASES, offsets, offsets[1:]):
                 result[key] += after-before
@@ -71,12 +97,12 @@ def verify(report):
     require(report.get('actual_cdda_sdl') is True and report.get('manual_playthrough') is False,
             'controlled real Native report required')
     data = report.get('native_turn_diagnostics')
-    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 2,
+    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 3,
             'native turn attribution schema required')
     require(data.get('controlled_fixture_without_interactive_main_loop') is True and
             data.get('ordinary_performance_measurement') is False and
             data.get('draw_wall_scope') == DRAW_SCOPE and data.get('remainder_scope') == OTHER_SCOPE and
-            data.get('callback_scope') == CALLBACK_SCOPE,
+            data.get('callback_scope') == CALLBACK_SCOPE and data.get('cpu_metric_scope') == CPU_SCOPE,
             'timing scope or controlled fixture descriptor differs')
     samples = data.get('samples')
     require(type(samples) is list and len(samples) == 26, 'all26 real turns required')
@@ -118,6 +144,7 @@ def verify(report):
                 totals[key] += sample[key]
         totals['callbacks'] = callbacks
         groups.append(totals)
-    return dict(success=True, actual_cdda_sdl=True, controlled_native_turns=26, callback_schema=2,
+    return dict(success=True, actual_cdda_sdl=True, controlled_native_turns=26, callback_schema=3,
+                cpu_metric_components_adjacent=False,
                 ordinary_performance_measurement=False, gpu_execution_measured=False,
                 first_correct_present_measured=False, pure_ai_time_measured=False, groups=groups)

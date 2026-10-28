@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -37,6 +38,12 @@ struct callback_record {
     int viewport_width = 0, viewport_height = 0;
     bool returned = false, rendered = false;
     backend mode = backend::legacy;
+    std::uint32_t source_cells = 0, source_slices = 0, cpu_reports = 0;
+    struct cpu_work {
+        std::uint32_t width = 0, height = 0, raster_calls = 0;
+        std::uint64_t triangles = 0, cache_bytes = 0;
+        double frame_ms = 0, geometry_ms = 0, raster_ms = 0, effects_ms = 0;
+    } cpu;
     std::size_t count = 0;
     std::array<callback_boundary, callback_boundary_capacity> tags{};
     std::array<std::int64_t, callback_boundary_capacity> offsets_ns{};
@@ -73,12 +80,21 @@ inline bool valid_callbacks( const turn_record &r ) noexcept
         if( span < 0 || sum > std::numeric_limits<std::int64_t>::max() - span ) return false;
         sum += span;
         if( c.mode != backend::cpu && c.mode != backend::gpu && c.mode != backend::legacy ) return false;
+        if( c.cpu_reports > 1 ) return false;
+        if( c.cpu_reports ) {
+            if( c.mode != backend::cpu || c.count != callback_boundary_capacity ||
+                c.cpu.width != c.image_width || c.cpu.height != c.image_height ) return false;
+            for( double value : {c.cpu.frame_ms, c.cpu.geometry_ms, c.cpu.raster_ms, c.cpu.effects_ms} )
+                if( !std::isfinite( value ) || value < 0 ) return false;
+            const double module_ms = ( c.offsets_ns[6] - c.offsets_ns[5] ) / 1000000.0;
+            if( c.cpu.frame_ms > module_ms + .003 ) return false;
+        }
         if( !c.rendered ) ++skipped;
         else if( c.mode == backend::legacy ) ++legacy;
         else {
             if( c.count != callback_boundary_capacity || c.viewport_width < 1 || c.viewport_width > 8192 ||
                 c.viewport_height < 1 || c.viewport_height > 8192 || !c.image_width || c.image_width > 8192 ||
-                !c.image_height || c.image_height > 8192 ) return false;
+                !c.image_height || c.image_height > 8192 || !c.source_slices || c.source_slices > 63 ) return false;
             if( c.mode == backend::cpu ) ++cpu;
             else ++gpu;
         }
@@ -101,6 +117,7 @@ inline thread_local turn_capture *active_capture = nullptr;
 class turn_capture {
     friend class draw_scope;
     friend void mark( callback_boundary, std::uint32_t, std::uint32_t ) noexcept;
+    friend void observe_cpu( const callback_record::cpu_work & ) noexcept;
     turn_record &record_;
     turn_capture *previous_;
     draw_scope *top_ = nullptr;
@@ -150,6 +167,7 @@ public:
 };
 class draw_scope {
     friend void mark( callback_boundary, std::uint32_t, std::uint32_t ) noexcept;
+    friend void observe_cpu( const callback_record::cpu_work & ) noexcept;
     turn_capture *capture_ = active_capture;
     draw_scope *previous_ = nullptr;
     callback_record *callback_ = nullptr;
@@ -219,19 +237,36 @@ public:
 // Only the current outermost draw owns a partition. A nested draw's markers
 // are ignored, so its inclusive work stays in its parent's current interval.
 // Off by default; no clock or allocation on the ordinary rendering path.
-inline void mark( callback_boundary tag, std::uint32_t image_width = 0, std::uint32_t image_height = 0 ) noexcept
+inline void mark( callback_boundary tag, std::uint32_t first = 0, std::uint32_t second = 0 ) noexcept
 {
     auto *capture = active_capture;
     if( !capture || !capture->top_ || !capture->top_->callback_ ) return;
     auto *draw = capture->top_; auto &c = *draw->callback_;
     if( draw->completed_ || c.count >= callback_boundary_capacity - 1 ||
         std::size_t( tag ) != c.count ||
-        ( tag != callback_boundary::module_end && ( image_width || image_height ) ) ) {
+        ( tag != callback_boundary::module_begin && tag != callback_boundary::module_end && ( first || second ) ) ) {
         capture->record_.errors |= protocol; return;
     }
     const auto at = c.count++;
     c.tags[at] = tag;
     c.offsets_ns[at] = std::chrono::duration_cast<std::chrono::nanoseconds>( capture->stamp() - draw->begin_ ).count();
-    if( tag == callback_boundary::module_end ) { c.image_width = image_width; c.image_height = image_height; }
+    if( tag == callback_boundary::module_begin ) { c.source_cells = first; c.source_slices = second; }
+    if( tag == callback_boundary::module_end ) { c.image_width = first; c.image_height = second; }
+}
+// Observe the existing validated Host API event directly. No stale global
+// metrics, extra poll, clock or module call is needed. Reported component
+// scopes can overlap (held raster is inside geometry); do not sum them.
+inline void observe_cpu( const callback_record::cpu_work &value ) noexcept
+{
+    auto *capture = active_capture;
+    if( !capture || !capture->top_ || !capture->top_->callback_ ) return;
+    auto *draw = capture->top_; auto &c = *draw->callback_;
+    if( !c.source_slices ) return; // Legacy callbacks have no world module scope.
+    if( draw->completed_ || c.count != std::size_t( callback_boundary::module_end ) ) {
+        capture->record_.errors |= protocol; return;
+    }
+    capture->increment( c.cpu_reports );
+    if( c.cpu_reports != 1 ) capture->record_.errors |= protocol;
+    c.cpu = value;
 }
 } // namespace ncmm_graphics_turn_diagnostics

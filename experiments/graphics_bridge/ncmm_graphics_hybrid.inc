@@ -582,7 +582,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     bool ok = false;
     snapshot_zone.stop();
     const auto callback_begun = std::chrono::steady_clock::now();
-    if(world)ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::module_begin);
+    if(world)ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::module_begin,uint32_t(base.cell_count),world->slice_count);
     try {
         module_call_scope scope( graphics_view.owner.c_str() );
         ok=world?graphics_view.world_render(world,graphics_view.user_data)!=0:

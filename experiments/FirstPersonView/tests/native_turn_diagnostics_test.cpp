@@ -19,7 +19,7 @@ void check_turn( bool condition, const char *message )
     ++turn_checks;
     if( !condition ) throw std::runtime_error( message );
 }
-void callback_phases( bool nested = false )
+void callback_phases( bool nested = false, bool cpu = false )
 {
     using b = turn_diag::callback_boundary;
     turn_diag::mark( b::native_cache_begin );
@@ -30,7 +30,8 @@ void callback_phases( bool nested = false )
     }
     turn_diag::mark( b::visibility_begin );
     turn_diag::mark( b::visibility_end );
-    turn_diag::mark( b::module_begin );
+    turn_diag::mark( b::module_begin, 64, 1 );
+    if( cpu ) turn_diag::observe_cpu( {640,360,4,777,8192,.000005,.000003,.000004,.000002} );
     turn_diag::mark( b::module_end, 640, 360 );
 }
 }
@@ -41,6 +42,7 @@ void test_native_turn_diagnostics()
     const auto ticks = turn_ticks;
     ncmm_test_allocation_enable( true );
     { d::draw_scope off( 1280, 720 ); callback_phases(); off.complete( true, d::backend::gpu ); }
+    d::observe_cpu( {0,0,0,0,0,-1,-1,-1,-1} );
     ncmm_turn_diagnostics_cross_tu();
     ncmm_test_allocation_enable( false );
     check_turn( turn_ticks == ticks && allocations == ncmm_test_allocation_calls(), "disabled turn capture does not clock or allocate" );
@@ -110,6 +112,7 @@ void test_native_turn_diagnostics()
     check_turn( c.viewport_width == 1280 && c.viewport_height == 720 && c.image_width == 640 && c.image_height == 360,
                 "submitted image dimensions stay distinct from Native viewport" );
     check_turn( c.count == 8 && c.returned && c.rendered && c.mode == d::backend::gpu, "complete world callback is identified" );
+    check_turn( c.source_cells == 64 && c.source_slices == 1 && !c.cpu_reports, "source dimensions are captured without invented GPU CPU-raster metrics" );
     for( std::size_t i = 0; i < c.count; ++i )
         check_turn( std::size_t( c.tags[i] ) == i && c.offsets_ns[i] == std::int64_t( i * 10 ), "each adjacent boundary has its own raw timestamp" );
     d::turn_record detailed_nested;
@@ -157,5 +160,39 @@ void test_native_turn_diagnostics()
       capture.complete(); }
     check_turn( !d::valid( detail_capacity ) && ( detail_capacity.errors & d::overflow ) &&
                 detail_capacity.callback_count == d::callback_capacity, "bounded callback capacity cannot silently drop intervals" );
+    d::turn_record cpu_work;
+    ncmm_test_allocation_enable( true );
+    { d::turn_capture capture( cpu_work, turn_now, true );
+      { d::draw_scope draw( 1280, 720 ); callback_phases( false, true ); draw.complete( true, d::backend::cpu ); }
+      capture.complete(); }
+    ncmm_test_allocation_enable( false );
+    check_turn( d::valid( cpu_work ) && allocations == ncmm_test_allocation_calls(), "direct CPU report event allocates nothing" );
+    const auto &reported = cpu_work.callbacks[0];
+    check_turn( reported.cpu_reports == 1 && reported.cpu.raster_calls == 4 && reported.cpu.triangles == 777 &&
+                reported.cpu.cache_bytes == 8192 && cpu_work.draw_wall_ns == 70, "fresh CPU counters do not add clocks or overlap wall partitions" );
+    check_turn( reported.cpu.geometry_ms + reported.cpu.raster_ms + reported.cpu.effects_ms > reported.cpu.frame_ms,
+                "inclusive component reports may overlap; no invented adjacent sum" );
+    for( int mutation = 0; mutation < 8; ++mutation ) {
+        auto corrupt = cpu_work; auto &row = corrupt.callbacks[0];
+        if( mutation == 0 ) row.cpu_reports = 2;
+        else if( mutation == 1 ) row.cpu.width = 123;
+        else if( mutation == 2 ) row.cpu.frame_ms = std::numeric_limits<double>::quiet_NaN();
+        else if( mutation == 3 ) row.cpu.raster_ms = -1;
+        else if( mutation == 4 ) row.mode = d::backend::gpu;
+        else if( mutation == 5 ) row.source_slices = 0;
+        else if( mutation == 6 ) row.source_slices = 64;
+        else row.cpu.frame_ms = 1;
+        check_turn( !d::valid( corrupt ), "invalid, mismatched, stale-category CPU report or source slices rejected" );
+    }
+    d::turn_record late_cpu;
+    { d::turn_capture capture( late_cpu, turn_now, true );
+      { d::draw_scope draw( 1280, 720 ); callback_phases(); d::observe_cpu( reported.cpu ); draw.complete( true, d::backend::cpu ); }
+      capture.complete(); }
+    check_turn( !d::valid( late_cpu ) && ( late_cpu.errors & d::protocol ), "CPU report outside its module interval rejected" );
+    d::turn_record legacy_cpu;
+    { d::turn_capture capture( legacy_cpu, turn_now, true );
+      { d::draw_scope draw( 640, 480 ); d::observe_cpu( reported.cpu ); draw.complete( true, d::backend::legacy ); }
+      capture.complete(); }
+    check_turn( d::valid( legacy_cpu ) && !legacy_cpu.callbacks[0].cpu_reports, "legacy module event cannot invent world CPU attribution" );
     std::cout << "Native turn render attribution: " << turn_checks << " checks passed; injected clocks are not measurements\n";
 }

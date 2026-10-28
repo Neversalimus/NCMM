@@ -1593,6 +1593,42 @@ renders have different dimensions/setup and must not be substituted for these
 captured callbacks.2d9401b1807 and both full Windows qualifications still await
 completion. No local Native/mouse/subagent/new upstream body/merge/release ran.
 
+**63. Confirm1807 attribution; observe fresh CPU work without another render.**
+The second schema2 early artifact12789268191(38540 bytes) verifies the same
+106 copied inputs, private SDL, engine/Host/module/run and clean exit. Both
+artifacts together reserve144070/8388608 bytes.1807 uses the same672x704
+viewport, GPU672x704 / CPU572x600. Its empty8 turns have136.5442ms turn,
+114.7093ms draw, .01725ms entry-cache,10.84335ms visibility and96.2005ms
+module medians. Combat module medians43.68315/41.256/43.29075ms and visibility
+14.4288/19.2228/23.334ms reinforce the priority, not a causal comparison.
+Independent summary SHA256
+`d5781572e26e7e934339b915a6be2ded45b46d703aeec51793286d4158b21146`.
+All seven executable2d9401b jobs now pass; its integration required gate fails,
+so this is still not a full-tier qualification. Preserve currentcdf full.
+
+Schema3 records the already validated `submit_cpu_metrics` event directly
+inside the current outermost module call. It cannot read an old global or
+add a renderer call, backend poll, wait, clock or recording allocation.
+Explicit reports/availability, source cell/slice counts, actual CPU image size,
+frame/geometry/raster/effects times, raster calls, triangles and bytes retain
+their identities. Legacy/missing reports remain unavailable. Duplicate,
+wrong-category/dimension, nonfinite or out-of-module-frame reports are rejected.
+Components are explicitly inclusive and may overlap: held raster is inside
+the geometry scope, so they must not be added as adjacent independent work.
+
+Source restoration proves the existing CPU-metrics API body is unchanged apart
+from the direct observer and that hybrid changes only an existing probe's
+arguments. Native turns/warmups/delays/settings and renderer/module ABI stay
+unchanged. Full Release,318 Python tests(13.280s),96 two-pin atomic tests
+(35.259s),2 affected CTests(.35s) and61 fake-clock/allocation checks pass.
+Ten compiled bad controls are rejected, including stale-frame/wrong-image/
+duplicate reports and a reintroduced clock. Freeze the six changed existing
+guard entries and add the newly relevant GPU API observer file:170 exact
+indexed source hashes. Existing render-only GPU code is unchanged and is not
+rerun. No local Native/mouse/subagent/upstream body/merge/release is used.
+Actual schema3 metrics remain pending a fresh isolated CI run; no timing gain
+is claimed for this diagnostic stage.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both

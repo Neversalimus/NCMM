@@ -1,6 +1,11 @@
 import copy
 import unittest
-from verify_turn_attribution import BOUNDARIES, CALLBACK_SCOPE, DRAW_SCOPE, GROUPS, OTHER_SCOPE, PHASES, verify
+from verify_turn_attribution import BOUNDARIES, CALLBACK_SCOPE, CPU_SCOPE, DRAW_SCOPE, GROUPS, OTHER_SCOPE, PHASES, verify
+
+
+def no_cpu_metrics():
+    return dict(reports=0, available=False, width=0, height=0, raster_calls=0,
+                triangles=0, cache_bytes=0, frame_ms=0, geometry_ms=0, raster_ms=0, effects_ms=0)
 
 
 def fixture():
@@ -13,11 +18,12 @@ def fixture():
                 max_depth=2, cpu_draws=1, gpu_draws=1, legacy_draws=0, skipped_draws=0,
                 callback_details=True, callbacks=[dict(ordinal=0, returned=True, rendered=True,
                     backend='gpu', viewport_width=1280, viewport_height=720, image_width=640, image_height=360,
+                    source_cells=64, source_slices=1, cpu_metrics=no_cpu_metrics(),
                     boundaries=[dict(tag=tag, offset_ns=offset) for tag, offset in zip(BOUNDARIES, (0, 10, 30, 70, 140, 200, 330, 400))])]))
     return dict(actual_cdda_sdl=True, manual_playthrough=False,
-                native_turn_diagnostics=dict(schema=2, controlled_fixture_without_interactive_main_loop=True,
+                native_turn_diagnostics=dict(schema=3, controlled_fixture_without_interactive_main_loop=True,
                     ordinary_performance_measurement=False, draw_wall_scope=DRAW_SCOPE,
-                    remainder_scope=OTHER_SCOPE, callback_scope=CALLBACK_SCOPE, samples=samples))
+                    remainder_scope=OTHER_SCOPE, callback_scope=CALLBACK_SCOPE, cpu_metric_scope=CPU_SCOPE, samples=samples))
 
 
 class TurnAttributionTests(unittest.TestCase):
@@ -75,7 +81,8 @@ class TurnAttributionTests(unittest.TestCase):
     def test_scope_model_or_ordinary_claim_cannot_qualify(self):
         for key, value in (('schema', True), ('schema', 0), ('ordinary_performance_measurement', True),
                            ('controlled_fixture_without_interactive_main_loop', False), ('draw_wall_scope', 'all CPU'),
-                           ('remainder_scope', 'pure AI'), ('schema', 1), ('callback_scope', 'pure GPU')):
+                           ('remainder_scope', 'pure AI'), ('schema', 1), ('schema', 2), ('callback_scope', 'pure GPU'),
+                           ('cpu_metric_scope', 'independent CPU phases')):
             report = fixture(); report['native_turn_diagnostics'][key] = value
             with self.subTest(key=key), self.assertRaises(ValueError): verify(report)
         report = fixture(); report['actual_cdda_sdl'] = False
@@ -127,6 +134,34 @@ class TurnAttributionTests(unittest.TestCase):
             result = verify(report)
             self.assertEqual(result['groups'][0]['callbacks']['world_callbacks'], 5)
             self.assertEqual(result['groups'][0]['callbacks']['other_callbacks_wall_ns'], 400)
+
+    def test_fresh_cpu_report_is_a_subset_of_one_module_call(self):
+        report = fixture(); sample = report['native_turn_diagnostics']['samples'][0]
+        sample.update(cpu_draws=1, gpu_draws=0, draw_calls=1, max_depth=1)
+        row = sample['callbacks'][0]
+        row.update(backend='cpu', cpu_metrics=dict(reports=1, available=True, width=640, height=360,
+                   raster_calls=5, triangles=1234, cache_bytes=8192, frame_ms=.0001,
+                   geometry_ms=.00008, raster_ms=.00007, effects_ms=.00004))
+        self.assertTrue(verify(report)['success'])
+        self.assertFalse(verify(report)['cpu_metric_components_adjacent'])
+
+    def test_stale_or_mismatched_cpu_report_cannot_qualify(self):
+        for key, value in (('reports', 2), ('reports', True), ('available', True), ('frame_ms', .1),
+                           ('geometry_ms', float('nan')), ('raster_ms', -1), ('width', 640),
+                           ('raster_calls', 1), ('triangles', 2**64)):
+            report = fixture(); cpu = report['native_turn_diagnostics']['samples'][0]['callbacks'][0]['cpu_metrics']
+            cpu[key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError): verify(report)
+        report = fixture(); row = report['native_turn_diagnostics']['samples'][0]['callbacks'][0]
+        row['cpu_metrics'].update(reports=1, available=True, width=640, height=360)
+        with self.assertRaises(ValueError): verify(report)  # GPU callback cannot report CPU image work.
+
+    def test_source_dimensions_cannot_be_missing_or_invented(self):
+        for key, value in (('source_cells', True), ('source_cells', -1), ('source_cells', 2**32),
+                           ('source_slices', 0), ('source_slices', 64), ('source_slices', True)):
+            report = fixture(); row = report['native_turn_diagnostics']['samples'][0]['callbacks'][0]
+            row[key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError): verify(report)
 
 
 if __name__ == '__main__':

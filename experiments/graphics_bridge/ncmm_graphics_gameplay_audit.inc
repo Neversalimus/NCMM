@@ -247,12 +247,13 @@
     });
     report.end_array();report.member("native_action_stages");write_stages(stages);report.member("combat_trials");report.start_array();for(const auto &t:combat_trials){report.start_object();report.member("spawned",t.spawned);report.member("native_turns",t.turns);report.member("native_shots",t.shots);report.member("native_melee",t.melee);report.member("observed_enemy_attacks",t.observed_enemy_attacks);report.member("avatar_debug_protection",true);report.member("avatar_stamina_reset_each_turn",true);report.member("avatar_combat_state_reset_each_turn",true);report.end_object();}report.end_array();
     require(native_turn_samples.size()==26,"audit_native_turn_samples_missing");
-    report.member("native_turn_diagnostics");report.start_object();report.member("schema",2);
+    report.member("native_turn_diagnostics");report.start_object();report.member("schema",3);
     report.member("controlled_fixture_without_interactive_main_loop",true);
     report.member("ordinary_performance_measurement",false);
     report.member("draw_wall_scope","union of outermost graphics_draw callbacks inside do_turn");
     report.member("remainder_scope","other Native work, UI, waits and scheduling; not pure AI");
     report.member("callback_scope","adjacent outermost callback wall phases; module includes submission/waits, not GPU execution");
+    report.member("cpu_metric_scope","fresh validated submit_cpu_metrics event inside this module call; reported components may overlap");
     report.member("samples");report.start_array();for(const auto &s:native_turn_samples){const auto &t=s.timing;
         report.start_object();report.member("initial_enemies",s.initial_enemies);report.member("round",s.round);
         report.member("requested_renderer",s.requested_renderer);report.member("valid",ncmm_graphics_turn_diagnostics::valid(t));
@@ -266,6 +267,12 @@
             report.member("backend",c.mode==ncmm_graphics_turn_diagnostics::backend::gpu?"gpu":c.mode==ncmm_graphics_turn_diagnostics::backend::cpu?"cpu":"legacy");
             report.member("viewport_width",c.viewport_width);report.member("viewport_height",c.viewport_height);
             report.member("image_width",c.image_width);report.member("image_height",c.image_height);
+            report.member("source_cells",c.source_cells);report.member("source_slices",c.source_slices);
+            report.member("cpu_metrics");report.start_object();report.member("reports",c.cpu_reports);report.member("available",c.cpu_reports==1);
+            report.member("width",c.cpu.width);report.member("height",c.cpu.height);report.member("raster_calls",c.cpu.raster_calls);
+            report.member("triangles",c.cpu.triangles);report.member("cache_bytes",c.cpu.cache_bytes);
+            report.member("frame_ms",c.cpu.frame_ms);report.member("geometry_ms",c.cpu.geometry_ms);
+            report.member("raster_ms",c.cpu.raster_ms);report.member("effects_ms",c.cpu.effects_ms);report.end_object();
             report.member("boundaries");report.start_array();for(size_t j=0;j<c.count;++j){report.start_object();
                 report.member("tag",ncmm_graphics_turn_diagnostics::label(c.tags[j]));report.member("offset_ns",c.offsets_ns[j]);report.end_object();}
             report.end_array();report.end_object();

@@ -177,7 +177,7 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_held.h':'98433bda5f7d343aed1421db5e280f101d315f52c6db591806997fe088110bc2',
             'experiments/graphics_bridge/ncmm_graphics_held.inc':'b8e1362606f87abd1e81e110e3066eae220637054ea6b68fbad658a8b48098ec',
             'experiments/graphics_bridge/ncmm_graphics_effects.inc':'b12053892afece39efdd33f7856d0dcc6ecab059eb78b410e367d025f1bf2f15',
-            'experiments/graphics_bridge/ncmm_graphics_hybrid.inc':'4c5865a4305b474956dce614229285bd0a1b29032137e56fa2ced5964ab54f61',
+            'experiments/graphics_bridge/ncmm_graphics_hybrid.inc':'5ac2b3a0987664fb7f04a231d5bea74a5a1bac3b3a8f8a3817937c66285bc597',
             'experiments/graphics_bridge/ncmm_graphics_fps_audit.inc':'b12ccc3315de947c0adfc0f4301e1fa403dabbb99aaedc3cc288b87ac01316a5',
             'experiments/graphics_bridge/ncmm_graphics_smoke.inc':'99462b628215ce187ddef21086403ba8feaf53dace3b7e2a1c35f2abf98b38f2',
             'experiments/FirstPersonView/Build-FirstPersonInstaller.ps1':'0570b635fec861e9de985ca53015c69d5960ff1bcce3be7a0506f01e78094483',
@@ -294,12 +294,13 @@ jobs:
             'experiments/FirstPersonView/tests/native_sight_distance_test.cpp':'5f2fec82490ce78a31ff0a5181027388b01067ab4de1d0c6e149bf6adeea3bb6',
             'experiments/graphics_bridge/ncmm_graphics_sight_dispatch.inc':'a50d0d5ac029ca8813e72911abd1f40d6a6bf02ce63827a45c997ec0d70187d3',
             'experiments/graphics_bridge/ncmm_graphics_sight_distance.hpp':'eb20d88ccfc9521ce05b299639685a6c13febe5c2434cbb244ea220d1f6ab2e0',
-            'experiments/FirstPersonView/tests/native_turn_diagnostics_test.cpp':'2e3fa59304b0823c082d343191c9f57b601afbf11f72d3ab07bf2424bebfcebf',
-            'experiments/FirstPersonView/tests/test_verify_turn_attribution.py':'4fab0e4788f572dddff41135aaca33afeda35a11dc0dec3733193ede22843214',
+            'experiments/FirstPersonView/tests/native_turn_diagnostics_test.cpp':'3efeba959038b6a05608f1d2d3f75fa1548e5f769c87fcc189289724c36c89db',
+            'experiments/FirstPersonView/tests/test_verify_turn_attribution.py':'765bcf1d099b6928be09753ca2be37dc41b99d1cff9cf3b04aec8dc3cac06af5',
             'experiments/FirstPersonView/tests/verify_gameplay_audit.py':'e2e6be51667e20631465a9d8e8f393d6ef92fe3a69054a71b5e6c86eacac3f06',
-            'experiments/FirstPersonView/tests/verify_turn_attribution.py':'6c625518dd4ac91a6a6f9954f18975f485bc744bb32788daca604130377eaab5',
-            'experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc':'7d6b5491d91f97bbbc4638ae3f32b06c79ca812d4dfaa4ea206e4878a4b16b64',
-            'experiments/graphics_bridge/ncmm_graphics_turn_diagnostics.hpp':'7c4b8334077d7bd9a8df61472a0522f2e4975e756058b4b2c4c4140ae73e59bc'}
+            'experiments/FirstPersonView/tests/verify_turn_attribution.py':'79698661ec654c168726c8363e0490937321079c4368aed93c429656f9763391',
+            'experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc':'bd4ef1a6578d66613562205d893eb016c304ab245181945c416660985e094300',
+            'experiments/graphics_bridge/ncmm_graphics_turn_diagnostics.hpp':'d051001d07ca0f96ff237311b6023c760ded327fcd7e6f19b44c537d1a76cbb0',
+            'experiments/graphics_bridge/ncmm_graphics_gpu.inc':'5d0a87a08ca73fa48b64cfa26f7a1b059bbc807fc6cd9c71878bf5b5cdbe7e4e'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')
