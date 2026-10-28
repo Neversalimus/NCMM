@@ -1,0 +1,440 @@
+{
+  "schema": 1,
+  "reference_revision": "b9f4ee984746511c82080987b969ea7bdf7f9fb6",
+  "source_file": "experiments/FirstPersonView/src/gpu_scene.hpp",
+  "reference_sha256": "f6dba5fac4068558ec149b4d365a0b1e01483386e454059c2933d893134999c7",
+  "retained_sha256": "24661c47add9376adb213a88472625ea9b3961baa8eea2b66b688d71a657f543",
+  "change": "Reuse callback-local pointers to owned unordered_map chunk entries after the dirty scan. Map insertion preserves element references. No pointer survives the callback. Small scenes and fully hidden worlds keep the original lookup path without pointer scratch allocation.",
+  "correctness": {
+    "checks": 201648,
+    "frames": 270,
+    "mesh_values": 24584487,
+    "texture_pixels": 70779510,
+    "reference_sha256": "f6dba5fac4068558ec149b4d365a0b1e01483386e454059c2933d893134999c7",
+    "candidate_sha256": "24661c47add9376adb213a88472625ea9b3961baa8eea2b66b688d71a657f543",
+    "production_changed": false,
+    "local_native_or_device_run": false
+  },
+  "producer_comparisons": [
+    {
+      "scene": "warm_dense97",
+      "pairs": 9,
+      "before_median_ms": 1.69413515625,
+      "after_median_ms": 1.593755859375,
+      "median_pair_ratio": 0.9500122939486083,
+      "ratios": [
+        0.9669581344236845,
+        0.9082877614239584,
+        0.9594308803568045,
+        0.9662914152524729,
+        0.9268793415854325,
+        0.9500122939486083,
+        0.9610082900890158,
+        0.9049327987211324,
+        0.9215339079136816
+      ]
+    },
+    {
+      "scene": "warm_city97",
+      "pairs": 9,
+      "before_median_ms": 1.96184140625,
+      "after_median_ms": 1.812724609375,
+      "median_pair_ratio": 0.9318336686213673,
+      "ratios": [
+        0.9292636820397928,
+        0.8644328142473842,
+        0.9103141289302927,
+        0.9494427832517601,
+        0.9535622456601642,
+        0.9318336686213673,
+        1.008317953190281,
+        0.9926155715382537,
+        0.918573760114772
+      ]
+    },
+    {
+      "scene": "warm_grass97",
+      "pairs": 9,
+      "before_median_ms": 1.7462705078125,
+      "after_median_ms": 1.6439548828125,
+      "median_pair_ratio": 0.9475784109905618,
+      "ratios": [
+        0.9190080651783018,
+        0.9648050105284797,
+        0.963189982888117,
+        0.9475784109905618,
+        0.9307783393648716,
+        0.9397435936495213,
+        0.9820965645929827,
+        0.9461051202311175,
+        1.0396436077125988
+      ]
+    },
+    {
+      "scene": "warm_sparse49x3",
+      "pairs": 9,
+      "before_median_ms": 1.30485625,
+      "after_median_ms": 1.2402056640625,
+      "median_pair_ratio": 0.9522261566666522,
+      "ratios": [
+        1.0018692115765464,
+        0.954631286923396,
+        0.9782753146152324,
+        0.9664476031842587,
+        0.9522261566666522,
+        0.9360214811199385,
+        0.9490638274307651,
+        0.9445854139573566,
+        0.8697465468667368
+      ]
+    },
+    {
+      "scene": "hidden97",
+      "pairs": 9,
+      "before_median_ms": 0.86624462890625,
+      "after_median_ms": 0.85870205078125,
+      "median_pair_ratio": 1.004888868764976,
+      "ratios": [
+        1.021497124629073,
+        1.0278594759981807,
+        0.9888299474660366,
+        0.9160749098912465,
+        0.9464931841543193,
+        1.0739693266379233,
+        1.009014819893275,
+        1.004888868764976,
+        0.9714448536105417
+      ]
+    },
+    {
+      "scene": "air97",
+      "pairs": 9,
+      "before_median_ms": 1.43644404296875,
+      "after_median_ms": 1.36485556640625,
+      "median_pair_ratio": 0.9432473831118336,
+      "ratios": [
+        1.024961902799859,
+        0.8897386461656357,
+        0.8884233962439794,
+        0.9743588782181072,
+        0.9432473831118336,
+        1.0173837426462893,
+        0.9390940505413385,
+        0.9886677048045276,
+        0.9102001627808054
+      ]
+    },
+    {
+      "scene": "shift_city97",
+      "pairs": 9,
+      "before_median_ms": 4.5121625,
+      "after_median_ms": 4.36712734375,
+      "median_pair_ratio": 0.97701073025559,
+      "ratios": [
+        0.9148825537570642,
+        0.9648696281811585,
+        0.9627308328253925,
+        1.008882161589038,
+        0.97701073025559,
+        0.9379484407421054,
+        0.9788165183003245,
+        0.9780117815925913,
+        0.9970709967137228
+      ]
+    },
+    {
+      "scene": "cold_city49",
+      "pairs": 9,
+      "before_median_ms": 10.54105,
+      "after_median_ms": 9.993396875,
+      "median_pair_ratio": 0.950642109194045,
+      "ratios": [
+        1.010134796910194,
+        0.950642109194045,
+        0.9900513982255155,
+        0.9480456761897534,
+        0.9024256124051262,
+        1.0177738405126902,
+        0.9004116409052573,
+        0.9267417102755623,
+        0.9530960364835558
+      ]
+    },
+    {
+      "scene": "warm_small17",
+      "pairs": 9,
+      "before_median_ms": 0.067371728515625,
+      "after_median_ms": 0.0670948486328125,
+      "median_pair_ratio": 0.9968881742682901,
+      "ratios": [
+        1.0166942956532161,
+        1.0559022627343315,
+        0.9968881742682901,
+        0.9570831912717354,
+        0.9945842309173424,
+        1.0012699494424244,
+        1.02100116614076,
+        0.9631497354999697,
+        0.9727314078091894
+      ]
+    },
+    {
+      "scene": "one_visible97",
+      "pairs": 9,
+      "before_median_ms": 0.8560505859375,
+      "after_median_ms": 0.8491646484375,
+      "median_pair_ratio": 0.9919561558474269,
+      "ratios": [
+        0.9805362678259446,
+        0.9740761901670895,
+        1.0681638691327877,
+        0.9919561558474269,
+        0.9723818630425568,
+        0.9500767258598959,
+        1.0185937807576904,
+        1.0463311104430693,
+        1.04974121835458
+      ]
+    },
+    {
+      "scene": "small30",
+      "pairs": 9,
+      "before_median_ms": 0.161116064453125,
+      "after_median_ms": 0.1568067626953125,
+      "median_pair_ratio": 0.9732534320991544,
+      "ratios": [
+        0.9431496701821107,
+        0.9999054787994283,
+        0.9397150114523991,
+        0.9513287305363873,
+        1.0078483254791766,
+        1.018702090467356,
+        0.9732534320991544,
+        0.95920829580554,
+        0.9851377483762953
+      ]
+    },
+    {
+      "scene": "boundary32",
+      "pairs": 9,
+      "before_median_ms": 0.1748306640625,
+      "after_median_ms": 0.18182314453125,
+      "median_pair_ratio": 0.993991724499392,
+      "ratios": [
+        0.9997521587295144,
+        1.0108595141155245,
+        1.1137992901613503,
+        0.9175744207520365,
+        0.9919021822970349,
+        0.993991724499392,
+        1.08444520571095,
+        0.9418100515705106,
+        0.9432913877572592
+      ]
+    }
+  ],
+  "first_measured_variant": {
+    "retained": false,
+    "results": [
+      {
+        "scene": "warm_dense97",
+        "pairs": 7,
+        "before_median_ms": 1.641384375,
+        "after_median_ms": 1.522153125,
+        "median_pair_ratio": 0.974166299239695,
+        "ratios": [
+          0.85387517814662,
+          0.9912528319008517,
+          1.070177672918641,
+          0.9138167484949168,
+          1.1762554368268534,
+          0.9144386503009084,
+          0.974166299239695
+        ]
+      },
+      {
+        "scene": "warm_city97",
+        "pairs": 7,
+        "before_median_ms": 1.8472421875,
+        "after_median_ms": 1.8023859375,
+        "median_pair_ratio": 0.9546420524375255,
+        "ratios": [
+          0.9086836490051341,
+          1.07311854585506,
+          0.9546420524375255,
+          0.888081281209148,
+          1.0613244517557379,
+          0.8606006136053533,
+          0.9962917694028682
+        ]
+      },
+      {
+        "scene": "warm_grass97",
+        "pairs": 7,
+        "before_median_ms": 1.6711078125,
+        "after_median_ms": 1.6042171875,
+        "median_pair_ratio": 0.9519817037537786,
+        "ratios": [
+          0.9373686937850585,
+          0.9519817037537786,
+          0.974982407443606,
+          0.8936334222684085,
+          0.9765396141284219,
+          0.9854954358280301,
+          0.8561522444867345
+        ]
+      },
+      {
+        "scene": "warm_sparse49x3",
+        "pairs": 7,
+        "before_median_ms": 1.3184729166666667,
+        "after_median_ms": 1.189340625,
+        "median_pair_ratio": 0.9171136435107327,
+        "ratios": [
+          0.8832647436971993,
+          0.8976443728429258,
+          0.9673778033839714,
+          0.8161991382075539,
+          0.9234732530468924,
+          0.9405552394095209,
+          0.9171136435107327
+        ]
+      },
+      {
+        "scene": "hidden97",
+        "pairs": 7,
+        "before_median_ms": 0.8087385416666667,
+        "after_median_ms": 0.8394645833333333,
+        "median_pair_ratio": 1.0382162629041798,
+        "ratios": [
+          0.937443000986432,
+          1.066855550518653,
+          1.0382162629041798,
+          1.044015791301823,
+          0.9323095003271153,
+          0.9555067858332853,
+          1.1897824415338187
+        ]
+      },
+      {
+        "scene": "air97",
+        "pairs": 7,
+        "before_median_ms": 1.4837770833333332,
+        "after_median_ms": 1.4187343749999999,
+        "median_pair_ratio": 0.9326714076792935,
+        "ratios": [
+          1.0065329288435458,
+          1.0395340118111192,
+          0.9090874181840523,
+          0.9800551239587033,
+          0.9127043095648094,
+          0.8147352593706368,
+          0.9326714076792935
+        ]
+      },
+      {
+        "scene": "shift_city97",
+        "pairs": 7,
+        "before_median_ms": 4.654796875,
+        "after_median_ms": 4.525590625,
+        "median_pair_ratio": 0.959485269060644,
+        "ratios": [
+          0.9664461442565677,
+          0.9556041417250698,
+          0.959485269060644,
+          1.0242793804998973,
+          0.8977368776161688,
+          0.8175661967272653,
+          0.9971768704438304
+        ]
+      },
+      {
+        "scene": "cold_city49",
+        "pairs": 7,
+        "before_median_ms": 9.85015,
+        "after_median_ms": 9.9453625,
+        "median_pair_ratio": 1.009901510081049,
+        "ratios": [
+          1.0569294369890565,
+          1.1350072794256785,
+          0.9258628041197343,
+          0.9821783586044647,
+          1.0396180288105024,
+          1.009901510081049,
+          0.9105170745516155
+        ]
+      },
+      {
+        "scene": "warm_small17",
+        "pairs": 7,
+        "before_median_ms": 0.05543541666666666,
+        "after_median_ms": 0.05927916666666667,
+        "median_pair_ratio": 1.0693374422187982,
+        "ratios": [
+          1.321023105448322,
+          1.2388446141980975,
+          1.4203415104289792,
+          1.0693374422187982,
+          0.9966336370033663,
+          0.9962648363732888,
+          0.9856342426747497
+        ]
+      }
+    ],
+    "reason": "Initial hidden/small paired ratios 1.03822/1.06934 exceed the predeclared 3 percent guard."
+  },
+  "allocation_scope": {
+    "minimum_source_cells": 1024,
+    "fully_hidden_pointer_array_elements": 0,
+    "maximum_validated_cells": 65536,
+    "pointer_bytes": 8,
+    "maximum_pointer_payload_bytes": 524288,
+    "extra_allocation": "At most one temporary pointer array; 512KiB element payload maximum on x64 plus allocator overhead. This is a source-derived upper bound, not measured whole-game RAM.",
+    "persistent_cache_bytes_unchanged_in_model": true
+  },
+  "protocol": {
+    "pairs": 9,
+    "workloads": 12,
+    "order": "predetermined alternating lanes",
+    "scope": "full GPU producer and packet.finish(), all warm-up excluded and all measured iterations included",
+    "decision": "Require stable >=3% paired gain in substantial producer workloads; reject if any small/hidden/boundary guard exceeds 3% paired median regression. First measured variant remains rejected.",
+    "samples": "32 cold,128 shifts,4096 small,1024 hidden/air/boundary,512 remaining",
+    "background": "User background applications unchanged",
+    "no_native_device_input": true
+  },
+  "local_tests": {
+    "success": true,
+    "source_sha256": "24661c47add9376adb213a88472625ea9b3961baa8eea2b66b688d71a657f543",
+    "exact_measured_candidate": true,
+    "full_release_build": true,
+    "non_device_tests": 51,
+    "hidden_rtx4090_render_only": true,
+    "local_native": false,
+    "mouse_capture_or_focus_change": false,
+    "subagents": false,
+    "exclusions": "No Native game process, controls/input harness, foreground window or system setting changes. Hidden fixture rendering is correctness proof, not an ordinary-game performance comparison."
+  },
+  "limitations": [
+    "Independent before/after medians and median paired ratios are both preserved and can differ. Boundary32 independent medians regress about4%, while its paired median ratio is0.99399; hidden paired ratio1.00489. No universal improvement.",
+    "Each timing includes the full CPU GPU-scene producer and packet.finish(). Warm-up is excluded; cold model lanes clear cache per frame. These are not cold game processes.",
+    "The full GPU preparation gain is about0.10-0.15ms in major warm models, not5-7 percent total game FPS. Shift-city paired improvement is about2.3 percent.",
+    "Hidden real RTX4090 rendering validates correctness only. No local Native/input test, ordinary-game FPS, GPU execution time, scanout,15ms or action-to-first-correct-present claim."
+  ],
+  "abi_camera_geometry_visibility_quality_unchanged": true,
+  "subagents": false,
+  "published_a9_installers_unchanged": true,
+  "remote_native_qualification_pending": true,
+  "evidence_sha256": {
+    "night-gpu-chunks-model94-r2/summary.json": "972b7982685c0f89b42938d950d14e1b7b5db5ce5df008841da66016d5edbd9f",
+    "night-gpu-chunks-timing94/summary.json": "8d9fd822251da9a28bb780e275438c3becdcb06193a8871172ff39b60c1da1f0",
+    "night-gpu-chunks-model94-r3/summary.json": "3a0ba8a8782504c1b462ff49942f2df104fa116264e5753b5af4ad20d351c978",
+    "night-gpu-chunks-guards94-r3/protocol.json": "d520cbe90f11777757d14f66dcbe32878010f724e339661e5752dc106ffbedc1",
+    "night-gpu-chunks-guards94-r3/summary.json": "4966fde2c15a8e61624e87b35cc34d4de322b8e0d0bf1f651c489cbb2588f826",
+    "night-gpu-chunks-guards94-r3/measurements.csv": "9bd0eb38f8dceb96582d01ad825080959f3a92592e7f5c1198c2e5b30235cd2c",
+    "night-stage94-release-build.txt": "df2e93a2f748453ccc2479c56a5cab6b9ed36d207c7e2dfb14f41b656ca4c484",
+    "night-stage94-tests.txt": "120654fcb598778bb7786fdf20c373dc0548d62d6b2762b60a37aae636f73975",
+    "night-stage94-hidden-render.txt": "a54390448c5b0862dd040d1c60d4fa6ed90d6dfc3bab0a6fdc08a2f04f38cb83",
+    "night-stage94-all-test-inventory.json": "ac1fb5b8dd270e1b2ff6adb30638552b5aabf1b0139198d33b6197a663d41f1f",
+    "night-stage94-build-test-summary.json": "222452c2f3dca9991292f8f3d12b314623bed92b4ed91dc65bd76950debf6f39"
+  }
+}

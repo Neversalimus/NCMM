@@ -133,6 +133,9 @@ class scene_cache {
         packet &frame;const ncmm_gpu_metrics_v1 &host;const ncmm_graphics_multilevel_scene_v1 *levels;const ncmm_world::coordinates &xyz;
         const std::vector<uint64_t> &signatures;
         std::vector<bool> dirty_cells;
+        // Callback-local pointers refer only to owned map entries. Insertions
+        // may rehash the map but never invalidate references to its elements.
+        std::vector<chunk *> cell_chunks;
         std::map<std::pair<int,uint32_t>,mesh_builder> builders;
         std::map<int,std::vector<hybrid::prop_placement>> placed_props;
         std::vector<std::shared_ptr<const owned_mesh>> floor_meshes;
@@ -169,7 +172,10 @@ class scene_cache {
             const float h=c.projection[0]*.5f/c.projection[2],v=c.projection[1]*.5f/c.projection[2];
             grass_planes={forward,forward*h+right,forward*h-right,forward*v+up,forward*v-up};
             for(int i=0;i<int(s.base.cell_count);++i)if(s.base.cells[i].flags&NCMM_GFX_VISIBLE){
-                auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()||found->second.signature!=signatures[i]){dirty_cells[size_t(i)]=true;++generated_cells;}}
+                auto found=cache.chunks.find(cell_key(i));
+                if(s.base.cell_count>=1024){if(cell_chunks.empty())cell_chunks.resize(s.base.cell_count,nullptr);
+                    if(found!=cache.chunks.end())cell_chunks[size_t(i)]=&found->second;}
+                if(found==cache.chunks.end()||found->second.signature!=signatures[i]){dirty_cells[size_t(i)]=true;++generated_cells;}}
             // The validated scene and resource caches already have hard
             // limits. A per-frame 512-cell limit forced a full software render
             // exactly when walking/turning invalidated many visible cells.
@@ -229,7 +235,11 @@ class scene_cache {
             if(floor_meshes.empty())floor_meshes.resize(scene.base.cell_count);floor_meshes[size_t(cell)]=std::move(mesh);return true;
         }
         void world_complete()override{
-            for(int i=0;i<int(scene.base.cell_count);++i)if(dirty(i)){auto &chunk=cache.chunks[cell_key(i)];chunk={};chunk.signature=signatures[i];
+            for(int i=0;i<int(scene.base.cell_count);++i)if(dirty(i)){
+                chunk *entry;
+                if(cell_chunks.empty())entry=&cache.chunks[cell_key(i)];
+                else{auto *&saved=cell_chunks[size_t(i)];if(!saved)saved=&cache.chunks[cell_key(i)];entry=saved;}
+                auto &chunk=*entry;chunk={};chunk.signature=signatures[i];
                 if(!floor_meshes.empty())chunk.meshes[NCMM_GPU_OPAQUE]=std::move(floor_meshes[size_t(i)]);
                 const auto props=placed_props.find(i);
                 if(props!=placed_props.end()){
@@ -253,9 +263,12 @@ class scene_cache {
                 }
                 for(uint32_t pass=0;pass<2;++pass){if(chunk.meshes[pass])continue;auto found=builders.find({i,pass});if(found!=builders.end()){chunk.meshes[pass]=cache.assets.mesh(std::move(found->second.mesh));if(!chunk.meshes[pass])fail("GPU static scene mesh cache budget exceeded");}}}
             placed_props.clear();builders.clear();world=false;
-            for(int i=0;i<int(scene.base.cell_count);++i)if(scene.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()){warming=true;continue;}
-                if(found->second.signature!=signatures[i]){warming=true;continue;}
-                found->second.touched=cache.frame_serial;for(uint32_t pass=0;pass<2;++pass)frame.draw(found->second.meshes[pass],place(origin(i)),uint32_t(i),pass);
+            for(int i=0;i<int(scene.base.cell_count);++i)if(scene.base.cells[i].flags&NCMM_GFX_VISIBLE){chunk *entry;
+                if(cell_chunks.empty()){auto found=cache.chunks.find(cell_key(i));entry=found==cache.chunks.end()?nullptr:&found->second;}
+                else entry=cell_chunks[size_t(i)];
+                if(!entry){warming=true;continue;}
+                if(entry->signature!=signatures[i]){warming=true;continue;}
+                entry->touched=cache.frame_serial;for(uint32_t pass=0;pass<2;++pass)frame.draw(entry->meshes[pass],place(origin(i)),uint32_t(i),pass);
                 const auto &cell=scene.base.cells[i];const auto &detail=scene.details[i];
                 if(!ncmm_grass::terrain(cell.terrain)||cell.furniture[0]||detail.vehicle_features||detail.terrain_shape!=NCMM_SHAPE_FLAT||
                    cell.flags&NCMM_GFX_NO_FLOOR||(levels&&!(levels->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)))continue;
