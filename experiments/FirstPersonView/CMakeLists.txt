@@ -116,8 +116,9 @@ add_library(ncmm_mod SHARED src/module.cpp)
 target_compile_definitions(ncmm_mod PRIVATE NCMM_MOD_BUILD)
 set_target_properties(ncmm_mod PROPERTIES PREFIX "" OUTPUT_NAME "ncmm_mod")
 
-# A separate diagnostic DLL differs only in the pinned pre-71 terrain blend.
-# Normal builds keep the production include and acquire no runtime branch.
+# Both excluded diagnostic DLLs support the same forced CPU world rebuild.
+# Their only difference is the pinned pre-71 terrain blend. Normal builds keep
+# the production include and acquire no runtime diagnostic branch.
 set(FIRST_PERSON_TERRAIN_REFERENCE_SOURCE "" CACHE FILEPATH "Pinned terrain reference include for developer comparisons")
 if(FIRST_PERSON_TERRAIN_REFERENCE_SOURCE)
   if(NOT EXISTS "${FIRST_PERSON_TERRAIN_REFERENCE_SOURCE}")
@@ -127,9 +128,13 @@ if(FIRST_PERSON_TERRAIN_REFERENCE_SOURCE)
   if(NOT terrain_reference_hash STREQUAL "4b9a36a62151216e0b44ac82aaa277c273d7e989591868c9ac4b6902bb0d86ec")
     message(FATAL_ERROR "Terrain reference include differs from the frozen pre-71 source")
   endif()
+  add_library(ncmm_mod_terrain_current SHARED EXCLUDE_FROM_ALL src/module.cpp)
+  first_person_target(ncmm_mod_terrain_current)
+  target_compile_definitions(ncmm_mod_terrain_current PRIVATE NCMM_MOD_BUILD NCMM_TERRAIN_DIAGNOSTIC_COLD_WORLD)
+  set_target_properties(ncmm_mod_terrain_current PROPERTIES PREFIX "" OUTPUT_NAME "ncmm_mod_terrain_current")
   add_library(ncmm_mod_terrain_reference SHARED EXCLUDE_FROM_ALL src/module.cpp)
   first_person_target(ncmm_mod_terrain_reference)
-  target_compile_definitions(ncmm_mod_terrain_reference PRIVATE NCMM_MOD_BUILD
+  target_compile_definitions(ncmm_mod_terrain_reference PRIVATE NCMM_MOD_BUILD NCMM_TERRAIN_DIAGNOSTIC_COLD_WORLD
     NCMM_TERRAIN_EDGES_REFERENCE="${FIRST_PERSON_TERRAIN_REFERENCE_SOURCE}")
   set_target_properties(ncmm_mod_terrain_reference PROPERTIES PREFIX "" OUTPUT_NAME "ncmm_mod_terrain_reference")
 endif()

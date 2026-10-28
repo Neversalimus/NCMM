@@ -4,6 +4,7 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
     const bool focused=std::getenv("NCMM_FP_GPU_BENCHMARK_ONLY")!=nullptr;
     const bool terrain_profile=std::getenv("NCMM_FP_TERRAIN_PROFILE")!=nullptr;
     require(!terrain_profile||focused,"terrain_profile_requires_focused_mode");
+    require(!terrain_profile||std::getenv("NCMM_FP_TERRAIN_COLD_WORLD"),"terrain_profile_requires_cold_world_modules");
     const std::array<const char *,4> terrain_materials={"t_pavement","t_concrete","t_dirt","t_grass"};
     if(terrain_profile)for(const char *id:terrain_materials)
         require(ter_str_id(id).is_valid(),"terrain_profile_unknown_terrain");
@@ -48,8 +49,9 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
         const double index=p*(values.size()-1);const size_t low=size_t(index),high=std::min(low+1,values.size()-1);return values[low]+(values[high]-values[low])*(index-low);};
     auto elapsed=[](benchmark_clock::time_point begin){return std::chrono::duration<double,std::milli>(benchmark_clock::now()-begin).count();};
     require(!terrain_profile||!stable_cpu,"terrain_profile_requires_current_host");
-    std::ofstream stream(game_root()/"ncmm"/(terrain_profile?"first-person-terrain-benchmark.json":stable_cpu?"first-person-gpu-benchmark-stable-cpu.json":"first-person-gpu-benchmark.json"));JsonOut report(stream);report.start_object();report.member("schema",terrain_profile?3:1);
+    std::ofstream stream(game_root()/"ncmm"/(terrain_profile?"first-person-terrain-benchmark.json":stable_cpu?"first-person-gpu-benchmark-stable-cpu.json":"first-person-gpu-benchmark.json"));JsonOut report(stream);report.start_object();report.member("schema",terrain_profile?4:1);
     if(terrain_profile){report.member("terrain_profile_only",true);report.member("ordinary_performance_measurement",false);report.member("terrain_grid_side",97);
+        report.member("cpu_world_rebuild_each_frame",true);
         report.member("terrain_material_ids");report.start_array();for(const char *id:terrain_materials)report.write(std::string(id));report.end_array();}
     report.member("actual_cdda_sdl",true);report.member("player_fps",false);
     if(!terrain_profile)report.member("cpu_algorithm_commit","a434a820aaa5b0bec7611474f8e01ff9b2b77432");
@@ -159,6 +161,8 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
                 std::vector<double> samples,extract,callback,presentation,cpu_geometry,cpu_raster,effects,gpu_geometry,resource,upload,record,submit;
                 std::vector<double> native_tiles_samples,perspective_samples,present_samples,unattributed_samples;
                 std::vector<uint32_t> frame_renderers_gpu;
+                std::vector<uint64_t> terrain_triangles,terrain_draw_calls;
+                std::vector<uint32_t> terrain_cpu_raster_calls;
                 uint64_t max_resources=0,max_upload=0,max_cpu_cache=0,max_producer_cache=0,max_host_cache=0,draw_calls=0,triangles=0;const double cpu_before=ncmm_graphics_performance::cpu_seconds();const auto measured=benchmark_clock::now();
                 const auto video_before=ncmm_graphics_performance::vram();
                 for(int frame=0;frame<(focused?96:48);++frame){
@@ -175,7 +179,9 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
                         max_resources=std::max(max_resources,stats.resource_bytes);max_upload=std::max(max_upload,stats.upload_bytes);max_cpu_cache=std::max(max_cpu_cache,stats.producer_cache_bytes+stats.host_cpu_cache_bytes);
                         max_producer_cache=std::max(max_producer_cache,stats.producer_cache_bytes);max_host_cache=std::max(max_host_cache,stats.host_cpu_cache_bytes);
                         gpu_geometry.push_back(stats.geometry_ms);resource.push_back(stats.resource_ms);upload.push_back(stats.upload_ms);record.push_back(stats.render_record_ms);submit.push_back(stats.submit_ms);draw_calls=stats.draw_calls;triangles=stats.triangles;
-                    }else{cpu_geometry.push_back(graphics_cpu_metrics.geometry_ms);cpu_raster.push_back(graphics_cpu_metrics.raster_ms);effects.push_back(graphics_cpu_metrics.effects_ms);max_cpu_cache=std::max(max_cpu_cache,graphics_cpu_metrics.cache_bytes);triangles=graphics_cpu_metrics.triangles;}}
+                    }else{cpu_geometry.push_back(graphics_cpu_metrics.geometry_ms);cpu_raster.push_back(graphics_cpu_metrics.raster_ms);effects.push_back(graphics_cpu_metrics.effects_ms);max_cpu_cache=std::max(max_cpu_cache,graphics_cpu_metrics.cache_bytes);triangles=graphics_cpu_metrics.triangles;}
+                    if(terrain_profile){terrain_triangles.push_back(triangles);terrain_draw_calls.push_back(draw_calls);
+                        terrain_cpu_raster_calls.push_back(std::string(mode)=="cpu"?graphics_cpu_metrics.raster_calls:0);}}
                 const double wall_ms=elapsed(measured),cpu_ms=(ncmm_graphics_performance::cpu_seconds()-cpu_before)*1000;const auto video_after=ncmm_graphics_performance::vram();
                 ncmm_gpu_metrics_v1 gpu_stats={};if(graphics_gpu_engine)gpu_stats=graphics_gpu_engine->metrics();
                 report.start_object();report.member("scene",name);report.member("renderer",mode);report.member("width",resolution.x);report.member("height",resolution.y);report.member("internal_width",graphics_hybrid_width);report.member("internal_height",graphics_hybrid_height);
@@ -191,6 +197,8 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
                 report.member("cpu_geometry_median_ms",percentile(cpu_geometry,.5));report.member("cpu_raster_median_ms",percentile(cpu_raster,.5));report.member("cpu_effects_median_ms",percentile(effects,.5));
                 report.member("gpu_geometry_prepare_median_ms",percentile(gpu_geometry,.5));report.member("gpu_resource_update_median_ms",percentile(resource,.5));report.member("gpu_upload_record_median_ms",percentile(upload,.5));report.member("gpu_render_record_median_ms",percentile(record,.5));report.member("gpu_submit_median_ms",percentile(submit,.5));
                 report.member("gpu_execution_ms_available",false);report.member("gpu_3d_draw_calls",draw_calls);report.member("mesh_triangles_submitted",triangles);report.member("gpu_resource_bytes_peak",max_resources);report.member("upload_bytes_peak",max_upload);
+                if(terrain_profile){report.member("terrain_submitted_triangle_samples",terrain_triangles);report.member("terrain_gpu_draw_call_samples",terrain_draw_calls);
+                    report.member("terrain_cpu_raster_call_samples",terrain_cpu_raster_calls);}
                 report.member("cpu_cache_bytes",max_cpu_cache);report.member("producer_cpu_cache_bytes_peak",max_producer_cache);report.member("host_cpu_cache_bytes_peak",max_host_cache);report.member("process_resident_bytes",ncmm_graphics_performance::resident_bytes());report.member("dxgi_process_local_available",video_before.available&&video_after.available);report.member("dxgi_process_local_before",video_before.bytes);report.member("dxgi_process_local_after",video_after.bytes);
                 report.member("mode_first_ready_ms",first_ready_ms);report.member("creature_assets_were_invalidated",true);report.member("creatures",group.size());report.member("visible_snapshot",graphics_creature_snapshots.size());report.member("fallback_creatures",graphics_creature_metrics.fallback);report.member("generation_max_ms",graphics_creature_metrics.generation_max_ms);
                 report.member("cpu_stage_metrics_available",!stable_cpu);report.member("warmup_frames",warming_samples.size());report.member("warmup_frame_max_ms",*std::max_element(warming_samples.begin(),warming_samples.end()));

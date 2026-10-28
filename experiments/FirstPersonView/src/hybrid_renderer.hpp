@@ -1146,6 +1146,7 @@ class renderer {
         }
     }
     void world(){
+        size_t opaque_cells=0;
         std::vector<int> order;order.reserve(base.cell_count);
         for(int i=0;i<int(base.cell_count);++i){if(!visible(i)||(gpu_sink&&!gpu_sink->dirty(i)))continue;
             const vec at=cell_origin(i);const int x=int(at.x),y=int(at.y);const auto &d=s.details[i];
@@ -1158,7 +1159,10 @@ class renderer {
             const bool model=in_view({center.x-radius,center.y-radius,at.z-.10f},{center.x+radius,center.y+radius,at.z+top});
             const bool floor=in_view(at+vec{0,0,-.10f},at+vec{1,1,NCMM_WORLD_LEVEL_HEIGHT});
             if(!model&&!floor){++f.culled_cells;continue;}
-            ++f.geometry_cells;order.push_back(i);}
+            ++f.geometry_cells;order.push_back(i);
+            if(!gpu_sink){const auto &cell=base.cells[i];
+                const bool has_floor=world_data?(world_flags(i)&NCMM_WORLD_FLOOR)!=0:!(cell.flags&NCMM_GFX_NO_FLOOR);
+                if(has_floor||cell.furniture[0]||d.vehicle_features||d.terrain_shape!=NCMM_SHAPE_FLAT)++opaque_cells;}}
         // CPU rasterization benefits from front-to-back depth rejection. GPU
         // collection retains complete cell-local meshes; its collector emits
         // the final cell/pass order independently of this traversal.
@@ -1171,6 +1175,10 @@ class renderer {
             std::stable_sort(ranked.begin(),ranked.end(),[](const ranked_cell &a,const ranked_cell &b){return a.distance<b.distance;});
             for(size_t n=0;n<order.size();++n)order[n]=ranked[n].index;
         }
+        // Bound the initial CPU queue hint to selected cells with surfaces or
+        // objects. Empty air and the GPU collector need no CPU triangle reserve.
+        if(!gpu_sink&&opaque_cells>=1024)
+            opaque.reserve(std::min<size_t>(opaque_cells*4,131072));
         for(int pass=0;pass<2;++pass)for(int i:order){const vec at=cell_origin(i);const int x=int(at.x),y=int(at.y);const auto &c=base.cells[i];const auto &d=s.details[i];
             if(pass==1){
             if(world_data)world_slab(i);

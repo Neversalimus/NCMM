@@ -53,8 +53,10 @@ def distribution(values):
 def verify(root):
     root = Path(root)
     manifest = read(root / 'pair.json')
-    assert manifest['schema'] == 2
-    assert manifest['terrain_fixture_schema'] == 3
+    assert manifest['schema'] == 3
+    assert manifest['terrain_fixture_schema'] == 4
+    assert manifest['diagnostic_only'] is True
+    assert manifest['cpu_world_policy'] == 'rebuild-each-call'
     assert manifest['terrain_material_ids'] == list(MATERIALS)
     assert manifest['ordinary_game_performance'] is False
     assert manifest['gpu_execution_timestamps_available'] is False
@@ -63,14 +65,14 @@ def verify(root):
         assert re.fullmatch('[0-9a-f]{40}', manifest[key])
     assert manifest['engine_commit'] in ENGINES
     assert re.fullmatch('[0-9]+', manifest['workflow_run'])
-    for key in ('host_sha256', 'current_module_sha256', 'reference_module_sha256',
+    for key in ('host_sha256', 'shipping_module_sha256', 'current_module_sha256', 'reference_module_sha256',
                 'current_include_sha256', 'fixture_files_sha256', 'fixture_digest'):
         assert re.fullmatch('[0-9a-f]{64}', manifest[key])
     assert manifest['reference_kind'] == 'current-source-with-pre71-terrain-include'
     assert manifest['reference_include_sha256'] == REFERENCE_SHA
     assert manifest['reference_include_commit'] == 'fdbba45f9082986202bd05db521bc315e9be4744'
     assert manifest['current_include_sha256'] != REFERENCE_SHA
-    assert manifest['reference_module_sha256'] != manifest['current_module_sha256']
+    assert len({manifest['shipping_module_sha256'], manifest['reference_module_sha256'], manifest['current_module_sha256']}) == 3
     assert digest(root / 'fixture-files.json') == manifest['fixture_files_sha256']
     fixture = read(root / 'fixture-files.json')
     assert fixture and all(re.fullmatch('[0-9a-f]{64}', v) for v in fixture.values())
@@ -85,7 +87,7 @@ def verify(root):
     bundle = read(root / 'bundle.json')
     assert bundle['schema'] == 1 and bundle['ncmm_source_commit'] == manifest['source_commit']
     assert bundle['source_commit'] == manifest['engine_commit'] and bundle['host_sha256'] == manifest['host_sha256']
-    assert bundle['files']['code_mods/FirstPersonView/ncmm_mod.dll'] == manifest['current_module_sha256']
+    assert bundle['files']['code_mods/FirstPersonView/ncmm_mod.dll'] == manifest['shipping_module_sha256']
     count = manifest['pairs']
     assert type(count) is int and 3 <= count <= 7
     assert len(manifest['trials']) == count * 2
@@ -129,6 +131,8 @@ def verify(root):
         for before, after in pairs:
             for field in ('terrain_layout_digest', 'terrain_capture_seconds', 'backend', 'device',
                           'software_device', 'mesh_triangles_submitted', 'gpu_3d_draw_calls',
+                          'terrain_submitted_triangle_samples', 'terrain_gpu_draw_call_samples',
+                          'terrain_cpu_raster_call_samples',
                           'width', 'height', 'internal_width', 'internal_height', 'frames', 'creatures'):
                 assert before[field] == after[field]
         capture = pairs[0][0]['capture']
@@ -151,6 +155,8 @@ def verify(root):
                 paired_ratio_median=statistics.median(b / a for a, b in zip(before, after)) if all(before) else None)
         comparisons.append(row)
     return dict(success=True, actual_cdda_sdl=True, pairs=count, children=count * 2,
+                diagnostic_only=True, cpu_world_policy=manifest['cpu_world_policy'],
+                shipping_module_sha256=manifest['shipping_module_sha256'],
                 source_commit=manifest['source_commit'], engine_commit=manifest['engine_commit'],
                 workflow_run=manifest['workflow_run'], host_sha256=manifest['host_sha256'],
                 current_module_sha256=manifest['current_module_sha256'], reference_module_sha256=manifest['reference_module_sha256'],
