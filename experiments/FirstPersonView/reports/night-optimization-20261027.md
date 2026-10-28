@@ -1388,6 +1388,44 @@ draft PR only after saving the completed old-head evidence. New52/54 floor
 and55 artifact-order code still require their own current-head CI. No main
 merge, installer release, feed publication or15ms/hardware claim is made.
 
+**57. Read and independently verify actual26-turn callback attribution.**
+Both selected5eb integration artifacts12784559154 /12784774170 are now read;
+four exact program JSONs per pin reserve217379/8388608 bytes, not their full
+101400013 /100271878-byte archives. Source-matched frozen verification checks
+engine/Host/module/run/source identities, all26 ordered raw records and every
+aggregate quantile. Both have25 callbacks across26 turns, at most one callback
+per turn, no nesting/legacy/skipped callbacks. There is no redundant perspective
+draw to coalesce; dropping the sole callback would suppress the required frame.
+
+| Pin / initial enemies | Native turn median ms | Perspective union median ms | Other wall median ms | Median per-turn draw fraction |
+| --- | ---: | ---: | ---: | ---: |
+|1040 /1|227.21045|116.51955|111.47920|.50360|
+|1040 /5|214.06540|118.31995|103.80365|.53872|
+|1040 /20|245.44840|133.26610|116.22270|.53416|
+|1040 /0|116.60620|98.48265|18.35210|.84447|
+|1807 /1|239.12330|120.41195|96.01850|.49418|
+|1807 /5|224.20515|103.86225|101.05960|.54562|
+|1807 /20|267.85725|71.44015|142.31205|.39485|
+|1807 /0|137.69725|115.53765|22.31850|.83850|
+
+Each combat group has6 turns; empty has8. Combat callbacks actually use GPU,
+empty callbacks CPU, matching the existing fixture warm-up. GPU scene devices
+are software Microsoft Basic Render Driver; these are controlled CI wall
+intervals, not RTX4090 FPS, GPU execution, first-correct-present or causal A/B.
+Per-turn raw partitions are exact; separately aggregated medians need not sum.
+The callback also contains Native map-cache building, extraction, module work
+and queue/waits. Its98-133ms cannot be attributed to pure rasterization or AI.
+The manual fixture's640x480 canvas does not prove actual Native callback or
+internal rendering dimensions: those fields were not captured in schema1.
+
+Independent summary SHA256 values1040/1807:
+`7823aeb6b590c196f99063a0ba8fc7bb286c6c1e97519e9c4aed6b734584d8af`,
+`05e23d026bf853e8d5e6ca087ea84f706945420cd2f22fe4c35c4c6cbe302042`.
+Next partition the actual callback and record dimensions before selecting an
+optimization. Currentcdf full run40615847078 remains active; do not cancel it
+for a documentation-only checkpoint. No local game, mouse, subagent or new
+Native source-body transfer was used. Remaining source budget161994 bytes.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
