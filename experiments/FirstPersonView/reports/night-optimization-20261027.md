@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage94. Baseline `1284537`; working branch
-`codex/fpv-gpu-chunk-links-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
+Updated28 October2026, through stage95. Baseline `1284537`; working branch
+`codex/fpv-snapshot-entry-reuse-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -810,6 +810,84 @@ pair step now completes successfully; allowlisted numerical evidence is being
 independently checked without fetching images, logs or entire artifacts.
 No Native upstream source body is fetched; the ledger still has161994 bytes.
 
+## Stage95 — recycle owned snapshot entry objects after invalidation
+
+A new camera snapshot cleared the logical entry vector and subsequently
+zero-initialized every1120-byte entry before copying fresh payloads into it.
+Keep owned POD objects and track the active count separately. New snapshot
+keys still clear every slot; each reused entry copies current world/facade
+facts and revokes all four base/detail/presentation/source-light readiness
+flags. Cold objects remain value-initialized; every published payload is
+overwritten before its ready flag is set. No uninitialized object/move trick,
+Native pointer, changed permission, lease, key, rejected slot, bound or source
+invalidation is introduced. clear() still releases all retained heap storage.
+All existing consumers were checked: they read payloads only behind their
+corresponding ready flag; world/facade facts are initialized before store().
+
+The differential model passes37,703,209 assertions,2,146,401 store attempts,
+5,942,385 entry observations and3,800,460,292 compared ready-payload bytes.
+All logical sizes, heap accounting, original counters,32-level/extreme XYZ,
+growth/shrink, rejection, suspend/resume, invalid ranges and clear agree.
+Heap bounds stay96MiB/65536cells. The private cache object adds one size_t;
+entry layout and existing heap capacities remain unchanged.
+
+Nine predetermined alternating pairs mirror the Native cache publication
+order with separate acquisition/base/detail/presentation passes. Final raw
+initialized payload hashes agree in every measured lane:
+
+| Cache model | Before → after ms | Median paired ratio |
+| --- | ---: | ---: |
+| New9409 base-only |.35685 →.18521|.52232|
+| New9409 all payloads |.53068 →.33205|.63167|
+| New28227 all payloads |1.61269 →1.06489|.65993|
+| New65536 all payloads |4.78534 →3.51545|.72203|
+| Small49 |.00276 →.00172|.63203|
+| Small1024 |.05841 →.03743|.66527|
+| Unchanged9409 |.20003 →.18639|.94133|
+| Cold-cache9409 |3.94276 →3.70757|.93578|
+| Alternating9409/1700 |.30462 →.20269|.63693|
+| Empty32 loaded levels |.00762 →.00758|.97719|
+| Presentation-only9409 |.32366 →.13249|.41398|
+| Detail-only9409 |.33102 →.15569|.45940|
+
+These are helper/cache costs, not full Native extraction, game frames, GPU
+execution, cold processes or action latency. At9409 all-payload entries the
+observed saving is about.20ms; the large65536 model saves about1.27ms. All108
+raw lanes remain preserved. No universal ordinary-game or frame-tail gain.
+
+Typed regressions publish old actor/item/field/gas/hostility/source-light
+payloads, invalidate the lifetime, and independently republish each new field.
+Both frozen original and candidate pass5608 checks. Four deliberately omitted
+readiness resets each fail, covering base, detail, presentation and light.
+The complete local Release,51 non-device CTests(23.18s) and96 atomic source
+transform tests(36.186s) pass. A wrapper footer-position assertion was corrected
+from existing evidence only: exit0,96 individual ok lines and Ran96/OK are
+present; deferred fixture stdout followed OK. No test was relaxed or rerun.
+
+Only this private Native helper and its regression are operational changes;
+both bindings are updated among the171 frozen sources. The GPU source is
+unchanged from stage94 and its already-passed hidden render-only suite is not
+repeated. Stage94 now has Windows module plus all three GPU jobs passing,
+including Vulkan ASan/UBSan, at its fixed PR228 source. Full Native captures
+remain fixed across PR225/226/227/228. No local Native game, input test, window,
+mouse/focus/system change, subagent or new checkout/game copy is used.
+Numeric model proof: `night-snapshot-entry-reuse-20261028.json`.
+
+The previous strict terrain include A/B is now independently checked on both
+1040 and1807:28 clean Native children,168 records,96 samples per record, all
+per-frame work vectors equal and all declared six image digests identical
+across each14 children. Actual images/physical fixture-file hashes remain the
+CI strict verifier result, not a claimed local BMP verification. Mixed CPU
+model medians105.9854→38.27815ms and111.8972→43.7704ms confirm the earlier
+terrain include work; grass controls are essentially unchanged and GPU steady
+medians show no material gain. First-mode-ready improves for mixed materials,
+but begins after Native setup. This is WARP/forced-rebuild diagnostic evidence
+for that earlier include only, not hardware FPS or candidate95 qualification.
+Public summary: `native-terrain-ablation-20261028.json`. Bounded selected JSON
+reads reserve605766 of8MiB; no logs, images or whole archives are read. A failed
+second-pin read resumes only13 missing JSONs; all selected hashes now verify.
+No upstream Native source body is fetched;161994 bytes remain in that ledger.
+
 ## Remote qualification and next steps
 
 - Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
@@ -843,10 +921,10 @@ No Native upstream source body is fetched; the ledger still has161994 bytes.
   setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
   protected PR223 full48 remains unchanged until its final logs are retained.
 
-Next: qualify the GPU chunk candidate separately while preserving the exact
-active PR225/226/227 sources and publishedA9 bytes. Verify the completed
-same-Host terrain pair reports before any Native performance claim. Continue
-measured preparation and turn-latency work; model gains are not ordinary-game
-or15ms qualification. CI logs remain CodeReview-only at the current PR head;
-selected program JSON uses its own strict shared8MiB ledger. Continue solo,
-with no local Native/input test, mouse capture or new full game copy.
+Next: qualify the Native snapshot candidate separately while preserving the
+exact active PR225/226/227/228 sources and publishedA9 installer bytes. All
+prior meaningful Native captures keep running. Continue measured transfer and
+turn-latency work after the new functional gates; helper/model wins are not
+ordinary-game or15ms proof. CI logs remain CodeReview-only at the current PR
+head; program JSON keeps its strict8MiB ledger. Continue solo with no local
+Native/input test, mouse capture or new full game copy.
