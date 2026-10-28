@@ -689,9 +689,25 @@ jobs:
           Get-ChildItem $evidence -Filter 'first-person-fire-frame-*.png' | Copy-Item -Destination $fireImages
           Copy-Item (Join-Path $output 'benchmark-provenance.json') 'installer-result/first-person-gameplay-provenance.json'
           Copy-Item (Join-Path $evidence 'first-person-gameplay-audit.json') 'installer-result/first-person-gameplay-audit.json'
+          Copy-Item (Join-Path $evidence 'first-person-process-result.json') 'installer-result/first-person-gameplay-process-result.json'
+          Copy-Item (Join-Path $PWD 'installer-result/_first_person_installer/payload/host/first-person-source.json') 'installer-result/first-person-gameplay-source.json'
           Copy-Item (Join-Path $evidence 'first-person-multilevel-save-after.json') 'installer-result/first-person-gameplay-save-load.json'
           Copy-Item (Join-Path $evidence 'udp-asset-sha256.json') 'installer-result/first-person-gameplay-udp-assets.json'
           Get-ChildItem $evidence -Filter 'first-person-audit-*.bmp' | Copy-Item -Destination installer-result
+      # Publish numerical gameplay/turn evidence before long galleries, baseline
+      # comparisons and image uploads. This does not qualify the full installer.
+      - name: Preserve early verified Native gameplay program reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-person-gameplay-${{ matrix.build }}
+          path: |
+            installer-result/first-person-gameplay-audit.json
+            installer-result/first-person-gameplay-provenance.json
+            installer-result/first-person-gameplay-verified.json
+            installer-result/first-person-gameplay-process-result.json
+            installer-result/first-person-gameplay-source.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Focused GPU phases and eight clean process teardowns
         if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
         timeout-minutes: 25

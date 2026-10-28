@@ -1342,6 +1342,25 @@ once) fail the independent output/diagnostic oracle. Source transfer budget is
 unchanged; actual Native qualification for52/54 is still pending the next
 useful CI checkpoint. No local game/input/renderer run was used.
 
+**55. Publish verified numerical gameplay evidence before image archives.**
+The new real-turn diagnostics are produced during gameplay, but their selected
+reports currently wait behind galleries, baseline comparisons and multi-GB
+runtime-image uploads. Preserve a separate small `first-person-gameplay-PIN`
+artifact immediately after the existing gameplay verification. Its five exact
+JSON paths are audit, verified result, provenance, clean-process receipt and
+the already verified installer's Native-source receipt. No images, logs, dumps
+or broad globs enter this artifact; the complete later evidence remains.
+Copying the latter two receipts does not change the game, test sequence,
+duration, settings, full-tier requirements or installer qualification. Native
+Host/module bytes are unchanged from54.
+
+Local preflight checks the new step indentation and all five exact JSON paths;
+the existing installer builder/verifier confirms the source-receipt location.
+The extracted gameplay PowerShell block parses successfully without execution.
+No new test matrix or local game run is needed for this reversible CI ordering
+change. Actual early artifact availability is pending the next current-source
+run; the already running jobs keep their original workflow snapshots.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
