@@ -1234,6 +1234,10 @@ Three independently compiled bad controls (nested double count, accepted
 backwards clock, per-translation-unit TLS) are rejected; retained code passes.
 PowerShell was parsed only. No local game, SDL/input harness or user input ran.
 Actual Native timing for this new diagnostic remains pending isolated CI.
+The first dispatch of `d6098b4` was rejected with HTTP422 because the newly
+added workflow step had an extra indentation level. Correct its step/run
+indentation before retrying. This did not launch Native jobs or affect the
+separate full runs for `eae8d02` and `12a7abc`; source checks above remain valid.
 
 ## Actual remote evidence and next priorities
 
