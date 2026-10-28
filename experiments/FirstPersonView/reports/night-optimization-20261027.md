@@ -2,7 +2,7 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage66. Baseline `1284537`; working branch
+Updated28 October2026, through stage71. Baseline `1284537`; working branch
 `codex/fpv-0131-fps-controls-20261024`; draft [PR223](https://github.com/Neversalimus/NCMM/pull/223).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
@@ -38,6 +38,7 @@ measured summaries or derive new data from old truncated reports.
 | World visuals | Continuous absolute chain-link phase; standard radio skyline uses17.5m open lattice rather than a box. Exact IDs/resident disclosure required; legacy/modded layouts retain their path. V1 and old/new Host compatibility controls pass. |
 | FPS controls | Correct held tap/chord and recovery state without manufacturing extra Native actions. Current controlled184-case matrices cover added W+D/tap cases. Physical input during ordinary play is not qualified by these fixtures. |
 | CPU volumetric light, stage65 | Prepare up to12 source positions, camera depths and attenuations once per frame on the stack. Same source order, propagated RGB, range, occlusion and ray sampling; no persistent cache/ABI/settings change. |
+| Terrain feather, stage71 | Compute the existing edge-width profile once per texture row/column; skip finite-color additions with exactly zero weight. Preserve every texture pixel, floor triangle, material, range and source call. |
 
 Historical local producer measurements are not a universal speedup: the
 stationary-boundary first sample worsened2.5233→2.9792ms despite a lower
@@ -192,6 +193,39 @@ This means cold static-world construction in the owned CPU renderer, not
 cold process/driver/Native launch or ordinary15ms game qualification.
 Evidence: `night-volume-cold70/summary.json`. No new source edits or reruns of
 the already passing unrelated suites were needed.
+
+### Stage71: exact terrain-feather profile reuse
+
+Fresh Native geometry timings motivated this bounded shared CPU/GPU producer
+change. The blend previously evaluated the same sine profile inside every
+pixel/edge and sampled neighbours even for zero contribution. Two bounded
+128-float stack arrays retain the same formula, inputs and evaluation order
+once per row/column. A zero weight leaves finite packed colors unchanged.
+No extra Native call, persistent cache, shader, API, LOD, quality or setting.
+
+Frozen original full-renderer comparison passes96 cases/1344 assertions,
+7372800 exact frame pixels and1765276 complete raw ground-texture values.
+All16 edge masks, source widths1/32/33/64/128/512, odd/padded heights/pitches
+and mixed zero/partial/full alpha are covered. Depth, identities, effect
+buffers, geometry/raster workload and offscreen texture samples agree.
+
+Seven alternating same-process pairs per five scenes and two paths,24 fresh
+builds/lane: mixed surfaces cold CPU12.0045→8.95642ms (paired.72616), producer
+collection14.0465→7.65063ms (.52904); straight road5.65508→5.54408ms (.97262),
+collection1.10082→.80696ms (.73305). Checker stress CPU12.89854→8.34842ms
+(.63597), collection15.27517→6.87663ms (.46889). Odd33 textures also improve.
+No-edge paired ratios1.0141/1.0256 are within the uncontrolled background
+noise of the unchanged path. Collection timings are CPU work, not GPU execution.
+These are owned component scenes, not actual Native/ordinary/first-present
+or15ms qualification; do not apply the ratios to earlier Native numbers.
+
+Full Release, six affected CTests(3.13s), all171 exact indexed source hashes
+and the rebuilt hidden render-only RTX4090 scene pass.21 fallbackADS,
+12 authoredADS,34 objects, two muzzle composites,45 grass draws, unchanged
+static uploads and dark subway controls remain intact. No Native game/input/
+mouse/focus/subagent is used locally. Evidence: `night-terrain-feather-model71`,
+`night-terrain-feather-timing71`, `night-stage71-{release-build,affected-tests,
+hidden-render}.txt` and `night-stage71-index-identity.json`.
 
 ## Rejected experiments
 
