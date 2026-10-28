@@ -227,7 +227,9 @@ class TerrainChildReceiptTests(unittest.TestCase):
                 else:
                     run_terrain_pair.run_child(['never-launched'], root, {}, root, {'source_commit': '1' * 40})
             result = json.loads((root / 'process.json').read_text())
-            self.assertGreater(result['ended_ns'], result['started_ns'])
+            # A mocked child can finish within one UTC clock tick. Actual
+            # Native qualification still requires a positive bounded interval.
+            self.assertGreaterEqual(result['ended_ns'], result['started_ns'])
             self.assertEqual(result['source_commit'], '1' * 40)
             self.assertEqual(result['state'], {'launch': 'launch-failed', 'timeout': 'timeout', 'success': 'exited'}[behavior])
             if behavior == 'timeout':
@@ -244,6 +246,9 @@ class TerrainChildReceiptTests(unittest.TestCase):
     def test_success_receipt(self): self.exercise('success')
     def test_timeout_receipt_survives_owned_child_cleanup(self): self.exercise('timeout')
     def test_launch_error_receipt_survives(self): self.exercise('launch')
+    def test_mocked_child_with_coarse_utc_clock(self):
+        with patch('run_terrain_pair.time.time_ns', return_value=123456789):
+            self.exercise('success')
 
 
 if __name__ == '__main__':

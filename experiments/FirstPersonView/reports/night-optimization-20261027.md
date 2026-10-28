@@ -277,6 +277,18 @@ it does not yet fix the Native comparison's internal timeout cause.
 Evidence: `night-stage75-pair1807-final-review.json`,
 `night-terrain-48d8c23/12797852135/`, `night-stage75-child-receipt-tests-r2.txt`.
 
+## Stage77 — coarse-clock mock guard (local)
+
+A mocked child may start and finish within one UTC clock tick. A local fixed-clock
+probe reproduces the overly strict `ended > started` test assertion; the mock
+now accepts equality, with a dedicated fixed-clock regression test. The actual
+Native verifier still requires a positive bounded interval, clean exit, matching
+source/Host/module and exact captures. Thirteen receipt/mock/negative tests pass.
+The82b diagnostic Windows module job fails at this test step; its exact CI
+message remains unconfirmed until CodeReview can read that source as current PR
+head. Do not present the local reproduction as a confirmed CI root cause.
+Evidence: `night-stage77-coarse-clock-tests.txt`. No runtime or local Native change.
+
 ## Rejected experiments
 
 | Experiment | Reason not retained |
@@ -337,7 +349,7 @@ and `night-ground-prepare-timing74/` (seven pairs per16 CPU/collection workloads
 - Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
 - Full `12a7abcd`, [run40600292716](https://github.com/Neversalimus/NCMM/actions/runs/40600292716):
   all8 jobs pass, including required122619592124.
-- Current PR `cdf6f79`, [full40615847078](https://github.com/Neversalimus/NCMM/actions/runs/40615847078):
+- Previously qualified PR source `cdf6f79`, [full40615847078](https://github.com/Neversalimus/NCMM/actions/runs/40615847078):
   all8 jobs now pass, including Windows1040/1807, both actual Linux jobs and
   required122663447792 (`REQUIRED_TIER=full`, `SELECTED_TIER=full`). Windows
   CodeReview excerpts show both21-scene/224-load paired gates passing.
@@ -348,8 +360,16 @@ and `night-ground-prepare-timing74/` (seven pairs per16 CPU/collection workloads
   required gates fail because the selected integration tier is insufficient
   for full qualification. The schema3 baseline CPU profiles are independently
   verified above. Cross-run timings are not a paired causal comparison.
-- Terrain71 `1407dd4`, integration40637761432: module jobs pass; actual Native
-  jobs remain running. Preserve the run and its source identity.
+- Terrain71 `1407dd4`, integration40637761432: all7 planning/module/actual
+  Native jobs pass; required122673470673 fails at the integration tier.
+- Current PR `48d8c23`, full40643681993: both module/Linux Native jobs and
+  independent GPU40643681893/runtime40643681914/source40643681897 pass;
+  Windows ordinary full galleries remain running. Preserve its source and logs.
+- Failed optional pair40643770328: both Windows first reference children hit
+  600s; both Linux/module jobs pass. No Native A/B measurements qualify.
+- Repair82b integration40653873199 runs on the free sight-cache branch, without
+  advancing PR48. It adds typed child receipts and primary CI phase logging.
+  Preserve it; read82b logs through CodeReview only once that PR head is current.
 
 Next: diagnose the bounded Native terrain timeout through CodeReview and retain
 current48d8c23 ordinary full results; then run the repaired source-bound comparison.
