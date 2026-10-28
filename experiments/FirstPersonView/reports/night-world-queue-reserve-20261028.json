@@ -1,0 +1,883 @@
+{
+  "schema": 1,
+  "source_file": "experiments/FirstPersonView/src/hybrid_renderer.hpp",
+  "reference_revision": "a9ec8693d4897f8765a5c189679dcdccf0bfd59f",
+  "reference_sha256": "f538aaccd19870a551b07e02f011b66b10789b3d30f34c3c7bb6fed95ac879cf",
+  "candidate_model_sha256": "7e6b462625fb6d53878d8a02435574ba72d2ea0dcb00f67ccc6739171b9bd4b0",
+  "retained_sha256": "93582ec823ee47ad740036225749b1b400a69ede829e7d3c945c870cba8fd897",
+  "model": {
+    "triangle_bytes": 200,
+    "reserve_limit": 131072,
+    "logical_processors": 16,
+    "transparent_frames": 66,
+    "provider_calls": 3319896,
+    "checks": 4696,
+    "frames": 256,
+    "pixels": 45212800,
+    "volume_samples": 18679296,
+    "source": "a9ec8693d4897f8765a5c189679dcdccf0bfd59f",
+    "source_sha256": "f538aaccd19870a551b07e02f011b66b10789b3d30f34c3c7bb6fed95ac879cf",
+    "candidate_sha256": "7e6b462625fb6d53878d8a02435574ba72d2ea0dcb00f67ccc6739171b9bd4b0",
+    "production_changed": false,
+    "limits": "Private complete CPU model; reserve only for1024+ selected surface-bearing cells, bounded131072 initial elements; visible empty air gets no reserve. Exact full pixels/depth/IDs/metadata/submission and strip counters. Same order, worker dispatch, geometry, provider calls and cache lifetime. No Native, SDL, input, GPU execution, Present or15ms claim.",
+    "nonempty_dense_frames": 16,
+    "nonempty_material_frames": 72,
+    "counter_name_note": "The reused private driver labels these nonempty frame groups parallel_cases/material_parallel; this change does not change worker dispatch."
+  },
+  "complete_frame_comparisons": [
+    {
+      "workload": "small_legacy",
+      "cells": 225,
+      "width": 320,
+      "height": 240,
+      "pairs": 7,
+      "before_ms": 2.44695078125,
+      "after_ms": 2.51124609375,
+      "before_geometry_ms": 0.40409296875,
+      "after_geometry_ms": 0.40894609375,
+      "before_raster_ms": 1.5999765625,
+      "after_raster_ms": 1.6067421875,
+      "ratio": 1.002106846878247,
+      "first_before": {
+        "samples": 7,
+        "median": 2.8545,
+        "p95": 3.8461299999999996,
+        "p99": 4.027066,
+        "max": 4.0723
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 3.1327,
+        "p95": 3.4151,
+        "p99": 3.42422,
+        "max": 3.4265
+      },
+      "frames_before": {
+        "samples": 896,
+        "median": 2.3829000000000002,
+        "p95": 3.203925,
+        "p99": 3.7078549999999995,
+        "max": 4.3714
+      },
+      "frames_after": {
+        "samples": 896,
+        "median": 2.4321,
+        "p95": 3.382625,
+        "p99": 3.9066699999999996,
+        "max": 4.2975
+      },
+      "before_strip_work": 1176,
+      "after_strip_work": 1176
+    },
+    {
+      "workload": "legacy_medium",
+      "cells": 225,
+      "width": 572,
+      "height": 600,
+      "pairs": 7,
+      "before_ms": 9.3850234375,
+      "after_ms": 9.4496671875,
+      "before_geometry_ms": 0.40266875,
+      "after_geometry_ms": 0.404884375,
+      "before_raster_ms": 7.290875,
+      "after_raster_ms": 7.31396875,
+      "ratio": 0.9945159262825196,
+      "first_before": {
+        "samples": 7,
+        "median": 10.4953,
+        "p95": 11.76678,
+        "p99": 11.871516,
+        "max": 11.8977
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 8.7512,
+        "p95": 10.85104,
+        "p99": 11.062048,
+        "max": 11.1148
+      },
+      "frames_before": {
+        "samples": 448,
+        "median": 9.03655,
+        "p95": 11.6483,
+        "p99": 12.323641999999998,
+        "max": 13.4602
+      },
+      "frames_after": {
+        "samples": 448,
+        "median": 9.138300000000001,
+        "p95": 11.869179999999998,
+        "p99": 12.470697999999999,
+        "max": 14.7004
+      },
+      "before_strip_work": 1173,
+      "after_strip_work": 1173
+    },
+    {
+      "workload": "dense_572",
+      "cells": 47045,
+      "width": 572,
+      "height": 600,
+      "pairs": 7,
+      "before_ms": 59.102746875,
+      "after_ms": 53.03399375,
+      "before_geometry_ms": 25.43684375,
+      "after_geometry_ms": 19.1944375,
+      "before_raster_ms": 28.03671875,
+      "after_raster_ms": 28.13284375,
+      "ratio": 0.8988815917029408,
+      "first_before": {
+        "samples": 7,
+        "median": 57.521,
+        "p95": 66.31406,
+        "p99": 66.352652,
+        "max": 66.3623
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 54.5269,
+        "p95": 60.71805,
+        "p99": 61.04313,
+        "max": 61.1244
+      },
+      "frames_before": {
+        "samples": 224,
+        "median": 60.02045,
+        "p95": 73.10204999999999,
+        "p99": 77.38729500000002,
+        "max": 90.3196
+      },
+      "frames_after": {
+        "samples": 224,
+        "median": 54.15395,
+        "p95": 71.18713,
+        "p99": 81.85563200000001,
+        "max": 90.8594
+      },
+      "before_strip_work": 124273,
+      "after_strip_work": 124273
+    },
+    {
+      "workload": "city_572",
+      "cells": 47045,
+      "width": 572,
+      "height": 600,
+      "pairs": 7,
+      "before_ms": 63.646412500000004,
+      "after_ms": 55.566745833333336,
+      "before_geometry_ms": 28.339916666666667,
+      "after_geometry_ms": 20.86625,
+      "before_raster_ms": 29.007583333333333,
+      "after_raster_ms": 28.53,
+      "ratio": 0.8776683688451445,
+      "first_before": {
+        "samples": 7,
+        "median": 65.1412,
+        "p95": 70.60835999999999,
+        "p99": 70.611672,
+        "max": 70.6125
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 58.8276,
+        "p95": 63.653760000000005,
+        "p99": 63.802752000000005,
+        "max": 63.84
+      },
+      "frames_before": {
+        "samples": 168,
+        "median": 64.03225,
+        "p95": 71.599865,
+        "p99": 74.108742,
+        "max": 77.0321
+      },
+      "frames_after": {
+        "samples": 168,
+        "median": 56.14515,
+        "p95": 63.96172000000001,
+        "p99": 67.816325,
+        "max": 70.9932
+      },
+      "before_strip_work": 125438,
+      "after_strip_work": 125438
+    },
+    {
+      "workload": "constructed21_572",
+      "cells": 12789,
+      "width": 572,
+      "height": 600,
+      "pairs": 7,
+      "before_ms": 24.542040625,
+      "after_ms": 22.4832625,
+      "before_geometry_ms": 8.03028125,
+      "after_geometry_ms": 5.9621875,
+      "before_raster_ms": 13.6214375,
+      "after_raster_ms": 13.61034375,
+      "ratio": 0.9071113524001657,
+      "first_before": {
+        "samples": 7,
+        "median": 25.9192,
+        "p95": 28.48878,
+        "p99": 28.895436,
+        "max": 28.9971
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 22.4233,
+        "p95": 24.798509999999997,
+        "p99": 25.317221999999997,
+        "max": 25.4469
+      },
+      "frames_before": {
+        "samples": 224,
+        "median": 24.16555,
+        "p95": 28.297044999999997,
+        "p99": 29.386335000000006,
+        "max": 30.1849
+      },
+      "frames_after": {
+        "samples": 224,
+        "median": 22.368000000000002,
+        "p95": 25.430249999999997,
+        "p99": 26.746657000000006,
+        "max": 27.1849
+      },
+      "before_strip_work": 49107,
+      "after_strip_work": 49107
+    },
+    {
+      "workload": "city_640",
+      "cells": 47045,
+      "width": 640,
+      "height": 480,
+      "pairs": 7,
+      "before_ms": 57.194495833333335,
+      "after_ms": 50.33567083333333,
+      "before_geometry_ms": 25.458125,
+      "after_geometry_ms": 18.909625000000002,
+      "before_raster_ms": 26.20325,
+      "after_raster_ms": 25.814916666666665,
+      "ratio": 0.8817377458888636,
+      "first_before": {
+        "samples": 7,
+        "median": 62.0205,
+        "p95": 68.25877999999999,
+        "p99": 69.52319599999998,
+        "max": 69.8393
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 49.5334,
+        "p95": 57.71082,
+        "p99": 59.47328399999999,
+        "max": 59.9139
+      },
+      "frames_before": {
+        "samples": 168,
+        "median": 57.38165,
+        "p95": 65.16638,
+        "p99": 68.62057000000003,
+        "max": 73.9716
+      },
+      "frames_after": {
+        "samples": 168,
+        "median": 50.46665,
+        "p95": 56.9188,
+        "p99": 61.595417000000005,
+        "max": 61.8688
+      },
+      "before_strip_work": 126113,
+      "after_strip_work": 126113
+    },
+    {
+      "workload": "city_small",
+      "cells": 47045,
+      "width": 320,
+      "height": 240,
+      "pairs": 7,
+      "before_ms": 49.098150000000004,
+      "after_ms": 42.61098333333333,
+      "before_geometry_ms": 24.978624999999997,
+      "after_geometry_ms": 18.680875,
+      "before_raster_ms": 19.849,
+      "after_raster_ms": 19.79775,
+      "ratio": 0.8827536680136948,
+      "first_before": {
+        "samples": 7,
+        "median": 48.6657,
+        "p95": 57.960499999999996,
+        "p99": 60.252739999999996,
+        "max": 60.8258
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 47.0818,
+        "p95": 54.017559999999996,
+        "p99": 55.367272,
+        "max": 55.7047
+      },
+      "frames_before": {
+        "samples": 168,
+        "median": 48.966899999999995,
+        "p95": 58.744995,
+        "p99": 61.05696500000001,
+        "max": 65.6881
+      },
+      "frames_after": {
+        "samples": 168,
+        "median": 43.4453,
+        "p95": 63.800945000000006,
+        "p99": 67.98656700000001,
+        "max": 68.6464
+      },
+      "before_strip_work": 112045,
+      "after_strip_work": 112045
+    },
+    {
+      "workload": "city_large_old4",
+      "cells": 47045,
+      "width": 800,
+      "height": 800,
+      "pairs": 7,
+      "before_ms": 59.90895,
+      "after_ms": 52.92775625,
+      "before_geometry_ms": 25.08375,
+      "after_geometry_ms": 18.2924375,
+      "before_raster_ms": 28.2551875,
+      "after_raster_ms": 28.08925,
+      "ratio": 0.8897708036212231,
+      "first_before": {
+        "samples": 7,
+        "median": 61.267,
+        "p95": 65.81468,
+        "p99": 66.773336,
+        "max": 67.013
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 55.7083,
+        "p95": 59.95718,
+        "p99": 60.063596000000004,
+        "max": 60.0902
+      },
+      "frames_before": {
+        "samples": 112,
+        "median": 59.53305,
+        "p95": 66.42729,
+        "p99": 67.76499000000001,
+        "max": 68.9367
+      },
+      "frames_after": {
+        "samples": 112,
+        "median": 52.5918,
+        "p95": 59.839565,
+        "p99": 60.78797,
+        "max": 61.0791
+      },
+      "before_strip_work": 133767,
+      "after_strip_work": 133767
+    },
+    {
+      "workload": "fog_city_572",
+      "cells": 47045,
+      "width": 572,
+      "height": 600,
+      "pairs": 7,
+      "before_ms": 58.962075,
+      "after_ms": 53.273158333333335,
+      "before_geometry_ms": 24.964041666666663,
+      "after_geometry_ms": 18.404833333333332,
+      "before_raster_ms": 27.349833333333333,
+      "after_raster_ms": 28.212374999999998,
+      "ratio": 0.8927306732558062,
+      "first_before": {
+        "samples": 7,
+        "median": 57.4614,
+        "p95": 63.02655,
+        "p99": 64.04859,
+        "max": 64.3041
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 54.8561,
+        "p95": 58.869049999999994,
+        "p99": 59.43797,
+        "max": 59.5802
+      },
+      "frames_before": {
+        "samples": 168,
+        "median": 58.7766,
+        "p95": 65.003945,
+        "p99": 71.029765,
+        "max": 72.154
+      },
+      "frames_after": {
+        "samples": 168,
+        "median": 53.08325,
+        "p95": 60.316985,
+        "p99": 62.05656000000002,
+        "max": 63.8901
+      },
+      "before_strip_work": 125438,
+      "after_strip_work": 125438
+    },
+    {
+      "workload": "small_multilevel_572",
+      "cells": 675,
+      "width": 572,
+      "height": 600,
+      "pairs": 7,
+      "before_ms": 11.486779166666667,
+      "after_ms": 11.674720833333334,
+      "before_geometry_ms": 0.5763625,
+      "after_geometry_ms": 0.5899333333333333,
+      "before_raster_ms": 9.119333333333334,
+      "after_raster_ms": 9.378541666666667,
+      "ratio": 1.0154640819477256,
+      "first_before": {
+        "samples": 7,
+        "median": 11.55,
+        "p95": 13.35998,
+        "p99": 13.372316000000001,
+        "max": 13.3754
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 9.8587,
+        "p95": 13.42548,
+        "p99": 13.730616,
+        "max": 13.8069
+      },
+      "frames_before": {
+        "samples": 168,
+        "median": 11.0765,
+        "p95": 13.83897,
+        "p99": 14.182978,
+        "max": 14.3374
+      },
+      "frames_after": {
+        "samples": 168,
+        "median": 11.57285,
+        "p95": 14.336125000000001,
+        "p99": 14.610506000000003,
+        "max": 15.0816
+      },
+      "before_strip_work": 3423,
+      "after_strip_work": 3423
+    }
+  ],
+  "focused_guards": [
+    {
+      "workload": "hidden_large",
+      "pairs": 7,
+      "selected_cells": 0,
+      "submitted_triangles": 1176,
+      "before_ms": 4.7357875,
+      "after_ms": 4.611770833333333,
+      "paired_ratio": 0.9706581611757782,
+      "first_before": {
+        "samples": 7,
+        "median": 4.5107,
+        "p95": 6.178779999999999,
+        "p99": 6.511755999999999,
+        "max": 6.595
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 4.425,
+        "p95": 5.284149999999999,
+        "p99": 5.571789999999999,
+        "max": 5.6437
+      },
+      "frames_before": {
+        "samples": 168,
+        "median": 4.67635,
+        "p95": 5.774295000000001,
+        "p99": 6.766666000000006,
+        "max": 7.5096
+      },
+      "frames_after": {
+        "samples": 168,
+        "median": 4.544700000000001,
+        "p95": 5.342135,
+        "p99": 6.108772000000002,
+        "max": 6.7973
+      }
+    },
+    {
+      "workload": "visible_air",
+      "pairs": 7,
+      "selected_cells": 28321,
+      "submitted_triangles": 1176,
+      "before_ms": 9.148170833333333,
+      "after_ms": 9.053508333333333,
+      "paired_ratio": 1.002209919633446,
+      "first_before": {
+        "samples": 7,
+        "median": 9.5041,
+        "p95": 11.271139999999999,
+        "p99": 11.489108,
+        "max": 11.5436
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 8.493,
+        "p95": 10.48202,
+        "p99": 10.552004,
+        "max": 10.5695
+      },
+      "frames_before": {
+        "samples": 168,
+        "median": 8.7654,
+        "p95": 11.1532,
+        "p99": 11.877526000000007,
+        "max": 12.561
+      },
+      "frames_after": {
+        "samples": 168,
+        "median": 8.73435,
+        "p95": 11.215565,
+        "p99": 12.182690000000015,
+        "max": 13.3702
+      }
+    },
+    {
+      "workload": "sparse_floor",
+      "pairs": 7,
+      "selected_cells": 226,
+      "submitted_triangles": 2058,
+      "before_ms": 4.956008333333333,
+      "after_ms": 5.02385,
+      "paired_ratio": 1.0284735015710902,
+      "first_before": {
+        "samples": 7,
+        "median": 4.9248,
+        "p95": 5.924529999999999,
+        "p99": 6.173385999999999,
+        "max": 6.2356
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 4.9779,
+        "p95": 5.80863,
+        "p99": 5.868606000000001,
+        "max": 5.8836
+      },
+      "frames_before": {
+        "samples": 168,
+        "median": 4.8153,
+        "p95": 5.866535,
+        "p99": 6.286024000000002,
+        "max": 6.4026
+      },
+      "frames_after": {
+        "samples": 168,
+        "median": 4.9029,
+        "p95": 5.93245,
+        "p99": 6.4659249999999995,
+        "max": 7.6272
+      }
+    },
+    {
+      "workload": "animated_grass",
+      "pairs": 7,
+      "selected_cells": 28321,
+      "submitted_triangles": 119866,
+      "before_ms": 66.54418333333334,
+      "after_ms": 58.50555,
+      "paired_ratio": 0.8852205534157355,
+      "first_before": {
+        "samples": 7,
+        "median": 69.1223,
+        "p95": 79.85887999999998,
+        "p99": 82.044896,
+        "max": 82.5914
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 56.3144,
+        "p95": 60.93542,
+        "p99": 61.021724,
+        "max": 61.0433
+      },
+      "frames_before": {
+        "samples": 84,
+        "median": 66.11580000000001,
+        "p95": 75.70353,
+        "p99": 79.44736,
+        "max": 82.5914
+      },
+      "frames_after": {
+        "samples": 84,
+        "median": 58.4711,
+        "p95": 63.947905,
+        "p99": 70.918957,
+        "max": 74.498
+      }
+    },
+    {
+      "workload": "small_unchanged",
+      "pairs": 7,
+      "selected_cells": 148,
+      "submitted_triangles": 1422,
+      "before_ms": 2.403501953125,
+      "after_ms": 2.392501171875,
+      "paired_ratio": 0.9982026150451099,
+      "first_before": {
+        "samples": 7,
+        "median": 2.8938,
+        "p95": 3.3020699999999996,
+        "p99": 3.3796139999999997,
+        "max": 3.399
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 2.7483,
+        "p95": 3.6878299999999995,
+        "p99": 3.7211659999999998,
+        "max": 3.7295
+      },
+      "frames_before": {
+        "samples": 3584,
+        "median": 2.2946,
+        "p95": 3.0653,
+        "p99": 3.382196000000001,
+        "max": 4.5103
+      },
+      "frames_after": {
+        "samples": 3584,
+        "median": 2.2778,
+        "p95": 3.032955,
+        "p99": 3.3968200000000017,
+        "max": 4.5141
+      }
+    },
+    {
+      "workload": "medium_unchanged",
+      "pairs": 7,
+      "selected_cells": 148,
+      "submitted_triangles": 1422,
+      "before_ms": 9.3512015625,
+      "after_ms": 9.6019609375,
+      "paired_ratio": 1.0250798359154778,
+      "first_before": {
+        "samples": 7,
+        "median": 9.2058,
+        "p95": 11.18281,
+        "p99": 11.557042,
+        "max": 11.6506
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 10.3786,
+        "p95": 10.89523,
+        "p99": 11.023126,
+        "max": 11.0551
+      },
+      "frames_before": {
+        "samples": 896,
+        "median": 9.007349999999999,
+        "p95": 11.7449,
+        "p99": 12.448879999999999,
+        "max": 13.3908
+      },
+      "frames_after": {
+        "samples": 896,
+        "median": 9.08575,
+        "p95": 11.818275,
+        "p99": 12.941109999999998,
+        "max": 13.452
+      }
+    },
+    {
+      "workload": "small_multilevel_unchanged",
+      "pairs": 7,
+      "selected_cells": 435,
+      "submitted_triangles": 2706,
+      "before_ms": 11.26008203125,
+      "after_ms": 11.27269609375,
+      "paired_ratio": 1.0002635656410506,
+      "first_before": {
+        "samples": 7,
+        "median": 12.4791,
+        "p95": 13.14634,
+        "p99": 13.178548000000001,
+        "max": 13.1866
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 12.6681,
+        "p95": 13.83231,
+        "p99": 13.861661999999999,
+        "max": 13.869
+      },
+      "frames_before": {
+        "samples": 896,
+        "median": 11.1317,
+        "p95": 13.419725,
+        "p99": 14.028745,
+        "max": 15.8947
+      },
+      "frames_after": {
+        "samples": 896,
+        "median": 11.205749999999998,
+        "p95": 13.760825,
+        "p99": 14.504204999999995,
+        "max": 15.0597
+      }
+    }
+  ],
+  "capacity_probe": [
+    {
+      "workload": "hidden",
+      "selected_cells": 0,
+      "triangles": 0,
+      "before_capacity": 0,
+      "after_capacity": 0,
+      "transparent": 0
+    },
+    {
+      "workload": "visible_air",
+      "selected_cells": 28321,
+      "triangles": 0,
+      "before_capacity": 0,
+      "after_capacity": 0,
+      "transparent": 0
+    },
+    {
+      "workload": "dense_floor",
+      "selected_cells": 28321,
+      "triangles": 111682,
+      "before_capacity": 138255,
+      "after_capacity": 113284,
+      "transparent": 0
+    },
+    {
+      "workload": "city",
+      "selected_cells": 28321,
+      "triangles": 111826,
+      "before_capacity": 138255,
+      "after_capacity": 113284,
+      "transparent": 0
+    },
+    {
+      "workload": "sparse_floor",
+      "selected_cells": 226,
+      "triangles": 882,
+      "before_capacity": 1066,
+      "after_capacity": 1066,
+      "transparent": 0
+    }
+  ],
+  "reserve_hint": {
+    "minimum_selected_surface_cells": 1024,
+    "triangles_per_surface_hint": 4,
+    "maximum_initial_elements": 131072,
+    "triangle_bytes": 200,
+    "maximum_initial_bytes": 26214400
+  },
+  "rejected_row_candidate": {
+    "source": "a9ec8693d4897f8765a5c189679dcdccf0bfd59f",
+    "retained": false,
+    "production_changed": false,
+    "model_sha256": "b334ee11e295a7b18ed9d5bd644d938d004072a10755c0a34990b345072a2e90",
+    "timing_sha256": "289c25311926016d0270d36cf36b22567ae0929a1ae6a094e2d83e7e8ad4cbaa",
+    "frames_exact": 256,
+    "ordered_row_cases": 187690,
+    "rows": [
+      {
+        "workload": "small_legacy",
+        "before_ms": 2.72033203125,
+        "after_ms": 2.72850546875,
+        "ratio": 0.9832267143400752
+      },
+      {
+        "workload": "legacy_medium",
+        "before_ms": 10.3555421875,
+        "after_ms": 9.9387390625,
+        "ratio": 0.9731034856736852
+      },
+      {
+        "workload": "dense_572",
+        "before_ms": 62.677503125,
+        "after_ms": 62.834403125,
+        "ratio": 0.9862977494202522
+      },
+      {
+        "workload": "city_572",
+        "before_ms": 63.66343333333334,
+        "after_ms": 64.25245416666667,
+        "ratio": 1.0093848058776969
+      },
+      {
+        "workload": "constructed21_572",
+        "before_ms": 24.22775625,
+        "after_ms": 23.729815625,
+        "ratio": 0.9922572881583781
+      },
+      {
+        "workload": "city_640",
+        "before_ms": 56.07955833333333,
+        "after_ms": 55.5955375,
+        "ratio": 1.0084850887410235
+      },
+      {
+        "workload": "city_small",
+        "before_ms": 48.6388875,
+        "after_ms": 49.2859375,
+        "ratio": 0.9965043865544312
+      },
+      {
+        "workload": "city_large_old4",
+        "before_ms": 61.0667625,
+        "after_ms": 59.3561375,
+        "ratio": 0.9666228550580668
+      },
+      {
+        "workload": "fog_city_572",
+        "before_ms": 60.14617916666667,
+        "after_ms": 59.78424166666667,
+        "ratio": 0.9826554873330766
+      },
+      {
+        "workload": "small_multilevel_572",
+        "before_ms": 10.822429166666666,
+        "after_ms": 11.025779166666666,
+        "ratio": 1.0043468470559833
+      }
+    ],
+    "reason": "Mixed complete-frame timings: city5721.00938, city6401.00849, small multilevel1.00435. No robust broad gain; keep current renderer and preserve all raw lanes. No ordinary-game gain claimed."
+  },
+  "first_reserve_variant_retained": false,
+  "limitations": [
+    "The initial reserve variant allocated13,107,200 unused bytes in visible air and increased dense final capacity; it is not retained.",
+    "Focused sparse guard paired ratio1.02847 and unchanged medium1.02508 regress; small/multilevel controls0.99820/1.00026. No universal speedup.",
+    "Initial broad p99 tails regress for dense572 and small city; all first/tail records are preserved, not a universal stutter fix.",
+    "Pure owned CPU models under unchanged background applications, not cold processes, Native action-to-first-correct-present, GPU execution or ordinary RTX FPS."
+  ],
+  "local_release_build": true,
+  "non_device_tests": 51,
+  "model_equivalent_except_comment_and_local_name": true,
+  "local_native_game": false,
+  "local_device_window": false,
+  "mouse_or_focus_changed": false,
+  "subagents_used": false,
+  "native_qualification_pending": true,
+  "ordinary_15ms_game_frames_qualified": false,
+  "evidence_sha256": {
+    "night-stage92-rejection.json": "8049127d6898279f6c94315babbe9d4ac3c734ef8249e88f2efe2ccf9b5a96d5",
+    "night-raster-rows-model92/summary.json": "b334ee11e295a7b18ed9d5bd644d938d004072a10755c0a34990b345072a2e90",
+    "night-raster-rows-timing92/summary.json": "289c25311926016d0270d36cf36b22567ae0929a1ae6a094e2d83e7e8ad4cbaa",
+    "night-world-reserve-model93/summary.json": "a15cc6072950916aa3b3b7c6213553af44746d1042654e7f0cb03156af9bc713",
+    "night-world-reserve-timing93/summary.json": "ad3dde0db462b2c15575ea04aeae1a0a2574f4ecdf1084d078c5b5d886739025",
+    "night-world-reserve-capacity93/summary.json": "09ccb0251cdc613455e9da1fa9dded1bc837d767c8b136234be76c22fe595554",
+    "night-world-reserve-model93-r2/summary.json": "3ba25c60ba85d6cc211b1a33979407e0c2d11121b2fcec0f160925cf448a0367",
+    "night-world-reserve-timing93-r2/summary.json": "1052ee0332c5793211365e0b0de141954f1cd32e8953cf9e744afb48bf51ab40",
+    "night-world-reserve-guards93-r2/summary.json": "f253362a6403068ef59b1d3c6747200756e2a6b77aa9ab152b3ddb18c043d5b0",
+    "night-world-reserve-capacity93-r2/summary.json": "bd9bf401f67f2f0f1c7ee064c7f98818c3e35e96c70d2b2b2436e300ddd2df45",
+    "night-stage93-release-build.txt": "b18140b658625901ed2ee1d23f7cb87e4aa3754c790373d477d2726a6d1226ee",
+    "night-stage93-tests.txt": "c58cdc89cd465de763e09ed06355000daa77a9afe3959901f5a8beb90f111711",
+    "night-stage93-test-inventory.json": "aa49ff625dcb6c8868e4d44c3ede9a2d038abfee078c76b4e651e20b60b09f3c",
+    "night-stage93-build-test-summary.json": "5f7eb362d5098a951968a23cb7b5ceeec4c245baf5cba407bcd69edd36c05d01"
+  }
+}

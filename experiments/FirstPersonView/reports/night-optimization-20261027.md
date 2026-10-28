@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage91. Baseline `1284537`; working branch
-`codex/fpv-terrain-profile-cache-control-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
+Updated28 October2026, through stage93. Baseline `1284537`; working branch
+`codex/fpv-cpu-world-queue-reserve-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -16,9 +16,14 @@ NVIDIA/power/priority changes or subagents. Background games remain running.
 Use the existing checkout/build, read-only synced sources, pure/shared-module
 tests and the inventoried hidden render-only suite. The user has now requested
 finalization, main integration and installer delivery, followed by continued work.
-ReleaseA9 stays fixed while its full Windows qualification completes. Stage90
-is isolated in draft [PR225](https://github.com/Neversalimus/NCMM/pull/225);
-stage91 is a local diagnostic follow-up. Neither is in the A9 installer bytes.
+ReleaseA9 passed all8 jobs of full40674207425 and merged into main as
+`cd9ba08d47583482f67374d59f5bf0cc871416a9`. Both exact0.13.1TEST installers
+are [published](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-a9f3ef7480f0),
+with checksums/source qualification and verified anonymousHEAD200 downloads.
+Stage90 remains in draft [PR225](https://github.com/Neversalimus/NCMM/pull/225);
+stage91 is in draft [PR226](https://github.com/Neversalimus/NCMM/pull/226).
+Their exact heads and ongoing full Native captures remain fixed. Stage93 is a
+separate CPU queue candidate; none of these follow-ups changes the A9 archives.
 
 Detailed stages1–63, failures, provenance and raw measurement references remain
 [in the immutable prior journal](https://github.com/Neversalimus/NCMM/blob/616d718810e665892b1e7eaba33030cf8a00c7b4/experiments/FirstPersonView/reports/night-optimization-20261027.md).
@@ -678,6 +683,72 @@ Keep both remote heads fixed; stage91 is not pushed over either active run.
 Release draft426662059 contains the exact verified A9 installer bytes but
 remains unpublished until A9's complete required gate and main integration.
 
+## Stage92 — row setup/iteration candidate rejected
+
+Early skip of unowned row bands and division-free row stepping preserve all
+256frames/45,212,800pixels, raw depth/IDs/metadata/submission/strip counters,
+3,319,896 callback-thread provider calls and187690 ordered-row controls.
+Seven predetermined pairs across ten complete-frame lanes give mixed results:
+city572 ratio1.00938, city6401.00849 and small multilevel1.00435. The row
+candidate is not retained. All raw lanes and `night-stage92-rejection.json`
+remain preserved; no source change or ordinary-game gain comes from it.
+
+## Stage93 — bounded reserve for CPU world geometry
+
+Growing the fresh CPU opaque queue repeatedly copied existing200-byte
+triangles. Count only selected cells with a floor, furniture, vehicle or
+non-flat terrain. At1024 qualifying cells, reserve a four-triangle hint,
+bounded to131072 initial entries(25MiB). Small/sparse/empty-air scenes and
+GPU collection acquire no CPU triangle reserve. Geometry order, quantities,
+providers, cache lifetime, worker counts, pixels and picking are unchanged.
+
+The first variant measured faster heavy frames but reserved13,107,200 unused
+bytes in visible air and grew the dense queue to147456 entries, versus138255
+before. It is not retained. The surface-counted variant leaves air capacity0;
+dense/city capacity falls138255→113284, saving4,994,200bytes in these models.
+All selected-cell/triangle counts agree; sparse capacity1066 remains unchanged.
+
+Full exact models pass256frames/4696 assertions/45,212,800RGBApixels and raw
+depth/shadow/ID/metadata/workload equality, including66 transparent frames
+and all3,319,896 provider calls on the callback thread.
+
+Seven predetermined alternating pairs of complete fresh CPU frames:
+
+| Model | Before → after ms | Median paired ratio |
+| --- | ---: | ---: |
+| Dense572 |59.10275 →53.03399|.89888|
+| City572 |63.64641 →55.56675|.87767|
+| Constructed21 layers |24.54204 →22.48326|.90711|
+| City640 |57.19450 →50.33567|.88174|
+| Small city |49.09815 →42.61098|.88275|
+| Large city |59.90895 →52.92776|.88977|
+| Fog city |58.96208 →53.27316|.89273|
+| Actual animated-grass model guard |66.54418 →58.50555|.88522|
+
+Focused hidden/air/sparse and longer unchanged small/medium/multilevel guards
+retain all raw samples: paired ratios.97066/1.00221/1.02847 and
+.99820/1.02508/1.00026 respectively. The sparse and unchanged-medium guards
+regress about2.8%/2.5%; no universal speedup is claimed. City572 first-of-lane
+65.1412→58.8276ms and p9974.10874→67.81633; constructed first25.9192→22.4233
+and p9929.38634→26.74666. Dense572 and small-city p99 tails regress; those
+records remain explicit. These are fresh CPU model lanes with cleanup,
+allocation, thread creation/join included, not cold Native processes, GPU
+execution, ordinaryRTX FPS, 15ms or action-to-first-correct-present proof.
+
+Full local Release and51 inventoried non-device CTests pass(23.57s). The
+shipping header is exactly model-equivalent except a comment/local name.
+The reference diagnostic CMake setting stays empty; there is no new Native,
+SDL/device window, mouse/focus, system-setting change, subagent or game copy.
+Public numeric evidence: `night-world-queue-reserve-20261028.json`.
+
+Stage91 now has both module suites and all3 GPU/device/sanitizer jobs passing;
+full Native and strict terrain-pair captures continue at its fixed source.
+Stage90's new1807 early program evidence independently verifies all five JSONs,
+106 copied inputs,26 controlled turns and a clean exit at runtime2338d9b/tree
+e0e8052bbd14e07209d71080f731d9320804019d. Summary SHA
+`0c2a90c928a9da142b44d6a023d01f3aa721912b2eb64d9f880e56aa1875946e`.
+It is separate WARP evidence, not a paired revision speedup or full-tier result.
+
 ## Remote qualification and next steps
 
 - Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
@@ -711,11 +782,11 @@ remains unpublished until A9's complete required gate and main integration.
   setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
   protected PR223 full48 remains unchanged until its final logs are retained.
 
-Next: push the completed CPU stages and85 fixture fix to draft223 and dispatch
-the corrected same-Host comparison. Preserve draft224 ec1 full40664250771 while
-it finishes; read its final logs at that exact head through CodeReview.
-Continue targeting measured geometry/raster cost. Keep draft/review and no-release
-boundaries. CI logs exclusively CodeReview at the current PR head; metadata and
-program JSON are not log fallbacks. The upstream Native transfer ledger has
-161994 bytes remaining; no upstream source body was fetched during stages57–72.
-Continue solo until user finalization or a real limit.
+Next: qualify the CPU queue candidate separately without advancing PR225 or
+PR226 during meaningful captures. Preserve publishedA9 bytes and source/tree
+proof. Continue targeting measured preparation/raster costs; do not substitute
+model wins for ordinary-game latency qualification. CI diagnostics exclusively
+CodeReview at the selected current PR head; metadata and bounded program JSON
+are not log fallbacks. The upstream Native ledger still has161994 bytes left;
+no upstream source body is fetched during stages92–93. Continue solo, with no
+local Native/input or mouse capture and no new checkout/full game copy.
