@@ -116,6 +116,22 @@ overlap and must not be summed. No extra render/poll/wait/clock/allocation.
 318 Python,96 atomic two-pin tests,61 fake-clock checks and10 compiled bad
 controls pass; actual schema3 data is pending run40629160097.
 
+### Stage69: isolate diagnostic viewport interference
+
+A pure exact-shared-module experiment at `fdbba45` alternates manual640x480
+and root672x704 frames versus matching both672x704. Both sequences advance
+the same render timestamps and hand composition; rootCPU572x600 pixels agree
+exactly at each timestamp. Seven alternating pairs, six root samples/lane:
+root medians13.687 versus2.0028ms, geometry.8601 versus.50445ms; raster calls
+12 versus6 per six root frames. The unchanged static world can be retained
+only in the matching sequence. This demonstrates fixture-induced work, not
+a production optimization, actual Native attribution, ordinary movement gain
+or15ms qualification. Do not subtract these numbers from prior Native data.
+The first constant-timestamp variant is preserved separately; the advancing
+timestamp result above is the useful control. Evidence
+`night-viewport-alternation-model69-r2/summary.json`, module SHA256
+`b533507f7c2c088fdb9e3a357ea097199ccf4ed9907d92e870cc458f9d0b56c9`.
+
 ### Stage65 CPU light preparation
 
 Frozen full-renderer oracle:168 frames,2268 assertions,16329600 exact RGBA
