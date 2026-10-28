@@ -1539,6 +1539,60 @@ unsuccessful component direction. Currentcdf Linux1040 completes successfully;
 Windows1040 completes actual full gameplay and proceeds to focused checks,
 while Windows1807 and Linux1807 remain active. Full qualification is pending.
 
+**61. Qualify current Linux processes and the first actual early gameplay artifact.**
+Both currentcdf Linux jobs122578092961 /122578092925 complete successfully.
+Code Review only is used while the PR still points to exactcdf. Each retained
+120000-character truncated log contains all six controls/camera/FPS/held/target/
+gameplay process rows: twelve clean exits, no timeouts. No CLI/artifact log
+fallback is used; other early log content remains truncated.
+
+Early1040 artifact12787632784 is only36965 bytes. Five selected JSONs reserve
+102441/8388608 bytes including conservative metadata. Its artifact/run/head,
+exactcdf/runtime717ee227 tree, engine/Host/module, clean exit, private SDL
+dependency and106 copied source inputs verify. Patched Native translation
+units are not independently reconstructed. Source-matched schema1 verifies
+all26 turns; callback subphases/dimensions are explicitly unavailable. Empty
+turn/draw medians115.9299/97.28325ms are software CI wall timings, not a causal
+floor improvement or15ms/hardware result. Summary SHA256
+`e98b83be1e31041bb297936d8cfe0aa5461279efbff69f42e36ff2dd1d4d975b`.
+The initial private verification was invoked before the range-reader process
+finished and correctly rejected its partial selection; after waiting for the
+same reader to complete, all five immutable receipts verify. No report was
+invented or refetched. Current full Windows qualification remains pending.
+
+**62. Actual1040 callback partitions identify the module as the next priority.**
+Diagnostic2d9401b run40619494293 publishes early artifact12788333484(40114 bytes).
+Five exact JSONs reserve105590/8388608 bytes. Metadata/source/run/engine/Host/
+module/clean-process/private-SDL and106 copied inputs verify; exact frozen
+schema2 recomputes every raw partition and aggregate. Native CPU/GPU images
+use viewport672x704; GPU submits672x704, CPU572x600. These are observed fields,
+not the manual fixture's640x480 dimensions.
+
+| Initial enemies / turns | Turn median ms | Draw union median ms | Entry Native-cache ms | Visibility ms | Module ms | Presentation/tail ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+|1 /6|128.31005|69.92775|.02230|13.58030|46.75635|.01880|
+|5 /6|143.67680|58.03870|.01980|12.07480|22.25790|.01860|
+|20 /6|134.97840|60.68110|.02055|13.84400|41.31285|.05450|
+|0 /8|78.39420|65.25470|.01865|4.96345|55.39065|1.90140|
+
+The remaining raw dispatch/pre/post-visibility intervals are retained in the
+private summary.25 callbacks/26 turns, no duplicate/nested/legacy/skipped draw;
+each raw phase union is exact, independent medians do not sum. Entry cache
+building here is already warm: this does not contradict stage59's12-21ms cache
+rebuild inside a crossing action. Module wall includes CPU preparation, Native
+callbacks, raster/command recording and submission/waits; it is not pure GPU
+execution. Both GPU case devices are software Microsoft Basic Render Driver.
+Different independent runs/viewport conditions do not establish a before/after
+gain. Summary SHA256
+`9ac027a31986c0583822f2d3afcf29b47efe542255b40c69b72444043f113ac6`.
+
+Next inspect existing per-frame CPU geometry/raster/effects metrics with explicit
+freshness, plus module input preparation; do not spend further effort on a warm
+.02ms entry cache or the three rejected floor models. The110 manual-action
+renders have different dimensions/setup and must not be substituted for these
+captured callbacks.2d9401b1807 and both full Windows qualifications still await
+completion. No local Native/mouse/subagent/new upstream body/merge/release ran.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
