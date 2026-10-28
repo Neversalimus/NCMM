@@ -148,3 +148,57 @@ def verify(report):
                 cpu_metric_components_adjacent=False,
                 ordinary_performance_measurement=False, gpu_execution_measured=False,
                 first_correct_present_measured=False, pure_ai_time_measured=False, groups=groups)
+
+
+
+STAIR_SCOPE = 'real vertical_move and first successful render/present in adjacent separate captures; setup and easing settle excluded'
+
+
+def verify_stair_transitions(report):
+    require(report.get('actual_cdda_sdl') is True and report.get('manual_playthrough') is False,
+            'controlled real Native stair report required')
+    data = report.get('stair_transition_diagnostics')
+    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 1 and
+            data.get('scope') == STAIR_SCOPE and data.get('ordinary_performance_measurement') is False and
+            data.get('gpu_execution_measured') is False, 'stair timing scope differs')
+    rows = data.get('samples')
+    require(type(rows) is list and len(rows) == 4, 'four ordered stair transitions required')
+    totals = []
+    for index, (row, direction) in enumerate(zip(rows, (1, -1, -1, 1))):
+        require(type(row) is dict and row.get('successful_present') is True and
+                row.get('requested_renderer') in ('cpu', 'gpu', 'auto'), 'missing successful stair frame')
+        for name in ('from_z', 'to_z', 'delta'):
+            require(type(row.get(name)) is int and -128 <= row[name] <= 128, 'invalid stair '+name)
+        require(row['delta'] == direction and row['to_z'] == row['from_z'] + direction,
+                'missing, duplicate or reordered stair transition')
+        if index:
+            require(row['from_z'] == rows[index-1]['to_z'], 'nonadjacent stair source positions')
+        detail = {}
+        for name in ('action', 'first_frame'):
+            sample = row.get(name)
+            require(type(sample) is dict and all(sample.get(k) is True for k in ('valid', 'claimed', 'returned', 'closed')),
+                    'partial stair capture')
+            require(integer(sample.get('errors'), 2**32-1, 'errors') == 0, 'stair capture fault')
+            for key in ('draw_calls','outer_draws','max_depth','cpu_draws','gpu_draws','legacy_draws','skipped_draws'):
+                integer(sample.get(key), 2**32-1, key)
+            for key in ('wall_ns','draw_wall_ns','other_wall_ns'):
+                integer(sample.get(key), 2**63-1, key)
+            calls,outer,depth = sample['draw_calls'],sample['outer_draws'],sample['max_depth']
+            require(sum(sample[k] for k in ('cpu_draws','gpu_draws','legacy_draws','skipped_draws')) == calls and
+                    ((1 <= outer <= calls and 1 <= depth <= calls-outer+1) if calls else outer == depth == 0) and
+                    sample['draw_wall_ns'] + sample['other_wall_ns'] == sample['wall_ns'] and
+                    (calls != 0 or sample['draw_wall_ns'] == 0), 'stair wall partition inconsistent')
+            detail[name] = dict(wall_ns=sample['wall_ns'], callbacks=verify_callbacks(sample))
+        frame = row['first_frame']
+        require(frame['outer_draws'] > 0 and frame['cpu_draws'] + frame['gpu_draws'] > 0 and
+                detail['first_frame']['callbacks']['world_callbacks'] > 0, 'no perspective in first stair frame')
+        stages = row.get('frame_stages')
+        expected = {'full_frame_wall_ms','native_cache_cpu_ms','native_tiles_cpu_ms','perspective_callback_wall_ms','actual_present_wall_ms'}
+        require(type(stages) is dict and stages.keys() == expected, 'fresh stair frame stages missing')
+        for key, value in stages.items():
+            require(type(value) in (int,float) and math.isfinite(value) and 0 <= value <= frame['wall_ns']/1e6 + .003,
+                    'invalid stair '+key)
+        detail.update(from_z=row['from_z'],to_z=row['to_z'],delta=row['delta'],frame_stages=stages)
+        totals.append(detail)
+    require(rows[-1]['to_z'] == rows[0]['from_z'], 'stair sequence does not return to its source')
+    return dict(success=True,transitions=4,ordinary_performance_measurement=False,gpu_execution_measured=False,samples=totals)

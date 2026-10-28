@@ -1,0 +1,3925 @@
+{
+  "schema": 1,
+  "stage": 104,
+  "source_parent": "87754db4c2bf2053a4c2722e3d5c5a9c163bceb0",
+  "source_files": {
+    "experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc": "4bfb0351224447420da57afcb15bb0e52d14a5894f4c3b16e3a41e14fc0ca969",
+    "experiments/FirstPersonView/tests/verify_turn_attribution.py": "9f8f5282b6061372dcc079236237bd6af59e1edb161ec571f7d4da4518374aed",
+    "experiments/FirstPersonView/tests/verify_gameplay_audit.py": "c47b7daeba70eebd65f8271dd942bc02089379a88cf364b163b40300b04cdebf",
+    "experiments/FirstPersonView/tests/test_verify_turn_attribution.py": "79be1a480791b11a707bf9fe87a74e6d9bb1d1c9c81d3e951daa55d4e5f75e1f",
+    "experiments/graphics_bridge/ncmm_world_policy.hpp": "a27452c292bd18a10408aa29cb7e452e9406c46a17c777c65607df35d11aa1cf"
+  },
+  "change": "Unroll the three fixed axes in the general multi-storey DDA. Preserve all math/query order/slab/corner guards and the horizontal fast path. Add diagnostic-only adjacent captures for four real stair moves and their first successful frame/present, preserving existing26turn attribution schema.",
+  "algorithm": "General multi-storey3D-DDA uses named scalar axis state instead of three-axis arrays and loops. Horizontal fast path, floating-point operation order, simultaneous crossings, corner and slab guards and complete Native-query sequence are retained. No persistent cache or heap allocation.",
+  "protocol": {
+    "source": "87754db4c2bf2053a4c2722e3d5c5a9c163bceb0",
+    "source_sha256": "aed2225bc825faa5fb8165d930e0f0979a0e75b66230a77724b82d0a8abb91ab",
+    "candidate_sha256": "a27452c292bd18a10408aa29cb7e452e9406c46a17c777c65607df35d11aa1cf",
+    "change": "Unroll the three fixed axes of the general multi-storey DDA into scalar variables. Preserve every floating-point operation and crossing/slab/corner/query order, including horizontal fast fallback.",
+    "correctness": "Original/candidate exact visibility; candidate query sequence and query count must be exactly identical. All returned flags come from identical immutable geometry-cache facts. Cover ascending/descending stairs, ramps, glass, unknown, water, ties, slab surfaces, finite bounds and horizontal controls.",
+    "timing": "Seven fixed alternating pairs x10workloads,512iterations over512rays, exact same source/corpus. Every substantial paired median<=1.03; at least2workloads<=.98. Keep raw times/call counts. No unchanged rerun-until-pass. Pure geometry-cache-hit helper, not complete frames/Native/RTX/input latency.",
+    "ordinary_storage": "General-path arrays/three-axis loops become named scalar locals. No persistent cache/heap/Native pointer or changed Native query. Caller callbacks are immutable geometry reads within a main-thread draw.",
+    "background": "User programs untouched, no concurrent local performance experiment.",
+    "local_native": false,
+    "local_device": false,
+    "mouse_or_focus": false,
+    "subagents": false
+  },
+  "correctness": {
+    "checks": 983046,
+    "rays": 327680,
+    "original_queries": 8480344,
+    "candidate_queries": 8480344
+  },
+  "expanded_guards": {
+    "success": true,
+    "source": "87754db4c2bf2053a4c2722e3d5c5a9c163bceb0",
+    "source_sha256": "aed2225bc825faa5fb8165d930e0f0979a0e75b66230a77724b82d0a8abb91ab",
+    "candidate_sha256": "a27452c292bd18a10408aa29cb7e452e9406c46a17c777c65607df35d11aa1cf",
+    "results": [
+      {
+        "name": "positive",
+        "exit_code": 0,
+        "candidate_namespace_header_sha256": "fbd73ab94f4e1a22e76452e4a37d955a505e0abba84dbda60ab4157adc4e3468",
+        "checks": 4128774,
+        "rays": 1376256,
+        "original_queries": 13466276,
+        "candidate_queries": 13466276
+      },
+      {
+        "name": "missing_vertical",
+        "exit_code": 2,
+        "candidate_namespace_header_sha256": "d4fc69a3605cc4f6e78bf67659e34c07547295e1e9b618f9df01ef250580ac02"
+      },
+      {
+        "name": "missing_corner",
+        "exit_code": 2,
+        "candidate_namespace_header_sha256": "5852efad4f59e23da1da13ef8db24e4245f971871b7a43b6fb93614fd3402d6b"
+      }
+    ],
+    "coverage": "1376256rays,42deterministic geometry layouts, exact query sequence/count and visibility, ramps/ladder/water/glass/unknown/stairs, zero components, tied XYZ, exact/nextafter storey boundaries, target surfaces and finite range bounds.",
+    "production_changed": false,
+    "local_native": false,
+    "mouse_or_focus": false,
+    "subagents": false
+  },
+  "comparisons": [
+    {
+      "workload": "up_open",
+      "before_ms": 130.702,
+      "after_ms": 128.753,
+      "paired_ratio": 0.9547396057839257,
+      "before_queries": 10886144,
+      "after_queries": 10886144
+    },
+    {
+      "workload": "down_open",
+      "before_ms": 133.704,
+      "after_ms": 130.344,
+      "paired_ratio": 0.962398258295862,
+      "before_queries": 10886144,
+      "after_queries": 10886144
+    },
+    {
+      "workload": "up_stairs",
+      "before_ms": 46.3077,
+      "after_ms": 46.5745,
+      "paired_ratio": 1.00862636574297,
+      "before_queries": 3574784,
+      "after_queries": 3574784
+    },
+    {
+      "workload": "down_stairs",
+      "before_ms": 48.8073,
+      "after_ms": 45.5366,
+      "paired_ratio": 0.9070334730978452,
+      "before_queries": 3465216,
+      "after_queries": 3465216
+    },
+    {
+      "workload": "xyz_ties",
+      "before_ms": 68.0772,
+      "after_ms": 68.6473,
+      "paired_ratio": 0.9957642703922649,
+      "before_queries": 6799872,
+      "after_queries": 6799872
+    },
+    {
+      "workload": "up_glass",
+      "before_ms": 130.523,
+      "after_ms": 128.728,
+      "paired_ratio": 0.9410147883360016,
+      "before_queries": 10886144,
+      "after_queries": 10886144
+    },
+    {
+      "workload": "opaque_floor",
+      "before_ms": 49.4939,
+      "after_ms": 45.1167,
+      "paired_ratio": 0.9270897097242079,
+      "before_queries": 3908096,
+      "after_queries": 3908096
+    },
+    {
+      "workload": "unknown",
+      "before_ms": 45.9122,
+      "after_ms": 42.0083,
+      "paired_ratio": 0.9617719169901813,
+      "before_queries": 3459072,
+      "after_queries": 3459072
+    },
+    {
+      "workload": "horizontal",
+      "before_ms": 103.406,
+      "after_ms": 102.66,
+      "paired_ratio": 0.993213208445785,
+      "before_queries": 9839616,
+      "after_queries": 9839616
+    },
+    {
+      "workload": "mixed",
+      "before_ms": 43.7552,
+      "after_ms": 43.3919,
+      "paired_ratio": 0.9622240667388128,
+      "before_queries": 3343872,
+      "after_queries": 3343872
+    }
+  ],
+  "raw_lanes": [
+    {
+      "pair": 0,
+      "kind": 0,
+      "candidate": false,
+      "ms": 131.248,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 0,
+      "kind": 0,
+      "candidate": true,
+      "ms": 123.248,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 0,
+      "kind": 1,
+      "candidate": false,
+      "ms": 134.515,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 0,
+      "kind": 1,
+      "candidate": true,
+      "ms": 130.344,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 0,
+      "kind": 2,
+      "candidate": false,
+      "ms": 45.438,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 0,
+      "kind": 2,
+      "candidate": true,
+      "ms": 47.8707,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 0,
+      "kind": 3,
+      "candidate": false,
+      "ms": 46.4211,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 0,
+      "kind": 3,
+      "candidate": true,
+      "ms": 41.7162,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 0,
+      "kind": 4,
+      "candidate": false,
+      "ms": 66.1812,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 0,
+      "kind": 4,
+      "candidate": true,
+      "ms": 68.6473,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 0,
+      "kind": 5,
+      "candidate": false,
+      "ms": 129.597,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 0,
+      "kind": 5,
+      "candidate": true,
+      "ms": 120.792,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 0,
+      "kind": 6,
+      "candidate": false,
+      "ms": 51.5912,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 0,
+      "kind": 6,
+      "candidate": true,
+      "ms": 43.3693,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 0,
+      "kind": 7,
+      "candidate": false,
+      "ms": 47.5669,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 0,
+      "kind": 7,
+      "candidate": true,
+      "ms": 46.1593,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 0,
+      "kind": 8,
+      "candidate": false,
+      "ms": 104.454,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 0,
+      "kind": 8,
+      "candidate": true,
+      "ms": 105.895,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 0,
+      "kind": 9,
+      "candidate": false,
+      "ms": 44.7852,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 0,
+      "kind": 9,
+      "candidate": true,
+      "ms": 43.3919,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 1,
+      "kind": 0,
+      "candidate": true,
+      "ms": 140.48,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 1,
+      "kind": 0,
+      "candidate": false,
+      "ms": 130.702,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 1,
+      "kind": 1,
+      "candidate": true,
+      "ms": 127.03,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 1,
+      "kind": 1,
+      "candidate": false,
+      "ms": 133.704,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 1,
+      "kind": 2,
+      "candidate": true,
+      "ms": 46.5745,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 1,
+      "kind": 2,
+      "candidate": false,
+      "ms": 44.4221,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 1,
+      "kind": 3,
+      "candidate": true,
+      "ms": 45.1036,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 1,
+      "kind": 3,
+      "candidate": false,
+      "ms": 49.7265,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 1,
+      "kind": 4,
+      "candidate": true,
+      "ms": 71.311,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 1,
+      "kind": 4,
+      "candidate": false,
+      "ms": 60.8026,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 1,
+      "kind": 5,
+      "candidate": true,
+      "ms": 121.833,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 1,
+      "kind": 5,
+      "candidate": false,
+      "ms": 131.639,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 1,
+      "kind": 6,
+      "candidate": true,
+      "ms": 45.1167,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 1,
+      "kind": 6,
+      "candidate": false,
+      "ms": 46.4117,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 1,
+      "kind": 7,
+      "candidate": true,
+      "ms": 42.0083,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 1,
+      "kind": 7,
+      "candidate": false,
+      "ms": 41.4254,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 1,
+      "kind": 8,
+      "candidate": true,
+      "ms": 96.9495,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 1,
+      "kind": 8,
+      "candidate": false,
+      "ms": 101.978,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 1,
+      "kind": 9,
+      "candidate": true,
+      "ms": 45.7908,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 1,
+      "kind": 9,
+      "candidate": false,
+      "ms": 47.5885,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 2,
+      "kind": 0,
+      "candidate": false,
+      "ms": 137.328,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 2,
+      "kind": 0,
+      "candidate": true,
+      "ms": 137.263,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 2,
+      "kind": 1,
+      "candidate": false,
+      "ms": 132.324,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 2,
+      "kind": 1,
+      "candidate": true,
+      "ms": 132.764,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 2,
+      "kind": 2,
+      "candidate": false,
+      "ms": 46.3077,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 2,
+      "kind": 2,
+      "candidate": true,
+      "ms": 46.0267,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 2,
+      "kind": 3,
+      "candidate": false,
+      "ms": 48.8073,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 2,
+      "kind": 3,
+      "candidate": true,
+      "ms": 47.9186,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 2,
+      "kind": 4,
+      "candidate": false,
+      "ms": 68.0772,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 2,
+      "kind": 4,
+      "candidate": true,
+      "ms": 68.413,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 2,
+      "kind": 5,
+      "candidate": false,
+      "ms": 136.797,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 2,
+      "kind": 5,
+      "candidate": true,
+      "ms": 128.728,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 2,
+      "kind": 6,
+      "candidate": false,
+      "ms": 49.5564,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 2,
+      "kind": 6,
+      "candidate": true,
+      "ms": 44.9011,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 2,
+      "kind": 7,
+      "candidate": false,
+      "ms": 45.9122,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 2,
+      "kind": 7,
+      "candidate": true,
+      "ms": 45.8655,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 2,
+      "kind": 8,
+      "candidate": false,
+      "ms": 100.784,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 2,
+      "kind": 8,
+      "candidate": true,
+      "ms": 100.1,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 2,
+      "kind": 9,
+      "candidate": false,
+      "ms": 39.5037,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 2,
+      "kind": 9,
+      "candidate": true,
+      "ms": 44.1195,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 3,
+      "kind": 0,
+      "candidate": true,
+      "ms": 120.063,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 3,
+      "kind": 0,
+      "candidate": false,
+      "ms": 130.251,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 3,
+      "kind": 1,
+      "candidate": true,
+      "ms": 121.678,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 3,
+      "kind": 1,
+      "candidate": false,
+      "ms": 130.094,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 3,
+      "kind": 2,
+      "candidate": true,
+      "ms": 47.3257,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 3,
+      "kind": 2,
+      "candidate": false,
+      "ms": 46.0905,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 3,
+      "kind": 3,
+      "candidate": true,
+      "ms": 46.6109,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 3,
+      "kind": 3,
+      "candidate": false,
+      "ms": 46.3534,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 3,
+      "kind": 4,
+      "candidate": true,
+      "ms": 70.5123,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 3,
+      "kind": 4,
+      "candidate": false,
+      "ms": 71.1321,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 3,
+      "kind": 5,
+      "candidate": true,
+      "ms": 129.56,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 3,
+      "kind": 5,
+      "candidate": false,
+      "ms": 124.296,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 3,
+      "kind": 6,
+      "candidate": true,
+      "ms": 46.2529,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 3,
+      "kind": 6,
+      "candidate": false,
+      "ms": 48.1885,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 3,
+      "kind": 7,
+      "candidate": true,
+      "ms": 39.0639,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 3,
+      "kind": 7,
+      "candidate": false,
+      "ms": 48.6065,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 3,
+      "kind": 8,
+      "candidate": true,
+      "ms": 102.66,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 3,
+      "kind": 8,
+      "candidate": false,
+      "ms": 104.064,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 3,
+      "kind": 9,
+      "candidate": true,
+      "ms": 40.3984,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 3,
+      "kind": 9,
+      "candidate": false,
+      "ms": 43.5623,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 4,
+      "kind": 0,
+      "candidate": false,
+      "ms": 128.615,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 4,
+      "kind": 0,
+      "candidate": true,
+      "ms": 132.15,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 4,
+      "kind": 1,
+      "candidate": false,
+      "ms": 132.538,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 4,
+      "kind": 1,
+      "candidate": true,
+      "ms": 131.83,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 4,
+      "kind": 2,
+      "candidate": false,
+      "ms": 49.621,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 4,
+      "kind": 2,
+      "candidate": true,
+      "ms": 42.3932,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 4,
+      "kind": 3,
+      "candidate": false,
+      "ms": 50.9989,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 4,
+      "kind": 3,
+      "candidate": true,
+      "ms": 45.5366,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 4,
+      "kind": 4,
+      "candidate": false,
+      "ms": 69.9755,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 4,
+      "kind": 4,
+      "candidate": true,
+      "ms": 68.2827,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 4,
+      "kind": 5,
+      "candidate": false,
+      "ms": 130.523,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 4,
+      "kind": 5,
+      "candidate": true,
+      "ms": 129.266,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 4,
+      "kind": 6,
+      "candidate": false,
+      "ms": 49.4939,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 4,
+      "kind": 6,
+      "candidate": true,
+      "ms": 48.4136,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 4,
+      "kind": 7,
+      "candidate": false,
+      "ms": 42.7853,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 4,
+      "kind": 7,
+      "candidate": true,
+      "ms": 41.1497,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 4,
+      "kind": 8,
+      "candidate": false,
+      "ms": 103.406,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 4,
+      "kind": 8,
+      "candidate": true,
+      "ms": 106.46,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 4,
+      "kind": 9,
+      "candidate": false,
+      "ms": 41.3809,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 4,
+      "kind": 9,
+      "candidate": true,
+      "ms": 44.9766,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 5,
+      "kind": 0,
+      "candidate": true,
+      "ms": 128.753,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 5,
+      "kind": 0,
+      "candidate": false,
+      "ms": 142.876,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 5,
+      "kind": 1,
+      "candidate": true,
+      "ms": 135.267,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 5,
+      "kind": 1,
+      "candidate": false,
+      "ms": 140.552,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 5,
+      "kind": 2,
+      "candidate": true,
+      "ms": 51.3178,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 5,
+      "kind": 2,
+      "candidate": false,
+      "ms": 50.8789,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 5,
+      "kind": 3,
+      "candidate": true,
+      "ms": 46.2165,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 5,
+      "kind": 3,
+      "candidate": false,
+      "ms": 46.8871,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 5,
+      "kind": 4,
+      "candidate": true,
+      "ms": 67.6815,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 5,
+      "kind": 4,
+      "candidate": false,
+      "ms": 67.9694,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 5,
+      "kind": 5,
+      "candidate": true,
+      "ms": 126.088,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 5,
+      "kind": 5,
+      "candidate": false,
+      "ms": 130.18,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 5,
+      "kind": 6,
+      "candidate": true,
+      "ms": 46.1224,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 5,
+      "kind": 6,
+      "candidate": false,
+      "ms": 51.9608,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 5,
+      "kind": 7,
+      "candidate": true,
+      "ms": 42.6147,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 5,
+      "kind": 7,
+      "candidate": false,
+      "ms": 47.0459,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 5,
+      "kind": 8,
+      "candidate": true,
+      "ms": 103.278,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 5,
+      "kind": 8,
+      "candidate": false,
+      "ms": 101.424,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 5,
+      "kind": 9,
+      "candidate": true,
+      "ms": 40.1743,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 5,
+      "kind": 9,
+      "candidate": false,
+      "ms": 43.7552,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 6,
+      "kind": 0,
+      "candidate": false,
+      "ms": 127.595,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 6,
+      "kind": 0,
+      "candidate": true,
+      "ms": 121.82,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 6,
+      "kind": 1,
+      "candidate": false,
+      "ms": 134.792,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 6,
+      "kind": 1,
+      "candidate": true,
+      "ms": 125.922,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 6,
+      "kind": 2,
+      "candidate": false,
+      "ms": 47.3924,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 6,
+      "kind": 2,
+      "candidate": true,
+      "ms": 45.4929,
+      "queries": 3574784,
+      "visible": 6656
+    },
+    {
+      "pair": 6,
+      "kind": 3,
+      "candidate": false,
+      "ms": 51.6715,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 6,
+      "kind": 3,
+      "candidate": true,
+      "ms": 40.7165,
+      "queries": 3465216,
+      "visible": 1536
+    },
+    {
+      "pair": 6,
+      "kind": 4,
+      "candidate": false,
+      "ms": 72.0688,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 6,
+      "kind": 4,
+      "candidate": true,
+      "ms": 70.515,
+      "queries": 6799872,
+      "visible": 30720
+    },
+    {
+      "pair": 6,
+      "kind": 5,
+      "candidate": false,
+      "ms": 147.281,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 6,
+      "kind": 5,
+      "candidate": true,
+      "ms": 130.963,
+      "queries": 10886144,
+      "visible": 262144
+    },
+    {
+      "pair": 6,
+      "kind": 6,
+      "candidate": false,
+      "ms": 48.1921,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 6,
+      "kind": 6,
+      "candidate": true,
+      "ms": 44.6784,
+      "queries": 3908096,
+      "visible": 39936
+    },
+    {
+      "pair": 6,
+      "kind": 7,
+      "candidate": false,
+      "ms": 45.1663,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 6,
+      "kind": 7,
+      "candidate": true,
+      "ms": 41.8924,
+      "queries": 3459072,
+      "visible": 25600
+    },
+    {
+      "pair": 6,
+      "kind": 8,
+      "candidate": false,
+      "ms": 110.454,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 6,
+      "kind": 8,
+      "candidate": true,
+      "ms": 102.2,
+      "queries": 9839616,
+      "visible": 262144
+    },
+    {
+      "pair": 6,
+      "kind": 9,
+      "candidate": false,
+      "ms": 48.1096,
+      "queries": 3343872,
+      "visible": 29184
+    },
+    {
+      "pair": 6,
+      "kind": 9,
+      "candidate": true,
+      "ms": 41.1723,
+      "queries": 3343872,
+      "visible": 29184
+    }
+  ],
+  "observations": "Pure geometry-cache-hit ray helper: down_stairs paired ratio0.90703, up_glass0.94101, opaque_floor0.92709. The important up_stairs control regresses0.8626percent (46.3077->46.5745ms independent medians). XYZ-tie independent median also regresses. This candidate does not establish reduction of the reported ascent freeze. All10controls and140raw timings are retained.",
+  "rejected_query_reuse": [
+    {
+      "variant": "night-stair-rays104",
+      "candidate_sha256": "b6f1e413f6f3d5fcc7041bce665356a3541825dc921b2606ec5391389a7bc5c1",
+      "correctness": {
+        "checks": 1256049,
+        "rays": 327680,
+        "original_queries": 8480344,
+        "candidate_queries": 8207341
+      },
+      "comparisons": [
+        {
+          "workload": "up_open",
+          "before_ms": 31.9433,
+          "after_ms": 31.0763,
+          "paired_ratio": 1.0257799011376267,
+          "before_queries": 2721536,
+          "after_queries": 2590592
+        },
+        {
+          "workload": "down_open",
+          "before_ms": 33.9431,
+          "after_ms": 32.4089,
+          "paired_ratio": 0.9632825544588923,
+          "before_queries": 2721536,
+          "after_queries": 2721536
+        },
+        {
+          "workload": "up_stairs",
+          "before_ms": 11.6899,
+          "after_ms": 12.0521,
+          "paired_ratio": 1.0269749362270721,
+          "before_queries": 893696,
+          "after_queries": 888064
+        },
+        {
+          "workload": "down_stairs",
+          "before_ms": 11.6985,
+          "after_ms": 11.092,
+          "paired_ratio": 1.0032107809885589,
+          "before_queries": 866304,
+          "after_queries": 866304
+        },
+        {
+          "workload": "xyz_ties",
+          "before_ms": 15.3334,
+          "after_ms": 15.071,
+          "paired_ratio": 0.9766001017386882,
+          "before_queries": 1699968,
+          "after_queries": 1449344
+        },
+        {
+          "workload": "up_glass",
+          "before_ms": 29.7859,
+          "after_ms": 32.6784,
+          "paired_ratio": 1.061998131980749,
+          "before_queries": 2721536,
+          "after_queries": 2590592
+        },
+        {
+          "workload": "opaque_floor",
+          "before_ms": 12.021,
+          "after_ms": 11.9583,
+          "paired_ratio": 1.007353797521005,
+          "before_queries": 977024,
+          "after_queries": 977024
+        },
+        {
+          "workload": "unknown",
+          "before_ms": 9.8319,
+          "after_ms": 10.9057,
+          "paired_ratio": 1.0737875703508561,
+          "before_queries": 864768,
+          "after_queries": 851584
+        },
+        {
+          "workload": "horizontal",
+          "before_ms": 24.4397,
+          "after_ms": 23.9928,
+          "paired_ratio": 0.9693582624755646,
+          "before_queries": 2459904,
+          "after_queries": 2459904
+        },
+        {
+          "workload": "mixed",
+          "before_ms": 10.6538,
+          "after_ms": 10.9645,
+          "paired_ratio": 1.1009582441677823,
+          "before_queries": 835968,
+          "after_queries": 822016
+        }
+      ],
+      "raw_lanes": [
+        {
+          "pair": 0,
+          "kind": 0,
+          "candidate": false,
+          "ms": 28.939,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 0,
+          "kind": 0,
+          "candidate": true,
+          "ms": 30.1141,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 0,
+          "kind": 1,
+          "candidate": false,
+          "ms": 31.0169,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 0,
+          "kind": 1,
+          "candidate": true,
+          "ms": 34.8251,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 0,
+          "kind": 2,
+          "candidate": false,
+          "ms": 11.6899,
+          "queries": 893696,
+          "visible": 1664
+        },
+        {
+          "pair": 0,
+          "kind": 2,
+          "candidate": true,
+          "ms": 11.3362,
+          "queries": 888064,
+          "visible": 1664
+        },
+        {
+          "pair": 0,
+          "kind": 3,
+          "candidate": false,
+          "ms": 11.0565,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 0,
+          "kind": 3,
+          "candidate": true,
+          "ms": 11.092,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 0,
+          "kind": 4,
+          "candidate": false,
+          "ms": 14.53,
+          "queries": 1699968,
+          "visible": 7680
+        },
+        {
+          "pair": 0,
+          "kind": 4,
+          "candidate": true,
+          "ms": 16.8247,
+          "queries": 1449344,
+          "visible": 7680
+        },
+        {
+          "pair": 0,
+          "kind": 5,
+          "candidate": false,
+          "ms": 33.8759,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 0,
+          "kind": 5,
+          "candidate": true,
+          "ms": 30.1874,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 0,
+          "kind": 6,
+          "candidate": false,
+          "ms": 10.4419,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 0,
+          "kind": 6,
+          "candidate": true,
+          "ms": 10.9158,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 0,
+          "kind": 7,
+          "candidate": false,
+          "ms": 9.6153,
+          "queries": 864768,
+          "visible": 6400
+        },
+        {
+          "pair": 0,
+          "kind": 7,
+          "candidate": true,
+          "ms": 9.9134,
+          "queries": 851584,
+          "visible": 6400
+        },
+        {
+          "pair": 0,
+          "kind": 8,
+          "candidate": false,
+          "ms": 24.4397,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 0,
+          "kind": 8,
+          "candidate": true,
+          "ms": 23.3128,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 0,
+          "kind": 9,
+          "candidate": false,
+          "ms": 9.0692,
+          "queries": 835968,
+          "visible": 7296
+        },
+        {
+          "pair": 0,
+          "kind": 9,
+          "candidate": true,
+          "ms": 10.1814,
+          "queries": 822016,
+          "visible": 7296
+        },
+        {
+          "pair": 1,
+          "kind": 0,
+          "candidate": true,
+          "ms": 29.7884,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 1,
+          "kind": 0,
+          "candidate": false,
+          "ms": 31.3677,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 1,
+          "kind": 1,
+          "candidate": true,
+          "ms": 29.8843,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 1,
+          "kind": 1,
+          "candidate": false,
+          "ms": 31.0234,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 1,
+          "kind": 2,
+          "candidate": true,
+          "ms": 13.4231,
+          "queries": 888064,
+          "visible": 1664
+        },
+        {
+          "pair": 1,
+          "kind": 2,
+          "candidate": false,
+          "ms": 10.2661,
+          "queries": 893696,
+          "visible": 1664
+        },
+        {
+          "pair": 1,
+          "kind": 3,
+          "candidate": true,
+          "ms": 10.3448,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 1,
+          "kind": 3,
+          "candidate": false,
+          "ms": 10.5466,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 1,
+          "kind": 4,
+          "candidate": true,
+          "ms": 14.6595,
+          "queries": 1449344,
+          "visible": 7680
+        },
+        {
+          "pair": 1,
+          "kind": 4,
+          "candidate": false,
+          "ms": 16.1225,
+          "queries": 1699968,
+          "visible": 7680
+        },
+        {
+          "pair": 1,
+          "kind": 5,
+          "candidate": true,
+          "ms": 35.3138,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 1,
+          "kind": 5,
+          "candidate": false,
+          "ms": 28.4278,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 1,
+          "kind": 6,
+          "candidate": true,
+          "ms": 12.9731,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 1,
+          "kind": 6,
+          "candidate": false,
+          "ms": 12.6293,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 1,
+          "kind": 7,
+          "candidate": true,
+          "ms": 12.2075,
+          "queries": 851584,
+          "visible": 6400
+        },
+        {
+          "pair": 1,
+          "kind": 7,
+          "candidate": false,
+          "ms": 11.8278,
+          "queries": 864768,
+          "visible": 6400
+        },
+        {
+          "pair": 1,
+          "kind": 8,
+          "candidate": true,
+          "ms": 24.2484,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 1,
+          "kind": 8,
+          "candidate": false,
+          "ms": 25.0149,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 1,
+          "kind": 9,
+          "candidate": true,
+          "ms": 12.2646,
+          "queries": 822016,
+          "visible": 7296
+        },
+        {
+          "pair": 1,
+          "kind": 9,
+          "candidate": false,
+          "ms": 10.7411,
+          "queries": 835968,
+          "visible": 7296
+        },
+        {
+          "pair": 2,
+          "kind": 0,
+          "candidate": false,
+          "ms": 31.0344,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 2,
+          "kind": 0,
+          "candidate": true,
+          "ms": 29.7913,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 2,
+          "kind": 1,
+          "candidate": false,
+          "ms": 33.9431,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 2,
+          "kind": 1,
+          "candidate": true,
+          "ms": 31.1151,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 2,
+          "kind": 2,
+          "candidate": false,
+          "ms": 12.3292,
+          "queries": 893696,
+          "visible": 1664
+        },
+        {
+          "pair": 2,
+          "kind": 2,
+          "candidate": true,
+          "ms": 11.3974,
+          "queries": 888064,
+          "visible": 1664
+        },
+        {
+          "pair": 2,
+          "kind": 3,
+          "candidate": false,
+          "ms": 12.928,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 2,
+          "kind": 3,
+          "candidate": true,
+          "ms": 14.3841,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 2,
+          "kind": 4,
+          "candidate": false,
+          "ms": 17.5063,
+          "queries": 1699968,
+          "visible": 7680
+        },
+        {
+          "pair": 2,
+          "kind": 4,
+          "candidate": true,
+          "ms": 15.1681,
+          "queries": 1449344,
+          "visible": 7680
+        },
+        {
+          "pair": 2,
+          "kind": 5,
+          "candidate": false,
+          "ms": 29.2982,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 2,
+          "kind": 5,
+          "candidate": true,
+          "ms": 33.0782,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 2,
+          "kind": 6,
+          "candidate": false,
+          "ms": 12.1293,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 2,
+          "kind": 6,
+          "candidate": true,
+          "ms": 11.4444,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 2,
+          "kind": 7,
+          "candidate": false,
+          "ms": 9.4762,
+          "queries": 864768,
+          "visible": 6400
+        },
+        {
+          "pair": 2,
+          "kind": 7,
+          "candidate": true,
+          "ms": 10.8922,
+          "queries": 851584,
+          "visible": 6400
+        },
+        {
+          "pair": 2,
+          "kind": 8,
+          "candidate": false,
+          "ms": 24.0523,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 2,
+          "kind": 8,
+          "candidate": true,
+          "ms": 23.9928,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 2,
+          "kind": 9,
+          "candidate": false,
+          "ms": 10.6538,
+          "queries": 835968,
+          "visible": 7296
+        },
+        {
+          "pair": 2,
+          "kind": 9,
+          "candidate": true,
+          "ms": 12.0652,
+          "queries": 822016,
+          "visible": 7296
+        },
+        {
+          "pair": 3,
+          "kind": 0,
+          "candidate": true,
+          "ms": 33.6125,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 3,
+          "kind": 0,
+          "candidate": false,
+          "ms": 31.9433,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 3,
+          "kind": 1,
+          "candidate": true,
+          "ms": 36.2966,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 3,
+          "kind": 1,
+          "candidate": false,
+          "ms": 35.5024,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 3,
+          "kind": 2,
+          "candidate": true,
+          "ms": 12.2703,
+          "queries": 888064,
+          "visible": 1664
+        },
+        {
+          "pair": 3,
+          "kind": 2,
+          "candidate": false,
+          "ms": 13.3096,
+          "queries": 893696,
+          "visible": 1664
+        },
+        {
+          "pair": 3,
+          "kind": 3,
+          "candidate": true,
+          "ms": 10.9477,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 3,
+          "kind": 3,
+          "candidate": false,
+          "ms": 10.1697,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 3,
+          "kind": 4,
+          "candidate": true,
+          "ms": 14.9746,
+          "queries": 1449344,
+          "visible": 7680
+        },
+        {
+          "pair": 3,
+          "kind": 4,
+          "candidate": false,
+          "ms": 15.3334,
+          "queries": 1699968,
+          "visible": 7680
+        },
+        {
+          "pair": 3,
+          "kind": 5,
+          "candidate": true,
+          "ms": 29.8245,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 3,
+          "kind": 5,
+          "candidate": false,
+          "ms": 29.7859,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 3,
+          "kind": 6,
+          "candidate": true,
+          "ms": 10.9027,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 3,
+          "kind": 6,
+          "candidate": false,
+          "ms": 11.6683,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 3,
+          "kind": 7,
+          "candidate": true,
+          "ms": 10.9057,
+          "queries": 851584,
+          "visible": 6400
+        },
+        {
+          "pair": 3,
+          "kind": 7,
+          "candidate": false,
+          "ms": 9.4099,
+          "queries": 864768,
+          "visible": 6400
+        },
+        {
+          "pair": 3,
+          "kind": 8,
+          "candidate": true,
+          "ms": 24.6742,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 3,
+          "kind": 8,
+          "candidate": false,
+          "ms": 24.2678,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 3,
+          "kind": 9,
+          "candidate": true,
+          "ms": 12.0269,
+          "queries": 822016,
+          "visible": 7296
+        },
+        {
+          "pair": 3,
+          "kind": 9,
+          "candidate": false,
+          "ms": 12.512,
+          "queries": 835968,
+          "visible": 7296
+        },
+        {
+          "pair": 4,
+          "kind": 0,
+          "candidate": false,
+          "ms": 32.9206,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 4,
+          "kind": 0,
+          "candidate": true,
+          "ms": 35.4446,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 4,
+          "kind": 1,
+          "candidate": false,
+          "ms": 34.408,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 4,
+          "kind": 1,
+          "candidate": true,
+          "ms": 32.4089,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 4,
+          "kind": 2,
+          "candidate": false,
+          "ms": 10.4395,
+          "queries": 893696,
+          "visible": 1664
+        },
+        {
+          "pair": 4,
+          "kind": 2,
+          "candidate": true,
+          "ms": 11.5124,
+          "queries": 888064,
+          "visible": 1664
+        },
+        {
+          "pair": 4,
+          "kind": 3,
+          "candidate": false,
+          "ms": 11.6985,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 4,
+          "kind": 3,
+          "candidate": true,
+          "ms": 10.6705,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 4,
+          "kind": 4,
+          "candidate": false,
+          "ms": 15.0468,
+          "queries": 1699968,
+          "visible": 7680
+        },
+        {
+          "pair": 4,
+          "kind": 4,
+          "candidate": true,
+          "ms": 15.071,
+          "queries": 1449344,
+          "visible": 7680
+        },
+        {
+          "pair": 4,
+          "kind": 5,
+          "candidate": false,
+          "ms": 30.8348,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 4,
+          "kind": 5,
+          "candidate": true,
+          "ms": 32.7465,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 4,
+          "kind": 6,
+          "candidate": false,
+          "ms": 11.4729,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 4,
+          "kind": 6,
+          "candidate": true,
+          "ms": 13.3602,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 4,
+          "kind": 7,
+          "candidate": false,
+          "ms": 9.8319,
+          "queries": 864768,
+          "visible": 6400
+        },
+        {
+          "pair": 4,
+          "kind": 7,
+          "candidate": true,
+          "ms": 10.8006,
+          "queries": 851584,
+          "visible": 6400
+        },
+        {
+          "pair": 4,
+          "kind": 8,
+          "candidate": false,
+          "ms": 25.6353,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 4,
+          "kind": 8,
+          "candidate": true,
+          "ms": 23.2094,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 4,
+          "kind": 9,
+          "candidate": false,
+          "ms": 9.4861,
+          "queries": 835968,
+          "visible": 7296
+        },
+        {
+          "pair": 4,
+          "kind": 9,
+          "candidate": true,
+          "ms": 10.4438,
+          "queries": 822016,
+          "visible": 7296
+        },
+        {
+          "pair": 5,
+          "kind": 0,
+          "candidate": true,
+          "ms": 31.0763,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 5,
+          "kind": 0,
+          "candidate": false,
+          "ms": 32.1398,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 5,
+          "kind": 1,
+          "candidate": true,
+          "ms": 30.3974,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 5,
+          "kind": 1,
+          "candidate": false,
+          "ms": 31.1518,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 5,
+          "kind": 2,
+          "candidate": true,
+          "ms": 12.6816,
+          "queries": 888064,
+          "visible": 1664
+        },
+        {
+          "pair": 5,
+          "kind": 2,
+          "candidate": false,
+          "ms": 12.3485,
+          "queries": 893696,
+          "visible": 1664
+        },
+        {
+          "pair": 5,
+          "kind": 3,
+          "candidate": true,
+          "ms": 11.2872,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 5,
+          "kind": 3,
+          "candidate": false,
+          "ms": 12.0142,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 5,
+          "kind": 4,
+          "candidate": true,
+          "ms": 14.8291,
+          "queries": 1449344,
+          "visible": 7680
+        },
+        {
+          "pair": 5,
+          "kind": 4,
+          "candidate": false,
+          "ms": 14.6987,
+          "queries": 1699968,
+          "visible": 7680
+        },
+        {
+          "pair": 5,
+          "kind": 5,
+          "candidate": true,
+          "ms": 32.2214,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 5,
+          "kind": 5,
+          "candidate": false,
+          "ms": 28.6422,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 5,
+          "kind": 6,
+          "candidate": true,
+          "ms": 12.1094,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 5,
+          "kind": 6,
+          "candidate": false,
+          "ms": 12.021,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 5,
+          "kind": 7,
+          "candidate": true,
+          "ms": 12.2652,
+          "queries": 851584,
+          "visible": 6400
+        },
+        {
+          "pair": 5,
+          "kind": 7,
+          "candidate": false,
+          "ms": 12.0535,
+          "queries": 864768,
+          "visible": 6400
+        },
+        {
+          "pair": 5,
+          "kind": 8,
+          "candidate": true,
+          "ms": 24.6449,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 5,
+          "kind": 8,
+          "candidate": false,
+          "ms": 23.335,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 5,
+          "kind": 9,
+          "candidate": true,
+          "ms": 10.9645,
+          "queries": 822016,
+          "visible": 7296
+        },
+        {
+          "pair": 5,
+          "kind": 9,
+          "candidate": false,
+          "ms": 10.7784,
+          "queries": 835968,
+          "visible": 7296
+        },
+        {
+          "pair": 6,
+          "kind": 0,
+          "candidate": false,
+          "ms": 33.8248,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 6,
+          "kind": 0,
+          "candidate": true,
+          "ms": 34.6968,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 6,
+          "kind": 1,
+          "candidate": false,
+          "ms": 37.3895,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 6,
+          "kind": 1,
+          "candidate": true,
+          "ms": 34.4063,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 6,
+          "kind": 2,
+          "candidate": false,
+          "ms": 11.5649,
+          "queries": 893696,
+          "visible": 1664
+        },
+        {
+          "pair": 6,
+          "kind": 2,
+          "candidate": true,
+          "ms": 12.0521,
+          "queries": 888064,
+          "visible": 1664
+        },
+        {
+          "pair": 6,
+          "kind": 3,
+          "candidate": false,
+          "ms": 12.3627,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 6,
+          "kind": 3,
+          "candidate": true,
+          "ms": 13.3032,
+          "queries": 866304,
+          "visible": 384
+        },
+        {
+          "pair": 6,
+          "kind": 4,
+          "candidate": false,
+          "ms": 19.7391,
+          "queries": 1699968,
+          "visible": 7680
+        },
+        {
+          "pair": 6,
+          "kind": 4,
+          "candidate": true,
+          "ms": 17.8656,
+          "queries": 1449344,
+          "visible": 7680
+        },
+        {
+          "pair": 6,
+          "kind": 5,
+          "candidate": false,
+          "ms": 34.9826,
+          "queries": 2721536,
+          "visible": 65536
+        },
+        {
+          "pair": 6,
+          "kind": 5,
+          "candidate": true,
+          "ms": 32.6784,
+          "queries": 2590592,
+          "visible": 65536
+        },
+        {
+          "pair": 6,
+          "kind": 6,
+          "candidate": false,
+          "ms": 13.1124,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 6,
+          "kind": 6,
+          "candidate": true,
+          "ms": 11.9583,
+          "queries": 977024,
+          "visible": 9984
+        },
+        {
+          "pair": 6,
+          "kind": 7,
+          "candidate": false,
+          "ms": 12.5265,
+          "queries": 864768,
+          "visible": 6400
+        },
+        {
+          "pair": 6,
+          "kind": 7,
+          "candidate": true,
+          "ms": 13.4508,
+          "queries": 851584,
+          "visible": 6400
+        },
+        {
+          "pair": 6,
+          "kind": 8,
+          "candidate": false,
+          "ms": 25.486,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 6,
+          "kind": 8,
+          "candidate": true,
+          "ms": 23.821,
+          "queries": 2459904,
+          "visible": 65536
+        },
+        {
+          "pair": 6,
+          "kind": 9,
+          "candidate": false,
+          "ms": 10.0092,
+          "queries": 835968,
+          "visible": 7296
+        },
+        {
+          "pair": 6,
+          "kind": 9,
+          "candidate": true,
+          "ms": 10.2047,
+          "queries": 822016,
+          "visible": 7296
+        }
+      ],
+      "retained": false
+    },
+    {
+      "variant": "night-stair-rays104-r2",
+      "candidate_sha256": "65e6ac6d66c237b03113f57da913cabcb2cf102ff6b7ec2aa8f0dfd67e167881",
+      "correctness": {
+        "checks": 1256049,
+        "rays": 327680,
+        "original_queries": 8480344,
+        "candidate_queries": 8207341
+      },
+      "comparisons": [
+        {
+          "workload": "up_open",
+          "before_ms": 122.746,
+          "after_ms": 124.895,
+          "paired_ratio": 1.0041757772042021,
+          "before_queries": 10886144,
+          "after_queries": 10362368
+        },
+        {
+          "workload": "down_open",
+          "before_ms": 130.538,
+          "after_ms": 128.76,
+          "paired_ratio": 0.9890374476452964,
+          "before_queries": 10886144,
+          "after_queries": 10886144
+        },
+        {
+          "workload": "up_stairs",
+          "before_ms": 47.3218,
+          "after_ms": 47.2793,
+          "paired_ratio": 0.9521127447394728,
+          "before_queries": 3574784,
+          "after_queries": 3552256
+        },
+        {
+          "workload": "down_stairs",
+          "before_ms": 42.3024,
+          "after_ms": 45.5669,
+          "paired_ratio": 1.0522576539816448,
+          "before_queries": 3465216,
+          "after_queries": 3465216
+        },
+        {
+          "workload": "xyz_ties",
+          "before_ms": 63.4417,
+          "after_ms": 62.0703,
+          "paired_ratio": 0.9732102178276342,
+          "before_queries": 6799872,
+          "after_queries": 5797376
+        },
+        {
+          "workload": "up_glass",
+          "before_ms": 127.375,
+          "after_ms": 123.93,
+          "paired_ratio": 0.9644808317898113,
+          "before_queries": 10886144,
+          "after_queries": 10362368
+        },
+        {
+          "workload": "opaque_floor",
+          "before_ms": 47.4084,
+          "after_ms": 47.29,
+          "paired_ratio": 0.997041975277407,
+          "before_queries": 3908096,
+          "after_queries": 3908096
+        },
+        {
+          "workload": "unknown",
+          "before_ms": 45.3756,
+          "after_ms": 43.1293,
+          "paired_ratio": 0.9864133778884292,
+          "before_queries": 3459072,
+          "after_queries": 3406336
+        },
+        {
+          "workload": "horizontal",
+          "before_ms": 99.8162,
+          "after_ms": 100.116,
+          "paired_ratio": 1.0157045391919413,
+          "before_queries": 9839616,
+          "after_queries": 9839616
+        },
+        {
+          "workload": "mixed",
+          "before_ms": 41.7614,
+          "after_ms": 43.7694,
+          "paired_ratio": 1.0433214051960495,
+          "before_queries": 3343872,
+          "after_queries": 3288064
+        }
+      ],
+      "raw_lanes": [
+        {
+          "pair": 0,
+          "kind": 0,
+          "candidate": false,
+          "ms": 119.867,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 0,
+          "kind": 0,
+          "candidate": true,
+          "ms": 124.895,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 0,
+          "kind": 1,
+          "candidate": false,
+          "ms": 141.266,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 0,
+          "kind": 1,
+          "candidate": true,
+          "ms": 128.76,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 0,
+          "kind": 2,
+          "candidate": false,
+          "ms": 47.659,
+          "queries": 3574784,
+          "visible": 6656
+        },
+        {
+          "pair": 0,
+          "kind": 2,
+          "candidate": true,
+          "ms": 44.6063,
+          "queries": 3552256,
+          "visible": 6656
+        },
+        {
+          "pair": 0,
+          "kind": 3,
+          "candidate": false,
+          "ms": 45.0329,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 0,
+          "kind": 3,
+          "candidate": true,
+          "ms": 45.5669,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 0,
+          "kind": 4,
+          "candidate": false,
+          "ms": 66.4874,
+          "queries": 6799872,
+          "visible": 30720
+        },
+        {
+          "pair": 0,
+          "kind": 4,
+          "candidate": true,
+          "ms": 63.7718,
+          "queries": 5797376,
+          "visible": 30720
+        },
+        {
+          "pair": 0,
+          "kind": 5,
+          "candidate": false,
+          "ms": 127.523,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 0,
+          "kind": 5,
+          "candidate": true,
+          "ms": 121.91,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 0,
+          "kind": 6,
+          "candidate": false,
+          "ms": 52.6477,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 0,
+          "kind": 6,
+          "candidate": true,
+          "ms": 49.3997,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 0,
+          "kind": 7,
+          "candidate": false,
+          "ms": 45.3756,
+          "queries": 3459072,
+          "visible": 25600
+        },
+        {
+          "pair": 0,
+          "kind": 7,
+          "candidate": true,
+          "ms": 50.2284,
+          "queries": 3406336,
+          "visible": 25600
+        },
+        {
+          "pair": 0,
+          "kind": 8,
+          "candidate": false,
+          "ms": 99.8162,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 0,
+          "kind": 8,
+          "candidate": true,
+          "ms": 96.5173,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 0,
+          "kind": 9,
+          "candidate": false,
+          "ms": 41.7614,
+          "queries": 3343872,
+          "visible": 29184
+        },
+        {
+          "pair": 0,
+          "kind": 9,
+          "candidate": true,
+          "ms": 41.1831,
+          "queries": 3288064,
+          "visible": 29184
+        },
+        {
+          "pair": 1,
+          "kind": 0,
+          "candidate": true,
+          "ms": 124.955,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 1,
+          "kind": 0,
+          "candidate": false,
+          "ms": 122.746,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 1,
+          "kind": 1,
+          "candidate": true,
+          "ms": 130.688,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 1,
+          "kind": 1,
+          "candidate": false,
+          "ms": 133.449,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 1,
+          "kind": 2,
+          "candidate": true,
+          "ms": 47.3102,
+          "queries": 3552256,
+          "visible": 6656
+        },
+        {
+          "pair": 1,
+          "kind": 2,
+          "candidate": false,
+          "ms": 47.3218,
+          "queries": 3574784,
+          "visible": 6656
+        },
+        {
+          "pair": 1,
+          "kind": 3,
+          "candidate": true,
+          "ms": 48.1209,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 1,
+          "kind": 3,
+          "candidate": false,
+          "ms": 45.7311,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 1,
+          "kind": 4,
+          "candidate": true,
+          "ms": 58.4638,
+          "queries": 5797376,
+          "visible": 30720
+        },
+        {
+          "pair": 1,
+          "kind": 4,
+          "candidate": false,
+          "ms": 63.4417,
+          "queries": 6799872,
+          "visible": 30720
+        },
+        {
+          "pair": 1,
+          "kind": 5,
+          "candidate": true,
+          "ms": 124.759,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 1,
+          "kind": 5,
+          "candidate": false,
+          "ms": 121.351,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 1,
+          "kind": 6,
+          "candidate": true,
+          "ms": 47.29,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 1,
+          "kind": 6,
+          "candidate": false,
+          "ms": 47.4303,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 1,
+          "kind": 7,
+          "candidate": true,
+          "ms": 43.1293,
+          "queries": 3406336,
+          "visible": 25600
+        },
+        {
+          "pair": 1,
+          "kind": 7,
+          "candidate": false,
+          "ms": 45.8275,
+          "queries": 3459072,
+          "visible": 25600
+        },
+        {
+          "pair": 1,
+          "kind": 8,
+          "candidate": true,
+          "ms": 100.582,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 1,
+          "kind": 8,
+          "candidate": false,
+          "ms": 97.0779,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 1,
+          "kind": 9,
+          "candidate": true,
+          "ms": 43.7694,
+          "queries": 3288064,
+          "visible": 29184
+        },
+        {
+          "pair": 1,
+          "kind": 9,
+          "candidate": false,
+          "ms": 39.0075,
+          "queries": 3343872,
+          "visible": 29184
+        },
+        {
+          "pair": 2,
+          "kind": 0,
+          "candidate": false,
+          "ms": 121.654,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 2,
+          "kind": 0,
+          "candidate": true,
+          "ms": 122.162,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 2,
+          "kind": 1,
+          "candidate": false,
+          "ms": 129.167,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 2,
+          "kind": 1,
+          "candidate": true,
+          "ms": 127.751,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 2,
+          "kind": 2,
+          "candidate": false,
+          "ms": 46.5651,
+          "queries": 3574784,
+          "visible": 6656
+        },
+        {
+          "pair": 2,
+          "kind": 2,
+          "candidate": true,
+          "ms": 42.2711,
+          "queries": 3552256,
+          "visible": 6656
+        },
+        {
+          "pair": 2,
+          "kind": 3,
+          "candidate": false,
+          "ms": 41.0796,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 2,
+          "kind": 3,
+          "candidate": true,
+          "ms": 44.5427,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 2,
+          "kind": 4,
+          "candidate": false,
+          "ms": 64.9688,
+          "queries": 6799872,
+          "visible": 30720
+        },
+        {
+          "pair": 2,
+          "kind": 4,
+          "candidate": true,
+          "ms": 63.2283,
+          "queries": 5797376,
+          "visible": 30720
+        },
+        {
+          "pair": 2,
+          "kind": 5,
+          "candidate": false,
+          "ms": 124.695,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 2,
+          "kind": 5,
+          "candidate": true,
+          "ms": 115.947,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 2,
+          "kind": 6,
+          "candidate": false,
+          "ms": 47.4084,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 2,
+          "kind": 6,
+          "candidate": true,
+          "ms": 43.9519,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 2,
+          "kind": 7,
+          "candidate": false,
+          "ms": 45.9893,
+          "queries": 3459072,
+          "visible": 25600
+        },
+        {
+          "pair": 2,
+          "kind": 7,
+          "candidate": true,
+          "ms": 42.5295,
+          "queries": 3406336,
+          "visible": 25600
+        },
+        {
+          "pair": 2,
+          "kind": 8,
+          "candidate": false,
+          "ms": 100.322,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 2,
+          "kind": 8,
+          "candidate": true,
+          "ms": 100.116,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 2,
+          "kind": 9,
+          "candidate": false,
+          "ms": 41.0088,
+          "queries": 3343872,
+          "visible": 29184
+        },
+        {
+          "pair": 2,
+          "kind": 9,
+          "candidate": true,
+          "ms": 44.4545,
+          "queries": 3288064,
+          "visible": 29184
+        },
+        {
+          "pair": 3,
+          "kind": 0,
+          "candidate": true,
+          "ms": 127.982,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 3,
+          "kind": 0,
+          "candidate": false,
+          "ms": 131.334,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 3,
+          "kind": 1,
+          "candidate": true,
+          "ms": 127.878,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 3,
+          "kind": 1,
+          "candidate": false,
+          "ms": 126.034,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 3,
+          "kind": 2,
+          "candidate": true,
+          "ms": 48.8024,
+          "queries": 3552256,
+          "visible": 6656
+        },
+        {
+          "pair": 3,
+          "kind": 2,
+          "candidate": false,
+          "ms": 47.1569,
+          "queries": 3574784,
+          "visible": 6656
+        },
+        {
+          "pair": 3,
+          "kind": 3,
+          "candidate": true,
+          "ms": 43.8119,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 3,
+          "kind": 3,
+          "candidate": false,
+          "ms": 41.6602,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 3,
+          "kind": 4,
+          "candidate": true,
+          "ms": 62.0703,
+          "queries": 5797376,
+          "visible": 30720
+        },
+        {
+          "pair": 3,
+          "kind": 4,
+          "candidate": false,
+          "ms": 62.2175,
+          "queries": 6799872,
+          "visible": 30720
+        },
+        {
+          "pair": 3,
+          "kind": 5,
+          "candidate": true,
+          "ms": 124.653,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 3,
+          "kind": 5,
+          "candidate": false,
+          "ms": 128.963,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 3,
+          "kind": 6,
+          "candidate": true,
+          "ms": 46.565,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 3,
+          "kind": 6,
+          "candidate": false,
+          "ms": 48.4551,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 3,
+          "kind": 7,
+          "candidate": true,
+          "ms": 46.4097,
+          "queries": 3406336,
+          "visible": 25600
+        },
+        {
+          "pair": 3,
+          "kind": 7,
+          "candidate": false,
+          "ms": 40.9995,
+          "queries": 3459072,
+          "visible": 25600
+        },
+        {
+          "pair": 3,
+          "kind": 8,
+          "candidate": true,
+          "ms": 105.163,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 3,
+          "kind": 8,
+          "candidate": false,
+          "ms": 101.113,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 3,
+          "kind": 9,
+          "candidate": true,
+          "ms": 40.5427,
+          "queries": 3288064,
+          "visible": 29184
+        },
+        {
+          "pair": 3,
+          "kind": 9,
+          "candidate": false,
+          "ms": 45.9077,
+          "queries": 3343872,
+          "visible": 29184
+        },
+        {
+          "pair": 4,
+          "kind": 0,
+          "candidate": false,
+          "ms": 124.188,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 4,
+          "kind": 0,
+          "candidate": true,
+          "ms": 118.609,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 4,
+          "kind": 1,
+          "candidate": false,
+          "ms": 130.538,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 4,
+          "kind": 1,
+          "candidate": true,
+          "ms": 136.885,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 4,
+          "kind": 2,
+          "candidate": false,
+          "ms": 51.212,
+          "queries": 3574784,
+          "visible": 6656
+        },
+        {
+          "pair": 4,
+          "kind": 2,
+          "candidate": true,
+          "ms": 47.2793,
+          "queries": 3552256,
+          "visible": 6656
+        },
+        {
+          "pair": 4,
+          "kind": 3,
+          "candidate": false,
+          "ms": 40.6729,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 4,
+          "kind": 3,
+          "candidate": true,
+          "ms": 47.5519,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 4,
+          "kind": 4,
+          "candidate": false,
+          "ms": 60.587,
+          "queries": 6799872,
+          "visible": 30720
+        },
+        {
+          "pair": 4,
+          "kind": 4,
+          "candidate": true,
+          "ms": 60.6884,
+          "queries": 5797376,
+          "visible": 30720
+        },
+        {
+          "pair": 4,
+          "kind": 5,
+          "candidate": false,
+          "ms": 126.644,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 4,
+          "kind": 5,
+          "candidate": true,
+          "ms": 129.189,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 4,
+          "kind": 6,
+          "candidate": false,
+          "ms": 43.0329,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 4,
+          "kind": 6,
+          "candidate": true,
+          "ms": 51.6305,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 4,
+          "kind": 7,
+          "candidate": false,
+          "ms": 44.3873,
+          "queries": 3459072,
+          "visible": 25600
+        },
+        {
+          "pair": 4,
+          "kind": 7,
+          "candidate": true,
+          "ms": 50.8205,
+          "queries": 3406336,
+          "visible": 25600
+        },
+        {
+          "pair": 4,
+          "kind": 8,
+          "candidate": false,
+          "ms": 101.197,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 4,
+          "kind": 8,
+          "candidate": true,
+          "ms": 104.072,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 4,
+          "kind": 9,
+          "candidate": false,
+          "ms": 44.4607,
+          "queries": 3343872,
+          "visible": 29184
+        },
+        {
+          "pair": 4,
+          "kind": 9,
+          "candidate": true,
+          "ms": 46.3868,
+          "queries": 3288064,
+          "visible": 29184
+        },
+        {
+          "pair": 5,
+          "kind": 0,
+          "candidate": true,
+          "ms": 134.75,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 5,
+          "kind": 0,
+          "candidate": false,
+          "ms": 120.953,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 5,
+          "kind": 1,
+          "candidate": true,
+          "ms": 130.914,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 5,
+          "kind": 1,
+          "candidate": false,
+          "ms": 132.197,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 5,
+          "kind": 2,
+          "candidate": true,
+          "ms": 46.8588,
+          "queries": 3552256,
+          "visible": 6656
+        },
+        {
+          "pair": 5,
+          "kind": 2,
+          "candidate": false,
+          "ms": 49.2156,
+          "queries": 3574784,
+          "visible": 6656
+        },
+        {
+          "pair": 5,
+          "kind": 3,
+          "candidate": true,
+          "ms": 49.235,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 5,
+          "kind": 3,
+          "candidate": false,
+          "ms": 42.3024,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 5,
+          "kind": 4,
+          "candidate": true,
+          "ms": 65.231,
+          "queries": 5797376,
+          "visible": 30720
+        },
+        {
+          "pair": 5,
+          "kind": 4,
+          "candidate": false,
+          "ms": 60.4385,
+          "queries": 6799872,
+          "visible": 30720
+        },
+        {
+          "pair": 5,
+          "kind": 5,
+          "candidate": true,
+          "ms": 123.93,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 5,
+          "kind": 5,
+          "candidate": false,
+          "ms": 128.494,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 5,
+          "kind": 6,
+          "candidate": true,
+          "ms": 49.0109,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 5,
+          "kind": 6,
+          "candidate": false,
+          "ms": 46.1344,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 5,
+          "kind": 7,
+          "candidate": true,
+          "ms": 41.6807,
+          "queries": 3406336,
+          "visible": 25600
+        },
+        {
+          "pair": 5,
+          "kind": 7,
+          "candidate": false,
+          "ms": 42.2548,
+          "queries": 3459072,
+          "visible": 25600
+        },
+        {
+          "pair": 5,
+          "kind": 8,
+          "candidate": true,
+          "ms": 98.088,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 5,
+          "kind": 8,
+          "candidate": false,
+          "ms": 98.5431,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 5,
+          "kind": 9,
+          "candidate": true,
+          "ms": 39.1368,
+          "queries": 3288064,
+          "visible": 29184
+        },
+        {
+          "pair": 5,
+          "kind": 9,
+          "candidate": false,
+          "ms": 41.8396,
+          "queries": 3343872,
+          "visible": 29184
+        },
+        {
+          "pair": 6,
+          "kind": 0,
+          "candidate": false,
+          "ms": 131.117,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 6,
+          "kind": 0,
+          "candidate": true,
+          "ms": 124.117,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 6,
+          "kind": 1,
+          "candidate": false,
+          "ms": 129.552,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 6,
+          "kind": 1,
+          "candidate": true,
+          "ms": 125.251,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 6,
+          "kind": 2,
+          "candidate": false,
+          "ms": 45.3301,
+          "queries": 3574784,
+          "visible": 6656
+        },
+        {
+          "pair": 6,
+          "kind": 2,
+          "candidate": true,
+          "ms": 47.6275,
+          "queries": 3552256,
+          "visible": 6656
+        },
+        {
+          "pair": 6,
+          "kind": 3,
+          "candidate": false,
+          "ms": 49.6689,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 6,
+          "kind": 3,
+          "candidate": true,
+          "ms": 41.0057,
+          "queries": 3465216,
+          "visible": 1536
+        },
+        {
+          "pair": 6,
+          "kind": 4,
+          "candidate": false,
+          "ms": 67.1806,
+          "queries": 6799872,
+          "visible": 30720
+        },
+        {
+          "pair": 6,
+          "kind": 4,
+          "candidate": true,
+          "ms": 59.0126,
+          "queries": 5797376,
+          "visible": 30720
+        },
+        {
+          "pair": 6,
+          "kind": 5,
+          "candidate": false,
+          "ms": 127.375,
+          "queries": 10886144,
+          "visible": 262144
+        },
+        {
+          "pair": 6,
+          "kind": 5,
+          "candidate": true,
+          "ms": 114.75,
+          "queries": 10362368,
+          "visible": 262144
+        },
+        {
+          "pair": 6,
+          "kind": 6,
+          "candidate": false,
+          "ms": 44.6822,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 6,
+          "kind": 6,
+          "candidate": true,
+          "ms": 44.9371,
+          "queries": 3908096,
+          "visible": 39936
+        },
+        {
+          "pair": 6,
+          "kind": 7,
+          "candidate": false,
+          "ms": 45.9828,
+          "queries": 3459072,
+          "visible": 25600
+        },
+        {
+          "pair": 6,
+          "kind": 7,
+          "candidate": true,
+          "ms": 40.6401,
+          "queries": 3406336,
+          "visible": 25600
+        },
+        {
+          "pair": 6,
+          "kind": 8,
+          "candidate": false,
+          "ms": 96.5326,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 6,
+          "kind": 8,
+          "candidate": true,
+          "ms": 98.0486,
+          "queries": 9839616,
+          "visible": 262144
+        },
+        {
+          "pair": 6,
+          "kind": 9,
+          "candidate": false,
+          "ms": 41.4919,
+          "queries": 3343872,
+          "visible": 29184
+        },
+        {
+          "pair": 6,
+          "kind": 9,
+          "candidate": true,
+          "ms": 43.9153,
+          "queries": 3288064,
+          "visible": 29184
+        }
+      ],
+      "retained": false
+    }
+  ],
+  "rejected_reason": "Both fewer-query variants preserve visibility and ordered-query subsequences but fail the unchanged timing guard. First variant up_glass/unknown/mixed regress6.20/7.38/10.10percent paired; second down_stairs/mixed regress5.23/4.33percent. Neither was promoted and no failed source was rerun until pass.",
+  "observed_stair_baseline": [
+    {
+      "pin": "1040",
+      "artifact": 12834495973,
+      "source": "b9f4ee984746511c82080987b969ea7bdf7f9fb6",
+      "runtime": "79f5191b58341fbe09f6763f19d93765ef344da8",
+      "run": 40718418978,
+      "all_case_gpus_software": true,
+      "stage": {
+        "samples": 4,
+        "median": 142.3187,
+        "p95": 181.49644,
+        "p99": 186.124168,
+        "max": 187.2811
+      },
+      "primary_json_sha256": "442c05e5add651c7af393affeae44bc25c2f90a15e6337095970f2ff1f5cb655",
+      "limit": "Four controlled CI transitions, vertical_move plus first render/present combined. Not ordinary RTX timing, not a paired104 comparison."
+    },
+    {
+      "pin": "1807",
+      "artifact": 12836902141,
+      "source": "b9f4ee984746511c82080987b969ea7bdf7f9fb6",
+      "runtime": "79f5191b58341fbe09f6763f19d93765ef344da8",
+      "run": 40718418978,
+      "all_case_gpus_software": true,
+      "stage": {
+        "samples": 4,
+        "median": 152.5411,
+        "p95": 184.74423,
+        "p99": 188.190366,
+        "max": 189.0519
+      },
+      "primary_json_sha256": "3a8bffbeba982cc96f9a9d7f67cc02b6edd0ee84e38dba130e8c205633eb99b3",
+      "limit": "Four controlled CI transitions, vertical_move plus first render/present combined. Not ordinary RTX timing, not a paired104 comparison."
+    }
+  ],
+  "stair_attribution": {
+    "schema": 1,
+    "transitions": 4,
+    "ordered_delta": [
+      1,
+      -1,
+      -1,
+      1
+    ],
+    "action": "Real g->vertical_move(delta,false) in one adjacent turn_capture; includes all work and callbacks invoked by vertical_move.",
+    "first_frame": "Existing explicit render()/SDL-present in a separate turn_capture. Setup and subsequent camera easing settle excluded.",
+    "frame_stages": [
+      "full_frame_wall_ms",
+      "native_cache_cpu_ms",
+      "native_tiles_cpu_ms",
+      "perspective_callback_wall_ms",
+      "actual_present_wall_ms"
+    ],
+    "guards": "Successful perspective/present, unchanged Native movement cost and state, continuous camera and matching displayed-eye visibility retained. Each frame-stage record must be freshly appended exactly once. Existing26turn schema3 fields are preserved by a shared serializer.",
+    "validator": "Existing callback partition and fresh CPU metric provenance checks reused; additionally enforce4ordered adjacent Zmoves, complete captures, exact wall partitions, perspective callback, five finite fresh contained frame stages, correct return to initial Z.18unit methods include12negative stair cases.",
+    "ordinary_runtime_enabled": false,
+    "gpu_execution_measured": false,
+    "first_correct_present_vs_ordinary_game_unqualified": true,
+    "local_native_compile": false,
+    "native_ci_compile_and_capture_pending": true,
+    "preparation": {
+      "source_parent": "87754db4c2bf2053a4c2722e3d5c5a9c163bceb0",
+      "files": {
+        "experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc": {
+          "original_sha256": "320d8c5468d0342598cba9dd2c9e8aabd86c82b6f9eb889a2dd0a3cdbdf460d8",
+          "candidate": "C:\\Users\\\u0410\u043b\u0435\u043a\u0441\u0435\u0439\u0446\\.codex\\.chatgpt-projects\\g-p-6ab1237d295481919662599e9f24ab61\\fpv-0131-work\\night-stair-attribution104\\candidate-audit.inc",
+          "candidate_sha256": "4bfb0351224447420da57afcb15bb0e52d14a5894f4c3b16e3a41e14fc0ca969"
+        },
+        "experiments/FirstPersonView/tests/verify_turn_attribution.py": {
+          "original_sha256": "79698661ec654c168726c8363e0490937321079c4368aed93c429656f9763391",
+          "candidate": "C:\\Users\\\u0410\u043b\u0435\u043a\u0441\u0435\u0439\u0446\\.codex\\.chatgpt-projects\\g-p-6ab1237d295481919662599e9f24ab61\\fpv-0131-work\\night-stair-attribution104\\candidate-verify.py",
+          "candidate_sha256": "9f8f5282b6061372dcc079236237bd6af59e1edb161ec571f7d4da4518374aed"
+        },
+        "experiments/FirstPersonView/tests/verify_gameplay_audit.py": {
+          "original_sha256": "e2e6be51667e20631465a9d8e8f393d6ef92fe3a69054a71b5e6c86eacac3f06",
+          "candidate": "C:\\Users\\\u0410\u043b\u0435\u043a\u0441\u0435\u0439\u0446\\.codex\\.chatgpt-projects\\g-p-6ab1237d295481919662599e9f24ab61\\fpv-0131-work\\night-stair-attribution104\\candidate-gameplay.py",
+          "candidate_sha256": "c47b7daeba70eebd65f8271dd942bc02089379a88cf364b163b40300b04cdebf"
+        },
+        "experiments/FirstPersonView/tests/test_verify_turn_attribution.py": {
+          "original_sha256": "765bcf1d099b6928be09753ca2be37dc41b99d1cff9cf3b04aec8dc3cac06af5",
+          "candidate": "C:\\Users\\\u0410\u043b\u0435\u043a\u0441\u0435\u0439\u0446\\.codex\\.chatgpt-projects\\g-p-6ab1237d295481919662599e9f24ab61\\fpv-0131-work\\night-stair-attribution104\\candidate-tests.py",
+          "candidate_sha256": "79be1a480791b11a707bf9fe87a74e6d9bb1d1c9c81d3e951daa55d4e5f75e1f"
+        }
+      },
+      "scope": "Diagnostic-only captures around the existing four native vertical_move and successful render/present calls. Existing turn record/callback serializer shared without schema change. No ordinary-input/render behavior or sight/turn cost change; no claimed freeze fix before current-source measurements.",
+      "rejected_ray_models": [
+        "night-stair-rays104/summary.json",
+        "night-stair-rays104-r2/summary.json"
+      ],
+      "local_native": false,
+      "mouse_or_focus": false,
+      "subagents": false
+    }
+  },
+  "baseline_transport_repair": {
+    "failure": "Parent233 Windows1040 full job123108689668 compiled successfully then received410 Artifact expired downloading the original0.13reference Actions artifact12380745602. No gameplay comparison from that failed job is claimed.",
+    "archive": {
+      "success": true,
+      "source": "9e3d6230f7adbd7462de80a665fb69e939cd81f1",
+      "tag": "ncmm-fpv-ci-baseline-v0.13-9e3d6230f7ad",
+      "release": "https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-ci-baseline-v0.13-9e3d6230f7ad",
+      "release_id": 427246622,
+      "downloads": [
+        {
+          "pin": "1040",
+          "asset_id": 686512642,
+          "url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-fpv-ci-baseline-v0.13-9e3d6230f7ad/NCMM_FirstPersonView_0.13.0_TEST_1040_Windows_x64.zip",
+          "bytes": 22029995,
+          "sha256": "444c4976616a73cc80418d8fe7ca0800e69f5d71bf10672fa53d02724e19fdbb",
+          "anonymous_head_status": 200,
+          "body_bytes_read": 0
+        },
+        {
+          "pin": "1807",
+          "asset_id": 686512902,
+          "url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-fpv-ci-baseline-v0.13-9e3d6230f7ad/NCMM_FirstPersonView_0.13.0_TEST_1807_Windows_x64.zip",
+          "bytes": 22105371,
+          "sha256": "2250c50307df5456644fe13acf4cb79cc8c7df4245b1a07de68422dd050eb211",
+          "anonymous_head_status": 200,
+          "body_bytes_read": 0
+        }
+      ],
+      "original_installer_sha256_pins_unchanged": true,
+      "local_game_started": false,
+      "rebuilt": false
+    },
+    "source": {
+      "success": true,
+      "path": ".github/workflows/ncmm-first-person-prototype.yml",
+      "original_sha256": "73537541d911bd12b9e25dda51fe4e46ed1212958284afb998fa4a96bbe1e264",
+      "candidate_sha256": "fdb06f2e439bc67577df01c04de0e1812b330c8a21a0bbd765447de816f0110a",
+      "baseline_source_unchanged": "9e3d6230f7adbd7462de80a665fb69e939cd81f1",
+      "original_installer_pins_unchanged": true,
+      "all35_payload_files_still_verified": true,
+      "provenance": "artifact_sha256 now describes the actual downloaded release asset; expired Actions container SHA retained separately. No invented verification of an unobserved outer ZIP.",
+      "source_full_tier_gates_unchanged": true,
+      "local_native": false,
+      "mouse_or_focus": false,
+      "subagents": false
+    },
+    "baseline_engine_pins_and35payload_hashes_unchanged": true,
+    "provenance": "Download the exact original inner installer ZIP from the public archival prerelease; hash it against the old immutable installer pin. Preserve expired outer Actions hash only as historical metadata. This archival reference is not a new game version.",
+    "user_explicitly_approved_publication": true
+  },
+  "previous_release": {
+    "source": "b81e22d6ab8b33e33308f2198aa3c850e368a08e",
+    "main": "69a121e73407458ceb3a9bdd37a5e67ae4004390",
+    "full_run": 40725731505,
+    "all8_jobs_passed": true,
+    "release": "https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-b81e22d6ab8b",
+    "later229_to_104_not_included": true
+  },
+  "local_tests": {
+    "source_parent": "87754db4c2bf2053a4c2722e3d5c5a9c163bceb0",
+    "branch": "codex/fpv-stair-ray-scalar-20261029",
+    "files": {
+      "experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc": "4bfb0351224447420da57afcb15bb0e52d14a5894f4c3b16e3a41e14fc0ca969",
+      "experiments/FirstPersonView/tests/verify_turn_attribution.py": "9f8f5282b6061372dcc079236237bd6af59e1edb161ec571f7d4da4518374aed",
+      "experiments/FirstPersonView/tests/verify_gameplay_audit.py": "c47b7daeba70eebd65f8271dd942bc02089379a88cf364b163b40300b04cdebf",
+      "experiments/FirstPersonView/tests/test_verify_turn_attribution.py": "79be1a480791b11a707bf9fe87a74e6d9bb1d1c9c81d3e951daa55d4e5f75e1f",
+      "experiments/graphics_bridge/ncmm_world_policy.hpp": "a27452c292bd18a10408aa29cb7e452e9406c46a17c777c65607df35d11aa1cf"
+    },
+    "originals": {
+      "experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc": "320d8c5468d0342598cba9dd2c9e8aabd86c82b6f9eb889a2dd0a3cdbdf460d8",
+      "experiments/FirstPersonView/tests/verify_turn_attribution.py": "79698661ec654c168726c8363e0490937321079c4368aed93c429656f9763391",
+      "experiments/FirstPersonView/tests/verify_gameplay_audit.py": "e2e6be51667e20631465a9d8e8f393d6ef92fe3a69054a71b5e6c86eacac3f06",
+      "experiments/FirstPersonView/tests/test_verify_turn_attribution.py": "765bcf1d099b6928be09753ca2be37dc41b99d1cff9cf3b04aec8dc3cac06af5",
+      "experiments/graphics_bridge/ncmm_world_policy.hpp": "aed2225bc825faa5fb8165d930e0f0979a0e75b66230a77724b82d0a8abb91ab"
+    },
+    "change": "Unroll the three fixed axes in the general multi-storey DDA. Preserve all math/query order/slab/corner guards and the horizontal fast path. Add diagnostic-only adjacent captures for four real stair moves and their first successful frame/present, preserving existing26turn attribution schema.",
+    "copied_native_inputs_unchanged_count": 106,
+    "abi_unchanged": true,
+    "production_native_query_sequence_unchanged": true,
+    "no_persistent_cache_or_pool": true,
+    "ordinary_runtime_diagnostics_disabled": true,
+    "stair_freeze_elimination_not_yet_proven": true,
+    "local_native": false,
+    "local_device": false,
+    "mouse_or_focus": false,
+    "subagents": false,
+    "success": true,
+    "full_release_build": true,
+    "non_device_tests": 51,
+    "atomic_source_transform_tests": 96,
+    "attribution_validator_tests": 18,
+    "independent_ray_checks": 4128774,
+    "independent_rays": 1376256,
+    "negative_controls": 2,
+    "local_build_limit": "The module and shared header tests compile locally. Native-only audit include must compile/run in exact-source CI; no local Native game/input harness is allowed.",
+    "device_repeat_reason": "Only CPU visibility math and opt-in Native audit/validator change; all GPU/SDL/shader/device and asset code is unchanged. Exact1.37M visibility/query guards cover the changed CPU policy; device execution cannot qualify Native stair-action latency."
+  },
+  "published_installers_include_this_change": false,
+  "remote_full_qualification_pending": true,
+  "limits": [
+    "Pure helper timings are not complete frame, Native game latency, GPU execution or ordinary RTX4090 FPS measurements.",
+    "Background games remain running. No local Native/input/device run, mouse/focus, new worktree/full-copy or subagent.",
+    "Storey interpolation already uses the displayed eye for visibility and cache rebasing. No unsafe reuse across floors or altered CDDA movement cost.",
+    "The stair freeze is not yet established fixed. The new action/first-frame attribution must identify its dominating phase in exact current-source Native CI before a causal remedy is claimed."
+  ],
+  "evidence_sha256": {
+    "night-stage104-source-identity.json": "53bbe8bc035735f5d16fa863bb644b5f41d9b8dbd4717410ec30c8c574188a36",
+    "night-stage104-build-test-summary.json": "d41d3766b1784425badf63bd796784496900f4fc172a6c3e70b173e2cf34f16c",
+    "night-stage104-release-build.txt": "4a738b61565f9555e49ef3b901c6ecf9b09c9e5c568791ed9ce7e4a02714e77a",
+    "night-stage104-tests.txt": "8910c4010ab757cebf0fa7993002da0e36c1f9b9dc138bcb8f813a117f3486de",
+    "night-stage104-test-inventory.json": "aa49ff625dcb6c8868e4d44c3ede9a2d038abfee078c76b4e651e20b60b09f3c",
+    "night-stage104-atomic-transform-tests.txt": "cd2b3f9b691e4e25fcdf6b52b25513af8580532f093d190da84709bbfec65722",
+    "night-stage104-stair-attribution-tests.txt": "602e4f70685ad933bf9e342a93eefd7619084f36ee87aa1add54e2e54b7dcac4",
+    "night-stair-rays104-r3/summary.json": "1eccb4f57316584ddc6d7f59afc5011f8707b23a50aa103bd32cdfc004705761",
+    "night-stair-rays104-r3/protocol.json": "ac315e16046522502965bdef2388f33893f5d561d3dc3ea07ecc254262c8e2b8",
+    "night-stair-rays104-r3/driver.cpp": "aea34e33fa1fe59f516a4a026e8b2ec6ecc1acdc69f96ab0dbb3356711f1599b",
+    "night-stair-rays104-guards/summary.json": "171c3bdb1935f96992153d08066361a7cc04bc9654ac4bc6dcfc4ab8dcec0763",
+    "night-stair-rays104-guards/driver.cpp": "ce3a30b4d0128068d8ba6f5b39988194ac328e27dc214320b19abdaafe36ac8f",
+    "night-stair-attribution104/source-identity.json": "aaf31d4362631da7c976c033ae05af7f5e717f18b772a89e6e021863c48998aa",
+    "night-stair-rays104/summary.json": "3c290f04650828a537d2edef38083894af52357de3a7cf6593775d3ec27824b6",
+    "night-stair-rays104-r2/summary.json": "15967697ed71903472deb497560c2b7e45b725db5f24e7a9e5601a2b7374120a",
+    "night-baseline-archive104/local-package-verification.json": "3be73ed05868b168bdcd8e1b0a6c22518d4e3476611810fc8a625e98838cbbe2",
+    "night-baseline-archive104/summary.json": "a2f12bda36e1ba8e316c42b14ca1a7a8b94d02dd3168668fa5c7eb928e187247",
+    "night-stage104-baseline-transport-source.json": "203e1c27b905866c0e65dd57f84afce285c512c7f2a3537676bd52bd15375371",
+    "night-stage104-pr233-failed1040-review.json": "dcace822c38606069c58c14e5d5488cc98e790a3123c3d02d00a5174c52e7a98"
+  }
+}

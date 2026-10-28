@@ -164,5 +164,42 @@ class TurnAttributionTests(unittest.TestCase):
             with self.subTest(key=key, value=value), self.assertRaises(ValueError): verify(report)
 
 
+
+
+class StairAttributionTests(unittest.TestCase):
+    @staticmethod
+    def report():
+        from verify_turn_attribution import STAIR_SCOPE
+        report=fixture();base=copy.deepcopy(report['native_turn_diagnostics']['samples'][0]);rows=[];z=0
+        for delta in (1,-1,-1,1):
+            frame=copy.deepcopy(base)
+            rows.append(dict(from_z=z,to_z=z+delta,delta=delta,requested_renderer='gpu',successful_present=True,
+                action=copy.deepcopy(base),first_frame=frame,frame_stages={k:0 for k in ('full_frame_wall_ms','native_cache_cpu_ms','native_tiles_cpu_ms','perspective_callback_wall_ms','actual_present_wall_ms')}));z+=delta
+        report['stair_transition_diagnostics']=dict(schema=1,scope=STAIR_SCOPE,ordinary_performance_measurement=False,gpu_execution_measured=False,samples=rows)
+        return report
+
+    def test_exact_four_adjacent_transitions(self):
+        from verify_turn_attribution import verify_stair_transitions
+        self.assertTrue(verify_stair_transitions(self.report())['success'])
+
+    def test_partial_reordered_stale_or_nonfinite_stairs_rejected(self):
+        from verify_turn_attribution import verify_stair_transitions
+        for kind in ('missing','reordered','delta_bool','wrong_z','no_present','partial','partition','stale_cpu','missing_stage','nan_stage','oversized_stage','invented_gpu'):
+            report=self.report();data=report['stair_transition_diagnostics'];rows=data['samples'];row=rows[0]
+            if kind=='missing': rows.pop()
+            elif kind=='reordered': rows[0],rows[1]=rows[1],rows[0]
+            elif kind=='delta_bool': row['delta']=True
+            elif kind=='wrong_z': row['to_z']=2
+            elif kind=='no_present': row['successful_present']=False
+            elif kind=='partial': row['action']['closed']=False
+            elif kind=='partition': row['first_frame']['other_wall_ns']+=1
+            elif kind=='stale_cpu': row['first_frame']['callbacks'][0]['cpu_metrics']['reports']=1
+            elif kind=='missing_stage': row['frame_stages'].pop('actual_present_wall_ms')
+            elif kind=='nan_stage': row['frame_stages']['actual_present_wall_ms']=float('nan')
+            elif kind=='oversized_stage': row['frame_stages']['actual_present_wall_ms']=99999
+            else: data['gpu_execution_measured']=True
+            with self.subTest(kind=kind),self.assertRaises(ValueError):verify_stair_transitions(report)
+
+
 if __name__ == '__main__':
     unittest.main()

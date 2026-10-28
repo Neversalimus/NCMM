@@ -369,31 +369,34 @@ template<bool horizontal_fast=true,class Query> bool visible(point eye,point tar
         return false;
     }}
     const std::array<float,3> p{eye.x,eye.y,eye.z/NCMM_WORLD_LEVEL_HEIGHT},d{delta.x,delta.y,delta.z/NCMM_WORLD_LEVEL_HEIGHT};
-    std::array<int,3> step{};std::array<float,3> next{},increment{};
-    for(int axis=0;axis<3;++axis){step[axis]=d[axis]>0?1:d[axis]<0?-1:0;
-        if(!step[axis]){next[axis]=increment[axis]=std::numeric_limits<float>::infinity();continue;}
-        const float edge=std::floor(p[axis])+(step[axis]>0?1:0);
-        next[axis]=(edge-p[axis])/d[axis];increment[axis]=std::abs(1/d[axis]);}
+    const int sx=d[0]>0?1:d[0]<0?-1:0;float nx,ix;
+    if(!sx)nx=ix=std::numeric_limits<float>::infinity();
+    else{const float edge=std::floor(p[0])+(sx>0?1:0);nx=(edge-p[0])/d[0];ix=std::abs(1/d[0]);}
+    const int sy=d[1]>0?1:d[1]<0?-1:0;float ny,iy;
+    if(!sy)ny=iy=std::numeric_limits<float>::infinity();
+    else{const float edge=std::floor(p[1])+(sy>0?1:0);ny=(edge-p[1])/d[1];iy=std::abs(1/d[1]);}
+    const int sz=d[2]>0?1:d[2]<0?-1:0;float nz,iz;
+    if(!sz)nz=iz=std::numeric_limits<float>::infinity();
+    else{const float edge=std::floor(p[2])+(sz>0?1:0);nz=(edge-p[2])/d[2];iz=std::abs(1/d[2]);}
     for(int iteration=0;iteration<384;++iteration){
         if(at==end)return !(query(at)&NCMM_WORLD_UNKNOWN);
-        const float t=std::min({next[0],next[1],next[2]});if(t>1)return true;
+        const float t=std::min({nx,ny,nz});if(t>1)return true;
         const point hit{eye.x+delta.x*t,eye.y+delta.y*t,eye.z+delta.z*t};
-        const voxel previous=at;std::array<bool,3> crossed{};
-        for(int axis=0;axis<3;++axis)if(next[axis]<=t+1e-6f){crossed[axis]=true;
-            if(axis==0)at.x+=step[axis];else if(axis==1)at.y+=step[axis];else at.z+=step[axis];next[axis]+=increment[axis];}
-        if(crossed[2]){
-            voxel upper=step[2]>0?at:previous;
+        const voxel previous=at;const bool crossed_x=nx<=t+1e-6f,crossed_y=ny<=t+1e-6f,crossed_z=nz<=t+1e-6f;
+        if(crossed_x){at.x+=sx;nx+=ix;}if(crossed_y){at.y+=sy;ny+=iy;}if(crossed_z){at.z+=sz;nz+=iz;}
+        if(crossed_z){
+            voxel upper=sz>0?at:previous;
             // At an XY/Z tie neither candidate is allowed to create a leak.
-            const int distinct=(crossed[0]?1:0)|(crossed[1]?2:0);
+            const int distinct=(crossed_x?1:0)|(crossed_y?2:0);
             for(int mask=0;mask<4;++mask){if(mask&~distinct)continue;voxel cell=upper;
-                if(crossed[0])cell.x=(mask&1)?at.x:previous.x;
-                if(crossed[1])cell.y=(mask&2)?at.y:previous.y;
+                if(crossed_x)cell.x=(mask&1)?at.x:previous.x;
+                if(crossed_y)cell.y=(mask&2)?at.y:previous.y;
                 const auto flags=query(cell);
                 const float fx=std::clamp(hit.x-float(cell.x),0.f,1.f),fy=std::clamp(hit.y-float(cell.y),0.f,1.f);
                 if(floor_blocks(flags,fx,fy)&&!(target_surface&&cell==end&&t>=1-1e-4f))return false;
             }
         }
-        if(crossed[0]&&crossed[1]){
+        if(crossed_x&&crossed_y){
             for(voxel side:{voxel{at.x,previous.y,at.z},voxel{previous.x,at.y,at.z}})
                 if(query(side)&(NCMM_WORLD_OPAQUE|NCMM_WORLD_UNKNOWN))return false;
         }

@@ -408,20 +408,13 @@ jobs:
           New-Item -ItemType Directory -Force installer-result | Out-Null
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $pins=@{
-            '1040'=@{id=12380745602;sha='a7b90d8fd659eb2ab97c3c294b0467040537ad4db278df391c68f4bf7250bcb3';inner='444c4976616a73cc80418d8fe7ca0800e69f5d71bf10672fa53d02724e19fdbb'}
-            '1807'=@{id=12381775756;sha='19c23c138923311aa7e7a29a72593e98ddf3814806d4f4cae38f643cd2afc69d';inner='2250c50307df5456644fe13acf4cb79cc8c7df4245b1a07de68422dd050eb211'}
+            '1040'=@{file='NCMM_FirstPersonView_0.13.0_TEST_1040_Windows_x64.zip';inner='444c4976616a73cc80418d8fe7ca0800e69f5d71bf10672fa53d02724e19fdbb';expired_artifact_sha='a7b90d8fd659eb2ab97c3c294b0467040537ad4db278df391c68f4bf7250bcb3'}
+            '1807'=@{file='NCMM_FirstPersonView_0.13.0_TEST_1807_Windows_x64.zip';inner='2250c50307df5456644fe13acf4cb79cc8c7df4245b1a07de68422dd050eb211';expired_artifact_sha='19c23c138923311aa7e7a29a72593e98ddf3814806d4f4cae38f643cd2afc69d'}
           }
           $pin=$pins['${{ matrix.build }}']
-          $outer=Join-Path $env:RUNNER_TEMP 'fp013-baseline-artifact.zip'
-          Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $env:GH_TOKEN";Accept='application/vnd.github+json'} -Uri ("https://api.github.com/repos/Neversalimus/NCMM/actions/artifacts/"+$pin.id+'/zip') -OutFile $outer
-          if((Get-FileHash $outer -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.sha){throw 'Baseline artifact SHA256 mismatch.'}
           $inner=Join-Path $env:RUNNER_TEMP 'fp013-baseline-installer.zip'
-          $zip=[IO.Compression.ZipFile]::OpenRead($outer)
-          try {
-            $entry=@($zip.Entries | Where-Object {$_.FullName.Replace('\','/').EndsWith('NCMM_FirstPersonView_0.13.0_TEST_${{ matrix.build }}_Windows_x64.zip')})
-            if($entry.Count -ne 1){throw 'Baseline installer is missing or ambiguous.'}
-            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry[0],$inner,$true)
-          } finally {$zip.Dispose()}
+          $baselineUrl='https://github.com/Neversalimus/NCMM/releases/download/ncmm-fpv-ci-baseline-v0.13-9e3d6230f7ad/'+$pin.file
+          Invoke-WebRequest -UseBasicParsing -Uri $baselineUrl -OutFile $inner
           if((Get-FileHash $inner -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.inner){throw 'Baseline installer SHA256 mismatch.'}
           $base=Join-Path $env:RUNNER_TEMP 'fp013-baseline'
           Expand-Archive -LiteralPath $inner -DestinationPath $base
@@ -434,7 +427,7 @@ jobs:
             if((Get-FileHash (Join-Path $payload $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value){throw "Baseline payload mismatch: $($file.Name)"}
           }
           "FP013_BASELINE_PAYLOAD=$payload" >> $env:GITHUB_ENV
-          [ordered]@{baseline_main='5258e5313ad5deae23f967a4a7fc91c7554377f4';baseline_source=$bundle.ncmm_source_commit;source_equivalence='Only feed/index.json and feed/rejected.json differ from baseline source to main';engine_source=$bundle.source_commit;artifact_sha256=$pin.sha;installer_sha256=$pin.inner;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';host_and_module_replaced=$true} | ConvertTo-Json | Set-Content installer-result/first-person-baseline-provenance.json -Encoding UTF8
+          [ordered]@{baseline_main='5258e5313ad5deae23f967a4a7fc91c7554377f4';baseline_source=$bundle.ncmm_source_commit;source_equivalence='Only feed/index.json and feed/rejected.json differ from baseline source to main';engine_source=$bundle.source_commit;artifact_kind='release_asset';artifact_sha256=$pin.inner;expired_actions_artifact_sha256=$pin.expired_artifact_sha;archive_url=$baselineUrl;installer_sha256=$pin.inner;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';host_and_module_replaced=$true} | ConvertTo-Json | Set-Content installer-result/first-person-baseline-provenance.json -Encoding UTF8
       - name: Build preview installer and verify transactions with Windows long paths disabled
         id: installer_gate
         shell: powershell

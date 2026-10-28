@@ -97,6 +97,11 @@
     struct turn_sample {int initial_enemies,round;std::string requested_renderer;
         ncmm_graphics_turn_diagnostics::turn_record timing;};
     std::vector<turn_sample> native_turn_samples;native_turn_samples.reserve(26);
+    struct stair_sample {int from_z=0,to_z=0,delta=0;std::string requested_renderer;
+        ncmm_graphics_turn_diagnostics::turn_record action,first_frame;
+        std::map<std::string,double> frame_stages;};
+    std::vector<stair_sample> stair_samples;stair_samples.reserve(4);
+
     auto measured_native_turn=[&](int initial_enemies,int round,const char *failure){
         turn_sample sample{initial_enemies,round,get_option<std::string>("NCMM_FIRST_PERSON_RENDERER"),{}};
         bool ended=false;
@@ -183,8 +188,24 @@
     });
     action("native_stairs_and_basement",[&](){you.setpos(here,point_at(0,0),false);graphics_clear_world();render();
         for(int direction:{1,-1}){here.ter_set(point_at(0,0),ter_id(direction>0?"t_stairs_up":"t_stairs_down"));here.ter_set(point_at(0,0,direction),ter_id(direction>0?"t_stairs_down":"t_stairs_up"));refresh();render();
-            for(int delta:{direction,-direction}){const int z=you.posz(),moves=you.get_moves();const float eye=z*2.5f+graphics_eye_height();const auto begin=audit_clock::now();g->vertical_move(delta,false);require(you.posz()==z+delta&&you.get_moves()<moves,"audit_native_stair_move_failed");
-                const auto pos=you.pos_abs();const int spent=moves-you.get_moves();render();const float shown=you.posz()*2.5f+graphics_eye_height()+graphics_world_camera_motion.sample(SDL_GetTicks()).z;
+            for(int delta:{direction,-direction}){const int z=you.posz(),moves=you.get_moves();const float eye=z*2.5f+graphics_eye_height();
+                stair_sample sample;sample.from_z=z;sample.delta=delta;sample.requested_renderer=get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");
+                const auto begin=audit_clock::now();
+                {ncmm_graphics_turn_diagnostics::turn_capture capture(sample.action,ncmm_graphics_turn_diagnostics::steady_now,true);
+                    g->vertical_move(delta,false);capture.complete();}
+                require(you.posz()==z+delta&&you.get_moves()<moves,"audit_native_stair_move_failed");
+                sample.to_z=you.posz();const auto pos=you.pos_abs();const int spent=moves-you.get_moves();
+                const std::array<const char *,5> frame_stage_names={"full_frame_wall_ms","native_cache_cpu_ms","native_tiles_cpu_ms","perspective_callback_wall_ms","actual_present_wall_ms"};
+                std::array<size_t,5> previous_counts{};for(size_t i=0;i<frame_stage_names.size();++i)previous_counts[i]=stages[frame_stage_names[i]].size();
+                {ncmm_graphics_turn_diagnostics::turn_capture capture(sample.first_frame,ncmm_graphics_turn_diagnostics::steady_now,true);
+                    render();capture.complete();}
+                require(ncmm_graphics_turn_diagnostics::valid(sample.action)&&ncmm_graphics_turn_diagnostics::valid(sample.first_frame),"audit_stair_partition_invalid");
+                require(sample.first_frame.outer_draws&&sample.first_frame.cpu_draws+sample.first_frame.gpu_draws,"audit_stair_first_frame_missing_perspective");
+                for(size_t i=0;i<frame_stage_names.size();++i){const auto &values=stages[frame_stage_names[i]];require(values.size()==previous_counts[i]+1,"audit_stair_frame_stage_not_fresh");sample.frame_stages[frame_stage_names[i]]=values.back();}
+                stages["native_stair_move_wall_ms"].push_back(sample.action.wall_ns/1000000.0);
+                stages["native_stair_first_frame_wall_ms"].push_back(sample.first_frame.wall_ns/1000000.0);
+                stair_samples.push_back(std::move(sample));
+                const float shown=you.posz()*2.5f+graphics_eye_height()+graphics_world_camera_motion.sample(SDL_GetTicks()).z;
                 require(std::abs(shown-eye)<.1f,"audit_stair_first_frame_discontinuous");
                 require(std::abs(graphics_world_ray_eye.z-(shown-you.posz()*NCMM_WORLD_LEVEL_HEIGHT))<.1f,"audit_stair_visibility_detached_from_display_eye");
                 stages["native_stair_first_ready_wall_ms"].push_back(milliseconds(begin));settle();require(you.pos_abs()==pos&&you.get_moves()==moves-spent,"audit_stair_easing_changed_native_cost");}}
@@ -246,17 +267,8 @@
         const std::string before=get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");for(int n=0;n<3;++n){f12();render();}require(get_option<std::string>("NCMM_FIRST_PERSON_RENDERER")==before,"audit_f12_cycle_not_restored");require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==turn,"audit_toggle_changed_native_state");
     });
     report.end_array();report.member("native_action_stages");write_stages(stages);report.member("combat_trials");report.start_array();for(const auto &t:combat_trials){report.start_object();report.member("spawned",t.spawned);report.member("native_turns",t.turns);report.member("native_shots",t.shots);report.member("native_melee",t.melee);report.member("observed_enemy_attacks",t.observed_enemy_attacks);report.member("avatar_debug_protection",true);report.member("avatar_stamina_reset_each_turn",true);report.member("avatar_combat_state_reset_each_turn",true);report.end_object();}report.end_array();
-    require(native_turn_samples.size()==26,"audit_native_turn_samples_missing");
-    report.member("native_turn_diagnostics");report.start_object();report.member("schema",3);
-    report.member("controlled_fixture_without_interactive_main_loop",true);
-    report.member("ordinary_performance_measurement",false);
-    report.member("draw_wall_scope","union of outermost graphics_draw callbacks inside do_turn");
-    report.member("remainder_scope","other Native work, UI, waits and scheduling; not pure AI");
-    report.member("callback_scope","adjacent outermost callback wall phases; module includes submission/waits, not GPU execution");
-    report.member("cpu_metric_scope","fresh validated submit_cpu_metrics event inside this module call; reported components may overlap");
-    report.member("samples");report.start_array();for(const auto &s:native_turn_samples){const auto &t=s.timing;
-        report.start_object();report.member("initial_enemies",s.initial_enemies);report.member("round",s.round);
-        report.member("requested_renderer",s.requested_renderer);report.member("valid",ncmm_graphics_turn_diagnostics::valid(t));
+    auto write_timing=[&](const ncmm_graphics_turn_diagnostics::turn_record &t){
+        report.member("valid",ncmm_graphics_turn_diagnostics::valid(t));
         report.member("wall_ns",t.wall_ns);report.member("draw_wall_ns",t.draw_wall_ns);report.member("other_wall_ns",t.wall_ns-t.draw_wall_ns);
         report.member("draw_calls",t.draw_calls);report.member("outer_draws",t.outer_draws);report.member("max_depth",t.max_depth);
         report.member("cpu_draws",t.cpu_draws);report.member("gpu_draws",t.gpu_draws);report.member("legacy_draws",t.legacy_draws);report.member("skipped_draws",t.skipped_draws);
@@ -276,8 +288,32 @@
             report.member("boundaries");report.start_array();for(size_t j=0;j<c.count;++j){report.start_object();
                 report.member("tag",ncmm_graphics_turn_diagnostics::label(c.tags[j]));report.member("offset_ns",c.offsets_ns[j]);report.end_object();}
             report.end_array();report.end_object();
-        }report.end_array();report.end_object();
+        }report.end_array();
+    };
+    require(native_turn_samples.size()==26,"audit_native_turn_samples_missing");
+    report.member("native_turn_diagnostics");report.start_object();report.member("schema",3);
+    report.member("controlled_fixture_without_interactive_main_loop",true);
+    report.member("ordinary_performance_measurement",false);
+    report.member("draw_wall_scope","union of outermost graphics_draw callbacks inside do_turn");
+    report.member("remainder_scope","other Native work, UI, waits and scheduling; not pure AI");
+    report.member("callback_scope","adjacent outermost callback wall phases; module includes submission/waits, not GPU execution");
+    report.member("cpu_metric_scope","fresh validated submit_cpu_metrics event inside this module call; reported components may overlap");
+    report.member("samples");report.start_array();for(const auto &s:native_turn_samples){const auto &t=s.timing;
+        report.start_object();report.member("initial_enemies",s.initial_enemies);report.member("round",s.round);
+        report.member("requested_renderer",s.requested_renderer);
+        write_timing(t);report.end_object();
     }report.end_array();report.end_object();
+    require(stair_samples.size()==4,"audit_stair_samples_missing");
+    report.member("stair_transition_diagnostics");report.start_object();report.member("schema",1);
+    report.member("scope","real vertical_move and first successful render/present in adjacent separate captures; setup and easing settle excluded");
+    report.member("ordinary_performance_measurement",false);report.member("gpu_execution_measured",false);
+    report.member("samples");report.start_array();for(const auto &s:stair_samples){report.start_object();
+        report.member("from_z",s.from_z);report.member("to_z",s.to_z);report.member("delta",s.delta);report.member("requested_renderer",s.requested_renderer);
+        report.member("successful_present",true);
+        report.member("action");report.start_object();write_timing(s.action);report.end_object();
+        report.member("first_frame");report.start_object();write_timing(s.first_frame);report.end_object();
+        report.member("frame_stages");report.start_object();for(const auto &[name,value]:s.frame_stages)report.member(name,value);report.end_object();
+        report.end_object();}report.end_array();report.end_object();
     const std::string original_tileset=get_option<std::string>("TILES");std::vector<std::string> tilesets{original_tileset};if(std::getenv("NCMM_FP_UDP"))tilesets.push_back("UndeadPeople_0J_Hybrid_v3");
     report.member("tilesets");report.start_array();
     for(size_t ti=0;ti<tilesets.size();++ti){const auto &tileset=tilesets[ti];checkpoint("load_tileset_"+tileset);const auto reload_begin=audit_clock::now();get_options().get_option("TILES").setValue(tileset);tilecontext->load_tileset(tileset,false,true);

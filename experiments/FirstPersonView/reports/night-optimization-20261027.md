@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated29 October2026, through stage103. Baseline `1284537`; working branch
-`codex/fpv-cpu-projection-fastpath-20261029`; latest delivered release [PR227](https://github.com/Neversalimus/NCMM/pull/227).
+Updated29 October2026, through stage104. Baseline `1284537`; working branch
+`codex/fpv-stair-ray-scalar-20261029`; latest delivered release [PR228](https://github.com/Neversalimus/NCMM/pull/228).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -45,6 +45,16 @@ All38payloads/106copied Native inputs/171frozen sources/104resource files and
 licenses agree. This delivery does not include later PR228-232 or stage103.
 Those exact heads remain fixed. At this source capture PR228 full8has passed;
 its separate package qualification is in progress. No ordinary15ms claim.
+
+## Stage104 delivery status
+
+B81/GPU94 passed all8jobs of full40725731505, all3GPU jobs and source audit.
+PR228 merged as main69a121e while retaining the independently updated feed
+JSONs; every other Git path and byte matches qualified B81. Both exact checked
+TEST installers, source proof and checksums are [published](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-b81e22d6ab8b).
+This delivered version does not include later229-233 or stage104. Their heads
+and earlier qualification receipts remain fixed. PR229 full8has now passed;
+its exact primary package/resource qualification is still pending.
 
 ## Retained changes
 
@@ -1087,6 +1097,48 @@ shooting/movement freeze reduction, RTX FPS and15ms first-correct-present are
 unqualified. Numeric output/timings/memory and rejected102evidence:
 `night-cpu-projection-fastpath-20261029.json`.
 
+## Stage104 — storey rays and stair-delay attribution
+
+The reported ascent freeze is not yet proven fixed. Existing B9F Native CI
+has four combined vertical_move+first-render samples per pin:1040median
+142.3187ms and1807median152.5411ms, both software-GPU controlled fixtures.
+They do not separate the engine move from Native2D tiles, perspective work
+and SDL present, and are not ordinary RTX4090 gameplay measurements.
+
+The new opt-in audit captures each of the four real vertical_move calls and
+its first successful explicit render/present separately, with fresh frame
+cache/tile/callback/present stages. Setup and later easing settle are excluded.
+Existing camera continuity, displayed-eye visibility and Native cost/state
+guards remain. The existing26turn schema3 output is retained. The validator
+requires ordered adjacent floors, complete callback partitions and fresh
+finite contained stages.18Python tests include12negative stair cases. No
+extra diagnostic clocks or captures run during ordinary play.
+
+General multi-storey visibility now uses scalar state for the three fixed
+axes. All arithmetic/query/corner/slab ordering and horizontal fast path
+agree:327680initial rays and1376256expanded rays/42layouts, with13466276
+identical ordered geometry reads in the expanded guard. Two deliberately
+missing slab/corner guards fail. Seven fixed alternating pairs x10helper
+workloads retain the predeclared3%regression/two2%gains guard. Downstairs
+paired cost improves9.30%, but upstairs regresses0.86%; XYZ-tie independent
+medians also regress. These are ray-helper costs, not stair/whole-frame gains.
+Both fewer-query alternatives failed the unchanged timing guard and were
+rejected. Every raw lane and control is retained in the numeric report.
+
+Release build,51non-device CTests,96atomic source-transform and18attribution
+tests pass. Native-only audit compilation/capture requires current-source CI.
+No repeated local device run is justified for this CPU/opt-in audit change.
+
+Parent233compiled but its1040full job stopped at410expired original0.13
+baseline Actions artifact. With explicit user authorization, the two original
+35payload0.13ZIPs were [archived](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-ci-baseline-v0.13-9e3d6230f7ad).
+Their exact old installer SHA256s/source/engine pins are unchanged. The new
+workflow downloads those immutable bytes, validates the original hashes and
+all payloads, and retains old outer Actions hashes as historical metadata.
+No release binary was rebuilt and this archive is not a new game version.
+Existing full qualification gates are unchanged. Numeric/source evidence:
+`night-stair-ray-attribution-20261029.json`.
+
 ## Earlier qualification receipts retained from stage99
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
@@ -1131,11 +1183,13 @@ unqualified. Numeric output/timings/memory and rejected102evidence:
 
 ## Remote qualification and next steps
 
-Qualify stage103 on a separate exact source head while preserving PR228-232
-and their existing captures. PR228 full40725731505 now passes all8jobs; the
-other later full captures continue. Main and published B9F remain unchanged
-at this source capture. CI logs are read only through CodeReview at exact PR
-heads; provider502 errors are retained without CLI/log-artifact fallback.
-Primary numerical JSON readers retain exact allowlists/shared8MiB limits.
-Do not rerun unchanged rejected sources or use model/WARP timings as ordinary
-Native RTX input-latency or15ms evidence.
+Qualify stage104 on a separate exact source head, with the restored original
+baseline transport and four new stair action/first-frame captures. Preserve
+229-233heads and their existing receipts. Parent233full cannot qualify after
+the expired baseline failure; do not rerun it unchanged. Main and installers
+remain qualified B81. Current104stair-delay reduction and ordinary15ms remain
+unqualified until actual current-source evidence supports them.
+
+CI logs are read only through CodeReview at exact PR heads. Numerical JSON
+readers retain inventory-first exact allowlists and shared8MiB limits. No
+unchanged rejected timing reruns or model/WARP-to-RTX performance claims.
