@@ -1629,6 +1629,22 @@ rerun. No local Native/mouse/subagent/upstream body/merge/release is used.
 Actual schema3 metrics remain pending a fresh isolated CI run; no timing gain
 is claimed for this diagnostic stage.
 
+**64. Reject pixel-blend specialization despite exact output.**
+A private frozen-header experiment specializes fully transparent/opaque
+destinations while retaining floating-point operation order.3,670,016 blend
+cases and270 complete effect frames agree exactly (3,203,001 painted samples),
+including alpha thresholds, quantization boundaries, hidden RGB, mixed alpha,
+suppressed/burst shots and three image sizes. Two initial fixture compilation
+attempts failed before measurement (wrong test field; missing math linkage);
+both are preserved and excluded. Seven alternating same-process timing pairs
+for each of nine workloads show mixed-alpha blend1.207x and mixed flash1.121x
+median pair ratios; smoke has no reliable gain. Reject the alternative and
+leave production renderer bytes unchanged. The short CPU component timings
+under background load do not qualify Native FPS/GPU/present or15ms latency.
+Private evidence: `night-weapon-blend-model64-r3/summary.json` and
+`night-weapon-blend-timing64/summary.json`. Next inspect repeated camera/source
+invariants in volumetric-light preparation while actual schema3 is pending.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
