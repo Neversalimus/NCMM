@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage88. Baseline `1284537`; working branch
-`codex/fpv-0131-fps-controls-20261024`; draft [PR223](https://github.com/Neversalimus/NCMM/pull/223).
+Updated28 October2026, through stage90. Baseline `1284537`; working branch
+`codex/fpv-cpu-raster-followup-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -14,8 +14,10 @@ are separate evidence. Warm results do not erase first-use regressions.
 No local Native/game/input harness, mouse capture/warp/focus, elevated profiler,
 NVIDIA/power/priority changes or subagents. Background games remain running.
 Use the existing checkout/build, read-only synced sources, pure/shared-module
-tests and the inventoried hidden render-only suite. No main merge, release,
-feed or installer publication before user finalization/review.
+tests and the inventoried hidden render-only suite. The user has now requested
+finalization, main integration and installer delivery, followed by continued work.
+ReleaseA9 stays fixed while its full Windows qualification completes; stage90
+is an isolated local follow-up and is not included in those installer bytes.
 
 Detailed stages1–63, failures, provenance and raw measurement references remain
 [in the immutable prior journal](https://github.com/Neversalimus/NCMM/blob/616d718810e665892b1e7eaba33030cf8a00c7b4/experiments/FirstPersonView/reports/night-optimization-20261027.md).
@@ -555,6 +557,77 @@ Current full40674207425 and corrected terrain40674244460 Native jobs remain
 running at fixeda9. Earlier ec1 full40664250771 has both actual Linux jobs
 and both module jobs passing; Windows full captures remain running. Preserve
 both PR heads and meaningful captures.
+
+## Stages89–90 — finalization and bounded CPU raster dispatch
+
+The user explicitly requested main integration, installers and continued work.
+ReleasePR223 stays at `a9f3ef7`, exact runtime `0167645`/tree
+`48bf32bb587aa32b91ecf54ed64781992766a7ca`. Both current22MB packages have
+38 exact payload hashes,106 copied Native inputs,171 frozen Git sources,
+104 original resource files and matching Setup/Host/DLL/privateSDL/CC0 records.
+Both actual Linux Hosts pass; both full Windows jobs remain active at this
+checkpoint. Do not substitute older qualified48 for the pending A9 gate.
+
+Both fresh A9 early callback reports independently verify all five program
+JSONs,106 copied inputs,26 controlled turns/25 callbacks and clean exits.
+EmptyCPU frames are70.45235ms(1040) and50.48325ms(1807), with geometry
+29.68060/20.83685 and raster31.07560/22.40250ms medians. These are separate
+WARP CI runners, with the known672x704/640x480 diagnostic viewport alternation,
+not an equal-scene revision comparison, ordinaryRTX or15ms qualification.
+Verified-summary SHAs are `fc1eda1a43d1fab7ba67824a11e3103ed0449be507454dfce5743771881e6167`
+and `e67cd8b5a0662ad3c6f99df7a58b75b83fc6ae042af26b45d749086fbe39e6b8`.
+
+The corrected1040 optional terrain ablation reaches all14 child reports and
+restores the module/fixture. Its final equality guard rejects the last CPU
+road submission counter: pair5 reference8120/current4144; pair7 reverses that.
+All14 individual program-profile contracts pass locally; the receipt declares
+one identical hash per capture across every child. The250ms module cache
+expiry is a plausible cause of last-frame work variation, not yet proven by
+a matched-cache diagnostic. Keep the guard; no paired Native speedup is claimed.
+This failure is separate from ordinary full installer qualification.
+
+Stage90 uses the existing disjoint16-row raster bands for substantial CPU
+world frames between250000 and500000 pixels, with at least1024 queued
+triangles. It permits up to two workers, joined before return. Existing large
+frames/dense grass retain up to four workers; small queues and medium held
+overlays retain their prior dispatch. Geometry, submitted triangles, provider
+calls, contents/range/quality and the GPU producer are unchanged. The private
+per-strip work counter may rise at most2x; public submitted geometry does not.
+
+Frozen original versus candidate:256 frames/4696 assertions/45,212,800 exact
+RGBA pixels and18,679,296 volume samples; raw float depth/shadow bits, identity
+buffers, targeting, world/creature/effect counters and submitted geometry agree.
+72 medium material cases execute the added path;66 have transparent geometry.
+Opaque/zero/partial alpha, odd/padded/mip sources, windows, water and smoke
+are covered. All3,319,896 provider calls remain on the callback thread.
+The first auxiliary build used a mistyped test liquid enum and supplied no
+measurements; its diagnostics are preserved. The corrected model passes.
+
+Seven predetermined alternating pairs with complete fresh frame timing,
+including cleanup and per-frame worker creation/join:
+
+| CPU model | Before → after, ms | Median paired ratio |
+| --- | ---: | ---: |
+| City572x600 |63.64618 →58.49975|.91062|
+| Constructed21 slices572x600 |27.93800 →23.69258|.84804|
+| Small legacy control |2.47471 →2.48427|.97208|
+| Unchanged medium legacy |9.61010 →9.38896|.98198|
+| Unchanged small city |50.82334 →50.15860|1.01598|
+| Existing four-worker city |61.35698 →60.95737|.97704|
+
+Independent medians and paired ratios need not move together. The small-city
+guard's1.6% paired regression is retained explicitly; no universal speedup.
+For constructed21, first-of-lane median27.4018→23.3734ms and frame p99
+35.40847→28.47906ms; city first61.4795→56.9425 and p9978.82929→69.93155.
+These are model frame lanes, not cold processes, Native, GPU or Present.
+
+The complete local Release build,51 non-device CTests(26.79s) and the rebuilt
+inventoried hidden RTX4090 scene suite pass. It retains45 grass draws, zero
+CPU world raster/warm static uploads,21 fallbackADS/12 authoredADS/34 objects,
+multiZ and subway lighting. No Native game, mouse, focus or system-setting
+change was used. Current Native CI applies to releaseA9; stage90 still needs
+its own remote qualification. Public numeric evidence is
+`night-raster-dispatch-20261028.json`; raw private models/tails remain preserved.
 
 ## Remote qualification and next steps
 

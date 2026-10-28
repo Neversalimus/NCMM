@@ -613,7 +613,14 @@ class renderer {
         if(queue.empty()&&(!last||last->empty()))return;
         const auto begun=std::chrono::steady_clock::now();++f.raster_calls;f.submitted_triangles+=queue.size()+(last?last->size():0);
         const bool dense_grass=queue.size()>=2048&&queue.front().m.grass;
-        const int count=size_t(f.width)*f.height>=500000||dense_grass?int(std::clamp(std::thread::hardware_concurrency(),1u,4u)):1;
+        const size_t area=size_t(f.width)*f.height;
+        // Balanced CPU world frames can be below the large-frame threshold.
+        // Two workers help substantial queues; small frames and held overlays
+        // keep their existing dispatch and all workers join inside this call.
+        const bool medium_world=area>=250000&&queue.size()+(last?last->size():0)>=1024&&
+            !queue.empty()&&!queue.front().m.overlay;
+        const unsigned limit=area>=500000||dense_grass?4u:medium_world?2u:1u;
+        const int count=limit>1?int(std::clamp(std::thread::hardware_concurrency(),1u,limit)):1;
         std::vector<projected_triangle> projected;projected.reserve(queue.size()+(last?last->size():0));
         for(const auto &t:queue)project(t,projected);
         if(last)for(const auto &t:*last)project(t,projected);
