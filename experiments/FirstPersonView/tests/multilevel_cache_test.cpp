@@ -1248,6 +1248,45 @@ template<class Check> void substrate_checks(Check check){
     }
 }
 
+// Query-by-query comparison is independent of floor colours: even two equal
+// textures cannot conceal a wrong source index, Z or missing sparse cell.
+template<class Check> void substrate_cursor_checks(Check check){
+    auto require=[&](bool value,const char *message){if(!value)std::cerr<<"Substrate cursor: "<<message<<'\n';check(value);};
+    struct layout{int side,levels,cap,holes;};
+    const std::array<layout,12> cases{{{3,1,0,0},{3,1,1,0},{7,1,49,0},{17,1,255,0},{17,1,256,0},{17,1,257,0},
+        {97,1,9409,0},{97,7,65536,0},{97,32,65536,1},{97,32,65536,2},{97,32,9409,2},{97,32,1024,1}}};
+    for(size_t trial=0;trial<cases.size();++trial){const auto l=cases[trial];
+        const int ox=trial%2?INT32_MAX-l.side+1:INT32_MIN,oy=trial%3? -1000000:INT32_MAX-l.side+1;
+        std::vector<ncmm_world_cell_v1> positions;
+        for(int z=-16;z<l.levels-16;++z)for(int y=0;y<l.side;++y)for(int x=0;x<l.side;++x){
+            if(positions.size()>=size_t(l.cap))break;
+            if(l.holes==1&&(x+y*3+(z+16)*11)%5==0)continue;
+            if(l.holes==2&&(x%2||y%2))continue;
+            positions.push_back({int32_t(int64_t(ox)+x),int32_t(int64_t(oy)+y),z,NCMM_WORLD_BODY_VISIBLE,0,0,1});
+        }
+        const auto original=positions;ncmm_world_cell_v1 sentinel{};
+        ncmm_graphics_multilevel_scene_v1 world{};world.origin_x=ox;world.origin_y=oy;world.loaded_min_z=-16;world.loaded_max_z=l.levels-17;
+        world.coordinates=positions.empty()?&sentinel:positions.data();world.cell_count=uint32_t(positions.size());
+        const ncmm_world::coordinates reference(&world);
+        for(int pass=0;pass<3;++pass){
+            static_detail_fixture::graphics_substrate_cursor actual(&world);
+            const size_t count=positions.size(),first=pass==0?0:pass==1?std::min(size_t(3),count):count?count-1:0,step=pass==1?13:1;
+            for(size_t i=first;i<count;i+=step){const auto &p=positions[i];const int x=int(int64_t(p.x)-ox),y=int(int64_t(p.y)-oy);
+                for(const auto delta:std::array<std::array<int,2>,4>{{{{0,1}},{{0,-1}},{{1,0}},{{-1,0}}}}){
+                    const int nx=x+delta[0],ny=y+delta[1];
+                    require(actual.find(nx,ny,p.z,delta[0],delta[1])==reference.find(nx,ny,p.z),
+                        "every monotone cardinal query matches independent full binary search before appearance publication");
+                }
+                if(pass==2)break;
+            }
+            if(positions.empty())require(actual.find(0,0,0,0,1)==-1,"empty owned range has no invented neighbour");
+        }
+        require(positions.empty()||std::memcmp(positions.data(),original.data(),positions.size()*sizeof(ncmm_world_cell_v1))==0,"lookup never changes borrowed XYZ payload");
+        require(world.appearance.base.grid_width==0,"lookup does not publish or edit the pending appearance");
+    }
+    require(sizeof(void*)!=8||sizeof(static_detail_fixture::graphics_substrate_cursor)==24,"x64 cursor object is24stack bytes including16integer bytes; no heap owner");
+}
+
 int main(){try{
     test_native_floor_cache();
     test_native_item_reconciliation();
@@ -1264,6 +1303,7 @@ int main(){try{
     unperceived_terrain_stair_checks(check);
     static_detail_checks(check);
     substrate_checks(check);
+    substrate_cursor_checks(check);
     candidate_range_checks(check);
     {
         int identities[2]{};

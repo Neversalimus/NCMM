@@ -1,0 +1,1919 @@
+{
+  "schema": 1,
+  "source_parent": "6da17a35142a02ebd3ea299f71a10eff59a50100",
+  "change": "Resume four independent same-direction searches in canonical Z/Y/X order. First query uses full lower_bound; subsequent queries exponentially bracket forward gaps. Keep original small/legacy lookup and use a pure prefix scan for ineligible cells.",
+  "source_files": {
+    "experiments/graphics_bridge/ncmm_graphics_static_detail.inc": "c8cbe2f7026402bef93eab29115f1996ec44c64d18fc873423d378884575140d",
+    "experiments/FirstPersonView/tests/multilevel_cache_test.cpp": "fe1aa8209e94145482124a56f51635dc2729d6f716ec530c2e604331ebd322e7"
+  },
+  "canonical_order_proof": {
+    "world_producer_sha256": "a44059d616a76ab927cbd3eeed846b82f4e88e5912c55a4fdbd0e62f4443dabc",
+    "condition": "Uncapped producer iterates Z/Y/X; after distance capping it explicitly sorts candidates by ncmm_world::order again. Applying one fixed cardinal offset preserves that order. Each direction resumes independently, including skipped queries. The Host-owned source contract already requires canonical sparse XYZ.",
+    "source_unchanged": true,
+    "permissions_z_flags_order_and_budget_unchanged": true
+  },
+  "algorithm": "Four callback-local insertion-point cursors. First query searches the full sparse list; later queries exponentially bracket the next lower_bound. Preserve original lookup for legacy/fewer-than256cells. A pure scan skips the ineligible prefix. Isolate search code from the common traversal to avoid regressions in flat/hidden/legacy controls.",
+  "scope": {
+    "scope": "Complete already-correct Host substrate pass on existing owned ABI arrays before appearance publication. Reference is exact6da17a3 helper; output, source order and transient allocations must agree.",
+    "pairs": 9,
+    "workloads": 18,
+    "alternating_order": true,
+    "iterations_multiplier": 4,
+    "acceptance": "All substantial controls at most3percent paired regression; empty/small/single-cell absolute regression at most50ns per pass. All four major city/tree world workloads at least10percent paired improvement. Exact complete outputs and allocator counts/bytes agree.",
+    "controls": "Original common traversal and fallback remain; cursor search is a separate noinline method, used only for world frames of at least256cells. A pure prefix scan finds the first eligible visible vertical cell before the common traversal. Empty/all-flat/all-hidden/legacy/small, long and short identifiers, sparse3Z, single first or last vertical among65536cells, all vertical, isolated sparse neighbours, long query gaps, single-cell boundary.",
+    "excluded": "No Native source query, full extraction/frame/present/input/GPU timing or cold process. No retained Native pointer, persistent heap cache or pool.",
+    "background": "User programs untouched; no concurrent local performance experiment."
+  },
+  "comparisons": [
+    {
+      "scene": "empty",
+      "before_median_ms": 2.84065e-06,
+      "after_median_ms": 3.7705e-06,
+      "median_pair_ratio": 1.3735258268546582,
+      "median_paired_delta_ns": 1.0964
+    },
+    {
+      "scene": "all_flat9409",
+      "before_median_ms": 0.010561062500000001,
+      "after_median_ms": 0.0098990125,
+      "median_pair_ratio": 0.9453504293297966,
+      "median_paired_delta_ns": -572.2500000000003
+    },
+    {
+      "scene": "city_long9409",
+      "before_median_ms": 0.3299020833333334,
+      "after_median_ms": 0.22316708333333332,
+      "median_pair_ratio": 0.6665778149630868,
+      "median_paired_delta_ns": -110752.91666666667
+    },
+    {
+      "scene": "trees_long9409",
+      "before_median_ms": 0.42328687499999995,
+      "after_median_ms": 0.2770179166666667,
+      "median_pair_ratio": 0.6568336439434111,
+      "median_paired_delta_ns": -146800.20833333334
+    },
+    {
+      "scene": "city_long28227",
+      "before_median_ms": 1.3772180555555555,
+      "after_median_ms": 0.74855,
+      "median_pair_ratio": 0.5522859735859049,
+      "median_paired_delta_ns": -604661.1111111111
+    },
+    {
+      "scene": "trees_long65536",
+      "before_median_ms": 6.663546875,
+      "after_median_ms": 3.1460609375,
+      "median_pair_ratio": 0.4721300827496618,
+      "median_paired_delta_ns": -3517485.9374999995
+    },
+    {
+      "scene": "grass_short9409",
+      "before_median_ms": 0.27219791666666665,
+      "after_median_ms": 0.1273525,
+      "median_pair_ratio": 0.4741410934872385,
+      "median_paired_delta_ns": -141887.50000000003
+    },
+    {
+      "scene": "city_short9409",
+      "before_median_ms": 0.22635097222222222,
+      "after_median_ms": 0.09732222222222223,
+      "median_pair_ratio": 0.4350590177207074,
+      "median_paired_delta_ns": -130989.16666666669
+    },
+    {
+      "scene": "legacy_long9409",
+      "before_median_ms": 0.15424374999999999,
+      "after_median_ms": 0.14863099999999999,
+      "median_pair_ratio": 0.9566106075174566,
+      "median_paired_delta_ns": -6413.500000000009
+    },
+    {
+      "scene": "sparse_long3z",
+      "before_median_ms": 1.1663583333333334,
+      "after_median_ms": 0.6973354166666667,
+      "median_pair_ratio": 0.5910656048734462,
+      "median_paired_delta_ns": -493757.2916666666
+    },
+    {
+      "scene": "hidden9409",
+      "before_median_ms": 0.0045628,
+      "after_median_ms": 0.00437297,
+      "median_pair_ratio": 0.9440784204850026,
+      "median_paired_delta_ns": -261.84999999999974
+    },
+    {
+      "scene": "small49",
+      "before_median_ms": 0.0002827375,
+      "after_median_ms": 0.00027564687499999997,
+      "median_pair_ratio": 1.047770753598605,
+      "median_paired_delta_ns": 12.567499999999976
+    },
+    {
+      "scene": "only_first65536",
+      "before_median_ms": 0.08951410714285714,
+      "after_median_ms": 0.08823267857142857,
+      "median_pair_ratio": 0.9922525727776024,
+      "median_paired_delta_ns": -665.7142857142821
+    },
+    {
+      "scene": "only_last65536",
+      "before_median_ms": 0.09361589285714286,
+      "after_median_ms": 0.08234607142857142,
+      "median_pair_ratio": 0.898379812779201,
+      "median_paired_delta_ns": -9655.714285714277
+    },
+    {
+      "scene": "all_vertical65536",
+      "before_median_ms": 15.507775,
+      "after_median_ms": 3.073279166666667,
+      "median_pair_ratio": 0.19805684437259283,
+      "median_paired_delta_ns": -12548883.333333334
+    },
+    {
+      "scene": "isolated_sparse",
+      "before_median_ms": 1.8441324999999997,
+      "after_median_ms": 0.4429971428571428,
+      "median_pair_ratio": 0.2443031829144234,
+      "median_paired_delta_ns": -1382093.214285714
+    },
+    {
+      "scene": "long_jumps9409",
+      "before_median_ms": 0.012423958333333334,
+      "after_median_ms": 0.012497916666666668,
+      "median_pair_ratio": 0.9646385694375392,
+      "median_paired_delta_ns": -451.9375
+    },
+    {
+      "scene": "single_vertical",
+      "before_median_ms": 7.604775e-06,
+      "after_median_ms": 8.0349e-06,
+      "median_pair_ratio": 1.077911549831356,
+      "median_paired_delta_ns": 0.5982750000000001
+    }
+  ],
+  "raw_paired_lanes": [
+    {
+      "scene": "empty",
+      "pair": 0,
+      "iterations": 4000000,
+      "before_total_ms": 10.6882,
+      "after_total_ms": 17.7707
+    },
+    {
+      "scene": "empty",
+      "pair": 1,
+      "iterations": 4000000,
+      "before_total_ms": 12.7817,
+      "after_total_ms": 16.2595
+    },
+    {
+      "scene": "empty",
+      "pair": 2,
+      "iterations": 4000000,
+      "before_total_ms": 11.3626,
+      "after_total_ms": 13.5501
+    },
+    {
+      "scene": "empty",
+      "pair": 3,
+      "iterations": 4000000,
+      "before_total_ms": 12.8585,
+      "after_total_ms": 18.0854
+    },
+    {
+      "scene": "empty",
+      "pair": 4,
+      "iterations": 4000000,
+      "before_total_ms": 12.3654,
+      "after_total_ms": 13.7099
+    },
+    {
+      "scene": "empty",
+      "pair": 5,
+      "iterations": 4000000,
+      "before_total_ms": 12.1424,
+      "after_total_ms": 16.6779
+    },
+    {
+      "scene": "empty",
+      "pair": 6,
+      "iterations": 4000000,
+      "before_total_ms": 10.9307,
+      "after_total_ms": 13.3122
+    },
+    {
+      "scene": "empty",
+      "pair": 7,
+      "iterations": 4000000,
+      "before_total_ms": 10.6964,
+      "after_total_ms": 15.082
+    },
+    {
+      "scene": "empty",
+      "pair": 8,
+      "iterations": 4000000,
+      "before_total_ms": 10.4691,
+      "after_total_ms": 14.8633
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 0,
+      "iterations": 8000,
+      "before_total_ms": 84.4885,
+      "after_total_ms": 78.8016
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 1,
+      "iterations": 8000,
+      "before_total_ms": 88.4365,
+      "after_total_ms": 79.881
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 2,
+      "iterations": 8000,
+      "before_total_ms": 83.7701,
+      "after_total_ms": 79.1921
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 3,
+      "iterations": 8000,
+      "before_total_ms": 85.3064,
+      "after_total_ms": 81.1266
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 4,
+      "iterations": 8000,
+      "before_total_ms": 81.141,
+      "after_total_ms": 77.0546
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 5,
+      "iterations": 8000,
+      "before_total_ms": 78.8824,
+      "after_total_ms": 77.067
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 6,
+      "iterations": 8000,
+      "before_total_ms": 80.9967,
+      "after_total_ms": 81.5126
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 7,
+      "iterations": 8000,
+      "before_total_ms": 87.9658,
+      "after_total_ms": 76.5492
+    },
+    {
+      "scene": "all_flat9409",
+      "pair": 8,
+      "iterations": 8000,
+      "before_total_ms": 86.5887,
+      "after_total_ms": 79.3447
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 0,
+      "iterations": 480,
+      "before_total_ms": 175.6226,
+      "after_total_ms": 101.2687
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 1,
+      "iterations": 480,
+      "before_total_ms": 159.4417,
+      "after_total_ms": 106.2803
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 2,
+      "iterations": 480,
+      "before_total_ms": 158.353,
+      "after_total_ms": 109.9568
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 3,
+      "iterations": 480,
+      "before_total_ms": 158.0118,
+      "after_total_ms": 107.1202
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 4,
+      "iterations": 480,
+      "before_total_ms": 153.1908,
+      "after_total_ms": 97.8652
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 5,
+      "iterations": 480,
+      "before_total_ms": 157.5472,
+      "after_total_ms": 113.3085
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 6,
+      "iterations": 480,
+      "before_total_ms": 156.3525,
+      "after_total_ms": 110.4718
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 7,
+      "iterations": 480,
+      "before_total_ms": 165.0754,
+      "after_total_ms": 98.1905
+    },
+    {
+      "scene": "city_long9409",
+      "pair": 8,
+      "iterations": 480,
+      "before_total_ms": 191.4186,
+      "after_total_ms": 115.8444
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 0,
+      "iterations": 480,
+      "before_total_ms": 207.2625,
+      "after_total_ms": 152.8293
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 1,
+      "iterations": 480,
+      "before_total_ms": 203.6251,
+      "after_total_ms": 132.9686
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 2,
+      "iterations": 480,
+      "before_total_ms": 209.5545,
+      "after_total_ms": 123.7655
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 3,
+      "iterations": 480,
+      "before_total_ms": 203.1777,
+      "after_total_ms": 136.0888
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 4,
+      "iterations": 480,
+      "before_total_ms": 199.756,
+      "after_total_ms": 122.8284
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 5,
+      "iterations": 480,
+      "before_total_ms": 194.9926,
+      "after_total_ms": 128.0777
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 6,
+      "iterations": 480,
+      "before_total_ms": 200.3951,
+      "after_total_ms": 129.931
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 7,
+      "iterations": 480,
+      "before_total_ms": 199.9586,
+      "after_total_ms": 135.4986
+    },
+    {
+      "scene": "trees_long9409",
+      "pair": 8,
+      "iterations": 480,
+      "before_total_ms": 213.5163,
+      "after_total_ms": 142.5933
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 0,
+      "iterations": 144,
+      "before_total_ms": 192.2507,
+      "after_total_ms": 118.0015
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 1,
+      "iterations": 144,
+      "before_total_ms": 198.0038,
+      "after_total_ms": 106.5958
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 2,
+      "iterations": 144,
+      "before_total_ms": 201.5559,
+      "after_total_ms": 106.9577
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 3,
+      "iterations": 144,
+      "before_total_ms": 198.3194,
+      "after_total_ms": 111.3514
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 4,
+      "iterations": 144,
+      "before_total_ms": 198.4751,
+      "after_total_ms": 107.7912
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 5,
+      "iterations": 144,
+      "before_total_ms": 193.407,
+      "after_total_ms": 103.8471
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 6,
+      "iterations": 144,
+      "before_total_ms": 199.3749,
+      "after_total_ms": 116.7455
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 7,
+      "iterations": 144,
+      "before_total_ms": 198.5476,
+      "after_total_ms": 118.2169
+    },
+    {
+      "scene": "city_long28227",
+      "pair": 8,
+      "iterations": 144,
+      "before_total_ms": 194.4795,
+      "after_total_ms": 107.4083
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 0,
+      "iterations": 64,
+      "before_total_ms": 542.5579,
+      "after_total_ms": 311.599
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 1,
+      "iterations": 64,
+      "before_total_ms": 500.2747,
+      "after_total_ms": 251.1657
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 2,
+      "iterations": 64,
+      "before_total_ms": 488.9948,
+      "after_total_ms": 186.4001
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 3,
+      "iterations": 64,
+      "before_total_ms": 426.467,
+      "after_total_ms": 201.3479
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 4,
+      "iterations": 64,
+      "before_total_ms": 439.8748,
+      "after_total_ms": 203.1915
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 5,
+      "iterations": 64,
+      "before_total_ms": 403.4938,
+      "after_total_ms": 181.6905
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 6,
+      "iterations": 64,
+      "before_total_ms": 358.7816,
+      "after_total_ms": 191.9108
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 7,
+      "iterations": 64,
+      "before_total_ms": 342.4807,
+      "after_total_ms": 160.3908
+    },
+    {
+      "scene": "trees_long65536",
+      "pair": 8,
+      "iterations": 64,
+      "before_total_ms": 347.9785,
+      "after_total_ms": 217.7329
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 0,
+      "iterations": 720,
+      "before_total_ms": 192.7247,
+      "after_total_ms": 91.3787
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 1,
+      "iterations": 720,
+      "before_total_ms": 197.1051,
+      "after_total_ms": 91.6938
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 2,
+      "iterations": 720,
+      "before_total_ms": 196.9028,
+      "after_total_ms": 94.7438
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 3,
+      "iterations": 720,
+      "before_total_ms": 208.8673,
+      "after_total_ms": 117.0587
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 4,
+      "iterations": 720,
+      "before_total_ms": 187.3997,
+      "after_total_ms": 113.8951
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 5,
+      "iterations": 720,
+      "before_total_ms": 200.0916,
+      "after_total_ms": 90.718
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 6,
+      "iterations": 720,
+      "before_total_ms": 195.9825,
+      "after_total_ms": 90.7485
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 7,
+      "iterations": 720,
+      "before_total_ms": 193.7531,
+      "after_total_ms": 94.7559
+    },
+    {
+      "scene": "grass_short9409",
+      "pair": 8,
+      "iterations": 720,
+      "before_total_ms": 194.6393,
+      "after_total_ms": 90.2623
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 0,
+      "iterations": 720,
+      "before_total_ms": 162.8718,
+      "after_total_ms": 70.072
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 1,
+      "iterations": 720,
+      "before_total_ms": 166.1904,
+      "after_total_ms": 72.5969
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 2,
+      "iterations": 720,
+      "before_total_ms": 172.1771,
+      "after_total_ms": 74.9072
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 3,
+      "iterations": 720,
+      "before_total_ms": 170.0233,
+      "after_total_ms": 64.3221
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 4,
+      "iterations": 720,
+      "before_total_ms": 167.3681,
+      "after_total_ms": 73.0559
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 5,
+      "iterations": 720,
+      "before_total_ms": 159.2747,
+      "after_total_ms": 69.8744
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 6,
+      "iterations": 720,
+      "before_total_ms": 159.6536,
+      "after_total_ms": 62.827
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 7,
+      "iterations": 720,
+      "before_total_ms": 162.9727,
+      "after_total_ms": 67.7628
+    },
+    {
+      "scene": "city_short9409",
+      "pair": 8,
+      "iterations": 720,
+      "before_total_ms": 160.0991,
+      "after_total_ms": 71.4777
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 0,
+      "iterations": 800,
+      "before_total_ms": 123.395,
+      "after_total_ms": 117.5999
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 1,
+      "iterations": 800,
+      "before_total_ms": 137.9512,
+      "after_total_ms": 118.9048
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 2,
+      "iterations": 800,
+      "before_total_ms": 121.6424,
+      "after_total_ms": 126.5276
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 3,
+      "iterations": 800,
+      "before_total_ms": 128.5279,
+      "after_total_ms": 136.4827
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 4,
+      "iterations": 800,
+      "before_total_ms": 129.2462,
+      "after_total_ms": 120.0977
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 5,
+      "iterations": 800,
+      "before_total_ms": 123.4852,
+      "after_total_ms": 119.1635
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 6,
+      "iterations": 800,
+      "before_total_ms": 118.2501,
+      "after_total_ms": 113.1193
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 7,
+      "iterations": 800,
+      "before_total_ms": 113.3515,
+      "after_total_ms": 113.7719
+    },
+    {
+      "scene": "legacy_long9409",
+      "pair": 8,
+      "iterations": 800,
+      "before_total_ms": 118.0769,
+      "after_total_ms": 106.6927
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 0,
+      "iterations": 192,
+      "before_total_ms": 219.7343,
+      "after_total_ms": 132.3139
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 1,
+      "iterations": 192,
+      "before_total_ms": 221.0664,
+      "after_total_ms": 145.9107
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 2,
+      "iterations": 192,
+      "before_total_ms": 234.0192,
+      "after_total_ms": 138.3207
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 3,
+      "iterations": 192,
+      "before_total_ms": 231.0367,
+      "after_total_ms": 150.8302
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 4,
+      "iterations": 192,
+      "before_total_ms": 233.3849,
+      "after_total_ms": 133.8884
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 5,
+      "iterations": 192,
+      "before_total_ms": 223.9408,
+      "after_total_ms": 127.8776
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 6,
+      "iterations": 192,
+      "before_total_ms": 223.6949,
+      "after_total_ms": 128.8935
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 7,
+      "iterations": 192,
+      "before_total_ms": 219.1817,
+      "after_total_ms": 130.7615
+    },
+    {
+      "scene": "sparse_long3z",
+      "pair": 8,
+      "iterations": 192,
+      "before_total_ms": 240.0994,
+      "after_total_ms": 137.005
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 0,
+      "iterations": 10000,
+      "before_total_ms": 45.628,
+      "after_total_ms": 42.8656
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 1,
+      "iterations": 10000,
+      "before_total_ms": 42.0636,
+      "after_total_ms": 45.3327
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 2,
+      "iterations": 10000,
+      "before_total_ms": 44.1526,
+      "after_total_ms": 43.7297
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 3,
+      "iterations": 10000,
+      "before_total_ms": 45.605,
+      "after_total_ms": 43.9161
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 4,
+      "iterations": 10000,
+      "before_total_ms": 51.0082,
+      "after_total_ms": 42.5631
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 5,
+      "iterations": 10000,
+      "before_total_ms": 42.9774,
+      "after_total_ms": 42.9196
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 6,
+      "iterations": 10000,
+      "before_total_ms": 47.4153,
+      "after_total_ms": 42.3991
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 7,
+      "iterations": 10000,
+      "before_total_ms": 46.8245,
+      "after_total_ms": 44.206
+    },
+    {
+      "scene": "hidden9409",
+      "pair": 8,
+      "iterations": 10000,
+      "before_total_ms": 47.5509,
+      "after_total_ms": 44.3797
+    },
+    {
+      "scene": "small49",
+      "pair": 0,
+      "iterations": 160000,
+      "before_total_ms": 42.0927,
+      "after_total_ms": 44.1035
+    },
+    {
+      "scene": "small49",
+      "pair": 1,
+      "iterations": 160000,
+      "before_total_ms": 46.2179,
+      "after_total_ms": 43.8867
+    },
+    {
+      "scene": "small49",
+      "pair": 2,
+      "iterations": 160000,
+      "before_total_ms": 45.238,
+      "after_total_ms": 44.0889
+    },
+    {
+      "scene": "small49",
+      "pair": 3,
+      "iterations": 160000,
+      "before_total_ms": 45.0363,
+      "after_total_ms": 42.0747
+    },
+    {
+      "scene": "small49",
+      "pair": 4,
+      "iterations": 160000,
+      "before_total_ms": 40.6572,
+      "after_total_ms": 42.6724
+    },
+    {
+      "scene": "small49",
+      "pair": 5,
+      "iterations": 160000,
+      "before_total_ms": 45.4414,
+      "after_total_ms": 46.3184
+    },
+    {
+      "scene": "small49",
+      "pair": 6,
+      "iterations": 160000,
+      "before_total_ms": 46.6711,
+      "after_total_ms": 83.5052
+    },
+    {
+      "scene": "small49",
+      "pair": 7,
+      "iterations": 160000,
+      "before_total_ms": 54.7217,
+      "after_total_ms": 66.6091
+    },
+    {
+      "scene": "small49",
+      "pair": 8,
+      "iterations": 160000,
+      "before_total_ms": 43.2532,
+      "after_total_ms": 46.376
+    },
+    {
+      "scene": "only_first65536",
+      "pair": 0,
+      "iterations": 560,
+      "before_total_ms": 47.5697,
+      "after_total_ms": 54.7652
+    },
+    {
+      "scene": "only_first65536",
+      "pair": 1,
+      "iterations": 560,
+      "before_total_ms": 52.2049,
+      "after_total_ms": 49.4103
+    },
+    {
+      "scene": "only_first65536",
+      "pair": 2,
+      "iterations": 560,
+      "before_total_ms": 51.3936,
+      "after_total_ms": 49.9836
+    },
+    {
+      "scene": "only_first65536",
+      "pair": 3,
+      "iterations": 560,
+      "before_total_ms": 54.8535,
+      "after_total_ms": 51.0262
+    },
+    {
+      "scene": "only_first65536",
+      "pair": 4,
+      "iterations": 560,
+      "before_total_ms": 48.7768,
+      "after_total_ms": 49.2278
+    },
+    {
+      "scene": "only_first65536",
+      "pair": 5,
+      "iterations": 560,
+      "before_total_ms": 50.1279,
+      "after_total_ms": 47.4609
+    },
+    {
+      "scene": "only_first65536",
+      "pair": 6,
+      "iterations": 560,
+      "before_total_ms": 50.8754,
+      "after_total_ms": 53.9009
+    },
+    {
+      "scene": "only_first65536",
+      "pair": 7,
+      "iterations": 560,
+      "before_total_ms": 49.2752,
+      "after_total_ms": 49.1151
+    },
+    {
+      "scene": "only_first65536",
+      "pair": 8,
+      "iterations": 560,
+      "before_total_ms": 48.1192,
+      "after_total_ms": 47.7464
+    },
+    {
+      "scene": "only_last65536",
+      "pair": 0,
+      "iterations": 560,
+      "before_total_ms": 53.1607,
+      "after_total_ms": 53.3042
+    },
+    {
+      "scene": "only_last65536",
+      "pair": 1,
+      "iterations": 560,
+      "before_total_ms": 50.4284,
+      "after_total_ms": 44.2786
+    },
+    {
+      "scene": "only_last65536",
+      "pair": 2,
+      "iterations": 560,
+      "before_total_ms": 47.4786,
+      "after_total_ms": 47.9689
+    },
+    {
+      "scene": "only_last65536",
+      "pair": 3,
+      "iterations": 560,
+      "before_total_ms": 57.4038,
+      "after_total_ms": 42.9187
+    },
+    {
+      "scene": "only_last65536",
+      "pair": 4,
+      "iterations": 560,
+      "before_total_ms": 54.0802,
+      "after_total_ms": 48.75
+    },
+    {
+      "scene": "only_last65536",
+      "pair": 5,
+      "iterations": 560,
+      "before_total_ms": 53.2099,
+      "after_total_ms": 47.8027
+    },
+    {
+      "scene": "only_last65536",
+      "pair": 6,
+      "iterations": 560,
+      "before_total_ms": 52.4249,
+      "after_total_ms": 43.8722
+    },
+    {
+      "scene": "only_last65536",
+      "pair": 7,
+      "iterations": 560,
+      "before_total_ms": 50.7572,
+      "after_total_ms": 43.9819
+    },
+    {
+      "scene": "only_last65536",
+      "pair": 8,
+      "iterations": 560,
+      "before_total_ms": 50.5684,
+      "after_total_ms": 46.1138
+    },
+    {
+      "scene": "all_vertical65536",
+      "pair": 0,
+      "iterations": 72,
+      "before_total_ms": 1189.3894,
+      "after_total_ms": 221.2761
+    },
+    {
+      "scene": "all_vertical65536",
+      "pair": 1,
+      "iterations": 72,
+      "before_total_ms": 1166.3777,
+      "after_total_ms": 234.9487
+    },
+    {
+      "scene": "all_vertical65536",
+      "pair": 2,
+      "iterations": 72,
+      "before_total_ms": 1116.5598,
+      "after_total_ms": 206.79
+    },
+    {
+      "scene": "all_vertical65536",
+      "pair": 3,
+      "iterations": 72,
+      "before_total_ms": 1074.7343,
+      "after_total_ms": 206.2186
+    },
+    {
+      "scene": "all_vertical65536",
+      "pair": 4,
+      "iterations": 72,
+      "before_total_ms": 1110.224,
+      "after_total_ms": 225.628
+    },
+    {
+      "scene": "all_vertical65536",
+      "pair": 5,
+      "iterations": 72,
+      "before_total_ms": 1115.2178,
+      "after_total_ms": 214.6042
+    },
+    {
+      "scene": "all_vertical65536",
+      "pair": 6,
+      "iterations": 72,
+      "before_total_ms": 1152.3936,
+      "after_total_ms": 236.9882
+    },
+    {
+      "scene": "all_vertical65536",
+      "pair": 7,
+      "iterations": 72,
+      "before_total_ms": 1093.9834,
+      "after_total_ms": 216.6709
+    },
+    {
+      "scene": "all_vertical65536",
+      "pair": 8,
+      "iterations": 72,
+      "before_total_ms": 1128.9807,
+      "after_total_ms": 225.4611
+    },
+    {
+      "scene": "isolated_sparse",
+      "pair": 0,
+      "iterations": 280,
+      "before_total_ms": 506.4674,
+      "after_total_ms": 119.4813
+    },
+    {
+      "scene": "isolated_sparse",
+      "pair": 1,
+      "iterations": 280,
+      "before_total_ms": 495.6456,
+      "after_total_ms": 125.8054
+    },
+    {
+      "scene": "isolated_sparse",
+      "pair": 2,
+      "iterations": 280,
+      "before_total_ms": 542.7365,
+      "after_total_ms": 113.9454
+    },
+    {
+      "scene": "isolated_sparse",
+      "pair": 3,
+      "iterations": 280,
+      "before_total_ms": 507.5482,
+      "after_total_ms": 121.7008
+    },
+    {
+      "scene": "isolated_sparse",
+      "pair": 4,
+      "iterations": 280,
+      "before_total_ms": 536.7279,
+      "after_total_ms": 121.562
+    },
+    {
+      "scene": "isolated_sparse",
+      "pair": 5,
+      "iterations": 280,
+      "before_total_ms": 507.7265,
+      "after_total_ms": 124.0392
+    },
+    {
+      "scene": "isolated_sparse",
+      "pair": 6,
+      "iterations": 280,
+      "before_total_ms": 516.3571,
+      "after_total_ms": 142.9717
+    },
+    {
+      "scene": "isolated_sparse",
+      "pair": 7,
+      "iterations": 280,
+      "before_total_ms": 526.3842,
+      "after_total_ms": 129.9061
+    },
+    {
+      "scene": "isolated_sparse",
+      "pair": 8,
+      "iterations": 280,
+      "before_total_ms": 558.9355,
+      "after_total_ms": 137.2611
+    },
+    {
+      "scene": "long_jumps9409",
+      "pair": 0,
+      "iterations": 4800,
+      "before_total_ms": 58.3261,
+      "after_total_ms": 55.3946
+    },
+    {
+      "scene": "long_jumps9409",
+      "pair": 1,
+      "iterations": 4800,
+      "before_total_ms": 62.3763,
+      "after_total_ms": 59.99
+    },
+    {
+      "scene": "long_jumps9409",
+      "pair": 2,
+      "iterations": 4800,
+      "before_total_ms": 63.9193,
+      "after_total_ms": 56.5374
+    },
+    {
+      "scene": "long_jumps9409",
+      "pair": 3,
+      "iterations": 4800,
+      "before_total_ms": 61.3465,
+      "after_total_ms": 59.1772
+    },
+    {
+      "scene": "long_jumps9409",
+      "pair": 4,
+      "iterations": 4800,
+      "before_total_ms": 56.6978,
+      "after_total_ms": 62.0109
+    },
+    {
+      "scene": "long_jumps9409",
+      "pair": 5,
+      "iterations": 4800,
+      "before_total_ms": 55.8037,
+      "after_total_ms": 61.5166
+    },
+    {
+      "scene": "long_jumps9409",
+      "pair": 6,
+      "iterations": 4800,
+      "before_total_ms": 56.8377,
+      "after_total_ms": 61.3976
+    },
+    {
+      "scene": "long_jumps9409",
+      "pair": 7,
+      "iterations": 4800,
+      "before_total_ms": 60.6077,
+      "after_total_ms": 60.8543
+    },
+    {
+      "scene": "long_jumps9409",
+      "pair": 8,
+      "iterations": 4800,
+      "before_total_ms": 59.635,
+      "after_total_ms": 55.1056
+    },
+    {
+      "scene": "single_vertical",
+      "pair": 0,
+      "iterations": 4000000,
+      "before_total_ms": 30.4191,
+      "after_total_ms": 29.0644
+    },
+    {
+      "scene": "single_vertical",
+      "pair": 1,
+      "iterations": 4000000,
+      "before_total_ms": 29.113,
+      "after_total_ms": 29.2255
+    },
+    {
+      "scene": "single_vertical",
+      "pair": 2,
+      "iterations": 4000000,
+      "before_total_ms": 26.1056,
+      "after_total_ms": 30.7731
+    },
+    {
+      "scene": "single_vertical",
+      "pair": 3,
+      "iterations": 4000000,
+      "before_total_ms": 34.5066,
+      "after_total_ms": 28.8534
+    },
+    {
+      "scene": "single_vertical",
+      "pair": 4,
+      "iterations": 4000000,
+      "before_total_ms": 31.0602,
+      "after_total_ms": 35.0875
+    },
+    {
+      "scene": "single_vertical",
+      "pair": 5,
+      "iterations": 4000000,
+      "before_total_ms": 29.4381,
+      "after_total_ms": 32.249
+    },
+    {
+      "scene": "single_vertical",
+      "pair": 6,
+      "iterations": 4000000,
+      "before_total_ms": 28.9656,
+      "after_total_ms": 35.594
+    },
+    {
+      "scene": "single_vertical",
+      "pair": 7,
+      "iterations": 4000000,
+      "before_total_ms": 30.7156,
+      "after_total_ms": 33.1087
+    },
+    {
+      "scene": "single_vertical",
+      "pair": 8,
+      "iterations": 4000000,
+      "before_total_ms": 32.2846,
+      "after_total_ms": 32.1396
+    }
+  ],
+  "allocation_and_output_cases": [
+    {
+      "scene": "empty",
+      "cells": 0,
+      "compared_bytes": 0,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 1469598103934665603
+    },
+    {
+      "scene": "all_flat9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 183119432162490539
+    },
+    {
+      "scene": "city_long9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 2259,
+      "after_allocations": 2259,
+      "before_allocated_bytes": 144576,
+      "after_allocated_bytes": 144576,
+      "output_hash": 6846991644512112614
+    },
+    {
+      "scene": "trees_long9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 2353,
+      "after_allocations": 2353,
+      "before_allocated_bytes": 150592,
+      "after_allocated_bytes": 150592,
+      "output_hash": 6794247994819114079
+    },
+    {
+      "scene": "city_long28227",
+      "cells": 28227,
+      "compared_bytes": 9145548,
+      "before_allocations": 7903,
+      "after_allocations": 7903,
+      "before_allocated_bytes": 505792,
+      "after_allocated_bytes": 505792,
+      "output_hash": 15753568724632348703
+    },
+    {
+      "scene": "trees_long65536",
+      "cells": 65536,
+      "compared_bytes": 21233664,
+      "before_allocations": 20966,
+      "after_allocations": 20966,
+      "before_allocated_bytes": 1341824,
+      "after_allocated_bytes": 1341824,
+      "output_hash": 5860274222930290011
+    },
+    {
+      "scene": "grass_short9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 10384870719377965546
+    },
+    {
+      "scene": "city_short9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 5168950412221641307
+    },
+    {
+      "scene": "legacy_long9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 2259,
+      "after_allocations": 2259,
+      "before_allocated_bytes": 144576,
+      "after_allocated_bytes": 144576,
+      "output_hash": 6846991644512112614
+    },
+    {
+      "scene": "sparse_long3z",
+      "cells": 22581,
+      "compared_bytes": 7316244,
+      "before_allocations": 5617,
+      "after_allocations": 5617,
+      "before_allocated_bytes": 359488,
+      "after_allocated_bytes": 359488,
+      "output_hash": 15658585757028727911
+    },
+    {
+      "scene": "hidden9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 5175023742983626666
+    },
+    {
+      "scene": "small49",
+      "cells": 49,
+      "compared_bytes": 15876,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 11806292671339313003
+    },
+    {
+      "scene": "only_first65536",
+      "cells": 65536,
+      "compared_bytes": 21233664,
+      "before_allocations": 1,
+      "after_allocations": 1,
+      "before_allocated_bytes": 64,
+      "after_allocated_bytes": 64,
+      "output_hash": 5862845464443707926
+    },
+    {
+      "scene": "only_last65536",
+      "cells": 65536,
+      "compared_bytes": 21233664,
+      "before_allocations": 1,
+      "after_allocations": 1,
+      "before_allocated_bytes": 64,
+      "after_allocated_bytes": 64,
+      "output_hash": 10497489488744513126
+    },
+    {
+      "scene": "all_vertical65536",
+      "cells": 65536,
+      "compared_bytes": 21233664,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 10474519786589848451
+    },
+    {
+      "scene": "isolated_sparse",
+      "cells": 16807,
+      "compared_bytes": 5445468,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 3107985456254219443
+    },
+    {
+      "scene": "long_jumps9409",
+      "cells": 9409,
+      "compared_bytes": 3048516,
+      "before_allocations": 9,
+      "after_allocations": 9,
+      "before_allocated_bytes": 576,
+      "after_allocated_bytes": 576,
+      "output_hash": 13799917338847461422
+    },
+    {
+      "scene": "single_vertical",
+      "cells": 1,
+      "compared_bytes": 324,
+      "before_allocations": 0,
+      "after_allocations": 0,
+      "before_allocated_bytes": 0,
+      "after_allocated_bytes": 0,
+      "output_hash": 5907232866425550451
+    }
+  ],
+  "compared_output_bytes": 131246244,
+  "correctness": {
+    "checks": 1099623,
+    "prior_independent_surface_checks": 163623,
+    "new_cardinal_lookup_comparisons": 935972,
+    "new_immutability_bound_and_size_guards": 28,
+    "lookup_oracle": "Independent full binary search on every cardinal query; query indices must agree even when floor colours are equal. Include sparse12layouts,1/255/256/257/9409/65536cells,32levels, skipped queries, initial/end lookup and absolute-coordinate overflow.",
+    "complete_surface_oracle": "Independent absolute-XYZ std::map across384 sparse/legacy scenes plus8explicit priority cases, comparing complete detail bytes before/after appearance publication.",
+    "negative_controls": [
+      {
+        "name": "positive",
+        "exit_code": 0,
+        "helper_sha256": "c8cbe2f7026402bef93eab29115f1996ec44c64d18fc873423d378884575140d"
+      },
+      {
+        "name": "shared-direction-cursor",
+        "exit_code": 1,
+        "helper_sha256": "82a3d345771e7dae5b284e6cc383528580dcbb22ce34a39ff4f5ef4088319371"
+      },
+      {
+        "name": "skip-bracket",
+        "exit_code": 1,
+        "helper_sha256": "75f725f91def5fce3401420b2aeb9e4891eb177c018bc1d77eb01b340dcbeeca"
+      },
+      {
+        "name": "wrong-z",
+        "exit_code": 1,
+        "helper_sha256": "62583213989cc100c466df30e92049a91553f6f8aff147436a4dd618e0789e85"
+      },
+      {
+        "name": "ignore-visible-neighbor",
+        "exit_code": 1,
+        "helper_sha256": "38c49e36ed8e9da08bbc26aa1c90cbcbcdf77e1dafda6b3ad5b850de3c0190a8"
+      }
+    ]
+  },
+  "observations": "Nine predetermined alternatingpairs x18 complete-pass workloads with fourfold iteration counts. City9409 .329902->.223167ms paired.666578; trees9409 .423287->.277018ms paired.656834; city28227 1.377218->.748550ms paired.552286; trees65536 6.663547->3.146061ms paired.472130. First/last-only vertical cells and isolated sparse worlds retain the exact lookup result.",
+  "controls": "All substantial controls remain within3percent paired regression. Small49 has4.78percent paired regression despite lower independent after median; empty has37.35percent and single-cell7.79percent paired regressions. Their median paired absolute costs stay below the prespecified50ns allowance. Long-gap independent medians regress .074us while its paired median improves3.54percent. These discrepancies and every raw lane are retained.",
+  "memory": "Every measured temporary allocation count and allocated-byte count agrees. The new callback-local object has sizeof24bytes onx64, including16bytes of integer cursor payload and one borrowed owned-snapshot pointer. This is not measured machine-stack reservation, RSS or VRAM. No persistent heap cache/pool, Native object ownership or extra Native query is introduced.",
+  "rejected_experiments": [
+    {
+      "label": "99-first",
+      "reason": "Legacy paired1.08741 fails3percent; small49 paired1.13951 is near the50ns absolute allowance. No production change.",
+      "source_sha256": "c78b5ccd1933946489bc778cc18c79281661b07b1bfe01aff9f6ae8146c9927e",
+      "comparisons": [
+        {
+          "scene": "empty",
+          "before_median_ms": 3.9451e-06,
+          "after_median_ms": 3.5206e-06,
+          "median_pair_ratio": 0.849901270224868
+        },
+        {
+          "scene": "all_flat9409",
+          "before_median_ms": 0.011504450000000001,
+          "after_median_ms": 0.010683400000000001,
+          "median_pair_ratio": 1.0086435846798907
+        },
+        {
+          "scene": "city_long9409",
+          "before_median_ms": 0.39610249999999997,
+          "after_median_ms": 0.24557333333333334,
+          "median_pair_ratio": 0.5976112236065472
+        },
+        {
+          "scene": "trees_long9409",
+          "before_median_ms": 0.5125341666666666,
+          "after_median_ms": 0.32983583333333333,
+          "median_pair_ratio": 0.6733802445672907
+        },
+        {
+          "scene": "city_long28227",
+          "before_median_ms": 1.7660833333333334,
+          "after_median_ms": 1.1305555555555555,
+          "median_pair_ratio": 0.648000476175517
+        },
+        {
+          "scene": "trees_long65536",
+          "before_median_ms": 8.1931875,
+          "after_median_ms": 4.766,
+          "median_pair_ratio": 0.5822821705980578
+        },
+        {
+          "scene": "grass_short9409",
+          "before_median_ms": 0.30473666666666666,
+          "after_median_ms": 0.1487227777777778,
+          "median_pair_ratio": 0.48637775781065856
+        },
+        {
+          "scene": "city_short9409",
+          "before_median_ms": 0.27567166666666665,
+          "after_median_ms": 0.12507944444444444,
+          "median_pair_ratio": 0.45434527304756306
+        },
+        {
+          "scene": "legacy_long9409",
+          "before_median_ms": 0.18677,
+          "after_median_ms": 0.205411,
+          "median_pair_ratio": 1.0874133429368866
+        },
+        {
+          "scene": "sparse_long3z",
+          "before_median_ms": 1.43119375,
+          "after_median_ms": 0.92696875,
+          "median_pair_ratio": 0.6299425165977757
+        },
+        {
+          "scene": "hidden9409",
+          "before_median_ms": 0.0061532800000000006,
+          "after_median_ms": 0.00587408,
+          "median_pair_ratio": 0.962676804000137
+        },
+        {
+          "scene": "small49",
+          "before_median_ms": 0.00040368250000000005,
+          "after_median_ms": 0.0004495075,
+          "median_pair_ratio": 1.1395072789631973
+        },
+        {
+          "scene": "only_first65536",
+          "before_median_ms": 0.11519285714285714,
+          "after_median_ms": 0.10289214285714285,
+          "median_pair_ratio": 0.8736135369964511
+        },
+        {
+          "scene": "only_last65536",
+          "before_median_ms": 0.12529714285714286,
+          "after_median_ms": 0.12613857142857143,
+          "median_pair_ratio": 0.9465157112236057
+        },
+        {
+          "scene": "all_vertical65536",
+          "before_median_ms": 21.64348888888889,
+          "after_median_ms": 11.423666666666668,
+          "median_pair_ratio": 0.5271003218836157
+        },
+        {
+          "scene": "isolated_sparse",
+          "before_median_ms": 2.1873742857142857,
+          "after_median_ms": 0.5687971428571429,
+          "median_pair_ratio": 0.2480026177689718
+        },
+        {
+          "scene": "long_jumps9409",
+          "before_median_ms": 0.014547916666666666,
+          "after_median_ms": 0.013980916666666668,
+          "median_pair_ratio": 0.9351824929641598
+        },
+        {
+          "scene": "single_vertical",
+          "before_median_ms": 9.518599999999999e-06,
+          "after_median_ms": 9.9171e-06,
+          "median_pair_ratio": 1.0526030886801465
+        }
+      ],
+      "evidence_sha256": "2695e394c276256089d2816b15a3e8809fd702617fab1494ec2590067466b0b1"
+    },
+    {
+      "label": "99-second",
+      "reason": "Separate fallback still regresses all-flat14.21percent, legacy21.58percent and lone-first18.75percent. No production change.",
+      "source_sha256": "6f655f648c934cc480dd64d6dbd70205f35646619dda343498d6dba1816298f1",
+      "comparisons": [
+        {
+          "scene": "empty",
+          "before_median_ms": 3.7239e-06,
+          "after_median_ms": 7.0323e-06,
+          "median_pair_ratio": 1.8371786420566907
+        },
+        {
+          "scene": "all_flat9409",
+          "before_median_ms": 0.0117676,
+          "after_median_ms": 0.012605650000000001,
+          "median_pair_ratio": 1.142068169641017
+        },
+        {
+          "scene": "city_long9409",
+          "before_median_ms": 0.4472583333333333,
+          "after_median_ms": 0.28476666666666667,
+          "median_pair_ratio": 0.6712441949414374
+        },
+        {
+          "scene": "trees_long9409",
+          "before_median_ms": 0.5168116666666667,
+          "after_median_ms": 0.3645158333333333,
+          "median_pair_ratio": 0.7191852609106476
+        },
+        {
+          "scene": "city_long28227",
+          "before_median_ms": 1.7765972222222224,
+          "after_median_ms": 1.1188888888888888,
+          "median_pair_ratio": 0.6293929868167751
+        },
+        {
+          "scene": "trees_long65536",
+          "before_median_ms": 9.33616875,
+          "after_median_ms": 4.958925,
+          "median_pair_ratio": 0.563956178899116
+        },
+        {
+          "scene": "grass_short9409",
+          "before_median_ms": 0.3079561111111111,
+          "after_median_ms": 0.15854777777777776,
+          "median_pair_ratio": 0.5246978976148785
+        },
+        {
+          "scene": "city_short9409",
+          "before_median_ms": 0.2787011111111111,
+          "after_median_ms": 0.13937444444444444,
+          "median_pair_ratio": 0.4904088324892796
+        },
+        {
+          "scene": "legacy_long9409",
+          "before_median_ms": 0.1872645,
+          "after_median_ms": 0.2116985,
+          "median_pair_ratio": 1.2158089103188534
+        },
+        {
+          "scene": "sparse_long3z",
+          "before_median_ms": 1.4451625000000001,
+          "after_median_ms": 0.9606479166666667,
+          "median_pair_ratio": 0.626755161536991
+        },
+        {
+          "scene": "hidden9409",
+          "before_median_ms": 0.0053863999999999995,
+          "after_median_ms": 0.00471076,
+          "median_pair_ratio": 0.8883988672763568
+        },
+        {
+          "scene": "small49",
+          "before_median_ms": 0.000384535,
+          "after_median_ms": 0.000399505,
+          "median_pair_ratio": 1.1048772219876417
+        },
+        {
+          "scene": "only_first65536",
+          "before_median_ms": 0.10277642857142857,
+          "after_median_ms": 0.12308571428571428,
+          "median_pair_ratio": 1.1875152029022775
+        },
+        {
+          "scene": "only_last65536",
+          "before_median_ms": 0.10404214285714285,
+          "after_median_ms": 0.10198285714285714,
+          "median_pair_ratio": 0.9646414305306783
+        },
+        {
+          "scene": "all_vertical65536",
+          "before_median_ms": 17.866416666666666,
+          "after_median_ms": 5.7751,
+          "median_pair_ratio": 0.29986119888856944
+        },
+        {
+          "scene": "isolated_sparse",
+          "before_median_ms": 1.858302857142857,
+          "after_median_ms": 0.4528371428571428,
+          "median_pair_ratio": 0.23883738143747757
+        },
+        {
+          "scene": "long_jumps9409",
+          "before_median_ms": 0.012068333333333332,
+          "after_median_ms": 0.012402333333333333,
+          "median_pair_ratio": 1.0276757353956636
+        },
+        {
+          "scene": "single_vertical",
+          "before_median_ms": 6.156799999999999e-06,
+          "after_median_ms": 8.160399999999999e-06,
+          "median_pair_ratio": 1.3816741747286019
+        }
+      ],
+      "evidence_sha256": "792b573932898148507db30186a85a5c518ee11218218628bf1930622a677344"
+    },
+    {
+      "label": "99-third",
+      "reason": "Isolated search with original traversal fixes legacy but hidden paired1.19459 and long query gaps1.04196 fail3percent. No production change.",
+      "source_sha256": "5a63aefbcc5a50608f68d5b5ed21dff2eab7ec3cbc5e8886ede3f37729f51191",
+      "comparisons": [
+        {
+          "scene": "empty",
+          "before_median_ms": 3.053125e-06,
+          "after_median_ms": 3.795325e-06,
+          "median_pair_ratio": 1.1799957221144557
+        },
+        {
+          "scene": "all_flat9409",
+          "before_median_ms": 0.010465312499999999,
+          "after_median_ms": 0.01051205,
+          "median_pair_ratio": 1.027669981187853
+        },
+        {
+          "scene": "city_long9409",
+          "before_median_ms": 0.35844208333333333,
+          "after_median_ms": 0.21666458333333333,
+          "median_pair_ratio": 0.6218484381980587
+        },
+        {
+          "scene": "trees_long9409",
+          "before_median_ms": 0.41801187500000003,
+          "after_median_ms": 0.27450604166666664,
+          "median_pair_ratio": 0.6430284080636631
+        },
+        {
+          "scene": "city_long28227",
+          "before_median_ms": 1.3637166666666667,
+          "after_median_ms": 0.7623125,
+          "median_pair_ratio": 0.5683239464176788
+        },
+        {
+          "scene": "trees_long65536",
+          "before_median_ms": 8.957128125,
+          "after_median_ms": 3.70790625,
+          "median_pair_ratio": 0.42419596670761894
+        },
+        {
+          "scene": "grass_short9409",
+          "before_median_ms": 0.2697973611111111,
+          "after_median_ms": 0.13294708333333333,
+          "median_pair_ratio": 0.4927664332438801
+        },
+        {
+          "scene": "city_short9409",
+          "before_median_ms": 0.23587569444444445,
+          "after_median_ms": 0.10020180555555556,
+          "median_pair_ratio": 0.42505980864674436
+        },
+        {
+          "scene": "legacy_long9409",
+          "before_median_ms": 0.162572125,
+          "after_median_ms": 0.16491025,
+          "median_pair_ratio": 1.0046615977998963
+        },
+        {
+          "scene": "sparse_long3z",
+          "before_median_ms": 1.2655135416666667,
+          "after_median_ms": 0.7712416666666666,
+          "median_pair_ratio": 0.6089608925993518
+        },
+        {
+          "scene": "hidden9409",
+          "before_median_ms": 0.00473833,
+          "after_median_ms": 0.00568928,
+          "median_pair_ratio": 1.1945853099950925
+        },
+        {
+          "scene": "small49",
+          "before_median_ms": 0.00026839625,
+          "after_median_ms": 0.000279199375,
+          "median_pair_ratio": 1.0005665811904072
+        },
+        {
+          "scene": "only_first65536",
+          "before_median_ms": 0.09132607142857144,
+          "after_median_ms": 0.09224357142857142,
+          "median_pair_ratio": 1.010046419227806
+        },
+        {
+          "scene": "only_last65536",
+          "before_median_ms": 0.08847374999999999,
+          "after_median_ms": 0.09172875,
+          "median_pair_ratio": 1.017626012324545
+        },
+        {
+          "scene": "all_vertical65536",
+          "before_median_ms": 17.003149999999998,
+          "after_median_ms": 4.4389125,
+          "median_pair_ratio": 0.26106412635305815
+        },
+        {
+          "scene": "isolated_sparse",
+          "before_median_ms": 1.8574853571428573,
+          "after_median_ms": 0.46013964285714287,
+          "median_pair_ratio": 0.2453208958349994
+        },
+        {
+          "scene": "long_jumps9409",
+          "before_median_ms": 0.011645125,
+          "after_median_ms": 0.0121338125,
+          "median_pair_ratio": 1.041964985347946
+        },
+        {
+          "scene": "single_vertical",
+          "before_median_ms": 7.042575e-06,
+          "after_median_ms": 7.672875e-06,
+          "median_pair_ratio": 1.1232312099675021
+        }
+      ],
+      "evidence_sha256": "2952240c725fc2a98c54c02067742959db7a84057eab88e6e63ae2947ac57291"
+    }
+  ],
+  "preparation_repair": "An intermediate second-variant source generator duplicated the private include marker and stopped before compilation or measurements. Its partial source folder is retained; measured second variant uses the corrected unique marker. No production file or measured output was overwritten.",
+  "local_tests": {
+    "source_parent": "6da17a35142a02ebd3ea299f71a10eff59a50100",
+    "files": {
+      "experiments/graphics_bridge/ncmm_graphics_static_detail.inc": "c8cbe2f7026402bef93eab29115f1996ec44c64d18fc873423d378884575140d",
+      "experiments/FirstPersonView/tests/multilevel_cache_test.cpp": "fe1aa8209e94145482124a56f51635dc2729d6f716ec530c2e604331ebd322e7"
+    },
+    "originals": {
+      "experiments/graphics_bridge/ncmm_graphics_static_detail.inc": "49d9a68d87ba468219dc0aac95c3634208343ecd704c8c6e9f3fb96f0707d03f",
+      "experiments/FirstPersonView/tests/multilevel_cache_test.cpp": "a82b0fbe224a56b824c407061f68a8f6c3597cbad5a404a5854fe5bf20b1dcd7"
+    },
+    "change": "Resume four independent same-direction searches in canonical Z/Y/X order. First query uses full lower_bound; subsequent queries exponentially bracket forward gaps. Keep original small/legacy lookup and use a pure prefix scan for ineligible cells.",
+    "canonical_producer_source_sha256": "a44059d616a76ab927cbd3eeed846b82f4e88e5912c55a4fdbd0e62f4443dabc",
+    "producer_sort_and_uncapped_order_confirmed": true,
+    "copied_native_inputs_unchanged": 106,
+    "abi_unchanged": true,
+    "no_native_queries_added": true,
+    "no_persistent_cache_or_pool": true,
+    "stack_cursor_object_bytes_x64": 24,
+    "local_native": false,
+    "local_device": false,
+    "mouse_or_focus": false,
+    "subagents": false,
+    "success": true,
+    "full_release_build": true,
+    "non_device_tests": 51,
+    "atomic_source_transform_tests": 96,
+    "independent_substrate_checks": 1099623,
+    "negative_controls": 4,
+    "device_repeat_reason": "Host extraction search changes; renderer/assets/device code and output contract are unchanged. Complete source model/lookup guards run locally. No local Native game or input harness is allowed."
+  },
+  "published_installers_include_this_change": false,
+  "published_installer_source": "cdb929b3453acd88ecc3d525daea5dcea0dba884",
+  "remote_full_qualification_pending": true,
+  "limitations": [
+    "This is a complete owned CPU substrate pass, not full Native extraction, engine AI/UI work, GPU execution, Present, input latency or a cold process.",
+    "Correct reference is6da17a3, which already restores visible neighbours. No ordinary movement/shooting freeze reduction, RTX4090 game FPS or15ms first-correct-present qualification is established.",
+    "Background user programs remain running; use only within-run alternating pairs. Cross-run medians and rejected candidates do not establish a causal improvement.",
+    "Full current-source Native qualification is required before main merge or installer publication. Prior active heads and existing A9/CDB archives remain unchanged."
+  ],
+  "local_native": false,
+  "local_device_window": false,
+  "mouse_or_focus": false,
+  "subagents": false,
+  "evidence_sha256": {
+    "night-substrate-cursors99-r4/summary.json": "148446cfdd7a5f00634e63865e911278b26c828f2779c1d5b8027fdb6ab0b0a4",
+    "night-substrate-cursors99-r4/protocol.json": "ae0a93e0384206b2eb7246b8b03f79d9233df1989b566f7912fc0c60e252efa7",
+    "night-substrate-cursors99-r4/exact.csv": "499d890c8348080ee94aeadbd9c299a690a7030aab8448d6f547294fb9b1a623",
+    "night-substrate-cursors99-r4/timing.csv": "40341a5fb1df8a9cb593b24ad74ec83a8d38e7c294c50d2bc01eeb20c0fb9c94",
+    "night-substrate-cursors99-guards/summary.json": "6ccad2d536d8cbe9967b5bc582ff55f2db986025969198f0a69226c50a05f92d",
+    "night-stage99-source-identity.json": "65c32ec5cefda54244db4d5231aadd2455a52f7b2e5bd2fa4a291a60165c9938",
+    "night-stage99-build-test-summary.json": "632741de9e074d1296b72fb0dc8690e4e9359fdf076231124d7768df005ffbe0",
+    "night-stage99-release-build.txt": "c7a6132b4360a3ca51cc61c9585bd20c592d0885ce7349ffd9589c55e06db6f5",
+    "night-stage99-tests.txt": "5527093d6eb8ce0cafbcbe20ef6a7efdb9e640c5c563e1e1c390774b63bef512",
+    "night-stage99-test-inventory.json": "aa49ff625dcb6c8868e4d44c3ede9a2d038abfee078c76b4e651e20b60b09f3c",
+    "night-stage99-atomic-transform-tests.txt": "b692f657b1771de7db54712c2c2ecf4427cbba206acb6f9112ec5ea22265c63d"
+  }
+}

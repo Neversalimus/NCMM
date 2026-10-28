@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage98. Baseline `1284537`; working branch
-`codex/fpv-visible-substrate-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
+Updated28 October2026, through stage99. Baseline `1284537`; working branch
+`codex/fpv-substrate-forward-search-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -25,7 +25,7 @@ as main `b3b6e24297be9fedad4816ec56f3970fe06858cb`, exact tree `e0e8052bbd14e072
 Its two checked TEST installers are [published separately](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-cdb929b3453a).
 All38 payloads/106 copied Native inputs/171 frozen sources and104 resource
 sources match. Anonymous installerHEAD200/length checks pass. The prior A9
-release remains available. Drafts226–230 retain exact source heads and their
+release remains available. Drafts226–231 retain exact source heads and their
 ongoing full captures. Neither the new growth candidate nor those drafts is
 included in the CDB archives.
 
@@ -985,6 +985,50 @@ published A9/CDB installers remain unchanged.
 
 Numeric proof: `night-visible-substrate-20261028.json`.
 
+## Stage99 — resume same-direction sparse neighbour searches
+
+Stage98 restored a real substrate pass. Its existing binary search still starts
+from the full sparse list for every neighbour. Canonical Z/Y/X producer order
+is unchanged, including the explicit re-sort after distance capping. A fixed
+cardinal offset preserves that order, so four independent insertion cursors
+can resume forward. Initial queries use full lower_bound; exponential
+bracketing handles large gaps without a linear scan of unrelated cells.
+Legacy/small frames retain their original lookup. A pure prefix scan skips
+cells needing no work; search code remains outside the common traversal.
+
+The source-bound complete-pass model uses9alternating pairs x18workloads,
+with fourfold iterations prescribed before the final run. City9409
+.32990→.22317ms, trees9409 .42329→.27702ms, city28227 1.37722→.74855ms and
+trees65536 6.66355→3.14606ms; paired ratios.66658/.65683/.55229/.47213.
+All complete detail bytes, temporary allocations and allocated-byte counts
+agree. The new object has sizeof24bytes onx64(16integer bytes); it is callback
+local and introduces no persistent heap cache, Native pointer ownership or
+extra Native read. sizeof is not measured stack reservation/RSS/VRAM.
+
+All substantial controls meet the original3%paired guard. Empty37.35%,
+small494.78% and single-cell7.79%paired regressions stay under the prescribed
+50ns absolute allowance; raw paired deltas are retained. Small49 independent
+medians improve while its paired ratio regresses. Long-gap independent
+medians regress .074us while paired timing improves3.54%. No tail guarantee.
+Three prior variants are rejected: first legacy+8.74%; separate fallback
+all-flat/legacy/lone-first+14.21/21.58/18.75%; isolated search hidden+19.46%
+and long-gap+4.20%. A private duplicate include marker stopped an intermediate
+preparation before compilation/timing; its source is retained separately.
+
+Real helper/class guards pass1099623checks: prior163623independent surface
+checks,935972every-query comparisons against full binary lookup and28owned
+range/immutability/size checks. Cover12sparse layouts,32levels,65536cells,
+missing neighbours, skipped-query subsequences, end positions and coordinate
+overflow. Four deliberately broken variants fail. Release build,51non-device
+CTests and96atomic two-pin source-transform tests pass. Device/renderer code
+is unchanged; no local Native/input/device test, mouse capture or subagent.
+
+These are CPU helper costs against the corrected6da17a3 source, not full Native
+frames, ordinary movement/shooting latency, GPU time, cold-process startup or
+15ms evidence. Full exact-source Native CI remains required. Main/CDB and
+published installers are unchanged. Numeric proof:
+`night-substrate-forward-search-20261028.json`.
+
 ## Remote qualification and next steps
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
@@ -1026,10 +1070,13 @@ Numeric proof: `night-visible-substrate-20261028.json`.
   setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
   protected PR223 full48 remains unchanged until its final logs are retained.
 
-Next: qualify the visible-substrate correction separately while preserving
-the exact active PR226/227/228/229/230 heads and both published A9/CDB installer
-bytes. At59f2b5e(PR230), both module suites and all3 GPU jobs pass; complete
-current-source Native gates remain pending. All
+Next: qualify the forward-search candidate separately while preserving the
+exact active PR226/227/228/229/230/231 heads and both published A9/CDB installer
+bytes. At6da17a3(PR231), both module suites/all3GPU jobs and the audit check
+pass; full current-source Native gates remain pending. Audit job log requests
+returned provider502; its exact-head CodeReview check-run status is retained,
+with no CLI log fallback. PR226 full1040 now passes; its optional integration
+required-gate failure is distinct from the still-running full1807 capture. All
 prior meaningful Native captures keep running. Continue measured transfer and
 turn-latency work after the new functional gates; helper/model wins are not
 ordinary-game or15ms proof. CI logs remain CodeReview-only at the current PR
