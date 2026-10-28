@@ -1,0 +1,302 @@
+{
+  "schema": 1,
+  "source": "experiments/FirstPersonView/src/hybrid_renderer.hpp",
+  "reference_source": "a9f3ef7480f08a16ce7084e5824035debaf24e48",
+  "reference_sha256": "6bd3fb057112df3c52f17ad52808b912b58018ee2749fc40869a3151b3804104",
+  "retained_sha256": "f538aaccd19870a551b07e02f011b66b10789b3d30f34c3c7bb6fed95ac879cf",
+  "correctness": {
+    "parallel_cases": 8,
+    "logical_processors": 16,
+    "material_parallel": 72,
+    "transparent_frames": 66,
+    "provider_calls": 3319896,
+    "checks": 4696,
+    "frames": 256,
+    "pixels": 45212800,
+    "volume_samples": 18679296,
+    "production_changed": false,
+    "candidate_sha256": "35837e647e4e8a995fe35fb06355de2c4d29118df3908f981ebff1c1567f16a5",
+    "scope": "Private current-stage candidate only. Full RGBA, raw float depth/shadow bits, IDs, metadata, geometry counters and submitted triangles preserved; private per-strip counter may rise at most2x. Medium transparent windows/water/smoke and 0/partial/opaque/odd/padded/mip texture cases; provider remains on callback thread. No Native/input/GPU/Present qualification."
+  },
+  "long_confirmation": [
+    {
+      "workload": "small_legacy",
+      "cells": 225,
+      "width": 320,
+      "height": 240,
+      "pairs": 7,
+      "before_ms": 2.474709375,
+      "after_ms": 2.4842671875,
+      "before_geometry_ms": 0.41181875,
+      "after_geometry_ms": 0.40570859375,
+      "before_raster_ms": 1.61515625,
+      "after_raster_ms": 1.636,
+      "ratio": 0.9720799620866122,
+      "first_before": {
+        "samples": 7,
+        "median": 2.7752,
+        "p95": 4.380909999999999,
+        "p99": 4.552821999999999,
+        "max": 4.5958
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 2.7748,
+        "p95": 3.20254,
+        "p99": 3.227308,
+        "max": 3.2335
+      },
+      "frames_before": {
+        "samples": 896,
+        "median": 2.554,
+        "p95": 3.43035,
+        "p99": 3.829529999999998,
+        "max": 4.5958
+      },
+      "frames_after": {
+        "samples": 896,
+        "median": 2.4861500000000003,
+        "p95": 3.44385,
+        "p99": 3.911799999999998,
+        "max": 6.6702
+      },
+      "before_strip_work": 1176,
+      "after_strip_work": 1176
+    },
+    {
+      "workload": "legacy_medium",
+      "cells": 225,
+      "width": 572,
+      "height": 600,
+      "pairs": 7,
+      "before_ms": 9.610096875,
+      "after_ms": 9.3889578125,
+      "before_geometry_ms": 0.4018171875,
+      "after_geometry_ms": 0.4024390625,
+      "before_raster_ms": 7.45175,
+      "after_raster_ms": 7.27578125,
+      "ratio": 0.9819796633133747,
+      "first_before": {
+        "samples": 7,
+        "median": 9.2619,
+        "p95": 11.01221,
+        "p99": 11.445722,
+        "max": 11.5541
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 8.3862,
+        "p95": 8.55634,
+        "p99": 8.597427999999999,
+        "max": 8.6077
+      },
+      "frames_before": {
+        "samples": 448,
+        "median": 9.07515,
+        "p95": 11.95506,
+        "p99": 12.629112000000001,
+        "max": 13.6174
+      },
+      "frames_after": {
+        "samples": 448,
+        "median": 9.0572,
+        "p95": 11.847264999999998,
+        "p99": 12.528801999999999,
+        "max": 12.9677
+      },
+      "before_strip_work": 1173,
+      "after_strip_work": 1173
+    },
+    {
+      "workload": "city_small",
+      "cells": 47045,
+      "width": 320,
+      "height": 240,
+      "pairs": 7,
+      "before_ms": 50.823341666666664,
+      "after_ms": 50.15860416666666,
+      "before_geometry_ms": 26.541208333333334,
+      "after_geometry_ms": 25.577166666666667,
+      "before_raster_ms": 20.127166666666668,
+      "after_raster_ms": 20.418666666666667,
+      "ratio": 1.0159777005348045,
+      "first_before": {
+        "samples": 7,
+        "median": 51.237,
+        "p95": 55.67877,
+        "p99": 55.921434000000005,
+        "max": 55.9821
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 50.4775,
+        "p95": 55.95285,
+        "p99": 56.60529,
+        "max": 56.7684
+      },
+      "frames_before": {
+        "samples": 168,
+        "median": 50.780950000000004,
+        "p95": 58.54724,
+        "p99": 61.930063000000004,
+        "max": 68.4627
+      },
+      "frames_after": {
+        "samples": 168,
+        "median": 50.7759,
+        "p95": 57.21155,
+        "p99": 59.663254000000016,
+        "max": 61.6747
+      },
+      "before_strip_work": 112045,
+      "after_strip_work": 112045
+    },
+    {
+      "workload": "city_large_old4",
+      "cells": 47045,
+      "width": 800,
+      "height": 800,
+      "pairs": 7,
+      "before_ms": 61.356975,
+      "after_ms": 60.95736875,
+      "before_geometry_ms": 26.3555625,
+      "after_geometry_ms": 26.041875,
+      "before_raster_ms": 28.636375,
+      "after_raster_ms": 28.3693125,
+      "ratio": 0.9770447452690987,
+      "first_before": {
+        "samples": 7,
+        "median": 61.5465,
+        "p95": 62.74551,
+        "p99": 62.875662,
+        "max": 62.9082
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 60.2429,
+        "p95": 66.64809999999999,
+        "p99": 68.35857999999999,
+        "max": 68.7862
+      },
+      "frames_before": {
+        "samples": 112,
+        "median": 61.54235,
+        "p95": 68.58875499999999,
+        "p99": 71.02738699999999,
+        "max": 71.4828
+      },
+      "frames_after": {
+        "samples": 112,
+        "median": 60.95145,
+        "p95": 67.648245,
+        "p99": 70.38481800000001,
+        "max": 70.6651
+      },
+      "before_strip_work": 133767,
+      "after_strip_work": 133767
+    },
+    {
+      "workload": "city_572",
+      "cells": 47045,
+      "width": 572,
+      "height": 600,
+      "pairs": 7,
+      "before_ms": 63.64618125,
+      "after_ms": 58.49975,
+      "before_geometry_ms": 24.332125,
+      "after_geometry_ms": 24.909375,
+      "before_raster_ms": 33.8455625,
+      "after_raster_ms": 27.9926875,
+      "ratio": 0.9106215033128952,
+      "first_before": {
+        "samples": 7,
+        "median": 61.4795,
+        "p95": 71.72436,
+        "p99": 71.815752,
+        "max": 71.8386
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 56.9425,
+        "p95": 68.23839,
+        "p99": 69.256638,
+        "max": 69.5112
+      },
+      "frames_before": {
+        "samples": 112,
+        "median": 63.4444,
+        "p95": 72.79777499999999,
+        "p99": 78.829289,
+        "max": 80.1501
+      },
+      "frames_after": {
+        "samples": 112,
+        "median": 58.040800000000004,
+        "p95": 66.02523,
+        "p99": 69.93154700000001,
+        "max": 70.4052
+      },
+      "before_strip_work": 112333,
+      "after_strip_work": 125438
+    },
+    {
+      "workload": "constructed21_572",
+      "cells": 12789,
+      "width": 572,
+      "height": 600,
+      "pairs": 7,
+      "before_ms": 27.938,
+      "after_ms": 23.69257916666667,
+      "before_geometry_ms": 7.7400416666666665,
+      "after_geometry_ms": 7.484708333333334,
+      "before_raster_ms": 17.547083333333333,
+      "after_raster_ms": 13.40125,
+      "ratio": 0.8480413475075764,
+      "first_before": {
+        "samples": 7,
+        "median": 27.4018,
+        "p95": 30.923099999999998,
+        "p99": 31.59198,
+        "max": 31.7592
+      },
+      "first_after": {
+        "samples": 7,
+        "median": 23.3734,
+        "p95": 27.003339999999998,
+        "p99": 27.461068,
+        "max": 27.5755
+      },
+      "frames_before": {
+        "samples": 168,
+        "median": 27.521050000000002,
+        "p95": 32.73841,
+        "p99": 35.408466000000026,
+        "max": 38.5012
+      },
+      "frames_after": {
+        "samples": 168,
+        "median": 23.489600000000003,
+        "p95": 26.948040000000002,
+        "p99": 28.47906300000001,
+        "max": 32.289
+      },
+      "before_strip_work": 44370,
+      "after_strip_work": 49107
+    }
+  ],
+  "local_module_tests": 51,
+  "hidden_render_only_rtx4090": true,
+  "local_native_game_started": false,
+  "native_qualification_pending": true,
+  "ordinary_game_or_gpu_execution_or_present_gain_qualified": false,
+  "first_frame_scope": "First of a fresh CPU model frame lane; includes thread creation/join. Not cold process or Native action-to-first-correct-present.",
+  "evidence_sha256": {
+    "night-raster-bands-model90/summary.json": "27c618279a4feda06790f338703c2a13ef8e603790a0018ba1a0f970c7d293e5",
+    "night-raster-bands-materials90-r2/summary.json": "5a525ed2db1600fb2afab66480e7e351f7a8ff551c2a022528367594fec02492",
+    "night-raster-bands-timing90/summary.json": "c4951125f1bbc6e1976796ea35d27c768968a9c72879c05addea55013c394e36",
+    "night-raster-bands-controls90/summary.json": "8ecb3bbee8c21b27d179a756dd6c4495fb57d2d7d3991692e56469ecde9a2cdb",
+    "night-stage90-release-build.txt": "92a6a662068901133d34f2191e64a7d67ad26a8e4b9496eaeb652fb0ae71992a",
+    "night-stage90-tests.txt": "009bb42f1ea4776392462f915ff23817b7009efdf8ab53ff91f547320434309e",
+    "night-stage90-hidden-render.txt": "33d3c7952b1c889542ee1a82ee03687ab3c539a2807203d6d32ec58c94d6a7bc"
+  }
+}
