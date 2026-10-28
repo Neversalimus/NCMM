@@ -180,7 +180,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
     const auto begun=std::chrono::steady_clock::now();avatar &you=get_avatar();map &here=get_map();
     // Ordinary transient caches only. update_visibility_cache() writes discovery
     // and is not called to reveal additional levels for graphics.
+    ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::native_cache_begin);
     here.build_map_cache(you.posz());
+    ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::native_cache_end);
     // Native redraws before entering its SDL poll as well. The explicit input
     // lease permits a bounded held-state sample in that safe pre-poll frame;
     // no simulation phase or nested modal can advance the solver here.
@@ -325,6 +327,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(first_person::creature::death_clip_pending(s,record.presented_event_serial==s.event_serial,presentation_now))
             observed_deaths.push_back({s.world_x,s.world_y,s.world_z});}
     std::sort(observed_deaths.begin(),observed_deaths.end());
+    ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::visibility_begin);
     const auto visibility_started=std::chrono::steady_clock::now();
     ncmm_graphics_trace::cpu_zone visibility_zone("Visibility");
     const int visual_maximum=std::max(you.sight_range(default_daylight_level()),you.sight_range(0));
@@ -490,6 +493,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     }
     graphics_world_metrics.visibility_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-visibility_started).count();
     visibility_zone.stop();
+    ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::visibility_end);
     graphics_world_range_evaluations=visual_ranges.evaluations;graphics_world_range_hits=visual_ranges.hits;
     graphics_world_material_evaluations=material_definitions.evaluations+elevated_material_definitions.evaluations;
     graphics_world_material_hits=material_definitions.hits+elevated_material_definitions.hits;

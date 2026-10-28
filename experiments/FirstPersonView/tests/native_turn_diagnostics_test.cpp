@@ -19,6 +19,20 @@ void check_turn( bool condition, const char *message )
     ++turn_checks;
     if( !condition ) throw std::runtime_error( message );
 }
+void callback_phases( bool nested = false )
+{
+    using b = turn_diag::callback_boundary;
+    turn_diag::mark( b::native_cache_begin );
+    turn_diag::mark( b::native_cache_end );
+    if( nested ) {
+        turn_diag::draw_scope inner( 200, 100 );
+        callback_phases(); inner.complete( true, turn_diag::backend::cpu );
+    }
+    turn_diag::mark( b::visibility_begin );
+    turn_diag::mark( b::visibility_end );
+    turn_diag::mark( b::module_begin );
+    turn_diag::mark( b::module_end, 640, 360 );
+}
 }
 void test_native_turn_diagnostics()
 {
@@ -26,7 +40,7 @@ void test_native_turn_diagnostics()
     const auto allocations = ncmm_test_allocation_calls();
     const auto ticks = turn_ticks;
     ncmm_test_allocation_enable( true );
-    { d::draw_scope off; off.complete( true, d::backend::gpu ); }
+    { d::draw_scope off( 1280, 720 ); callback_phases(); off.complete( true, d::backend::gpu ); }
     ncmm_turn_diagnostics_cross_tu();
     ncmm_test_allocation_enable( false );
     check_turn( turn_ticks == ticks && allocations == ncmm_test_allocation_calls(), "disabled turn capture does not clock or allocate" );
@@ -84,5 +98,64 @@ void test_native_turn_diagnostics()
     { d::turn_capture capture( saturated,turn_now ); saturated.draw_calls = UINT32_MAX;
       { d::draw_scope draw; draw.complete( false,d::backend::cpu ); } capture.complete(); }
     check_turn( !d::valid( saturated ) && ( saturated.errors & d::overflow ) && saturated.draw_calls == UINT32_MAX, "counter saturates without wraparound" );
+    d::turn_record detailed;
+    ncmm_test_allocation_enable( true );
+    { d::turn_capture capture( detailed, turn_now, true );
+      { d::draw_scope draw( 1280, 720 ); callback_phases(); draw.complete( true, d::backend::gpu ); }
+      capture.complete(); }
+    ncmm_test_allocation_enable( false );
+    check_turn( d::valid( detailed ) && allocations == ncmm_test_allocation_calls(), "detailed callback uses fixed storage without allocations" );
+    check_turn( detailed.wall_ns == 90 && detailed.draw_wall_ns == 70 && detailed.callback_count == 1, "adjacent phases partition the outermost interval" );
+    const auto &c = detailed.callbacks[0];
+    check_turn( c.viewport_width == 1280 && c.viewport_height == 720 && c.image_width == 640 && c.image_height == 360,
+                "submitted image dimensions stay distinct from Native viewport" );
+    check_turn( c.count == 8 && c.returned && c.rendered && c.mode == d::backend::gpu, "complete world callback is identified" );
+    for( std::size_t i = 0; i < c.count; ++i )
+        check_turn( std::size_t( c.tags[i] ) == i && c.offsets_ns[i] == std::int64_t( i * 10 ), "each adjacent boundary has its own raw timestamp" );
+    d::turn_record detailed_nested;
+    { d::turn_capture capture( detailed_nested, turn_now, true );
+      { d::draw_scope draw( 1280, 720 ); callback_phases( true ); draw.complete( true, d::backend::gpu ); }
+      capture.complete(); }
+    check_turn( d::valid( detailed_nested ) && detailed_nested.draw_calls == 2 && detailed_nested.callback_count == 1 &&
+                detailed_nested.draw_wall_ns == 70 && detailed_nested.callbacks[0].offsets_ns == c.offsets_ns,
+                "nested markers neither overwrite outer partition nor add clocks" );
+    for( int mutation = 0; mutation < 10; ++mutation ) {
+        auto corrupt = detailed; auto &row = corrupt.callbacks[0];
+        if( mutation == 0 ) row.count = 2;
+        else if( mutation == 1 ) row.tags[2] = d::callback_boundary::module_end;
+        else if( mutation == 2 ) row.offsets_ns[3] = row.offsets_ns[2] - 1;
+        else if( mutation == 3 ) ++row.offsets_ns[7];
+        else if( mutation == 4 ) row.image_width = 0;
+        else if( mutation == 5 ) row.image_height = 8193;
+        else if( mutation == 6 ) row.viewport_width = 0;
+        else if( mutation == 7 ) row.viewport_height = 8193;
+        else if( mutation == 8 ) row.returned = false;
+        else row.ordinal = 1;
+        check_turn( !d::valid( corrupt ), "partial, overlapping, mismatched or undimensioned callback rejected" );
+    }
+    d::turn_record partial;
+    { d::turn_capture capture( partial, turn_now, true );
+      { d::draw_scope draw( 1280, 720 ); d::mark( d::callback_boundary::native_cache_begin ); draw.complete( true, d::backend::cpu ); }
+      capture.complete(); }
+    check_turn( !d::valid( partial ), "a successful world image cannot qualify with missing phases" );
+    d::turn_record wrong_order;
+    { d::turn_capture capture( wrong_order, turn_now, true );
+      { d::draw_scope draw( 1280, 720 ); d::mark( d::callback_boundary::visibility_begin ); draw.complete( false, d::backend::cpu ); }
+      capture.complete(); }
+    check_turn( !d::valid( wrong_order ) && ( wrong_order.errors & d::protocol ), "out-of-order marker faults the capture" );
+    d::turn_record early_skip;
+    { d::turn_capture capture( early_skip, turn_now, true );
+      { d::draw_scope draw( 0, 0 ); draw.complete( false, d::backend::cpu ); }
+      { d::draw_scope draw( 640, 480 ); draw.complete( true, d::backend::legacy ); }
+      capture.complete(); }
+    check_turn( d::valid( early_skip ) && early_skip.callback_count == 2, "honest early skip and legacy callback have no invented world phases" );
+    d::turn_record detail_capacity;
+    { d::turn_capture capture( detail_capacity, turn_now, true );
+      for( std::size_t i = 0; i <= d::callback_capacity; ++i ) {
+          d::draw_scope draw; draw.complete( false, d::backend::legacy );
+      }
+      capture.complete(); }
+    check_turn( !d::valid( detail_capacity ) && ( detail_capacity.errors & d::overflow ) &&
+                detail_capacity.callback_count == d::callback_capacity, "bounded callback capacity cannot silently drop intervals" );
     std::cout << "Native turn render attribution: " << turn_checks << " checks passed; injected clocks are not measurements\n";
 }

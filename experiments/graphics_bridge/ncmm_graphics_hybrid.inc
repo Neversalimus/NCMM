@@ -582,6 +582,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     bool ok = false;
     snapshot_zone.stop();
     const auto callback_begun = std::chrono::steady_clock::now();
+    if(world)ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::module_begin);
     try {
         module_call_scope scope( graphics_view.owner.c_str() );
         ok=world?graphics_view.world_render(world,graphics_view.user_data)!=0:
@@ -593,6 +594,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;graphics_multilevel_frame=nullptr;
     graphics_render_active = false;
     graphics_callback_ms = std::chrono::duration<double,std::milli>( std::chrono::steady_clock::now() - callback_begun ).count();
+    if(world)ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::module_end,graphics_hybrid_width,graphics_hybrid_height);
     if( !ok || graphics_frame_invalid || ( !graphics_gpu_frame && graphics_hybrid_pixels.empty() ) ) {
         graphics_view.enabled = false; graphics_hybrid_pixels.clear(); graphics_release_mouse(); graphics_cancel_animation();
         add_msg( m_warning, "%s", tr_ui( "First person could not draw this scene; returned to the map. F6 retries.",

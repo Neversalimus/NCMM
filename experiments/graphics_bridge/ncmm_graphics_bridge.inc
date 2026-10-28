@@ -438,7 +438,7 @@ bool graphics_draw_impl( int x, int y, int width, int height )
 
 bool graphics_draw( int x, int y, int width, int height )
 {
-    ncmm_graphics_turn_diagnostics::draw_scope measurement;
+    ncmm_graphics_turn_diagnostics::draw_scope measurement( width, height );
     const bool rendered = graphics_draw_impl( x, y, width, height );
 #if defined(TILES)
     measurement.complete( rendered, !graphics_view.world_render ? ncmm_graphics_turn_diagnostics::backend::legacy :

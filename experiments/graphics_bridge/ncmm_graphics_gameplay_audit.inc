@@ -100,7 +100,7 @@
     auto measured_native_turn=[&](int initial_enemies,int round,const char *failure){
         turn_sample sample{initial_enemies,round,get_option<std::string>("NCMM_FIRST_PERSON_RENDERER"),{}};
         bool ended=false;
-        {ncmm_graphics_turn_diagnostics::turn_capture capture(sample.timing);
+        {ncmm_graphics_turn_diagnostics::turn_capture capture(sample.timing,ncmm_graphics_turn_diagnostics::steady_now,true);
             ended=g->do_turn();capture.complete();}
         require(!ended,failure);
         require(ncmm_graphics_turn_diagnostics::valid(sample.timing),"audit_native_turn_capture_invalid");
@@ -247,18 +247,29 @@
     });
     report.end_array();report.member("native_action_stages");write_stages(stages);report.member("combat_trials");report.start_array();for(const auto &t:combat_trials){report.start_object();report.member("spawned",t.spawned);report.member("native_turns",t.turns);report.member("native_shots",t.shots);report.member("native_melee",t.melee);report.member("observed_enemy_attacks",t.observed_enemy_attacks);report.member("avatar_debug_protection",true);report.member("avatar_stamina_reset_each_turn",true);report.member("avatar_combat_state_reset_each_turn",true);report.end_object();}report.end_array();
     require(native_turn_samples.size()==26,"audit_native_turn_samples_missing");
-    report.member("native_turn_diagnostics");report.start_object();report.member("schema",1);
+    report.member("native_turn_diagnostics");report.start_object();report.member("schema",2);
     report.member("controlled_fixture_without_interactive_main_loop",true);
     report.member("ordinary_performance_measurement",false);
     report.member("draw_wall_scope","union of outermost graphics_draw callbacks inside do_turn");
     report.member("remainder_scope","other Native work, UI, waits and scheduling; not pure AI");
+    report.member("callback_scope","adjacent outermost callback wall phases; module includes submission/waits, not GPU execution");
     report.member("samples");report.start_array();for(const auto &s:native_turn_samples){const auto &t=s.timing;
         report.start_object();report.member("initial_enemies",s.initial_enemies);report.member("round",s.round);
         report.member("requested_renderer",s.requested_renderer);report.member("valid",ncmm_graphics_turn_diagnostics::valid(t));
         report.member("wall_ns",t.wall_ns);report.member("draw_wall_ns",t.draw_wall_ns);report.member("other_wall_ns",t.wall_ns-t.draw_wall_ns);
         report.member("draw_calls",t.draw_calls);report.member("outer_draws",t.outer_draws);report.member("max_depth",t.max_depth);
         report.member("cpu_draws",t.cpu_draws);report.member("gpu_draws",t.gpu_draws);report.member("legacy_draws",t.legacy_draws);report.member("skipped_draws",t.skipped_draws);
-        report.member("errors",t.errors);report.member("claimed",t.claimed);report.member("returned",t.returned);report.member("closed",t.closed);report.end_object();
+        report.member("errors",t.errors);report.member("claimed",t.claimed);report.member("returned",t.returned);report.member("closed",t.closed);
+        report.member("callback_details",t.callback_details);report.member("callbacks");report.start_array();
+        for(size_t i=0;i<t.callback_count;++i){const auto &c=t.callbacks[i];report.start_object();
+            report.member("ordinal",c.ordinal);report.member("returned",c.returned);report.member("rendered",c.rendered);
+            report.member("backend",c.mode==ncmm_graphics_turn_diagnostics::backend::gpu?"gpu":c.mode==ncmm_graphics_turn_diagnostics::backend::cpu?"cpu":"legacy");
+            report.member("viewport_width",c.viewport_width);report.member("viewport_height",c.viewport_height);
+            report.member("image_width",c.image_width);report.member("image_height",c.image_height);
+            report.member("boundaries");report.start_array();for(size_t j=0;j<c.count;++j){report.start_object();
+                report.member("tag",ncmm_graphics_turn_diagnostics::label(c.tags[j]));report.member("offset_ns",c.offsets_ns[j]);report.end_object();}
+            report.end_array();report.end_object();
+        }report.end_array();report.end_object();
     }report.end_array();report.end_object();
     const std::string original_tileset=get_option<std::string>("TILES");std::vector<std::string> tilesets{original_tileset};if(std::getenv("NCMM_FP_UDP"))tilesets.push_back("UndeadPeople_0J_Hybrid_v3");
     report.member("tilesets");report.start_array();

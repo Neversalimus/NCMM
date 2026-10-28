@@ -3,6 +3,11 @@
 GROUPS = ((1, 6), (5, 6), (20, 6), (0, 8))
 DRAW_SCOPE = 'union of outermost graphics_draw callbacks inside do_turn'
 OTHER_SCOPE = 'other Native work, UI, waits and scheduling; not pure AI'
+CALLBACK_SCOPE = 'adjacent outermost callback wall phases; module includes submission/waits, not GPU execution'
+BOUNDARIES = ('entry', 'native_cache_begin', 'native_cache_end', 'visibility_begin',
+              'visibility_end', 'module_begin', 'module_end', 'returned')
+PHASES = ('dispatch_ns', 'native_cache_ns', 'pre_visibility_ns', 'visibility_ns',
+          'post_visibility_ns', 'module_ns', 'presentation_tail_ns')
 
 
 def require(condition, message):
@@ -15,15 +20,63 @@ def integer(value, maximum, name):
     return value
 
 
+def verify_callbacks(sample):
+    require(sample.get('callback_details') is True, 'callback partition capture required')
+    rows = sample.get('callbacks')
+    require(type(rows) is list and len(rows) == sample['outer_draws'] and len(rows) <= 32,
+            'outermost callback records are missing or exceed capacity')
+    result = dict(callback_count=len(rows), world_callbacks=0, other_callbacks_wall_ns=0,
+                  **{key: 0 for key in PHASES})
+    counts = dict(cpu_draws=0, gpu_draws=0, legacy_draws=0, skipped_draws=0)
+    total = 0
+    for ordinal, row in enumerate(rows):
+        require(type(row) is dict and integer(row.get('ordinal'), 2**32-1, 'ordinal') == ordinal and
+                row.get('returned') is True and type(row.get('rendered')) is bool,
+                'partial, duplicate or reordered callback')
+        mode = row.get('backend')
+        require(mode in ('cpu', 'gpu', 'legacy'), 'unknown callback backend')
+        for key in ('viewport_width', 'viewport_height'):
+            require(type(row.get(key)) is int and -(2**31) <= row[key] < 2**31,
+                    f'invalid callback {key}')
+        for key in ('image_width', 'image_height'):
+            integer(row.get(key), 2**32-1, key)
+        points = row.get('boundaries')
+        require(type(points) is list and 2 <= len(points) <= len(BOUNDARIES), 'partial callback boundaries')
+        expected = BOUNDARIES[:len(points)-1] + ('returned',)
+        offsets = []
+        for point, tag in zip(points, expected):
+            require(type(point) is dict and point.get('tag') == tag, 'missing or reordered callback boundary')
+            offsets.append(integer(point.get('offset_ns'), 2**63-1, 'callback offset_ns'))
+        require(offsets[0] == 0 and offsets == sorted(offsets), 'overlapping or backwards callback phases')
+        total += offsets[-1]
+        key = mode + '_draws' if row['rendered'] else 'skipped_draws'
+        counts[key] += 1
+        if row['rendered'] and mode != 'legacy':
+            require(len(points) == len(BOUNDARIES), 'successful world callback is missing phases')
+            require(all(1 <= row[key] <= 8192 for key in ('viewport_width', 'viewport_height', 'image_width', 'image_height')),
+                    'successful world image has invalid or missing dimensions')
+            result['world_callbacks'] += 1
+            for key, before, after in zip(PHASES, offsets, offsets[1:]):
+                result[key] += after-before
+        else:
+            result['other_callbacks_wall_ns'] += offsets[-1]
+    require(total == sample['draw_wall_ns'], 'callback spans do not equal outermost union')
+    require(all(counts[key] <= sample[key] for key in counts), 'root callback backend exceeds total backend count')
+    require(sum(result[key] for key in PHASES) + result['other_callbacks_wall_ns'] == total,
+            'adjacent callback partition does not conserve wall time')
+    return result
+
+
 def verify(report):
     require(report.get('actual_cdda_sdl') is True and report.get('manual_playthrough') is False,
             'controlled real Native report required')
     data = report.get('native_turn_diagnostics')
-    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 1,
+    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 2,
             'native turn attribution schema required')
     require(data.get('controlled_fixture_without_interactive_main_loop') is True and
             data.get('ordinary_performance_measurement') is False and
-            data.get('draw_wall_scope') == DRAW_SCOPE and data.get('remainder_scope') == OTHER_SCOPE,
+            data.get('draw_wall_scope') == DRAW_SCOPE and data.get('remainder_scope') == OTHER_SCOPE and
+            data.get('callback_scope') == CALLBACK_SCOPE,
             'timing scope or controlled fixture descriptor differs')
     samples = data.get('samples')
     require(type(samples) is list and len(samples) == 26, 'all26 real turns required')
@@ -33,6 +86,8 @@ def verify(report):
         totals = dict(initial_enemies=enemies, turns=count, wall_ns=0, draw_wall_ns=0,
                       other_wall_ns=0, draw_calls=0, outer_draws=0, cpu_draws=0,
                       gpu_draws=0, legacy_draws=0, skipped_draws=0)
+        callbacks = dict(callback_count=0, world_callbacks=0, other_callbacks_wall_ns=0,
+                         **{key: 0 for key in PHASES})
         for round_number in range(count):
             sample = samples[index]
             index += 1
@@ -57,9 +112,12 @@ def verify(report):
             require(sample['draw_wall_ns'] + sample['other_wall_ns'] == sample['wall_ns'],
                     'inclusive wall partition is inconsistent')
             require(calls != 0 or sample['draw_wall_ns'] == 0, 'absent callbacks have invented wall time')
+            for key, value in verify_callbacks(sample).items():
+                callbacks[key] += value
             for key in totals.keys() - {'initial_enemies', 'turns'}:
                 totals[key] += sample[key]
+        totals['callbacks'] = callbacks
         groups.append(totals)
-    return dict(success=True, actual_cdda_sdl=True, controlled_native_turns=26,
+    return dict(success=True, actual_cdda_sdl=True, controlled_native_turns=26, callback_schema=2,
                 ordinary_performance_measurement=False, gpu_execution_measured=False,
                 first_correct_present_measured=False, pure_ai_time_measured=False, groups=groups)

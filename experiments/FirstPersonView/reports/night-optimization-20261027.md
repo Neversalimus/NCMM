@@ -1426,6 +1426,42 @@ optimization. Currentcdf full run40615847078 remains active; do not cancel it
 for a documentation-only checkpoint. No local game, mouse, subagent or new
 Native source-body transfer was used. Remaining source budget161994 bytes.
 
+**58. Partition each controlled outermost draw and record actual dimensions.**
+Stage57 identifies one expensive callback but cannot distinguish Native caches,
+visibility, extraction or module rendering. Opt-in schema2 records eight raw
+adjacent boundaries: entry, Native cache begin/end, visibility begin/end,
+module begin/end and return. These conserve the outermost union as seven
+intervals, including dispatch/pre/post extraction and presentation/tail. Module
+wall time explicitly includes submission/waits; it is not GPU execution.
+Viewport width/height and actual submitted image width/height are independent
+fields, captured in that same callback rather than inferred from manual fixtures.
+
+Fixed32-row storage belongs to the explicit real-turn audit. Nested draw
+markers do not overwrite the parent or count its work twice. Capacity overflow,
+partial success, invalid dimensions, ownership/order/clock faults fail closed.
+Early skips/legacy paths remain honestly unpartitioned. Ordinary drawing has
+no active capture, extra clocks or recording allocations; no game call, warm-up,
+delay, range, geometry, invalidation, renderer setting or Native SDK ABI changes.
+Removing the six added world/hybrid markers restores the complete prior files
+byte-for-byte; the original draw implementation is unchanged. Source proof is
+`night-turn-phases-source58.json`; no new upstream Native body was fetched.
+
+Full Release build passes;315 Python tests(14.470s),96 atomic preparation tests
+for both pins(38.571s),2 affected CTests(.33s),47 fake-clock/ownership/allocation
+checks pass. Six separately compiled bad variants are rejected: nested double
+counting, accepted backwards clock, private per-TU TLS, wrong phase origin,
+overlap accepted and image-height bound ignored. The unchanged169-source
+qualification guard updates precisely these eight edited source hashes.
+An initial unprivileged build cannot write the existing G: build cache; the
+authorized normal build then completes. No local Native/game/input test ran.
+
+Currentcdf GPU/source/runtime checks and both module jobs pass; all four actual
+Hosts compile and continue gameplay checks. Preserve that full run. The older
+5eb integration run completes all seven executable jobs successfully; its
+required-qualification gate fails, so it is not a full-tier qualification.
+New schema2 actual timings remain pending a separate isolated diagnostic run;
+this stage is diagnostic infrastructure, not a claimed frame-time improvement.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
