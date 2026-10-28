@@ -441,6 +441,46 @@ action-to-first-correct-game-frame or15ms.
 Evidence: `night-image-layers-model80-r3/`, `night-image-layers-timing80/`,
 `night-image-layers-small-confirm80/`, `night-stage80-*-tests.txt` and hidden-render.
 
+Stage81 rejects per-triangle fog-density hoisting. The exact168-frame model
+passes, as do112 timed complete-frame comparisons across16 clear/fog/smoke/wall,
+legacy/mixed-roofed multilevel,320×240/572×600 workloads. Seven alternating
+pairs×8 fresh frames show fog-multilevel ratios1.05038/1.04407 and legacy wall
+1.04425/1.02502; some clear/smoke lanes improve, but the broader regressions
+do not justify retention. No production raster/fog change. Evidence:
+`night-fog-triangle-model81/` and `night-fog-triangle-timing81/`.
+
+## Stage82 — identify Native terrain setup stall (CI follow-up pending)
+
+A temporary stacked [draft224](https://github.com/Neversalimus/NCMM/pull/224)
+exposes the completed82b diagnostic checks to CodeReview at their exact head
+while protected PR223 full48 continues. No historical-head log fallback,
+local Native/input run, merge or release is used. All three relevant logs
+are saved; both Native excerpts are120000 characters and explicitly truncated.
+
+CodeReview confirms the Windows mock-clock failures already addressed by77:
+instant fake launches have equal start/end UTC ticks. Its local fixed-clock
+13-test guard passes; strict positive real Native intervals remain unchanged.
+
+Both Windows first reference children reach `gpu_benchmark_scene_16` within
+60–90s and stay there through570s, then time out at600s.1807 previously reports
+`terrain-road_gpu_frame_87` at60s. Thus the observed stall is before mixed-scene
+CPU/GPU mode timing, not a measured slow raster sample. Reset, material setup,
+cache refresh, digest and canvas creation still need distinguishing. Original
+module/fixture restoration is confirmed by typed program receipts. There are
+zero completed terrain A/B trials; no speedup or root cause is claimed.
+
+Add scenario-labelled primary CI progress for entity/player/tile/graphics reset,
+terrain setup, light/map/visibility refresh, layout digest and canvas creation.
+New I/O is outside measured frame loops, no-op in non-focused runs. Keep the
+same physical scenes,96 steady frames,14 children and600s child deadline.
+Existing96 atomic source-transform tests pass (45.397s); actual Host compilation
+and the finer-phase rerun remain CI work. The newly triggered draft224 old82b
+automatic run is still compiling Native, with no Native capture steps started;
+advancing that diagnostic branch may supersede it. PR223 full48 is preserved.
+
+Evidence: `night-stage82-diagnostic-review-{122700193431,122700193403,122700193436}.json`,
+`night-terrain-82b21e6/12802481666/`, `night-stage82-atomic-transform-tests.txt`.
+
 ## Remote qualification and next steps
 
 - Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
@@ -464,12 +504,14 @@ Evidence: `night-image-layers-model80-r3/`, `night-image-layers-timing80/`,
   Windows ordinary full galleries remain running. Preserve its source and logs.
 - Failed optional pair40643770328: both Windows first reference children hit
   600s; both Linux/module jobs pass. No Native A/B measurements qualify.
-- Repair82b integration40653873199 runs on the free sight-cache branch, without
-  advancing PR48. It adds typed child receipts and primary CI phase logging.
-  Preserve it; read82b logs through CodeReview only once that PR head is current.
+- Repair82b integration40653873199 completed: both Linux/module-Linux jobs pass;
+  Windows module mock-clock tests and both optional Native pairs fail. Exact
+  CodeReview logs are retained through draft224; stage82 describes the confirmed
+  setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
+  protected PR223 full48 remains unchanged until its final logs are retained.
 
-Next: diagnose the bounded Native terrain timeout through CodeReview and retain
-current48d8c23 ordinary full results; then run the repaired source-bound comparison.
+Next: obtain the finer mixed-scene setup phase through draft224 CodeReview and
+retain current48d8c23 ordinary full results; keep its source stable until then.
 Continue targeting measured geometry/raster cost. Keep draft/review and no-release
 boundaries. CI logs exclusively CodeReview at the current PR head; metadata and
 program JSON are not log fallbacks. The upstream Native transfer ledger has
