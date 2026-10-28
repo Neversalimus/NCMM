@@ -928,7 +928,7 @@ class ApplyTests(unittest.TestCase):
                 root = Path(tmp); self.fixture(root, pin)
                 with patch.object(bridge.subprocess, 'check_output', return_value=pin): bridge.apply(root)
                 receipt = json.loads((root/'first-person-source.json').read_text(encoding='utf-8'))
-                for name in ('ncmm_graphics_move_diagnostics.hpp', 'ncmm_graphics_update_map.inc'):
+                for name in ('ncmm_graphics_move_diagnostics.hpp', 'ncmm_graphics_turn_diagnostics.hpp', 'ncmm_graphics_update_map.inc'):
                     content = Path(bridge.__file__).with_name(name).read_bytes()
                     self.assertEqual((root/'src'/name).read_bytes(), content)
                     self.assertEqual(receipt['inputs'][name], hashlib.sha256(content).hexdigest())
@@ -938,6 +938,10 @@ class ApplyTests(unittest.TestCase):
                     self.assertLess(source.index(anchor), source.index('#include "ncmm_graphics_move_diagnostics.hpp"'))
                     namespace = re.search(r'namespace\s*\{', source)
                     if namespace: self.assertLess(source.index('#include "ncmm_graphics_move_diagnostics.hpp"'), namespace.start())
+                    if name == 'ncmm_loader.cpp':
+                        turn_include = '#include "ncmm_graphics_turn_diagnostics.hpp"'
+                        self.assertEqual(source.count(turn_include), 1)
+                        if namespace: self.assertLess(source.index(turn_include), namespace.start())
                 source = (root/'src/game.cpp').read_text(encoding='utf-8')
                 self.assertEqual(source.count('#include "ncmm_graphics_update_map.inc"'), 1)
                 self.assertIn('// Native continuation retained.', source)
@@ -956,7 +960,7 @@ class ApplyTests(unittest.TestCase):
 
     def test_update_map_missing_or_existing_include_is_atomic(self):
         for pin in bridge.SOURCES:
-            for name in ('ncmm_graphics_move_diagnostics.hpp', 'ncmm_graphics_update_map.inc'):
+            for name in ('ncmm_graphics_move_diagnostics.hpp', 'ncmm_graphics_turn_diagnostics.hpp', 'ncmm_graphics_update_map.inc'):
                 for existing in (False, True):
                     with self.subTest(pin=pin, name=name, existing=existing), tempfile.TemporaryDirectory() as tmp:
                         root = Path(tmp); self.fixture(root, pin)

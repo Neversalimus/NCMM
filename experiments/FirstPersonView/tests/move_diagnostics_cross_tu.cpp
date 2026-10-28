@@ -1,5 +1,12 @@
 #include "ncmm_graphics_move_diagnostics.hpp"
+#include "ncmm_graphics_turn_diagnostics.hpp"
 #include <initializer_list>
+
+void ncmm_turn_diagnostics_cross_tu()
+{
+    ncmm_graphics_turn_diagnostics::draw_scope scope;
+    scope.complete( true, ncmm_graphics_turn_diagnostics::backend::gpu );
+}
 
 void ncmm_cache_diagnostics_cross_tu()
 {

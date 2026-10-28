@@ -91,6 +91,28 @@
         require(ready&&!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback,"audit_models_or_gpu_never_ready");return milliseconds(begin);};
     auto capture=[&](const std::string &name){capture_name="first-person-audit-"+name+".bmp";render();};
     auto settle=[&](){for(int n=0;n<100&&graphics_world_transition_active;++n){SDL_Delay(5);render();}require(!graphics_world_transition_active,"audit_camera_never_settled");};
+    // The scope covers only the real turn. Setup, reporting and the explicit
+    // render after an empty turn stay outside it. Callback wall time is an
+    // inclusive outermost union; the remainder is not a pure AI measurement.
+    struct turn_sample {int initial_enemies,round;std::string requested_renderer;
+        ncmm_graphics_turn_diagnostics::turn_record timing;};
+    std::vector<turn_sample> native_turn_samples;native_turn_samples.reserve(26);
+    auto measured_native_turn=[&](int initial_enemies,int round,const char *failure){
+        turn_sample sample{initial_enemies,round,get_option<std::string>("NCMM_FIRST_PERSON_RENDERER"),{}};
+        bool ended=false;
+        {ncmm_graphics_turn_diagnostics::turn_capture capture(sample.timing);
+            ended=g->do_turn();capture.complete();}
+        require(!ended,failure);
+        require(ncmm_graphics_turn_diagnostics::valid(sample.timing),"audit_native_turn_capture_invalid");
+        const auto &t=sample.timing;
+        const double wall=t.wall_ns/1000000.0,draw=t.draw_wall_ns/1000000.0;
+        const std::string group=initial_enemies?"native_turn_"+std::to_string(initial_enemies)+"_enemies":"native_turn_empty";
+        stages[initial_enemies?"combat_native_turn_wall_ms":"native_game_turn_wall_ms"].push_back(wall);
+        stages[group+"_wall_ms"].push_back(wall);
+        stages[group+"_perspective_union_wall_ms"].push_back(draw);
+        stages[group+"_other_wall_ms"].push_back((t.wall_ns-t.draw_wall_ns)/1000000.0);
+        native_turn_samples.push_back(std::move(sample));
+    };
     floor();warm("cpu");
     report.member("actions");report.start_array();
     auto action=[&](const char *name,const std::function<void()> &run){checkpoint(name);const auto begin=audit_clock::now();
@@ -209,7 +231,7 @@
                 if(round&&!targets.empty()){auto nearest=targets.front();for(const auto &m:targets)if(!m->is_dead_state()&&rl_dist(you.pos_bub(),m->pos_bub())<rl_dist(you.pos_bub(),nearest->pos_bub()))nearest=m;
                     if(!nearest->is_dead_state()){if(rl_dist(you.pos_bub(),nearest->pos_bub())<=1){const auto weapon=you.get_wielded_item();require(weapon&&you.attack_speed(*weapon)<=300,"audit_combat_weapon_requires_interactive_confirmation");you.melee_attack(*nearest,false);++trial.melee;}
                         if(!nearest->is_dead_state()&&you.get_wielded_item()&&you.get_wielded_item()->ammo_remaining()>0)trial.shots+=you.fire_gun(here,nearest->pos_bub(),1,*you.get_wielded_item());}}
-                checkpoint("native_combat_"+std::to_string(count)+"_turn_"+std::to_string(round));you.set_moves(0);const auto begin=audit_clock::now();require(!g->do_turn(),"audit_combat_native_turn_ended_game");stages["combat_native_turn_wall_ms"].push_back(milliseconds(begin));++trial.turns;
+                checkpoint("native_combat_"+std::to_string(count)+"_turn_"+std::to_string(round));you.set_moves(0);measured_native_turn(count,round,"audit_combat_native_turn_ended_game");++trial.turns;
                 for(const auto &entry:graphics_creature_records)if(entry.second.snapshot.event==NCMM_CR_MELEE)enemy_attack_events.insert(entry.second.snapshot.event_serial);
                 trial.observed_enemy_attacks=int(enemy_attack_events.size());
                 warm("cpu");warm("gpu");
@@ -219,11 +241,25 @@
         if(you.has_trait(protection))you.toggle_trait(protection);
         floor();warm("cpu");
     });
-    action("native_turn_processing",[&](){clear_monsters();for(int i=0;i<8;++i){you.set_moves(0);const auto begin=audit_clock::now();require(!g->do_turn(),"audit_native_turn_ended_game");stages["native_game_turn_wall_ms"].push_back(milliseconds(begin));render();}});
+    action("native_turn_processing",[&](){clear_monsters();for(int i=0;i<8;++i){you.set_moves(0);measured_native_turn(0,i,"audit_native_turn_ended_game");render();}});
     action("native_f6_and_f12_dispatch",[&](){const auto pos=you.pos_abs();const int moves=you.get_moves();const auto turn=calendar::turn;press_f6();require(!graphics_view.enabled&&graphics_world_sources.bytes()==0,"audit_f6_cache_not_released");press_f6();
         const std::string before=get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");for(int n=0;n<3;++n){f12();render();}require(get_option<std::string>("NCMM_FIRST_PERSON_RENDERER")==before,"audit_f12_cycle_not_restored");require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==turn,"audit_toggle_changed_native_state");
     });
     report.end_array();report.member("native_action_stages");write_stages(stages);report.member("combat_trials");report.start_array();for(const auto &t:combat_trials){report.start_object();report.member("spawned",t.spawned);report.member("native_turns",t.turns);report.member("native_shots",t.shots);report.member("native_melee",t.melee);report.member("observed_enemy_attacks",t.observed_enemy_attacks);report.member("avatar_debug_protection",true);report.member("avatar_stamina_reset_each_turn",true);report.member("avatar_combat_state_reset_each_turn",true);report.end_object();}report.end_array();
+    require(native_turn_samples.size()==26,"audit_native_turn_samples_missing");
+    report.member("native_turn_diagnostics");report.start_object();report.member("schema",1);
+    report.member("controlled_fixture_without_interactive_main_loop",true);
+    report.member("ordinary_performance_measurement",false);
+    report.member("draw_wall_scope","union of outermost graphics_draw callbacks inside do_turn");
+    report.member("remainder_scope","other Native work, UI, waits and scheduling; not pure AI");
+    report.member("samples");report.start_array();for(const auto &s:native_turn_samples){const auto &t=s.timing;
+        report.start_object();report.member("initial_enemies",s.initial_enemies);report.member("round",s.round);
+        report.member("requested_renderer",s.requested_renderer);report.member("valid",ncmm_graphics_turn_diagnostics::valid(t));
+        report.member("wall_ns",t.wall_ns);report.member("draw_wall_ns",t.draw_wall_ns);report.member("other_wall_ns",t.wall_ns-t.draw_wall_ns);
+        report.member("draw_calls",t.draw_calls);report.member("outer_draws",t.outer_draws);report.member("max_depth",t.max_depth);
+        report.member("cpu_draws",t.cpu_draws);report.member("gpu_draws",t.gpu_draws);report.member("legacy_draws",t.legacy_draws);report.member("skipped_draws",t.skipped_draws);
+        report.member("errors",t.errors);report.member("claimed",t.claimed);report.member("returned",t.returned);report.member("closed",t.closed);report.end_object();
+    }report.end_array();report.end_object();
     const std::string original_tileset=get_option<std::string>("TILES");std::vector<std::string> tilesets{original_tileset};if(std::getenv("NCMM_FP_UDP"))tilesets.push_back("UndeadPeople_0J_Hybrid_v3");
     report.member("tilesets");report.start_array();
     for(size_t ti=0;ti<tilesets.size();++ti){const auto &tileset=tilesets[ti];checkpoint("load_tileset_"+tileset);const auto reload_begin=audit_clock::now();get_options().get_option("TILES").setValue(tileset);tilecontext->load_tileset(tileset,false,true);

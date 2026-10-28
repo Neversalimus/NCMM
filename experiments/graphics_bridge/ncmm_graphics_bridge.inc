@@ -243,7 +243,7 @@ void graphics_capture_before_present()
 
 #include "ncmm_graphics_fps.inc"
 
-bool graphics_draw( int x, int y, int width, int height )
+bool graphics_draw_impl( int x, int y, int width, int height )
 {
 #if defined(TILES)
     if( !graphics_view.enabled || ( !graphics_view.render && !graphics_view.hybrid_render && !graphics_view.world_render ) || !graphics_gameplay_context ||
@@ -434,6 +434,19 @@ bool graphics_draw( int x, int y, int width, int height )
     ( void )x; ( void )y; ( void )width; ( void )height;
     return false;
 #endif
+}
+
+bool graphics_draw( int x, int y, int width, int height )
+{
+    ncmm_graphics_turn_diagnostics::draw_scope measurement;
+    const bool rendered = graphics_draw_impl( x, y, width, height );
+#if defined(TILES)
+    measurement.complete( rendered, !graphics_view.world_render ? ncmm_graphics_turn_diagnostics::backend::legacy :
+                          graphics_gpu_frame ? ncmm_graphics_turn_diagnostics::backend::gpu : ncmm_graphics_turn_diagnostics::backend::cpu );
+#else
+    measurement.complete( rendered, ncmm_graphics_turn_diagnostics::backend::legacy );
+#endif
+    return rendered;
 }
 
 // Only the existing explicit --ncmm-gameplay-smoke path invokes this fixture.

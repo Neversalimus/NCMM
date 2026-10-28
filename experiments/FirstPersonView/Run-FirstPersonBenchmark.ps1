@@ -447,7 +447,8 @@ $result['gpu_debug_requested']=[bool]$GpuDebug
 $result['trace_markers_enabled']=[bool]$TraceCaptureScene
 $result['camera_snapshot_enabled']=(-not [bool]$DisableCameraSnapshot)
 $result['held_assets_enabled']=(-not [bool]$DisableHeldAssets)
-$result['controlled_without_ai_turn_loop']=$true
+$result['controlled_fixture_without_interactive_main_loop']=$true
+$result['controlled_native_turn_samples']=if($audit.PSObject.Properties['native_turn_diagnostics']){@($audit.native_turn_diagnostics.samples).Count}else{0}
 $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'benchmark-provenance.json') -Encoding UTF8
 $result | ConvertTo-Json
 } catch {

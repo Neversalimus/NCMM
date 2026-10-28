@@ -1210,6 +1210,31 @@ reads select program JSON/BMP/provenance, never CI stdout or log substitutes.
     This directly supports the circular candidate; full12a7 required qualification
     continues, while the existing exact-eae full run is preserved.
 
+**50. Attribute perspective callbacks inside real controlled Native turns.**
+Stage48's inclusive `do_turn` samples cannot distinguish simulation from UI,
+rendering or waits. A stack-owned opt-in capture now surrounds the same18
+combat and8 empty Native turns. It records raw nanoseconds, requested renderer,
+actual successful CPU/GPU/legacy callbacks, skipped attempts and ancestry per
+turn. Only outermost callback intervals enter the draw union; the exact
+remainder is labelled other Native/UI/wait/scheduling work, never pure AI.
+The ordinary draw path has no active capture, clock or recording allocation.
+The original11301-byte draw implementation remains byte-for-byte unchanged
+(SHA256 `02efcabefa2fc999f0facac8fa1bdeec1557f54228f1dd0e94aebdd3542bc4c9`).
+No Native turn, warm-up, renderer setting or simulation call is added/removed.
+
+The old unconditional provenance field `controlled_without_ai_turn_loop` was
+misleading: real controlled AI turns already ran. Replace it with the explicit
+controlled-fixture descriptor and reported Native-turn sample count. A strict
+verifier rejects missing/duplicate turns, backend/count inconsistencies,
+double-counted partitions, partial captures and non-finite/invalid values.
+Local checks: full Release build;310 Python tests(19.406s);96 atomic source
+tests for both pins(35.028s), including global TLS/header receipts and atomic
+failure paths;2 affected CTests(0.32s),20 new clock/ownership/allocation checks.
+Three independently compiled bad controls (nested double count, accepted
+backwards clock, per-translation-unit TLS) are rejected; retained code passes.
+PowerShell was parsed only. No local game, SDL/input harness or user input ran.
+Actual Native timing for this new diagnostic remains pending isolated CI.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both

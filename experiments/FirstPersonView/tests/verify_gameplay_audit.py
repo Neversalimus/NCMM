@@ -6,6 +6,7 @@ from pathlib import Path
 from verify_fire_audit import verify as verify_fire_audit
 from verify_held_gallery import verify as verify_held_gallery
 from verify_target_audit import verify as verify_target_audit
+from verify_turn_attribution import verify as verify_turn_attribution
 
 p=argparse.ArgumentParser()
 p.add_argument('--root',type=Path,required=True)
@@ -25,6 +26,7 @@ assert {x['name'] for x in r['actions']}==actions and all(x['success'] for x in 
 fire_audit = verify_fire_audit(a.root)
 held_gallery = verify_held_gallery(a.root)
 target_audit = verify_target_audit(a.root)
+turn_attribution = verify_turn_attribution(r)
 assert r['native_action_stages']['native_game_turn_wall_ms']['samples']==8
 assert r['native_action_stages']['native_stair_first_ready_wall_ms']['samples']==4
 assert [t['spawned'] for t in r['combat_trials']]==[1,5,20]
@@ -74,6 +76,7 @@ assert save['success'] and save['actual_cdda_save_load'] and [x['z'] for x in sa
 assert all(x['restored_xyz'] and x['restored_moves'] and x['restored_turn'] and x['f6_restored_tiles'] for x in save['levels'])
 result={'success':True,'actual_cdda_sdl':True,'manual_playthrough':False,'native_action_groups':len(actions),
         'tilesets':[x['id'] for x in r['tilesets']],'paired_cpu_gpu_cases':len(scenes)*2,
-        'automated_soak_seconds':s['actual_wall_seconds'],'gpu_execution_timestamps_available':False}
+        'automated_soak_seconds':s['actual_wall_seconds'],'gpu_execution_timestamps_available':False,
+        'native_turn_attribution':turn_attribution}
 a.output.write_text(json.dumps(result,indent=2)+'\n')
 print('Native action audit, actual UDP, CPU/GPU phases, bounded soak and saves PASS')
