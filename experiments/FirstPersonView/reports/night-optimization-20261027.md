@@ -155,6 +155,18 @@ pixels;21 fallbackADS,12 authoredADS,34 objects, two muzzle composites and
 subway dark0.00 pass. This is correctness evidence under background games,
 not a fresh game benchmark. No Native game/input/mouse/focus is used.
 
+Stage70 closes the remaining cold-world/offscreen risk for stage65. Seven
+alternating pairs per four workloads,32 fresh frame-vector/no-world-cache
+renders per lane, retain exact pixels/depth/IDs/effects/integration counts.
+640x480 twelve-light fire full-frame medians13.42206→12.64019ms (paired.94569),
+effects4.67569→4.17788ms (.86809); lights behind the camera5.53738→5.39847ms
+(.95295). Inactive/one-light full-frame ratios1.00827/1.00257 are unchanged
+within background noise. No broad first-use regression is established.
+This means cold static-world construction in the owned CPU renderer, not
+cold process/driver/Native launch or ordinary15ms game qualification.
+Evidence: `night-volume-cold70/summary.json`. No new source edits or reruns of
+the already passing unrelated suites were needed.
+
 ## Rejected experiments
 
 | Experiment | Reason not retained |
