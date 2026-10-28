@@ -380,6 +380,33 @@ The first fixture used an incorrect held/item override and failed compilation;
 it has no measurement and is excluded. Evidence: `night-ground-prepare-model74-r2/`
 and `night-ground-prepare-timing74/` (seven pairs per16 CPU/collection workloads).
 
+## Stage79 — reuse CPU vertex view transforms (local; Native pending)
+
+CPU triangle projection transformed each input vertex repeatedly for clipping
+and projection. It now computes three input view transforms once. Unclipped
+triangles reuse them; partial near-plane clipping still transforms the exact
+same world-space interpolated vertices. GPU collection, clipping thresholds,
+rounding, material finishing, range and persistent state are unchanged.
+
+The complete renderer model preserves168 frames/2,268 assertions/16,329,600
+pixels/7,729,476 volume samples, including depth and IDs. A separate near-plane
+guard preserves23,328 cases/1,189,296 projected scalar values bit for bit across
+yaw/pitch, six boundary depths and12 shape/material variants. Its initial
+cross-namespace fixture type error failed compilation and supplied no data.
+
+Seven alternating pairs per six fresh CPU workloads give paired ratios:
+small legacy.96520, small multilevel.98429, dense five-level.98473,
+constructed21-slice.96917 and city five-level.98295. Dense frame medians are
+49.01025→48.08013ms (geometry27.80475→26.71550); city52.43913→50.50875ms
+(geometry30.13963→28.76438). Components overlap and must not be summed.
+The hidden control has diverging independent medians1.94303→2.01410ms and
+paired ratio.97893; no hidden-scene gain is claimed. These same-process CPU
+models under background load do not qualify Native, GPU execution, Present,
+ordinary FPS or15ms. Release and7 affected CTests pass (3.03s).
+
+Evidence: `night-project-view-model79/{summary,near-summary-r2}.json`,
+`night-project-view-timing79/summary.json`, `night-stage79-affected-tests.txt`.
+
 ## Remote qualification and next steps
 
 - Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.

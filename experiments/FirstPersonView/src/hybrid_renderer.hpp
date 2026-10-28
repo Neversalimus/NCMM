@@ -459,14 +459,17 @@ class renderer {
         int xmin,xmax,ymin,ymax;float inv,dw0,dw1;bool coarse,detailed;
     };
     void project(const triangle &t,std::vector<projected_triangle> &output){
+        // Keep world-space clipping exact; reuse the input view transforms.
+        const std::array<vec,3> viewed={view(t.v[0].p),view(t.v[1].p),view(t.v[2].p)};
+        const bool uncut=viewed[0].z>=.08f&&viewed[1].z>=.08f&&viewed[2].z>=.08f;
         std::array<vertex,5> poly{};int count=0;
-        for(int i=0;i<3;++i){const auto &a=t.v[i],&b=t.v[(i+1)%3];float za=view(a.p).z,zb=view(b.p).z;
+        for(int i=0;i<3;++i){const auto &a=t.v[i],&b=t.v[(i+1)%3];float za=viewed[i].z,zb=viewed[(i+1)%3].z;
             if(za>=0.08f)poly[count++]=a;
             if((za>=0.08f)!=(zb>=0.08f))poly[count++]=interpolate(a,b,(0.08f-za)/(zb-za));}
         if(count<3)return;
         for(int piece=1;piece<count-1;++piece){std::array<vertex,3> v{poly[0],poly[piece],poly[piece+1]};std::array<vec,3> p{};
             std::array<float,3> iz{},uu{},vv{};
-            for(int i=0;i<3;++i){auto q=view(v[i].p);iz[i]=1/q.z;p[i]={f.width*0.5f+projection*q.x*iz[i],f.height*0.5f-projection*q.y*iz[i],q.z};uu[i]=v[i].u*iz[i];vv[i]=v[i].v*iz[i];}
+            for(int i=0;i<3;++i){auto q=uncut?viewed[i]:view(v[i].p);iz[i]=1/q.z;p[i]={f.width*0.5f+projection*q.x*iz[i],f.height*0.5f-projection*q.y*iz[i],q.z};uu[i]=v[i].u*iz[i];vv[i]=v[i].v*iz[i];}
             auto edge=[](vec a,vec b,float x,float y){return(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
             float area=edge(p[0],p[1],p[2].x,p[2].y);if(!std::isfinite(area)||std::abs(area)<0.00001f)continue;
             int xmin=std::max(0,int(std::floor(std::clamp(std::min({p[0].x,p[1].x,p[2].x}),-1.0f,float(f.width)))));
