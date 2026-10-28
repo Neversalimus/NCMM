@@ -1,12 +1,55 @@
 #include "ncmm_graphics_snapshot_cache.hpp"
 #include <cmath>
+#include <cstring>
+#include <type_traits>
 #include <cstdlib>
 #include <iostream>
 namespace {
 int checks=0;
 void require(bool value,const char *message){++checks;if(!value){std::cerr<<message<<'\n';std::exit(1);}}
 }
+namespace {
+void snapshot_payload_readiness(){
+    using namespace ncmm_graphics_snapshot;
+    static_assert(std::is_trivially_copyable<entry>::value&&std::is_trivially_destructible<entry>::value,
+                  "Retained snapshot entries contain only owned POD payloads");
+    cache data;key identity{};
+    ncmm_graphics_cell_v1 old_base{},new_base{};
+    std::strcpy(old_base.item,"old_rifle");std::strcpy(old_base.creature,"old_monster");std::strcpy(old_base.furniture,"old_cabinet");
+    std::strcpy(new_base.terrain,"t_floor");new_base.flags=NCMM_GFX_VISIBLE;
+    ncmm_graphics_cell_v2 old_detail{},new_detail{};std::strcpy(old_detail.field,"fd_smoke");std::strcpy(new_detail.ground,"t_floor");
+    ncmm_graphics_detail_v1 old_presentation{},new_presentation{};
+    old_presentation.gas=NCMM_GAS_SMOKE;old_presentation.hostile=1;old_presentation.source_light=20;new_presentation.terrain_material=NCMM_MAT_STONE;
+    for(unsigned cycle=0;cycle<32;++cycle){
+        ++identity[cycle%identity.size()];require(data.prepare(identity,100,-200,0,0,7),"new source lifetime prepares");
+        require(data.size()==0&&!data.known(101,-199,0)&&!data.find(101,-199,0),"previous cells cannot be found after lifetime change");
+        ncmm_world_cell_v1 world{101,-199,0,NCMM_WORLD_FLOOR|NCMM_WORLD_STRUCTURE_VISIBLE,0,0,cycle+1,{.1f,.2f,.3f}};
+        auto *current=data.store(world,{.3f,.4f,.5f});require(current!=nullptr,"new lifetime stores source facts");
+        require(!current->base_ready&&!current->detail_ready&&!current->presentation_ready&&!current->has_source_light,
+                "old item, creature, field, gas and source readiness must all be revoked");
+        require(same_world_cell(current->world,world)&&current->facade_light==std::array<float,3>{.3f,.4f,.5f},"new permission and light facts replace old source");
+        current->cell=new_base;current->base_ready=true;
+        require(!current->cell.item[0]&&!current->cell.creature[0]&&!current->cell.furniture[0]&&!current->detail_ready&&!current->presentation_ready,
+                "publishing base cannot expose an old actor, item, detail or gas");
+        current->detail=new_detail;current->detail_ready=true;
+        require(!current->detail.field[0]&&!current->has_source_light&&!current->presentation_ready,
+                "publishing detail does not make an old field, light source or presentation ready");
+        current->presentation=new_presentation;current->presentation_ready=true;
+        require(!current->presentation.gas&&!current->presentation.hostile&&!current->presentation.source_light,"new presentation has no old gas, hostility or light");
+        auto *warm=data.store(world,{.9f,.8f,.7f});require(warm==current&&warm->base_ready&&warm->detail_ready&&warm->presentation_ready,
+                "repeated acquisition in the same lifetime preserves published fields");
+        require(!std::memcmp(&warm->cell,&new_base,sizeof(new_base))&&!std::memcmp(&warm->detail,&new_detail,sizeof(new_detail))&&
+                !std::memcmp(&warm->presentation,&new_presentation,sizeof(new_presentation)),"warm acquisition preserves every published payload byte");
+        // Seed all three stale payloads so the following cycle must revoke them.
+        current->cell=old_base;current->detail=old_detail;current->presentation=old_presentation;current->has_source_light=true;
+        data.suspend();require(!data.find(world.x,world.y,world.z),"unleased caller cannot read old payloads");
+    }
+    data.clear();require(data.bytes()==0&&data.size()==0,"clear releases recycled payload storage");
+}
+}
+
 int main(){
+    snapshot_payload_readiness();
     using namespace ncmm_graphics_snapshot;
     input_lease lease;
     require(!lease.active(),"no lease outside native input");

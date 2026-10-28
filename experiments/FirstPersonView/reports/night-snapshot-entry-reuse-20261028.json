@@ -1,0 +1,330 @@
+{
+  "schema": 1,
+  "reference_revision": "b81e22d6ab8b33e33308f2198aa3c850e368a08e",
+  "source_file": "experiments/graphics_bridge/ncmm_graphics_snapshot_cache.hpp",
+  "reference_sha256": "39b4f6c89da51c3bca33d1b1f885995413a6dbafa6783335cfe84e540039b8c8",
+  "retained_sha256": "780bc13f4f0beacde7de90200e2459a95a164f926daf7aa2c3f4d22935e6bc89",
+  "test_file": "experiments/FirstPersonView/tests/snapshot_cache_test.cpp",
+  "test_sha256": "d12ac20f738e16f3954e6bb6d3566afdbfcd9fefdcaff6d3709c0a8b6206fe8c",
+  "change": "Track the logical active entry count separately from retained owned POD objects. On a new snapshot revoke slot identity and reset active count. A reused entry overwrites world/facade facts and clears base/detail/presentation/source-light readiness. Each payload is overwritten before its ready flag is set. Existing lease, key, rejection, visibility, source invalidation, bounds and clear behavior are unchanged.",
+  "correctness": {
+    "checks": 37703209,
+    "stores": 2146401,
+    "observations": 5942385,
+    "ready_payload_bytes": 3800460292,
+    "entry_bytes": 1120,
+    "reference_sha256": "39b4f6c89da51c3bca33d1b1f885995413a6dbafa6783335cfe84e540039b8c8",
+    "candidate_sha256": "780bc13f4f0beacde7de90200e2459a95a164f926daf7aa2c3f4d22935e6bc89",
+    "production_changed": false,
+    "local_native_device_or_input": false
+  },
+  "publication_guards": {
+    "success": true,
+    "results": [
+      {
+        "variant": "before",
+        "exit_code": 0,
+        "expected": 0,
+        "output": "Camera snapshot ownership and input lifetime: 5608 checks PASS"
+      },
+      {
+        "variant": "candidate",
+        "exit_code": 0,
+        "expected": 0,
+        "output": "Camera snapshot ownership and input lifetime: 5608 checks PASS"
+      },
+      {
+        "variant": "bad-base",
+        "exit_code": 1,
+        "expected": 1,
+        "output": "old item, creature, field, gas and source readiness must all be revoked"
+      },
+      {
+        "variant": "bad-detail",
+        "exit_code": 1,
+        "expected": 1,
+        "output": "old item, creature, field, gas and source readiness must all be revoked"
+      },
+      {
+        "variant": "bad-presentation",
+        "exit_code": 1,
+        "expected": 1,
+        "output": "old item, creature, field, gas and source readiness must all be revoked"
+      },
+      {
+        "variant": "bad-light",
+        "exit_code": 1,
+        "expected": 1,
+        "output": "old item, creature, field, gas and source readiness must all be revoked"
+      }
+    ],
+    "new_test_sha256": "d12ac20f738e16f3954e6bb6d3566afdbfcd9fefdcaff6d3709c0a8b6206fe8c",
+    "production_changed": false,
+    "no_native_device_or_input": true,
+    "scope": "Exact existing lease/ownership/budget tests plus typed stale actor/item/field/gas/source-light publication lifetimes. Four independent deliberately missing readiness resets must fail."
+  },
+  "cache_bookkeeping_comparisons": [
+    {
+      "scene": "turn9409_base",
+      "pairs": 9,
+      "before_median_ms": 0.356846875,
+      "after_median_ms": 0.185205078125,
+      "median_pair_ratio": 0.5223161861458746,
+      "ratios": [
+        0.5521894688999575,
+        0.5377777971905793,
+        0.4858767328423431,
+        0.4737228093348747,
+        0.544742876224399,
+        0.5163789156375761,
+        0.4787649511632658,
+        0.5371881844356764,
+        0.5223161861458746
+      ]
+    },
+    {
+      "scene": "turn9409_all",
+      "pairs": 9,
+      "before_median_ms": 0.5306828125,
+      "after_median_ms": 0.332048828125,
+      "median_pair_ratio": 0.6316739113218345,
+      "ratios": [
+        0.6754295703303469,
+        0.7001315543895416,
+        0.6384235227610654,
+        0.6063964772732972,
+        0.5902292152975241,
+        0.6285928915383775,
+        0.6759714426509297,
+        0.6316739113218345,
+        0.6033427918144182
+      ]
+    },
+    {
+      "scene": "turn28227_all",
+      "pairs": 9,
+      "before_median_ms": 1.61269140625,
+      "after_median_ms": 1.064886328125,
+      "median_pair_ratio": 0.6599348911082712,
+      "ratios": [
+        0.6657267264476241,
+        0.5744490427567518,
+        0.6603162415314074,
+        0.6599348911082712,
+        0.6290184272504848,
+        0.6574205572076851,
+        0.6953836460427025,
+        0.669644366696148,
+        0.6557914905965269
+      ]
+    },
+    {
+      "scene": "turn65536_all",
+      "pairs": 9,
+      "before_median_ms": 4.7853375,
+      "after_median_ms": 3.5154453125,
+      "median_pair_ratio": 0.7220304019219185,
+      "ratios": [
+        0.7220304019219185,
+        0.7008179449850587,
+        0.6074958222497594,
+        0.7401260882853091,
+        0.8683608432750449,
+        0.6937689837402511,
+        0.7567070584516725,
+        0.7739657272831927,
+        0.6965932100722975
+      ]
+    },
+    {
+      "scene": "turn49_all",
+      "pairs": 9,
+      "before_median_ms": 0.0027561767578125,
+      "after_median_ms": 0.00172119140625,
+      "median_pair_ratio": 0.6320305711351607,
+      "ratios": [
+        0.6320305711351607,
+        0.5357936895882938,
+        0.7795966091786027,
+        0.6067481146579095,
+        0.6373001598721023,
+        0.5661946765707212,
+        0.8089199215299795,
+        0.739122304481976,
+        0.490673719376392
+      ]
+    },
+    {
+      "scene": "turn1024_all",
+      "pairs": 9,
+      "before_median_ms": 0.05840830078125,
+      "after_median_ms": 0.03743125,
+      "median_pair_ratio": 0.6652714111585544,
+      "ratios": [
+        0.6853708739018821,
+        0.6652714111585544,
+        0.6810095321008822,
+        0.6048441263484109,
+        0.7349333484561394,
+        0.6848960292659602,
+        0.6457977024993578,
+        0.634595004060703,
+        0.4919056073489983
+      ]
+    },
+    {
+      "scene": "warm9409_all",
+      "pairs": 9,
+      "before_median_ms": 0.200034375,
+      "after_median_ms": 0.18639296875,
+      "median_pair_ratio": 0.9413274980658667,
+      "ratios": [
+        0.948029499884766,
+        0.9297640670985788,
+        0.8816303948252749,
+        0.8889381612996237,
+        0.9413274980658667,
+        0.9510299011107466,
+        0.9115114496415738,
+        0.9654267047359704,
+        0.9439710229367797
+      ]
+    },
+    {
+      "scene": "cold9409_all",
+      "pairs": 9,
+      "before_median_ms": 3.9427625,
+      "after_median_ms": 3.70756875,
+      "median_pair_ratio": 0.935782747603834,
+      "ratios": [
+        0.935782747603834,
+        0.9965692196182653,
+        0.9225339864704433,
+        0.9047281438322685,
+        0.9742642651027048,
+        0.9028235640142649,
+        0.9620586454294419,
+        0.8949709376522726,
+        0.9815924607525562
+      ]
+    },
+    {
+      "scene": "varying9409_1700",
+      "pairs": 9,
+      "before_median_ms": 0.30461875,
+      "after_median_ms": 0.2026859375,
+      "median_pair_ratio": 0.6369265039210067,
+      "ratios": [
+        0.6727862560095861,
+        0.666194184879042,
+        0.6079371755678205,
+        0.6026637630822099,
+        0.5816578435941364,
+        0.6308451789529078,
+        0.6369265039210067,
+        0.7087462530098774,
+        0.7036073066823566
+      ]
+    }
+  ],
+  "empty_and_partial_guards": [
+    {
+      "scene": "empty32",
+      "pairs": 9,
+      "before_median_ms": 0.007617822265625,
+      "after_median_ms": 0.0075815185546875,
+      "median_pair_ratio": 0.9771896870360833,
+      "ratios": [
+        0.8907474420560392,
+        0.9972670927133177,
+        0.9553819233012634,
+        0.9771896870360833,
+        0.9732981237612607,
+        0.9933110693526245,
+        0.9619912480490579,
+        1.011423589664402,
+        1.0757959192545232
+      ]
+    },
+    {
+      "scene": "presentation_only9409",
+      "pairs": 9,
+      "before_median_ms": 0.32366171875,
+      "after_median_ms": 0.132489453125,
+      "median_pair_ratio": 0.41397546233607874,
+      "ratios": [
+        0.4418232780974489,
+        0.44447460975336905,
+        0.4992476264331,
+        0.35382476399211177,
+        0.3707153123514206,
+        0.3573969570631348,
+        0.4482922543686516,
+        0.3533644613472907,
+        0.41397546233607874
+      ]
+    },
+    {
+      "scene": "detail_only9409",
+      "pairs": 9,
+      "before_median_ms": 0.33101875,
+      "after_median_ms": 0.15568671875,
+      "median_pair_ratio": 0.4594044185143238,
+      "ratios": [
+        0.43879663682405234,
+        0.4594044185143238,
+        0.48128397684769403,
+        0.585483134272239,
+        0.522566461491985,
+        0.3616309793762685,
+        0.4748944303049368,
+        0.45270590994318605,
+        0.44582066935748826
+      ]
+    }
+  ],
+  "publication_protocol": "Mirror Native cache order: source-fact acquisition pass, then separate base/detail/presentation publication passes. Final raw initialized-payload digest outside timer must agree in every lane.",
+  "byte_scope": "Entry remains1120bytes. Heap capacity/accounting and96MiB/cell limits match every differential observation. One additional size_t is stored in the private cache object; no new heap pool or retained Native pointer. Cold new entry objects remain normally value-initialized.",
+  "local_tests": {
+    "success": true,
+    "source_sha256": "780bc13f4f0beacde7de90200e2459a95a164f926daf7aa2c3f4d22935e6bc89",
+    "test_sha256": "d12ac20f738e16f3954e6bb6d3566afdbfcd9fefdcaff6d3709c0a8b6206fe8c",
+    "exact_measured_candidate": true,
+    "full_release_build": true,
+    "non_device_tests": 51,
+    "atomic_source_transform_tests": 96,
+    "local_native": false,
+    "local_device_window": false,
+    "mouse_or_focus": false,
+    "subagents": false,
+    "wrapper_fix": "Original build wrapper checked subprocess exit0 before its final output assertion. All96 individual unittest ok lines and standard Ran96/OK footer are present. Only the assumption that OK must be the final output line was wrong: deferred fixture stdout followed it. No test or source assertion relaxed; raw runs retained and no test rerun.",
+    "scope": "Private Native snapshot-cache helper and typed lifetime regression only. Exact measured source. GPU source is unchanged from stage94, whose hidden RTX render-only suite passed."
+  },
+  "ordinary_native_performance_qualified": false,
+  "gpu_execution_or_present_qualified": false,
+  "local_native_game": false,
+  "local_device_window": false,
+  "subagents": false,
+  "limitations": [
+    "Pure owned Native snapshot-cache helper model, not the complete Native extraction pipeline, game frame, GPU producer, cold game process, action-to-first-correct-present or15ms qualification.",
+    "All12 model workload medians improve in this run, but this is not a universal game or frame-tail guarantee. Individual paired controls vary; all lanes are preserved.",
+    "The147 regular/source-transform checks pass. The original wrapper incorrectly required unittest OK to be the final output line; deferred fixture stdout followed it. Subprocess exit0, all96 individual ok lines and standard Ran96/OK footer were confirmed without rerunning tests or weakening a test."
+  ],
+  "published_a9_installers_unchanged": true,
+  "remote_full_qualification_pending": true,
+  "evidence_sha256": {
+    "night-snapshot-recycle-model95/summary.json": "20cf6cba0b9f53301eb0cc4122016ddfbfe2ed81bb9e6b153b5b8123e522f978",
+    "night-snapshot-recycle-timing95/protocol.json": "2475f64896cc297a3bbbeb1818502541880c75d4869d3d21d81e297c6da0607a",
+    "night-snapshot-recycle-timing95/summary.json": "855980458694f42d650a0f004f41f326654603512627ffc3ab6656698da8adc6",
+    "night-snapshot-recycle-timing95/measurements.csv": "4e92c1a68b9c013c5f8e8e4ff14d93b13202ccc7cb344f84033e0bdebd6bd521",
+    "night-snapshot-readiness-guards95/summary.json": "06c066cbd4e3f1dea5c88b1b8cf95b61d6a784e7430c95d1602373133778bb5a",
+    "night-snapshot-partial-guards95/protocol.json": "791c720b11b6ea38503da5f0ccc236a3d1fc0e1a5a2a9c4ff53275e403f7e085",
+    "night-snapshot-partial-guards95/summary.json": "2b2372ee651a1fb7fdac75606e4d2544df7339727e83a7ccf83fb7a719870ae2",
+    "night-snapshot-partial-guards95/measurements.csv": "a64c7aa79b17aba58bd84bcaa8f665ad21953de1126e7e0fac7a41bb8b3196bf",
+    "night-stage95-release-build.txt": "98782f8a55e45fc74bf063cf4341e70856771b59198652045d7f6639d61adc93",
+    "night-stage95-tests.txt": "ba9beb0cbcfab3cd59238a078065bb5d98f66cd8f1a04af4b2bb93b92ec27afb",
+    "night-stage95-atomic-transform-tests.txt": "dc27e586e3490fcd53d4e681df1ccc0c450a43fe2ac860c0a45f70979c49b68d",
+    "night-stage95-test-inventory.json": "aa49ff625dcb6c8868e4d44c3ede9a2d038abfee078c76b4e651e20b60b09f3c",
+    "night-stage95-build-test-summary.json": "29f24b3a2f7d0fd42920a5835e61cd2d338598a2781590e6366c9d0e74a96dff"
+  }
+}

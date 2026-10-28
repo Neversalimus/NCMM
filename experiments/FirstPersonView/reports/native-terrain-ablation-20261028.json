@@ -1,0 +1,386 @@
+{
+  "schema": 1,
+  "source_revision": "a9ec8693d4897f8765a5c189679dcdccf0bfd59f",
+  "workflow_run": 40710031782,
+  "reference": "Same current source with only the pre71 terrain include from fdbba45f9082986202bd05db521bc315e9be4744; not an old full main binary.",
+  "diagnostic_only": true,
+  "cpu_world_policy": "rebuild-each-call",
+  "primary_profiles": 28,
+  "records": 168,
+  "frames_per_record": 96,
+  "source_host_module_run_and_process_verified": true,
+  "all96_frame_geometry_draw_raster_vectors_equal": true,
+  "pins": [
+    {
+      "pin": 1040,
+      "artifact": 12831522774,
+      "pairs": 7,
+      "children": 14,
+      "comparisons": [
+        {
+          "scene": "terrain-grass",
+          "renderer": "cpu",
+          "software_device": false,
+          "device": "",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 40.0499,
+              "current_median_ms": 40.23115,
+              "median_paired_ratio": 1.0018299177788652
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 4.0917,
+              "current_median_ms": 4.0289,
+              "median_paired_ratio": 0.9804452721577923
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 67.9534,
+              "current_median_ms": 67.9665,
+              "median_paired_ratio": 0.9928497205282729
+            }
+          }
+        },
+        {
+          "scene": "terrain-grass",
+          "renderer": "gpu",
+          "software_device": true,
+          "device": "Microsoft Basic Render Driver",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 75.2773,
+              "current_median_ms": 75.35585,
+              "median_paired_ratio": 0.9986388143741202
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 1.23065,
+              "current_median_ms": 1.2439,
+              "median_paired_ratio": 1.009860179422937
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 54.202,
+              "current_median_ms": 54.7925,
+              "median_paired_ratio": 1.0044242774228447
+            }
+          }
+        },
+        {
+          "scene": "terrain-mixed",
+          "renderer": "cpu",
+          "software_device": false,
+          "device": "",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 105.9854,
+              "current_median_ms": 38.27815,
+              "median_paired_ratio": 0.36059099122902205
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 73.02,
+              "current_median_ms": 6.025,
+              "median_paired_ratio": 0.08251164064639825
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 140.8737,
+              "current_median_ms": 53.9075,
+              "median_paired_ratio": 0.408328172110339
+            }
+          }
+        },
+        {
+          "scene": "terrain-mixed",
+          "renderer": "gpu",
+          "software_device": true,
+          "device": "Microsoft Basic Render Driver",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 55.6118,
+              "current_median_ms": 55.70405,
+              "median_paired_ratio": 1.0000823630311744
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 1.11565,
+              "current_median_ms": 1.1172,
+              "median_paired_ratio": 1.0013893246089722
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 140.8064,
+              "current_median_ms": 61.7427,
+              "median_paired_ratio": 0.43795097381937187
+            }
+          }
+        },
+        {
+          "scene": "terrain-road",
+          "renderer": "cpu",
+          "software_device": false,
+          "device": "",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 41.8766,
+              "current_median_ms": 36.95245,
+              "median_paired_ratio": 0.8847516754098439
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 9.4477,
+              "current_median_ms": 4.43855,
+              "median_paired_ratio": 0.4707463873790269
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 90.8032,
+              "current_median_ms": 61.7371,
+              "median_paired_ratio": 0.7366304870700765
+            }
+          }
+        },
+        {
+          "scene": "terrain-road",
+          "renderer": "gpu",
+          "software_device": true,
+          "device": "Microsoft Basic Render Driver",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 60.52215,
+              "current_median_ms": 60.4693,
+              "median_paired_ratio": 0.9996537172911601
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 1.13215,
+              "current_median_ms": 1.12665,
+              "median_paired_ratio": 0.9967861230958881
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 55.1843,
+              "current_median_ms": 49.5665,
+              "median_paired_ratio": 0.8929863054878865
+            }
+          }
+        }
+      ],
+      "summary_sha256": "7ff2d69b44721d33c5066ea65847b18993b0669fed65f6c8e768bc6aa4907404"
+    },
+    {
+      "pin": 1807,
+      "artifact": 12831384867,
+      "pairs": 7,
+      "children": 14,
+      "comparisons": [
+        {
+          "scene": "terrain-grass",
+          "renderer": "cpu",
+          "software_device": false,
+          "device": "",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 44.78885,
+              "current_median_ms": 44.7432,
+              "median_paired_ratio": 0.997491353234152
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 6.3452,
+              "current_median_ms": 6.4067,
+              "median_paired_ratio": 1.013409900990099
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 174.6725,
+              "current_median_ms": 174.9318,
+              "median_paired_ratio": 1.0069972248934036
+            }
+          }
+        },
+        {
+          "scene": "terrain-grass",
+          "renderer": "gpu",
+          "software_device": true,
+          "device": "Microsoft Basic Render Driver",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 87.93735,
+              "current_median_ms": 87.909,
+              "median_paired_ratio": 0.9993997404375239
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 1.42685,
+              "current_median_ms": 1.42185,
+              "median_paired_ratio": 0.9954812946616225
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 55.5161,
+              "current_median_ms": 56.3725,
+              "median_paired_ratio": 1.0075365868810848
+            }
+          }
+        },
+        {
+          "scene": "terrain-mixed",
+          "renderer": "cpu",
+          "software_device": false,
+          "device": "",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 111.8972,
+              "current_median_ms": 43.7704,
+              "median_paired_ratio": 0.39192930019608935
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 82.4182,
+              "current_median_ms": 9.8351,
+              "median_paired_ratio": 0.11890591594870188
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 156.2834,
+              "current_median_ms": 76.469,
+              "median_paired_ratio": 0.5282518620655353
+            }
+          }
+        },
+        {
+          "scene": "terrain-mixed",
+          "renderer": "gpu",
+          "software_device": true,
+          "device": "Microsoft Basic Render Driver",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 66.8439,
+              "current_median_ms": 66.97255,
+              "median_paired_ratio": 1.0004302037444934
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 1.28545,
+              "current_median_ms": 1.2882,
+              "median_paired_ratio": 1.0006602710995456
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 145.0313,
+              "current_median_ms": 63.1109,
+              "median_paired_ratio": 0.43392605691906583
+            }
+          }
+        },
+        {
+          "scene": "terrain-road",
+          "renderer": "cpu",
+          "software_device": false,
+          "device": "",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 44.7843,
+              "current_median_ms": 40.90535,
+              "median_paired_ratio": 0.9130667708926483
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 15.4568,
+              "current_median_ms": 7.041,
+              "median_paired_ratio": 0.45584208124144227
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 121.3254,
+              "current_median_ms": 109.0311,
+              "median_paired_ratio": 0.8986667260112061
+            }
+          }
+        },
+        {
+          "scene": "terrain-road",
+          "renderer": "gpu",
+          "software_device": true,
+          "device": "Microsoft Basic Render Driver",
+          "metrics": {
+            "median_ms": {
+              "reference_median_ms": 70.6152,
+              "current_median_ms": 70.61095,
+              "median_paired_ratio": 0.9996573969560927
+            },
+            "cpu_geometry_median_ms": {
+              "reference_median_ms": 0.0,
+              "current_median_ms": 0.0,
+              "median_paired_ratio": null
+            },
+            "gpu_geometry_prepare_median_ms": {
+              "reference_median_ms": 1.30815,
+              "current_median_ms": 1.3056,
+              "median_paired_ratio": 1.0016153224875965
+            },
+            "mode_first_ready_ms": {
+              "reference_median_ms": 55.6702,
+              "current_median_ms": 50.3754,
+              "median_paired_ratio": 0.903611225158646
+            }
+          }
+        }
+      ],
+      "summary_sha256": "96c78dbaa442a55673b5ff2837b82fab9e445a78f586a5fdede7e2243ac01b1a"
+    }
+  ],
+  "actual_cdda_sdl": true,
+  "ordinary_game_performance": false,
+  "gpu_execution_timestamps_available": false,
+  "verification_scope": "Primary numerical profiles, payload hashes, source tree, same Host, three distinct module identities, clean process exits, exact material-layout digests and recomputed paired statistics independently checked locally. All six declared capture digests agree across every14 children. Actual BMP bytes, nonplaceholder image checks and physical fixture-file hashes remain the CI strict verifier result; not independently reread locally.",
+  "download": {
+    "shared_reserved_body_bytes": 605766,
+    "limit_bytes": 8388608,
+    "full_archives_downloaded": false,
+    "bmp_bytes_downloaded": 0,
+    "ci_logs_used_as_fallback": false
+  },
+  "limitations": [
+    "Controlled terrain include ablation with forced CPU rebuild and software WARP GPU. Steady GPU mode medians are essentially unchanged; large CPU mixed-surface gains and first-mode-ready gains do not imply ordinary hardware FPS.",
+    "First-mode-ready begins after Native map/cache setup. It is neither a cold process nor action-to-first-correct-present, scanout or GPU execution time.",
+    "This validates the earlier terrain include optimization only. It is not Native performance evidence for snapshot-cache candidate95 or GPU chunk candidate94."
+  ],
+  "evidence_identity_sha256": "cb27bf20f0b537fcfbb668fe7219ffbd0a2fcc48d2baf2f02635889f42c5997e"
+}

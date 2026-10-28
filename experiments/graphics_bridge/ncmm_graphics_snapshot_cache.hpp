@@ -95,6 +95,7 @@ class cache {
     uint32_t side_=0;
     std::vector<uint32_t> slots;
     std::vector<entry> entries;
+    size_t stored_entries=0;
     static constexpr uint32_t empty_slot=std::numeric_limits<uint32_t>::max();
     static constexpr size_t maximum_bytes=96u*1024u*1024u;
     size_t index(int32_t x,int32_t y,int32_t z)const noexcept{
@@ -108,7 +109,7 @@ public:
     void suspend()noexcept{enabled=false;}
     void clear()noexcept{
         ++totals.clears;
-        enabled=false;key_={};ox_=oy_=lo_=0;hi_=-1;side_=0;
+        enabled=false;key_={};ox_=oy_=lo_=0;hi_=-1;side_=0;stored_entries=0;
         std::vector<uint32_t>().swap(slots);std::vector<entry>().swap(entries);
     }
     bool prepare(const key &identity,int32_t ox,int32_t oy,int32_t lo,int32_t hi,uint32_t side){
@@ -119,7 +120,7 @@ public:
             for(size_t i=0;i<identity.size();++i)totals.key_changes[i]+=identity[i]!=key_[i];
             totals.window_changes+=ox!=ox_||oy!=oy_||lo!=lo_||hi!=hi_||side!=side_;
             key_=identity;ox_=ox;oy_=oy;lo_=lo;hi_=hi;side_=side;
-            slots.assign(count,0);entries.clear();++totals.generations;
+            slots.assign(count,0);stored_entries=0;++totals.generations;
         }
         enabled=true;return true;
     }
@@ -143,16 +144,22 @@ public:
         if(slots[at]==empty_slot){if(verify)++totals.verification_mismatches;return nullptr;}
         if(slots[at])return &entries[slots[at]-1];
         const size_t limit=std::min<size_t>(NCMM_WORLD_MAX_CELLS,(maximum_bytes-slots.capacity()*sizeof(uint32_t))/sizeof(entry));
-        if(entries.size()>=limit){++totals.budget_misses;return nullptr;}
-        if(entries.size()==entries.capacity()){
-            const size_t capacity=std::min(limit,std::max<size_t>(256,entries.capacity()*2));
-            entries.reserve(capacity);
+        if(stored_entries>=limit){++totals.budget_misses;return nullptr;}
+        if(stored_entries==entries.size()){
+            if(entries.size()==entries.capacity()){
+                const size_t capacity=std::min(limit,std::max<size_t>(256,entries.capacity()*2));
+                entries.reserve(capacity);
+            }
+            entries.emplace_back();
         }
-        entries.push_back({});auto &out=entries.back();out.world=world;out.facade_light=light;
-        slots[at]=uint32_t(entries.size());++totals.stored;return &out;
+        // A new snapshot revokes all old field readiness. Reuse only owned
+        // storage; each payload is overwritten before its ready flag is set.
+        auto &out=entries[stored_entries++];out.world=world;out.facade_light=light;
+        out.base_ready=out.detail_ready=out.presentation_ready=out.has_source_light=false;
+        slots[at]=uint32_t(stored_entries);++totals.stored;return &out;
     }
     size_t bytes()const noexcept{return slots.capacity()*sizeof(uint32_t)+entries.capacity()*sizeof(entry);}
-    size_t size()const noexcept{return entries.size();}
+    size_t size()const noexcept{return stored_entries;}
 };
 // Only native, camera-independent rejection is remembered. Frustum rejection
 // never sets this flag, so a new sector can always acquire missing data.
