@@ -1087,6 +1087,48 @@ shooting/movement freeze reduction, RTX FPS and15ms first-correct-present are
 unqualified. Numeric output/timings/memory and rejected102evidence:
 `night-cpu-projection-fastpath-20261029.json`.
 
+## Earlier qualification receipts retained from stage99
+
+- CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
+  all8 jobs pass; required122987662168 confirms required/selected `full`.
+  Both final Windows CodeReview excerpts are retained, explicitly truncated.
+  Source/package and all3 GPU jobs pass. PR225 merged without bypass; exact
+  checked source is in main and the new TEST release. The independent Runtime
+  workflow did not run for this CPU-only source difference; its runtime source
+  remains unchanged from qualified A9. No current-head Runtime pass is claimed.
+
+- Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
+- Full `12a7abcd`, [run40600292716](https://github.com/Neversalimus/NCMM/actions/runs/40600292716):
+  all8 jobs pass, including required122619592124.
+- Previously qualified PR source `cdf6f79`, [full40615847078](https://github.com/Neversalimus/NCMM/actions/runs/40615847078):
+  all8 jobs now pass, including Windows1040/1807, both actual Linux jobs and
+  required122663447792 (`REQUIRED_TIER=full`, `SELECTED_TIER=full`). Windows
+  CodeReview excerpts show both21-scene/224-load paired gates passing.
+  Independent GPU40615847005/source40615847050/runtime40615846995 also pass.
+  This qualifies CDF, not later volume/terrain sources or ordinary15ms frames.
+- `616d718`, integration40629160097, and volume65 `fdbba45`,
+  integration40633375838: all7 planning/module/actual Native jobs pass; their
+  required gates fail because the selected integration tier is insufficient
+  for full qualification. The schema3 baseline CPU profiles are independently
+  verified above. Cross-run timings are not a paired causal comparison.
+- Terrain71 `1407dd4`, integration40637761432: all7 planning/module/actual
+  Native jobs pass; required122673470673 fails at the integration tier.
+- `48d8c23`, [full40643681993](https://github.com/Neversalimus/NCMM/actions/runs/40643681993):
+  all8 jobs pass, including both Windows Native jobs and required122760580661.
+  Final1040/1807 CodeReview excerpts each show21-scene/224-load paired gates
+  passing; excerpts are120000 characters and explicitly truncated. Final logs
+  and source identities are retained before advancing PR223. Independent GPU
+  40643681893/runtime40643681914/source40643681897 also pass. This qualifies
+  functional full48, not later CPU changes, causal A/B gains or ordinary15ms.
+- Failed optional pair40643770328: both Windows first reference children hit
+  600s; both Linux/module jobs pass. No Native A/B measurements qualify.
+- Repair82b integration40653873199 completed: both Linux/module-Linux jobs pass;
+  Windows module mock-clock tests and both optional Native pairs fail. Exact
+  CodeReview logs are retained through draft224; stage82 describes the confirmed
+  setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
+  protected PR223 full48 remains unchanged until its final logs are retained.
+
+
 ## Remote qualification and next steps
 
 Qualify stage103 on a separate exact source head while preserving PR228-232
