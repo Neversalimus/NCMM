@@ -286,7 +286,14 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         hash(&metadata.view.eye_height,sizeof(metadata.view.eye_height));hash(&metadata.view.sky_style,sizeof(metadata.view.sky_style));
         hash(&metadata.view.occupied_vehicle,sizeof(metadata.view.occupied_vehicle));if(has_creatures){for(auto detail:metadata.cells){detail.hostile=0;detail.creature_height=detail.creature_width=detail.creature_elevation=0;hash(&detail,sizeof(detail));}}
         else hash(metadata.cells.data(),metadata.cells.size()*sizeof(metadata.cells[0]));key^=wk;}
-    const bool rebuild_world=!world_valid||wk!=world_key||now-world_built>std::chrono::milliseconds(250);
+#if defined(NCMM_TERRAIN_DIAGNOSTIC_COLD_WORLD)
+    // Only the excluded terrain-comparison DLLs read this CI-only setting.
+    // Keep ordinary key calculations and both comparison builds identical.
+    const bool force_cold_world=std::getenv("NCMM_FP_TERRAIN_COLD_WORLD")!=nullptr;
+#else
+    constexpr bool force_cold_world=false;
+#endif
+    const bool rebuild_world=force_cold_world||!world_valid||wk!=world_key||now-world_built>std::chrono::milliseconds(250);
     // Keep complete owned pixels only; callback-scoped sprite pointers never
     // survive a frame. Periodic refresh also handles a changed tileset atlas.
     if(!frame_valid||rebuild_world||key!=frame_key||now-frame_built>std::chrono::milliseconds(250)){

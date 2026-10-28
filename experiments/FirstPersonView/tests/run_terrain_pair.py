@@ -133,8 +133,8 @@ def run(args):
         raise ValueError('Source checkout, workflow and prepared bundle differ.')
     host = game / 'cataclysm-tiles.ncmm.exe'
     module = game / 'code_mods/FirstPersonView/ncmm_mod.dll'
-    expected_current = bundle['files']['code_mods/FirstPersonView/ncmm_mod.dll']
-    if sha(host) != bundle['host_sha256'] or sha(module) != expected_current:
+    expected_shipping = bundle['files']['code_mods/FirstPersonView/ncmm_mod.dll']
+    if sha(host) != bundle['host_sha256'] or sha(module) != expected_shipping:
         raise ValueError('Prepared Host/module does not match the verified bundle.')
     terrain_definitions = native_material_definitions(game / 'data/json/furniture_and_terrain')
     reference = Path(__file__).parent / 'reference/terrain_edges_pre71.inc'
@@ -147,16 +147,18 @@ def run(args):
         subprocess.run(['cmake', '-S', str(repo / 'experiments/FirstPersonView'), '-B', str(build),
                         '-DFIRST_PERSON_TERRAIN_REFERENCE_SOURCE=' + reference.as_posix()], check=True)
         subprocess.run(['cmake', '--build', str(build), '--config', 'Release', '--target',
-                        'ncmm_mod_terrain_reference', '--parallel', '4'], check=True)
+                        'ncmm_mod_terrain_current', 'ncmm_mod_terrain_reference', '--parallel', '4'], check=True)
     finally:
         subprocess.run(['cmake', '-S', str(repo / 'experiments/FirstPersonView'), '-B', str(build),
                         '-DFIRST_PERSON_TERRAIN_REFERENCE_SOURCE='], check=True)
     reference_dll = build / 'Release/ncmm_mod_terrain_reference.dll'
-    current_copy = out / 'current-module.dll'
-    shutil.copyfile(module, current_copy)
+    current_dll = build / 'Release/ncmm_mod_terrain_current.dll'
+    shipping_copy = out / 'shipping-module.dll'
+    shutil.copyfile(module, shipping_copy)
+    current_hash = sha(current_dll)
     reference_hash = sha(reference_dll)
-    if sha(build / 'Release/ncmm_mod.dll') != expected_current or reference_hash == expected_current:
-        raise ValueError('Current build changed or reference target is indistinguishable.')
+    if sha(build / 'Release/ncmm_mod.dll') != expected_shipping or len({current_hash, reference_hash, expected_shipping}) != 3:
+        raise ValueError('Shipping build changed or diagnostic targets are indistinguishable.')
     immutable = {}
     # Bind actual settings, graphics data and runtime assets across every child.
     for directory in ('config', 'code_mods', 'gfx', 'data'):
@@ -166,13 +168,15 @@ def run(args):
     assets_digest = hashlib.sha256(json.dumps(immutable, sort_keys=True).encode()).hexdigest()
     save(out / 'fixture-files.json', immutable)
     env = {k: v for k, v in os.environ.items() if not k.startswith('NCMM_FP_')}
-    env.update(NCMM_FP_GPU_BENCHMARK_ONLY='1', NCMM_FP_TERRAIN_PROFILE='1',
+    env.update(NCMM_FP_GPU_BENCHMARK_ONLY='1', NCMM_FP_TERRAIN_PROFILE='1', NCMM_FP_TERRAIN_COLD_WORLD='1',
                NCMM_FP_APPEARANCE_SMOKE='1', SDL_ASSERT='abort')
-    receipt = dict(schema=2, terrain_fixture_schema=3, terrain_material_ids=list(MATERIALS),
+    receipt = dict(schema=3, terrain_fixture_schema=4, terrain_material_ids=list(MATERIALS),
+                   diagnostic_only=True, cpu_world_policy='rebuild-each-call',
                    terrain_material_definitions=terrain_definitions,
                    source_commit=head, source_tree=tree, engine_commit=bundle['source_commit'],
                    workflow_run=os.environ['GITHUB_RUN_ID'], host_sha256=sha(host),
-                   current_module_sha256=expected_current, reference_module_sha256=reference_hash,
+                   shipping_module_sha256=expected_shipping,
+                   current_module_sha256=current_hash, reference_module_sha256=reference_hash,
                    reference_include_sha256=REFERENCE_SHA, reference_include_commit=REFERENCE_COMMIT,
                    current_include_sha256=sha(repo / 'experiments/FirstPersonView/src/terrain_edges.inc'),
                    reference_kind='current-source-with-pre71-terrain-include',
@@ -189,7 +193,7 @@ def run(args):
                 directory.mkdir()
                 receipt.update(phase='reset-world', active_trial=directory.name)
                 save(out / 'pair.json', receipt)
-                shutil.copyfile(reference_dll if kind == 'reference' else current_copy, module)
+                shutil.copyfile(reference_dll if kind == 'reference' else current_dll, module)
                 module_hash = sha(module)
                 if sha(host) != receipt['host_sha256']:
                     raise ValueError('Host changed before the next pair.')
@@ -229,8 +233,8 @@ def run(args):
         receipt.update(failure_type=type(error).__name__, failure_stage=receipt['phase'])
         raise
     finally:
-        shutil.copyfile(current_copy, module)
-        receipt['module_restored'] = sha(module) == expected_current
+        shutil.copyfile(shipping_copy, module)
+        receipt['module_restored'] = sha(module) == expected_shipping
         receipt['fixture_restored'] = all(sha(game / name) == value for name, value in immutable.items())
         save(out / 'pair.json', receipt)
     if not receipt['module_restored'] or not receipt['fixture_restored']:

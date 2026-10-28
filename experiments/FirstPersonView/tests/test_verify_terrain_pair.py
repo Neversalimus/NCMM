@@ -37,12 +37,15 @@ def report(scenes=SCENES):
                      warmup_perspective_wall_samples=[1.], warmup_actual_present_wall_samples=[1.],
                      warmup_cpu_geometry_samples=[.2 if mode == 'cpu' else 0.],
                      warmup_gpu_geometry_prepare_samples=[.2 if mode == 'gpu' else 0.],
+                     terrain_submitted_triangle_samples=[10] * 96,
+                     terrain_gpu_draw_call_samples=[int(mode == 'gpu')] * 96,
+                     terrain_cpu_raster_call_samples=[2 if mode == 'cpu' else 0] * 96,
                      capture=f'first-person-gpu-{scene}-640x480-{mode}.bmp')
             r.update({name + '_samples': [value] * 96 for name, value in (
                 ('frame_wall', 4.), ('native_tiles_wall', 1.), ('perspective_wall', 1.),
                 ('actual_present_wall', 1.), ('unattributed_wall', 1.))})
             records.append(r)
-    return dict(schema=3, terrain_material_ids=list(MATERIALS), terrain_profile_only=True, ordinary_performance_measurement=False,
+    return dict(schema=4, cpu_world_rebuild_each_frame=True, terrain_material_ids=list(MATERIALS), terrain_profile_only=True, ordinary_performance_measurement=False,
                 terrain_grid_side=97, stable_cpu_binary=False, actual_cdda_sdl=True,
                 focused_reproduction=True, phase_samples_available=True, player_fps=False,
                 gpu_timestamps_available=False, records=records)
@@ -54,7 +57,7 @@ def write(path, value):
 
 class TerrainProfileTests(unittest.TestCase):
     def test_legacy_or_different_material_fixture_is_rejected(self):
-        for change in (lambda r: r.update(schema=2),
+        for change in (lambda r: r.update(schema=3),
                        lambda r: r.update(terrain_material_ids=['t_pavement', 't_gravel', 't_dirt', 't_grass']),
                        lambda r: r.update(terrain_material_ids=list(reversed(MATERIALS)))):
             value = report()
@@ -116,6 +119,28 @@ class TerrainProfileTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(AssertionError):
                 self.check_profile(value_report)
 
+    def test_forced_world_and_complete_frame_work_are_required(self):
+        value = report()
+        value['cpu_world_rebuild_each_frame'] = False
+        with self.assertRaises(AssertionError):
+            self.check_profile(value)
+        changes = (
+            ('terrain_submitted_triangle_samples', [10] * 95),
+            ('terrain_submitted_triangle_samples', [10.] * 96),
+            ('terrain_submitted_triangle_samples', [True] * 96),
+            ('terrain_submitted_triangle_samples', [-1] + [10] * 95),
+            ('terrain_submitted_triangle_samples', [2**64] + [10] * 95),
+            ('terrain_cpu_raster_call_samples', [1] * 96),
+            ('terrain_cpu_raster_call_samples', [0] * 96),
+            ('terrain_gpu_draw_call_samples', [1] * 96),
+            ('mesh_triangles_submitted', 11),
+        )
+        for name, values in changes:
+            value = report()
+            value['records'][0][name] = values
+            with self.subTest(field=name, value=values), self.assertRaises(AssertionError):
+                self.check_profile(value)
+
 
 class TerrainPairTests(unittest.TestCase):
     def setUp(self):
@@ -126,7 +151,8 @@ class TerrainPairTests(unittest.TestCase):
         fixture = {'config/options.json': '8' * 64,
                    'data/json/furniture_and_terrain/fixture.json': '9' * 64}
         write(self.root / 'fixture-files.json', fixture)
-        self.manifest = dict(schema=2, terrain_fixture_schema=3, terrain_material_ids=list(MATERIALS),
+        self.manifest = dict(schema=3, terrain_fixture_schema=4, terrain_material_ids=list(MATERIALS),
+            diagnostic_only=True, cpu_world_policy='rebuild-each-call', shipping_module_sha256='7' * 64,
             terrain_material_definitions={name: dict(path='fixture.json', sha256='9' * 64) for name in MATERIALS},
             source_commit=source, source_tree='2' * 40, engine_commit=engine,
             workflow_run='123', host_sha256='3' * 64, current_module_sha256='4' * 64,
@@ -138,7 +164,7 @@ class TerrainPairTests(unittest.TestCase):
             module_restored=True, fixture_restored=True, ordinary_game_performance=False,
             gpu_execution_timestamps_available=False)
         write(self.root / 'bundle.json', dict(schema=1, ncmm_source_commit=source, source_commit=engine,
-            host_sha256='3' * 64, files={'code_mods/FirstPersonView/ncmm_mod.dll': '4' * 64}))
+            host_sha256='3' * 64, files={'code_mods/FirstPersonView/ncmm_mod.dll': '7' * 64}))
         # One synthetic, nonconstant BMP shared by hard links in this owned temp.
         size = 54 + 640 * 480 * 3
         bmp = bytearray(b'BM' + struct.pack('<IHHI', size, 0, 0, 54) +
@@ -185,6 +211,10 @@ class TerrainPairTests(unittest.TestCase):
                        lambda m: m.update(module_restored=False),
                        lambda m: m.update(fixture_restored=False),
                        lambda m: m.update(ordinary_game_performance=True),
+                       lambda m: m.update(diagnostic_only=False),
+                       lambda m: m.update(cpu_world_policy='warm'),
+                       lambda m: m.update(shipping_module_sha256='0' * 64),
+                       lambda m: m.update(current_module_sha256=m['shipping_module_sha256']),
                        lambda m: m['trials'].pop(),
                        lambda m: m['trials'][0].update(kind='current'),
                        lambda m: m['trials'][0].update(directory='../escape')):
@@ -193,6 +223,19 @@ class TerrainPairTests(unittest.TestCase):
             self.persist()
             with self.assertRaises(AssertionError):
                 self.verify()
+
+    def test_changed_first_frame_work_rejected_with_same_last_count_and_pixels(self):
+        trial = next(t for t in self.manifest['trials'] if t['kind'] == 'current')
+        path = self.root / trial['directory'] / 'first-person-terrain-benchmark.json'
+        value = json.loads(path.read_text())
+        # Last counts and all captures remain valid. The old scalar-only check
+        # could not see a different amount of work earlier in the same lane.
+        value['records'][0]['terrain_submitted_triangle_samples'][0] += 1
+        write(path, value)
+        trial['report_sha256'] = digest(path)
+        self.persist()
+        with self.assertRaises(AssertionError):
+            self.verify()
 
     def test_crash_stale_module_and_report_even_with_refreshed_hashes(self):
         trial = self.manifest['trials'][0]

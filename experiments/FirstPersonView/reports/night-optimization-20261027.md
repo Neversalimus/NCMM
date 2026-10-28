@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage90. Baseline `1284537`; working branch
-`codex/fpv-cpu-raster-followup-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
+Updated28 October2026, through stage91. Baseline `1284537`; working branch
+`codex/fpv-terrain-profile-cache-control-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -16,8 +16,9 @@ NVIDIA/power/priority changes or subagents. Background games remain running.
 Use the existing checkout/build, read-only synced sources, pure/shared-module
 tests and the inventoried hidden render-only suite. The user has now requested
 finalization, main integration and installer delivery, followed by continued work.
-ReleaseA9 stays fixed while its full Windows qualification completes; stage90
-is an isolated local follow-up and is not included in those installer bytes.
+ReleaseA9 stays fixed while its full Windows qualification completes. Stage90
+is isolated in draft [PR225](https://github.com/Neversalimus/NCMM/pull/225);
+stage91 is a local diagnostic follow-up. Neither is in the A9 installer bytes.
 
 Detailed stages1–63, failures, provenance and raw measurement references remain
 [in the immutable prior journal](https://github.com/Neversalimus/NCMM/blob/616d718810e665892b1e7eaba33030cf8a00c7b4/experiments/FirstPersonView/reports/night-optimization-20261027.md).
@@ -628,6 +629,54 @@ multiZ and subway lighting. No Native game, mouse, focus or system-setting
 change was used. Current Native CI applies to releaseA9; stage90 still needs
 its own remote qualification. Public numeric evidence is
 `night-raster-dispatch-20261028.json`; raw private models/tails remain preserved.
+
+## Stage91 — compare identical CPU world work
+
+The A9 comparison failure is reproduced in the exact shared module: after a
+275ms cache expiry, unchanged geometry/time yields identical complete pixels
+but submitted work rises1176→2686 triangles and one→two raster calls in all
+five controls. This is a causal module model, not an independent diagnosis of
+every Native frame or a performance gain. Raw: `night-terrain-cache-counter-model91/`.
+
+Both excluded comparison DLLs now share an opt-in forced CPU world rebuild.
+The normal DLL has no runtime diagnostic branch; the setting is compiled into
+the two private targets only. The current/reference DLLs still differ only
+in the pinned pre71 terrain include. Normal source hashing remains in the
+diagnostic path. The original shipping DLL is saved/restored separately and
+its bundle hash is enforced; all three module identities must be distinct.
+The runner still refuses local/non-CI execution before accessing arguments.
+No additional checkout or game copy is created.
+
+Terrain profile4/receipt3 record and compare all96 per-frame submission,
+draw-call and CPU-raster counters, retaining scalar, source, asset, process,
+layout and exact-capture guards. Missing/false cold policy, incomplete/noninteger
+work arrays, normal-cache rows, wrong final counts and an earlier workload
+change with identical last counts/captures are rejected. No equality guard
+was waived and old profile3 receipts cannot qualify this protocol.
+
+Six compiled shared-module configurations x5 trials pass: old/normal modules,
+ordinary module with diagnostic environment present, both cold targets, and
+the private current target without its environment. Ordinary caching remains
+active with or without that setting; both cold targets execute equal work.
+Complete RGBA bytes agree, SHA256
+`7314d3961fedddc4cfd998e3b6d78ca5a3b01d66fec52031e1130b1ea9ad0f14`.
+This is neither a Native launch nor a new timing result. Raw evidence and
+compiled/source identities: `night-terrain-cold-policy-model91/summary.json`.
+
+Full local Release/51 non-device CTests(22.05s),18 terrain guards(4.967s) and
+96 atomic two-pin preparation tests(51.087s) pass. An initial wrong test
+selector ran zero cases and failed; it is preserved and not counted. The
+reference CMake setting is cleared after both private targets build. Header
+geometry is unchanged from90, so no repeated device run is needed. No local
+Native/SDL/input/window, focus/mouse, profiler or global system change is used.
+The changed Native benchmark include has source-transform coverage, not a
+new local linked Native/game test. A remote rerun is still required.
+
+A9 full Windows jobs are now in paired main0.13 comparisons. PR225's source/
+GPU checks and module suites pass while its own Native capture continues.
+Keep both remote heads fixed; stage91 is not pushed over either active run.
+Release draft426662059 contains the exact verified A9 installer bytes but
+remains unpublished until A9's complete required gate and main integration.
 
 ## Remote qualification and next steps
 

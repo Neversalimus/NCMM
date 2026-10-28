@@ -53,7 +53,8 @@ def layout_digest(scene):
 
 
 def verify(report):
-    assert report['schema'] == 3 and report['terrain_profile_only'] is True
+    assert report['schema'] == 4 and report['terrain_profile_only'] is True
+    assert report['cpu_world_rebuild_each_frame'] is True
     assert report['ordinary_performance_measurement'] is False
     assert report['terrain_grid_side'] == 97
     assert report['terrain_material_ids'] == list(MATERIALS)
@@ -64,6 +65,22 @@ def verify(report):
         assert record['terrain_layout_digest'] == layout_digest(record['scene'])
         assert record['terrain_capture_seconds'] == 1000.5
         assert record['creatures'] == 0
+        work = ('terrain_submitted_triangle_samples', 'terrain_gpu_draw_call_samples',
+                'terrain_cpu_raster_call_samples')
+        for name in work:
+            values = record[name]
+            assert type(values) is list
+            assert len(values) == record['frames']
+            assert all(type(v) is int and 0 <= v < 2**64 for v in values)
+        assert record['mesh_triangles_submitted'] == record[work[0]][-1]
+        assert record['gpu_3d_draw_calls'] == record[work[1]][-1]
+        assert all(value > 0 for value in record[work[0]])
+        if record['renderer'] == 'cpu':
+            assert all(value >= 2 for value in record[work[2]]), 'Missing forced CPU world raster'
+            assert all(value == 0 for value in record[work[1]])
+        else:
+            assert all(value == 0 for value in record[work[2]])
+            assert all(value > 0 for value in record[work[1]])
         for phase in ('native_tiles_wall', 'perspective_wall', 'actual_present_wall'):
             assert abs(statistics.median(record[phase + '_samples']) - record[phase + '_median_ms']) <= .002
         assert 1 <= record['warmup_frames'] <= 180
