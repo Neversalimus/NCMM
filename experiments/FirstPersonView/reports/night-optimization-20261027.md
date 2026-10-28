@@ -1239,6 +1239,34 @@ added workflow step had an extra indentation level. Correct its step/run
 indentation before retrying. This did not launch Native jobs or affect the
 separate full runs for `eae8d02` and `12a7abc`; source checks above remain valid.
 
+**51. Reject three denominator/intensity reuse experiments.** All use owned
+source-model data and the retained exact-distance implementation as reference,
+with498 paired semantic cases/693339 checks and226981 exhaustive coordinate
+checks; every compared output/input bit and ordered callback value matches.
+Seven alternating timing pairs cover each of eight metric/scene combinations,
+with observers disabled in the timing build. None ran a Native game or changed
+production code. Fewer exponent calls did not establish general improvement:
+
+| Private design | Exponent calls before -> after | Slower paired-median combinations |
+| --- | ---: | ---: |
+| Literal open-air coefficient, distance slots | 10702148 -> 10448768 | 7/8 |
+| Distance slots with exact exponent-bit keys | 10702148 -> 4054800 | 6/8 |
+| Full intensity reused within one unchanged span | 10702148 -> 5407228 | 4/8 |
+
+The last design improves the square/open source model(ratio.750) but worsens
+the circular/transparency scene(ratio1.083); the general variant is rejected.
+These are local model wall measurements under background load, not Native
+frame improvements. No repeat was used to select a more favourable result.
+Private summary SHA256 values respectively:
+`436f5b52e16f15a3d8cc13df8870ea8fd1e80e1e328a30378bc1509a2d6f6260`,
+`caf7982ca137938fdaf7213d7e434d6b83d4f266f3386c4240c563705423c35d`,
+`65d0df72b1371825187cb88b42a977f7d521be68b7711abf630398d10a2dad51`.
+Source transfer budget remains161994 bytes. Stage50's corrected integration
+run40607427955 is accepted at `5ebfb70`; Windows module tests and both Native
+Host compilations pass so far. Full12a7 Linux jobs also pass; Windows full
+qualification and per-turn attribution are still pending. Next inspect the
+existing floor fast path's unnecessarily coupled current/below uniform guard.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
