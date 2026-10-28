@@ -1462,6 +1462,48 @@ required-qualification gate fails, so it is not a full-tier qualification.
 New schema2 actual timings remain pending a separate isolated diagnostic run;
 this stage is diagnostic infrastructure, not a claimed frame-time improvement.
 
+**59. Verify currentcdf walking routes and prepare early schema2 admission.**
+Current full run40615847078 publishes movement artifacts12786401496 /12785919291
+(18312721 /18319628-byte archives). Read only four exact program JSONs per pin;
+shared reservation364949/8388608 bytes. Runtime merge `717ee227` has exactly the
+currentcdf tree `2b43614f26a368176204b296c75774e9e1345cd7`, proven by local
+source tree and GitHub commit metadata; no Native source body is transferred.
+Clean exits, matching engine/Host/module/source,288 accepted steps,144 cache
+children and all adjacent parent/child/frame partitions verify. The source
+fact/field-mutation oracles pass and snapshot verification mismatches are zero.
+
+Software D3D12 Microsoft Basic Render Driver, GPU640, VSync1, six crossings
+per route; medians in milliseconds:
+
+| Pin / scene | Crossing action | First ready after crossing | Main Native cache | Seen-cache child |
+| --- | ---: | ---: | ---: | ---: |
+|1040 street|24.544|56.219|12.377|5.476|
+|1040 horde|30.207|75.326|17.103|7.719|
+|1040 city|34.333|103.121|20.327|10.179|
+|1807 street|37.889|97.969|16.266|7.220|
+|1807 horde|30.546|84.701|16.812|7.800|
+|1807 city|34.967|104.097|20.877|10.560|
+
+Independent medians do not sum; parents include their children. Same routes
+without submap shifts have .357-.400ms action medians, excluding subsequent
+refresh/render. These controlled independent CI runs do not establish a causal
+floor speedup, ordinary RTX4090 timing, GPU execution or first-correct present.
+The15ms target and full current qualification remain open. Condensed summary
+SHA256 `0e25f56b109f48e50e3b6100c7e89c3fcc4986c1b8eafef1ffe458f96ed8a133`;
+cache summaries1040/1807 SHA256
+`6e0f61a5578d9a5ece2e84d665d0361acc1fe2771b7ac2238d0328d87f219114`,
+`2c7f0007703fe4b52b69033a124e291b4053b894f265ca624f14f2286b6c67d2`.
+
+Private early reader/verifier now admits the five exact gameplay JSONs using
+artifact head/run metadata, source-matched verifier, Native-source/private-SDL
+receipt and clean-process identities. It will not wait for final installer
+qualification or admit logs/images. Syntax/help parsing passes; actual early
+schema2 artifacts remain pending run40619494293. Both module jobs and Windows
+Host compilation pass there; Linux builds and Windows gameplay continue.
+Next examine lazy reuse of uniform lower furniture beneath mixed upper terrain;
+preserve every upper predicate/read and invalid-ID diagnostic. No local Native,
+mouse, subagent, main merge or release was used.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
