@@ -1,7 +1,11 @@
 #include "gpu_scene.hpp"
 #include "ncmm_gpu_validation.hpp"
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <utility>
+#include "skyline_host_fixture.hpp"
 using namespace first_person::hybrid;
 namespace {
 int checks=0;
@@ -43,8 +47,520 @@ struct collector:geometry_sink {
     void skin(const first_person::creature::model &,const first_person::creature::skeleton_pose &,int,vec,int,vec,bool,bool,float,vec)override{}
     void impostor(const first_person::creature::asset &,const first_person::creature::pose_state &,vec,int,int,bool)override{}
 };
+namespace terrain_stair_sampler_fixture {
+using event=std::array<int,4>;
+std::vector<event> reads;
+void note(char kind,int x=0,int y=0,int z=0){reads.push_back({int(kind),x,y,z});}
+enum class ter_furn_flag {TFLAG_NO_FLOOR,TFLAG_NO_FLOOR_WATER,TFLAG_TRANSPARENT_FLOOR,TFLAG_Z_TRANSPARENT,
+    TFLAG_GOES_UP,TFLAG_GOES_DOWN,TFLAG_RAMP,TFLAG_RAMP_UP,TFLAG_RAMP_DOWN,TFLAG_RAMP_END,TFLAG_DIFFICULT_Z};
+struct tripoint_abs_ms {int x,y,z;tripoint_abs_ms(int a,int b,int c):x(a),y(b),z(c){}};
+struct terrain_id {std::string value="t_floor";const std::string &str()const{note('I');return value;}};
+struct close_id {bool empty=true;bool is_null()const{note('C');return empty;}};
+struct terrain_definition {
+    std::array<bool,11> flags{};bool transparent=true;
+    terrain_id id;std::string looks_like;close_id close;ncmm_graphics_shapes::traits shape{};
+    bool has_flag(ter_furn_flag flag)const{note('F',int(flag));return flags[size_t(flag)];}
+};
+struct map {
+    terrain_definition terrain;bool loaded=true,zlevels=true;
+    tripoint_abs_ms get_bub(tripoint_abs_ms p)const{note('B',p.x,p.y,p.z);return {p.x-7,p.y+9,p.z};}
+    bool ncmm_graphics_loaded(tripoint_abs_ms p)const{note('L',p.x,p.y,p.z);return loaded;}
+    bool supports_zlevels()const{note('Z');return zlevels;}
+    struct tile {const terrain_definition &terrain;const terrain_definition &get_ter_t()const{note('T');return terrain;}};
+    tile maptile_at(tripoint_abs_ms p)const{note('M',p.x,p.y,p.z);return {terrain};}
+};
+ncmm_graphics_shapes::traits graphics_traits(const terrain_definition &terrain,bool opened){note('G',int(opened));return terrain.shape;}
+constexpr int OVERMAP_DEPTH=10;
+#include "../../graphics_bridge/ncmm_graphics_terrain_stair.inc"
+// Frozen lambda body from Stage17/1a951e1 world.inc. Do not derive this oracle
+// from the extracted helper when changing it. CC-BY-SA-3.0 Native fact APIs.
+// BEGIN FROZEN TERRAIN STAIR SAMPLER
+uint32_t frozen(map &here,int ax,int ay,int z,int ox,int oy,int side,const std::array<int,2> &loaded){
+        const int64_t x=int64_t(ax)-ox,y=int64_t(ay)-oy;
+        if(x<0||y<0||x>=side||y>=side||z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
+        const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));
+        if(!here.ncmm_graphics_loaded(p))return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
+        const auto tile=std::as_const(here).maptile_at(p);const auto &ter=tile.get_ter_t();
+        ncmm_world::traits t{};t.loaded=true;
+        t.no_floor=ter.has_flag(ter_furn_flag::TFLAG_NO_FLOOR);t.no_floor_water=ter.has_flag(ter_furn_flag::TFLAG_NO_FLOOR_WATER);
+        if(!(here.supports_zlevels()&&z>=-OVERMAP_DEPTH+1))t.no_floor=t.no_floor_water=false;
+        t.transparent_floor=ter.has_flag(ter_furn_flag::TFLAG_TRANSPARENT_FLOOR);t.z_transparent=ter.has_flag(ter_furn_flag::TFLAG_Z_TRANSPARENT);
+        t.goes_up=ter.has_flag(ter_furn_flag::TFLAG_GOES_UP);t.goes_down=ter.has_flag(ter_furn_flag::TFLAG_GOES_DOWN);
+        t.ramp=ter.has_flag(ter_furn_flag::TFLAG_RAMP);t.ramp_up=ter.has_flag(ter_furn_flag::TFLAG_RAMP_UP);
+        t.ramp_down=ter.has_flag(ter_furn_flag::TFLAG_RAMP_DOWN);t.ramp_end=ter.has_flag(ter_furn_flag::TFLAG_RAMP_END);
+        t.difficult_z=ter.has_flag(ter_furn_flag::TFLAG_DIFFICULT_Z);t.opaque=!ter.transparent;
+        const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+        t.partial_support=ncmm_graphics_shapes::partial_support(shape,z);
+        return ncmm_world::semantics(t);
 }
-int main(){try{
+// END FROZEN TERRAIN STAIR SAMPLER
+}
+void multilevel_observer_stair_regression(){
+    #include "../../graphics_bridge/ncmm_graphics_multilevel_observer.inc"
+    namespace source=terrain_stair_sampler_fixture;
+    size_t source_cases=0;
+    for(bool loaded:{false,true})for(bool zlevels:{false,true})for(unsigned mode=0;mode<13;++mode){
+        source::map native;native.loaded=loaded;native.zlevels=zlevels;
+        if(mode<11)native.terrain.flags[mode]=true;
+        if(mode==11){native.terrain.id.value="t_radio_tower";native.terrain.flags[size_t(source::ter_furn_flag::TFLAG_GOES_UP)]=true;}
+        if(mode==12){native.terrain.id.value="t_stairs_up";native.terrain.flags[size_t(source::ter_furn_flag::TFLAG_GOES_UP)]=true;native.terrain.transparent=false;}
+        for(const auto &point:std::array<std::array<int,3>,10>{{{{-4,-7,0}},{{-3,-7,0}},{{1,-3,1}},{{2,-3,1}},{{-3,-8,0}},{{-3,-2,0}},{{-3,-7,-11}},{{-3,-7,2}},{{-3,-7,-10}},{{-3,-7,-9}}}}){
+            source::reads.clear();const auto expected=source::frozen(native,point[0],point[1],point[2],-3,-7,5,{{-10,1}});const auto expected_reads=source::reads;
+            source::reads.clear();const auto actual=source::graphics_world_terrain_stair_flags(native,point[0],point[1],point[2],-3,-7,5,5,-10,1);
+            check(actual==expected&&source::reads==expected_reads,"extracted terrain-only sampler retains exact facts and ordered bounded Native reads");
+            const bool outside=point[0]<-3||point[0]>=2||point[1]<-7||point[1]>=-2||point[2]<-10||point[2]>1;
+            if(outside)check(source::reads.empty(),"outside XY/Z rejects before any Native lookup");
+            else if(!loaded)check(source::reads.size()==2&&source::reads.back()[0]=='L',"unloaded terrain rejects before tile, flag or material reads");
+            ++source_cases;
+        }
+    }
+    std::cout<<"Multilevel observer terrain sampler: "<<source_cases<<" frozen-source ordered-read comparisons\n";
+    struct published_stair {
+        ncmm_world_cell_v1 cell{};
+        ncmm_graphics_cell_v1 appearance{};
+        ncmm_graphics_cell_v2 detail{};
+        ncmm_world::terrain_stair_proof proof{};
+        const char *physical=nullptr;
+    };
+    std::array<published_stair,2> stairs;
+    ncmm_world::traits upper{},lower{};upper.loaded=lower.loaded=true;
+    lower.goes_up=true;upper.goes_down=true;
+    const auto terrain=[&](int x,int y,int z){
+        if(x==0&&y==0&&z==0)return ncmm_world::semantics(lower);
+        if(x==0&&y==0&&z==1)return ncmm_world::semantics(upper);
+        return uint32_t(NCMM_WORLD_FLOOR);
+    };
+    for(int z=0;z<2;++z){auto &stair=stairs[size_t(z)];
+        stair.proof=ncmm_world::unperceived_terrain_stair(0,0,z,terrain(0,0,z),0,true,terrain);
+        check(stair.proof.navigation&(z?NCMM_WORLD_DOWN:NCMM_WORLD_UP),"ordinary terrain itself proves the published stair navigation");
+        check(stair.proof.permission()==NCMM_WORLD_STRUCTURE_VISIBLE,"the actual Host policy permits this non-BODY ordinary terrain stair");
+        stair.cell={0,0,z,ncmm_world::restore_terrain_stair_facts(NCMM_WORLD_ROOFED,stair.proof)|stair.proof.permission(),stair.proof.direction,0,1};
+        stair.physical=z?"t_stairs_down":"t_stairs_up";
+        std::strcpy(stair.appearance.terrain,stair.physical);stair.detail.terrain_shape=NCMM_SHAPE_FLAT;
+        check(!ncmm_graphics_shapes::structural_surface(stair.detail.terrain_shape),"ordinary stair geometry is intentionally independent of the architectural shape enum");
+        auto rejected=[&](published_stair value,const char *reason){
+            check(!ncmm_multilevel_observer_structure(value.cell,value.appearance,value.detail,value.proof,value.physical),reason);
+        };
+        auto bad=stair;bad.proof={};rejected(bad,"combined furniture GOES_UP/DOWN cannot stand in for an own-terrain proof");
+        auto furniture_only=[&](int x,int y,int height){return x==0&&y==0&&height==z?uint32_t(NCMM_WORLD_FLOOR):terrain(x,y,height);};
+        bad=stair;bad.proof=ncmm_world::unperceived_terrain_stair(0,0,z,stair.cell.flags,0,true,furniture_only);
+        check(!bad.proof.navigation,"the actual terrain proof rejects a combined furniture-only connector");rejected(bad,"a furniture GOES_UP/DOWN control remains rejected with real terrain proof");
+        bad=stair;bad.cell.flags|=NCMM_WORLD_BODY_VISIBLE;rejected(bad,"the narrow static exception cannot accept a BODY alias");
+        bad=stair;bad.cell.flags&=~NCMM_WORLD_STRUCTURE_VISIBLE;rejected(bad,"navigation without STRUCTURE permission remains rejected");
+        for(uint32_t flag:{uint32_t(NCMM_WORLD_RAMP),uint32_t(NCMM_WORLD_LADDER),uint32_t(NCMM_WORLD_UNKNOWN),uint32_t(NCMM_WORLD_RAMP_END)}){
+            bad=stair;bad.cell.flags|=flag;rejected(bad,"ramps, ladders and unknown terrain stay outside the ordinary-stair exception");
+        }
+        bad=stair;bad.cell.flags^=NCMM_WORLD_CONNECTED_UP;rejected(bad,"published connectors must exactly match the terrain-only proof");
+        bad=stair;bad.cell.flags^=NCMM_WORLD_OPAQUE;rejected(bad,"combined furniture or field opacity cannot replace own terrain opacity");
+        bad=stair;bad.cell.direction=(stair.cell.direction+1)%4;rejected(bad,"a furniture-derived facing cannot replace terrain facing");
+        bad=stair;bad.physical="t_floor";rejected(bad,"published terrain must retain its exact physical identity");
+        bad=stair;std::strcpy(bad.appearance.furniture,"f_ncmm_static_stair_control");rejected(bad,"a hidden furniture identity is never accepted by the static exception");
+        bad=stair;std::strcpy(bad.appearance.item,"rock");rejected(bad,"a hidden item is never accepted by the static exception");
+        bad=stair;std::strcpy(bad.appearance.creature,"mon_zombie");rejected(bad,"a hidden creature is never accepted by the static exception");
+        bad=stair;std::strcpy(bad.detail.field,"fd_smoke");rejected(bad,"a hidden field is never accepted by the static exception");
+        bad=stair;bad.detail.field_shape=NCMM_SHAPE_BILLBOARD;rejected(bad,"a hidden field shape cannot bypass empty field identity");
+        bad=stair;bad.detail.furniture_shape=NCMM_SHAPE_STORAGE;rejected(bad,"a hidden furniture shape cannot bypass empty furniture identity");
+        bad=stair;bad.appearance.flags|=NCMM_GFX_VEHICLE;rejected(bad,"the terrain exception cannot expose a vehicle presentation");
+        bad=stair;bad.physical=nullptr;rejected(bad,"missing physical terrain identity cannot prove the static stair");
+        bad=stair;bad.detail.terrain_shape=NCMM_SHAPE_BILLBOARD;rejected(bad,"the new exception cannot legitimize arbitrary unsupported shapes");
+    }
+    ncmm_graphics_cell_v2 wall{};wall.terrain_shape=NCMM_SHAPE_WALL;
+    check(ncmm_multilevel_observer_structure({}, {}, wall, {}, "t_wall"),"the established architectural observer branch remains unchanged");
+    // These are generated by the real Host permission policy, not invented
+    // appearance flags. The old shape-only observer rejects both legal cells.
+    for(const auto &stair:stairs)
+        check(ncmm_multilevel_observer_structure(stair.cell,stair.appearance,stair.detail,stair.proof,stair.physical),
+              "multilevel observer accepts the Host-proven non-BODY FLAT ordinary terrain stair");
+    ncmm_graphics_multilevel_scene_v1 world{};std::string failure="stale observer failure";int calls=0;
+    const auto provider=[](const ncmm_graphics_multilevel_scene_v1 *,void *user){++*static_cast<int *>(user);return 7;};
+    const auto accepted=[](const ncmm_graphics_multilevel_scene_v1 &){};
+    check(ncmm_multilevel_observer_invoke(&world,accepted,provider,&calls,failure)==7&&calls==1&&failure.empty(),"observer forwarding retains the exact provider result and clears stale diagnostics");
+    const auto rejected=[](const ncmm_graphics_multilevel_scene_v1 &){throw std::runtime_error("multilevel_exact_observer_reason");};
+    check(ncmm_multilevel_observer_invoke(&world,rejected,provider,&calls,failure)==0&&calls==1&&failure=="multilevel_exact_observer_reason", "observer inspection failure keeps its exact reason and cannot invoke a real provider");
+    const auto throwing_provider=[](const ncmm_graphics_multilevel_scene_v1 *,void *)->int{throw std::runtime_error("real_provider_failure");};
+    bool propagated=false;try{ncmm_multilevel_observer_invoke(&world,accepted,throwing_provider,nullptr,failure);}catch(const std::runtime_error &error){propagated=std::strcmp(error.what(),"real_provider_failure")==0;}
+    check(propagated&&failure.empty(),"real module callback exceptions still propagate to the production quarantine");
+    check(ncmm_multilevel_observer_invoke(nullptr,accepted,provider,&calls,failure)==0&&calls==1&&failure=="multilevel_real_world_contract_invalid", "null observer input is an explicit inspection error");
+}
+void static_stair_permission_regression(){
+    // Feed the shared CPU/GPU producer a terrain-only Host permission. BODY
+    // stays absent, including when stale/malicious content IDs are supplied.
+    for(int offset:{0,1})for(uint32_t direction=0;direction<4;++direction){
+        fixture scene(2);scene.slab(0);scene.slab(1);
+        const int root=scene.cell(6,1,0),upper=scene.cell(6+offset,1,1);
+        auto &source=scene.positions[root];source.flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP|NCMM_WORLD_STRUCTURE_VISIBLE;
+        source.direction=direction;std::strcpy(scene.appearance[root].terrain,"t_stairs_up");
+        scene.positions[upper].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_DOWN|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+        scene.appearance[upper].flags|=NCMM_GFX_NO_FLOOR;std::strcpy(scene.appearance[upper].terrain,"t_stairs_down");
+        render_options options;options.contact_shadows=false;
+        const auto geometry=[&](){collector out;frame stats;
+            renderer(scene.world.appearance,0,.15f,{},stats,{},nullptr,options,nullptr,&scene.world).collect(out,400,260);return out;};
+        const auto raster=[&](){frame out;
+            check(build_frame(scene.world.appearance,0,.15f,{},out,400,260,{},nullptr,nullptr,nullptr,options,nullptr,&scene.world),"static stair CPU raster validates");return out;};
+        const auto equal=[&](const collector &a,const collector &b){
+            check(a.triangles.size()==b.triangles.size(),"static terrain permission retains complete stair geometry without BODY");
+            for(size_t i=0;i<a.triangles.size();++i){const auto &x=a.triangles[i],&y=b.triangles[i];
+                check(x.m.cell==y.m.cell&&x.m.texture==y.m.texture&&x.m.finish==y.m.finish&&x.m.alpha==y.m.alpha,
+                      "static terrain permission preserves materials and source ownership");
+                for(int v=0;v<3;++v)check(x.v[v].p.x==y.v[v].p.x&&x.v[v].p.y==y.v[v].p.y&&x.v[v].p.z==y.v[v].p.z&&
+                    x.v[v].u==y.v[v].u&&x.v[v].v==y.v[v].v&&x.v[v].light.x==y.v[v].light.x&&x.v[v].light.y==y.v[v].light.y&&x.v[v].light.z==y.v[v].light.z,
+                    "static terrain permission preserves exact positions, UV and RGB");
+            }
+        };
+        const auto visible=geometry();const auto reference=raster();source.flags&=~NCMM_WORLD_BODY_VISIBLE;
+        const auto retained=geometry();equal(visible,retained);const auto normal=raster();
+        check(reference.pixels==normal.pixels&&reference.depth==normal.depth,"static stair pixels and depth match visible terrain at fixed RGB");
+        check(std::count(normal.owners.begin(),normal.owners.end(),root)>24,"static-only staircase has actual visible CPU pixels");
+        std::strcpy(scene.appearance[root].furniture,"f_bookcase");scene.details[root].furniture_shape=NCMM_SHAPE_STORAGE;
+        std::strcpy(scene.appearance[root].item,"rock");std::strcpy(scene.appearance[root].creature,"mon_zombie");
+        std::strcpy(scene.details[root].field,"fd_fire");scene.details[root].field_shape=NCMM_SHAPE_BILLBOARD;
+        const auto hidden=geometry();equal(retained,hidden);const auto private_contents=raster();
+        check(private_contents.pixels==normal.pixels&&private_contents.depth==normal.depth,"static stair permission cannot reveal supplied furniture, inventory or fields");
+        check(private_contents.aimed<0&&std::all_of(private_contents.creatures.begin(),private_contents.creatures.end(),[](int i){return i<0;}),
+              "static stair permission cannot reveal or select a creature");
+        scene.appearance[root].furniture[0]=scene.appearance[root].item[0]=scene.appearance[root].creature[0]=scene.details[root].field[0]='\0';
+        scene.details[root].furniture_shape=scene.details[root].field_shape=NCMM_SHAPE_FLAT;
+        source.flags&=~NCMM_WORLD_STRUCTURE_VISIBLE;const auto denied=geometry();
+        check(denied.triangles.size()+24<retained.triangles.size(),"navigation alone cannot bypass static permission");
+        if(offset){
+            const int support=scene.cell(7,1,0);scene.positions[support].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE;
+            scene.details[support].terrain_shape=NCMM_SHAPE_WALL;std::strcpy(scene.appearance[support].terrain,"t_wall");
+            const auto support_mesh=[&](){auto mesh=geometry();mesh.triangles.erase(std::remove_if(mesh.triangles.begin(),mesh.triangles.end(),
+                [&](const triangle &t){return t.m.cell!=support;}),mesh.triangles.end());return mesh;};
+            const auto with_unpermitted_nav=support_mesh();
+            source.flags&=~(NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP);const auto without_nav=support_mesh();
+            equal(with_unpermitted_nav,without_nav);
+            check(!with_unpermitted_nav.triangles.empty(),"an offset stair without permission cannot cut the permitted wall below its exit");
+            source.flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;
+            scene.positions[support].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+            scene.details[support].terrain_shape=NCMM_SHAPE_FLAT;std::strcpy(scene.appearance[support].terrain,"t_floor");
+        }
+        source.flags|=NCMM_WORLD_STRUCTURE_VISIBLE;
+        const int wall=scene.cell(4,1,0);scene.positions[wall].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE;
+        scene.details[wall].terrain_shape=NCMM_SHAPE_WALL;std::strcpy(scene.appearance[wall].terrain,"t_wall");
+        const auto occluded=raster();check(std::count(occluded.owners.begin(),occluded.owners.end(),root)==0,
+            "foreground architecture still occludes static-only stairs in depth");
+    }
+}
+void skyline_host_regression(){
+    namespace host=skyline_host_fixture;
+    using ncmm_world::valid_skyline;
+    host::graphics_clear_lod();check(!host::graphics_lod_owned_bytes(),"provider clear releases all owned geography/feature capacity");
+    for(int seen=0;seen<=4;++seen){
+        host::vision=host::om_vision_level(seen);host::terrain_reads=0;
+        host::graphics_build_lod(0,0,0,24,true);
+        ncmm_graphics_lod_scene_v1 old{};old.struct_size=sizeof(old);check(host::graphics_get_lod(&old),"legacy Host LOD callback remains available");
+        const std::vector<ncmm_lod_patch_v1> frozen(old.patches,old.patches+old.count);const uint64_t revision=old.revision;
+        ncmm_graphics_skyline_scene_v1 skyline{};skyline.struct_size=sizeof(skyline);
+        const auto retained=host::graphics_lod_owned_bytes(),accounted=host::graphics_world_metrics.snapshot_bytes;
+        check(host::graphics_get_skyline(&skyline)&&valid_skyline(skyline),"actual Host skyline producer validates");
+        check(host::graphics_world_metrics.snapshot_bytes-accounted==host::graphics_lod_owned_bytes()-retained,
+              "first lazy replacement allocation is included immediately in active Host snapshot ownership");
+        check(skyline.count==(seen==4?1u:0u),"only fully disclosed standard radio sites publish a typed silhouette");
+        if(seen<4)check(skyline.geography.patches==old.patches&&host::graphics_skyline_patches.capacity()==0,
+            "ordinary/vague geography borrows V1 storage without another allocation or copy");
+        check(host::terrain_reads==(seen?1:0),"unseen terrain is never read to infer a radio profile");
+        if(seen==4){const auto &f=skyline.features[0];
+            check(f.x==133&&f.y==6&&f.z==0&&f.width==5.81f&&f.depth==5.81f&&f.height==17.5f,
+                  "Host profile matches pinned standard mapgen cell centres, footprint and seven real storeys");
+            check(skyline.geography.patches[f.ground_patch].height==0&&frozen[f.ground_patch].height==5,
+                  "replacement horizon removes exactly the duplicate V1 building silhouette");
+            check(skyline.geography.revision!=revision,"replacement ground has its own content revision without altering legacy revision");
+            const ncmm_lod_patch_v1 expected{120,0,0,24,24,5,{.43f,.42f,.39f},NCMM_LOD_BUILDING};
+            check(!std::memcmp(&frozen[f.ground_patch],&expected,sizeof(expected)),"V1 radio remains its original BUILDING box byte for byte");
+        }
+        old.struct_size=sizeof(old);check(host::graphics_get_lod(&old)&&old.revision==revision&&old.count==frozen.size()&&
+            !std::memcmp(old.patches,frozen.data(),frozen.size()*sizeof(frozen[0])),"new callback cannot mutate the legacy array or revision");
+    }
+    host::vision=host::om_vision_level::full;
+    for(const char *id:{"radio_tower_1","radio_tower_quest","station_radio","office_tower","mod_radio_tower","tower"}){
+        host::type=id;host::graphics_build_lod(0,0,0,24,true);
+        ncmm_graphics_skyline_scene_v1 s{};s.struct_size=sizeof(s);check(host::graphics_get_skyline(&s)&&valid_skyline(s)&&!s.count,"unknown radio layouts and generic towers retain legacy geography only");
+    }
+    host::type="radio_tower";host::resident=false;host::terrain_reads=0;host::graphics_build_lod(0,0,0,24,true);
+    ncmm_graphics_skyline_scene_v1 s{};s.struct_size=sizeof(s);
+    check(host::graphics_get_skyline(&s)&&!s.count&&!host::terrain_reads,"unresident overmaps are neither loaded nor used for typed skyline");host::resident=true;
+    constexpr float centers[4][2]={{13,6},{18,13},{11,18},{6,11}};
+    for(int turn=0;turn<4;++turn){host::rotation=turn;host::target_x=-5;host::target_y=-3;host::graphics_build_lod(-7,11,2,24,true);s.struct_size=sizeof(s);
+        check(host::graphics_get_skyline(&s)&&valid_skyline(s)&&s.count==1,"rotated radio at negative coordinates is still a valid authored site");
+        check(s.features[0].x==-120+7+centers[turn][0]&&s.features[0].y==-72-11+centers[turn][1]&&s.features[0].z==-5,
+              "far origin subtraction and all four rotations preserve actual cell-centre anchors");
+    }
+    host::rotation=0;host::target_y=0;
+    for(int x:{0,1,2,3}){host::target_x=x;host::graphics_build_lod(0,0,0,24,true);s.struct_size=sizeof(s);
+        check(host::graphics_get_skyline(&s)&&valid_skyline(s)&&!s.count,"typed silhouette obeys the same near-boundary and distance eligibility as V1");}
+    host::target_x=0;host::graphics_build_lod(13,0,0,24,true);s.struct_size=sizeof(s);
+    check(host::graphics_get_skyline(&s)&&!s.count,"partly clipped OMT cannot publish a full radio silhouette");
+    host::target_x=5;
+    for(bool enabled:{false,true}){host::graphics_build_lod(0,0,enabled?-1:0,24,enabled);s.struct_size=sizeof(s);
+        check(host::graphics_get_skyline(&s)&&valid_skyline(s)&&!s.count&&!s.geography.enabled,"disabled/underground rebuild clears retained typed skyline");}
+    host::graphics_build_lod(0,0,0,24,true);s.struct_size=sizeof(s);check(host::graphics_get_skyline(&s)&&s.count==1,"skyline can rebuild after a clear");
+    host::graphics_multilevel_frame=false;check(!host::graphics_get_skyline(&s),"skyline pointers are callback-scoped");host::graphics_multilevel_frame=true;
+    host::active_module_id=2;check(!host::graphics_get_skyline(&s),"another module cannot read callback-owned skyline");host::active_module_id=1;
+    check(!host::graphics_get_skyline(nullptr),"null caller output is rejected");s.struct_size=sizeof(s)-1;
+    check(!host::graphics_get_skyline(&s),"truncated caller output is rejected before writing");
+    check(host::graphics_lod_owned_bytes()<256u*1024u,"retained Host geography/skyline arrays have a small finite capacity bound");
+    std::cout<<"Radio Host retained geography/feature bytes: "<<host::graphics_lod_owned_bytes()<<" (clear releases all)\n";
+    host::graphics_clear_lod();check(!host::graphics_lod_owned_bytes(),"provider clear releases feature and replacement-ground storage");
+}
+void skyline_render_regression(){
+    ncmm_lod_patch_v1 ground{80,-4.5f,0,24,24,0,{.43f,.42f,.39f},NCMM_LOD_BUILDING};
+    ncmm_skyline_feature_v1 radio{};
+    check(ncmm_world::standard_radio_feature("radio_tower",true,0,ground,24,0,radio),"exact distant radio profile is eligible");
+    ncmm_graphics_skyline_scene_v1 source{sizeof(source),1,1,0,31,
+        {sizeof(ncmm_graphics_lod_scene_v1),1,1,1,30,0,0,&ground},&radio};
+    check(ncmm_world::valid_skyline(source),"typed skyline validates its complete replacement geography");
+    auto bad=source;bad.struct_size=sizeof(bad)-1;check(!ncmm_world::valid_skyline(bad),"truncated skyline payload rejected");
+    bad=source;bad.version=2;check(!ncmm_world::valid_skyline(bad),"unknown skyline payload version rejected");
+    bad=source;bad.reserved=1;check(!ncmm_world::valid_skyline(bad),"unknown skyline payload flags rejected");
+    bad=source;bad.count=NCMM_SKYLINE_MAX_FEATURES+1;check(!ncmm_world::valid_skyline(bad),"feature count is bounded before any array access");
+    bad=source;bad.features=nullptr;check(!ncmm_world::valid_skyline(bad),"nonempty skyline requires an array");
+    bad=source;bad.geography.patches=nullptr;check(!ncmm_world::valid_skyline(bad),"replacement geography requires its own array");
+    bad=source;bad.geography.enabled=0;check(!ncmm_world::valid_skyline(bad),"disabled geography cannot expose a feature");
+    bad=source;bad.geography.version=2;check(!ncmm_world::valid_skyline(bad),"new skyline does not bypass V1 geography validation");
+    const auto good_radio=radio;
+    for(float ncmm_skyline_feature_v1::*member:{&ncmm_skyline_feature_v1::x,&ncmm_skyline_feature_v1::y,&ncmm_skyline_feature_v1::z,
+         &ncmm_skyline_feature_v1::width,&ncmm_skyline_feature_v1::depth,&ncmm_skyline_feature_v1::height}){
+        for(float value:{std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()}){
+            radio=good_radio;radio.*member=value;check(!ncmm_world::valid_skyline(source),"every published geometric field must be finite");}
+    }
+    radio=good_radio;radio.x=513;check(!ncmm_world::valid_skyline(source),"out-of-range feature position rejected");
+    radio=good_radio;radio.z=305;check(!ncmm_world::valid_skyline(source),"feature top cannot exceed bounded world elevation");
+    radio=good_radio;radio.height=18;check(!ncmm_world::valid_skyline(source),"generic guessed tower height is not a standard profile");
+    radio=good_radio;radio.width=6;check(!ncmm_world::valid_skyline(source),"generic guessed tower footprint is not accepted");
+    radio=good_radio;radio.kind=2;check(!ncmm_world::valid_skyline(source),"unknown typed skyline profile rejected");
+    radio=good_radio;radio.rotation=4;check(!ncmm_world::valid_skyline(source),"invalid skyline rotation rejected");
+    radio=good_radio;radio.reserved=1;check(!ncmm_world::valid_skyline(source),"unknown feature flags rejected");
+    radio=good_radio;radio.ground_patch=1;check(!ncmm_world::valid_skyline(source),"feature cannot refer past its ground array");
+    radio=good_radio;radio.x+=1;check(!ncmm_world::valid_skyline(source),"profile centre must match the authored rotated site");radio=good_radio;
+    ground.height=5;check(!ncmm_world::valid_skyline(source),"duplicate legacy box cannot accompany a typed radio");ground.height=0;
+    ground.kind=6;check(!ncmm_world::valid_lod(source.geography)&&!ncmm_world::valid_skyline(source),"V1 kind 6 remains invalid after the additive extension");ground.kind=NCMM_LOD_BUILDING;
+    std::array<ncmm_skyline_feature_v1,2> duplicates{{radio,radio}};bad=source;bad.count=2;bad.features=duplicates.data();
+    check(!ncmm_world::valid_skyline(bad),"one ground patch cannot carry two radio silhouettes");
+    fixture open(1);presentation_data data;
+    data.view.struct_size=sizeof(data.view);data.view.eye_height=1.55f;data.view.body_scale=1;data.view.held_length=.6f;
+    data.cells.resize(open.positions.size());data.horizon_enabled=true;data.horizon_revision=source.revision;data.horizon={ground};data.skyline={radio};
+    collector geometry;frame stats;
+    renderer(open.world.appearance,0,0,{},stats,{},&data,{},nullptr,&open.world).collect(geometry,400,260);
+    vec lo{1000,1000,1000},hi{-1000,-1000,-1000};size_t triangles=0,upper_triangles=0;
+    for(const auto &t:geometry.triangles)if(t.m.texture==&radio_lattice_impostor(false)||t.m.texture==&radio_lattice_impostor(true)){
+        ++triangles;upper_triangles+=t.m.texture==&radio_lattice_impostor(true);
+        check(t.m.cutout&&t.m.distance_lod&&t.m.cell==-1,"radio cutouts are ordinary non-targetable distant depth geometry");
+        for(const auto &v:t.v){lo={std::min(lo.x,v.p.x),std::min(lo.y,v.p.y),std::min(lo.z,v.p.z)};hi={std::max(hi.x,v.p.x),std::max(hi.y,v.p.y),std::max(hi.z,v.p.z)};
+            if(t.m.texture==&radio_lattice_impostor(true))check(std::abs(v.p.x-radio.x)<=.906f&&std::abs(v.p.y-radio.y)<=.906f&&v.p.z>=15,
+                "top remains narrow above six vertical lower storeys");}
+    }
+    check(triangles==16&&upper_triangles==8,"entire radio profile needs sixteen fixed cutout triangles");
+    check(std::abs(hi.x-lo.x-5.81f)<.0001f&&std::abs(hi.y-lo.y-5.81f)<.0001f&&lo.z==0&&hi.z==17.5f,
+          "actual emitted envelope matches the real near tower profile");
+    for(bool top:{false,true}){const auto &image=radio_lattice_impostor(top);const auto &s=image.data;
+        size_t holes=0,wires=0;for(uint32_t y=0;y<s.height;++y)for(uint32_t x=0;x<s.width;++x){holes+=(s.rgba[y*s.pitch_pixels+x]&255)==0;wires+=(s.rgba[y*s.pitch_pixels+x]&255)>64;}
+        check(holes>s.width*s.height*.70&&wires>100,"radio projection retains real lattice openings and actual wires");
+        check((image.sample(.5f,.5f)&255)==0,"empty middle of the real mast is not filled by invented wide diagonal braces");
+    }
+    frame radio_pixels,ground_pixels;
+    check(build_frame(open.world.appearance,0,0,{},radio_pixels,400,260,{},nullptr,nullptr,&data,{},nullptr,&open.world),"CPU renders the authored skyline");
+    auto flat=data;flat.skyline.clear();++flat.horizon_revision;
+    check(build_frame(open.world.appearance,0,0,{},ground_pixels,400,260,{},nullptr,nullptr,&flat,{},nullptr,&open.world),"CPU ground-only control retains the same camera and light");
+    size_t covered=0,high=0;
+    for(size_t i=0;i<radio_pixels.depth.size();++i)if(radio_pixels.depth[i]!=ground_pixels.depth[i]&&std::isfinite(radio_pixels.depth[i])){
+        ++covered;high+=i<size_t(radio_pixels.height/2-25)*radio_pixels.width;check(radio_pixels.owners[i]<0,"radio never publishes a furniture or creature owner");}
+    check(covered>10&&high>2&&covered<3000,"real CPU pixels contain a tall open lattice, not a five-metre broad box");
+    const size_t centre=size_t(radio_pixels.height/2-12)*radio_pixels.width+radio_pixels.width/2;
+    check(radio_pixels.depth[centre]==ground_pixels.depth[centre],"CPU sees through the physical centre gap of the lattice");
+    first_person::gpu::scene_cache cache;first_person::gpu::packet packet;ncmm_gpu_metrics_v1 host{};host.resource_epoch=1;
+    const bool collected=cache.build(open.world.appearance,0,0,{},packet,stats,host,{},&data,nullptr,400,260,NCMM_GPU_FORCE,&open.world);
+    check(collected,("GPU collector builds the same authored profile: "+cache.last_reason).c_str());
+    auto view=packet.finish(nullptr);size_t backgrounds=0;uint64_t key=0;bool cutout=false;std::vector<uint64_t> masks;
+    for(const auto &draw:packet.draws)if(draw.cell==UINT32_MAX&&draw.pass==NCMM_GPU_OPAQUE){++backgrounds;key=draw.mesh_key;}
+    for(uint32_t i=0;i<view.mesh_count;++i)for(uint32_t j=0;j<view.meshes[i].material_count;++j){const auto &m=view.meshes[i].materials[j];
+        if((m.flags&NCMM_GPU_CUTOUT)&&(m.flags&NCMM_GPU_DISTANCE_LOD)){cutout=true;if(std::find(masks.begin(),masks.end(),m.texture_key)==masks.end())masks.push_back(m.texture_key);}}
+    check(backgrounds==1&&cutout&&masks.size()==2,"typed skyline shares the existing single horizon draw and two retained masks");
+    for(const auto mask:masks){bool leased=false;for(uint32_t i=0;i<view.texture_count;++i)leased|=view.textures[i].key==mask;
+        check(leased,"both radio masks retain their owning texture leases in the cold packet");}
+    ncmm_gpu_multilevel_scene_v1 world_gpu{};world_gpu.struct_size=sizeof(world_gpu);world_gpu.version=1;world_gpu.base=view;
+    world_gpu.coordinates=open.world.coordinates;world_gpu.cell_count=open.world.cell_count;world_gpu.origin_x=open.world.origin_x;world_gpu.origin_y=open.world.origin_y;world_gpu.level_height=2.5f;
+    check(!ncmm_gpu::validate(view,&world_gpu),"unchanged GPU V1 contract accepts the typed horizon geometry");
+    first_person::gpu::packet warm;check(cache.build(open.world.appearance,.2f,.01f,{},warm,stats,host,{},&data,nullptr,400,260,NCMM_GPU_FORCE,&open.world),"camera turn keeps authored radio geometry resident");
+    bool retained=false;for(const auto &draw:warm.draws)retained|=draw.cell==UINT32_MAX&&draw.mesh_key==key;
+    check(retained,"fixed radio face cards do not rebuild on a camera turn");
+    first_person::gpu::packet removed;check(cache.build(open.world.appearance,0,0,{},removed,stats,host,{},&flat,nullptr,400,260,NCMM_GPU_FORCE,&open.world),"radio removal invalidates the cached horizon");
+    bool changed=false;for(const auto &draw:removed.draws)changed|=draw.cell==UINT32_MAX&&draw.mesh_key!=key;
+    check(changed,"removed feature cannot remain in retained GPU geometry");
+    presentation_data worst=data;worst.horizon.clear();worst.skyline.clear();++worst.horizon_revision;
+    for(int y=-15;y<=15;++y)for(int x=-15;x<=15;++x){
+        const uint32_t index=uint32_t(worst.horizon.size());worst.horizon.push_back({float(x*24),float(y*24),0,24,24,0,{.43f,.42f,.39f},NCMM_LOD_BUILDING});
+        auto feature=radio;feature.x=x*24+13.f;feature.y=y*24+6.f;feature.ground_patch=index;worst.skyline.push_back(feature);}
+    first_person::gpu::scene_cache worst_cache;first_person::gpu::packet bounded;
+    check(worst_cache.build(open.world.appearance,0,0,{},bounded,stats,host,{},&worst,nullptr,400,260,NCMM_GPU_FORCE,&open.world),"all 961 possible radio sites stay inside the existing first-frame geometry budget");
+    const auto worst_view=bounded.finish(nullptr);uint64_t bytes=0;
+    for(uint32_t i=0;i<worst_view.mesh_count;++i){const auto &mesh=worst_view.meshes[i];bool distant=false;
+        for(uint32_t j=0;j<mesh.material_count;++j)distant|=(mesh.materials[j].flags&NCMM_GPU_DISTANCE_LOD)!=0;
+        if(distant)bytes+=uint64_t(mesh.vertex_count)*sizeof(ncmm_gpu_vertex_v1)+uint64_t(mesh.index_count)*sizeof(uint32_t)+uint64_t(mesh.material_count)*sizeof(ncmm_gpu_material_v1);}
+    check(bytes<4u*1024u*1024u,"maximum typed horizon leaves upload headroom for the nearby world");
+    for(int y=0;y<3;++y){const int i=open.cell(5,y,0);open.positions[i].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP;open.details[i].terrain_shape=NCMM_SHAPE_WALL;}
+    check(build_frame(open.world.appearance,0,0,{},radio_pixels,400,260,{},nullptr,nullptr,&data,{},nullptr,&open.world),"radio and exact foreground architecture render together");
+    check(radio_pixels.depth[size_t(radio_pixels.height/2)*radio_pixels.width+radio_pixels.width/2]<4,"typed horizon cannot change near wall depth or fill a near shaft");
+    check(radio_lattice_owned_bytes()>0&&radio_lattice_owned_bytes()<2u*1024u*1024u&&horizon_owned_bytes(data)>=radio_lattice_owned_bytes()+
+        data.horizon.capacity()*sizeof(ncmm_lod_patch_v1)+data.skyline.capacity()*sizeof(ncmm_skyline_feature_v1),"CPU/GPU accounting includes owned masks and retained metadata arrays");
+    std::cout<<"Radio masks: lower "<<radio_lattice_impostor(false).data.width<<'x'<<radio_lattice_impostor(false).data.height
+             <<", upper "<<radio_lattice_impostor(true).data.width<<'x'<<radio_lattice_impostor(true).data.height
+             <<"; owned mask bytes "<<radio_lattice_owned_bytes()<<"; masks plus retained horizon metadata "<<horizon_owned_bytes(data)
+             <<"; 961-site GPU horizon geometry "<<bytes<<" bytes; radio-only triangles "<<triangles<<'\n';
+    clear_radio_lattices();check(!radio_lattice_owned_bytes(),"module teardown can release all procedural radio masks");
+}
+struct chain_wire {vec from,to;};
+// Recover the centreline from the two actual triangles of each narrow wire
+// quad. Posts and rails have a different section; this does not duplicate the
+// generator's phase formula or mistake coincident bounds for a joined mesh.
+std::vector<chain_wire> chain_wires(fixture &scene){
+    collector mesh;frame stats;
+    renderer(scene.world.appearance,0,0,{},stats,{},nullptr,{},nullptr,&scene.world).collect(mesh,400,260);
+    std::vector<chain_wire> result;
+    for(size_t i=0;i+1<mesh.triangles.size();i+=2){const auto &a=mesh.triangles[i],&b=mesh.triangles[i+1];
+        if(a.m.finish!=surface::metal||std::abs(a.normal.z)>.001f)continue;
+        const vec first=b.v[2].p-a.v[0].p,last=a.v[2].p-a.v[1].p;
+        if(std::abs(dot(first,first)-.000128f)>.0000001f||std::abs(dot(last,last)-.000128f)>.0000001f)continue;
+        const vec from=(a.v[0].p+b.v[2].p)*.5f,to=(a.v[1].p+a.v[2].p)*.5f;
+        if(dot(to-from,to-from)>.002f)result.push_back({from,to});
+    }
+    check(result.size()>=20,"chain-link regression actually samples diagonal wire geometry");return result;
+}
+struct chain_end {float height,slope;};
+std::vector<chain_end> chain_ends(const std::vector<chain_wire> &wires,vec seam,vec direction,bool before){
+    std::vector<chain_end> result;
+    for(const auto &wire:wires){const float a=dot(wire.from-seam,direction),b=dot(wire.to-seam,direction);
+        const float side_a=cross(wire.from-seam,direction).z,side_b=cross(wire.to-seam,direction).z;
+        if(std::abs(side_a)>.0001f||std::abs(side_b)>.0001f||std::abs(a-b)<.05f)continue;
+        const bool first=std::abs(a)<.0001f,last=std::abs(b)<.0001f;
+        if(!first&&!last)continue;const float other=first?b:a;
+        if(before?other>=-.05f:other<=.05f)continue;
+        const float height=first?wire.from.z:wire.to.z;
+        // Keep the sampling cut between physical wire heights. A line at
+        // exactly .20 m can otherwise land on opposite sides of a float
+        // comparison after rotating a reflected half-panel.
+        if(height<.213f||height>1.637f)continue;
+        result.push_back({height,(wire.to.z-wire.from.z)/(b-a)});
+    }
+    return result;
+}
+void chain_seam(const std::vector<chain_wire> &wires,vec seam,vec direction){
+    const auto before=chain_ends(wires,seam,direction,true),after=chain_ends(wires,seam,direction,false);
+    check(before.size()>=12&&before.size()==after.size(),"both sides of a fence seam retain the same real wire endpoints");
+    for(const auto &end:before){check(std::abs(std::abs(end.slope)-1)<.0001f,"diagonal wire keeps its physical pitch");
+        check(std::any_of(after.begin(),after.end(),[&](const auto &next){return std::abs(next.height-end.height)<.0001f&&std::abs(next.slope-end.slope)<.0001f;}),
+              "straight chain-link wires must continue collinearly across a half-panel or cell seam");}
+}
+void chain_same(const std::vector<chain_wire> &before,const std::vector<chain_wire> &after,vec shift){
+    check(before.size()==after.size(),"snapshot origin changes cannot add or remove fence wires");
+    for(size_t i=0;i<before.size();++i)for(const auto &pair:{std::pair<vec,vec>{before[i].from,after[i].from},std::pair<vec,vec>{before[i].to,after[i].to}}){
+        const vec delta=pair.second-pair.first-shift;
+        check(dot(delta,delta)<.0000001f,"the same absolute fence keeps its wire phase after a snapshot origin shift");}
+}
+void chain_link_regression(){
+    for(const auto absolute:{std::pair<int,int>{17,29},{-113,-197},{-20000003,19999991}})for(bool vertical:{false,true}){
+        fixture scene(1);const int ax=scene.world.origin_x,ay=scene.world.origin_y;
+        for(auto &p:scene.positions){p.x+=absolute.first-ax;p.y+=absolute.second-ay;}
+        scene.world.origin_x=absolute.first;scene.world.origin_y=absolute.second;
+        const uint32_t mask=vertical?NCMM_SURFACE_CONNECT_N|NCMM_SURFACE_CONNECT_S:NCMM_SURFACE_CONNECT_E|NCMM_SURFACE_CONNECT_W;
+        for(int offset=-1;offset<=1;++offset){const int at=scene.cell(8+(vertical?0:offset),1+(vertical?offset:0),0);
+            std::strcpy(scene.appearance[at].terrain,"t_chainfence");scene.details[at].terrain_shape=NCMM_SHAPE_FENCE;
+            scene.details[at].terrain_flags=NCMM_SURFACE_CONNECTIONS|mask;}
+        check(ncmm_world::valid(scene.world),"chain-link regression uses valid positive, negative and distant world coordinates");
+        const auto wires=chain_wires(scene);const vec along=vertical?vec{0,1,0}:vec{1,0,0},center{8.5f,1.5f,0};
+        for(float sign:{-1.f,1.f}){chain_seam(wires,center,along*sign);chain_seam(wires,center+along*.5f,along*sign);}
+        // Keep all physical cells unchanged while a wider snapshot starts at a
+        // different origin. The same geometry moves locally, never in world Z.
+        scene.world.origin_x-=3;scene.world.origin_y-=2;scene.world.appearance.base.grid_width+=6;scene.world.appearance.base.grid_height+=4;
+        scene.world.appearance.base.camera_x+=3;scene.world.appearance.base.camera_y+=2;
+        check(ncmm_world::valid(scene.world),"shifted sparse fence snapshot remains a valid world");
+        chain_same(wires,chain_wires(scene),{3,2,0});
+    }
+    for(unsigned turn=0;turn<4;++turn){fixture corner(1);const int at=corner.cell(8,1,0);
+        corner.details[at].terrain_shape=NCMM_SHAPE_FENCE;corner.details[at].terrain_flags=NCMM_SURFACE_CONNECTIONS|
+            (NCMM_SURFACE_CONNECT_E<<turn)|(NCMM_SURFACE_CONNECT_E<<((turn+1)%4));
+        const auto wires=chain_wires(corner);const vec center{8.5f,1.5f,0};
+        const vec from=quarter_turn({1,0,0},turn),to=quarter_turn({1,0,0},turn+1);
+        const auto a=chain_ends(wires,center,from,false),b=chain_ends(wires,center,to,false);
+        check(a.size()>=12&&a.size()==b.size(),"both leaves of a chain-link corner have complete endpoint coverage");
+        for(const auto &end:a)check(std::any_of(b.begin(),b.end(),[&](const auto &next){return std::abs(next.height-end.height)<.0001f;}),
+                                  "wire heights meet when the fence turns through a corner");
+    }
+    for(unsigned turn=0;turn<2;++turn){fixture gate(1);const int at=gate.cell(8,1,0);
+        gate.details[at].terrain_shape=NCMM_SHAPE_GATE_OPEN;gate.details[at].orientation=turn;
+        const auto wires=chain_wires(gate);const float angle=turn*pi*.5f+pi*.46f;const vec along{std::cos(angle),std::sin(angle),0};
+        for(const auto &wire:wires){const vec delta=wire.to-wire.from;const float run=dot(delta,along);
+            check(std::abs(std::abs(delta.z/run)-1)<.0001f&&std::abs(cross(delta,along).z)<.0001f,"opened gate keeps a rigid, hinged wire panel");
+            check(wire.from.z>=.0799f&&wire.to.z<=1.8001f,"gate wires stay inside the existing vertical limits");}
+        gate.world.origin_x-=3;gate.world.origin_y-=2;gate.world.appearance.base.grid_width+=6;gate.world.appearance.base.grid_height+=4;
+        gate.world.appearance.base.camera_x+=3;gate.world.appearance.base.camera_y+=2;
+        chain_same(wires,chain_wires(gate),{3,2,0});
+    }
+}
+// Optional offline readback of the real CPU renderer. No window, input,
+// alternate wire rasterizer or image post-processing participates here.
+void chain_captures(const std::filesystem::path &directory){
+    std::filesystem::create_directories(directory);
+    for(const std::string name:{"straight-front","straight-oblique","straight-vertical","corner","gate-open"}){
+        fixture scene(1);
+        for(int y=3;y<24;++y)for(int x=0;x<24;++x){
+            scene.positions.push_back({scene.world.origin_x+x,scene.world.origin_y+y,0,NCMM_WORLD_BODY_VISIBLE,0,0,1});
+            ncmm_graphics_cell_v1 appearance{};appearance.flags=NCMM_GFX_VISIBLE;appearance.light=1;scene.appearance.push_back(appearance);
+            ncmm_graphics_cell_v2 detail{};detail.light_r=detail.light_g=detail.light_b=.9f;scene.details.push_back(detail);
+        }
+        for(size_t i=0;i<scene.positions.size();++i){scene.positions[i].flags|=NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP;
+            scene.appearance[i].flags=NCMM_GFX_VISIBLE;std::strcpy(scene.appearance[i].terrain,"t_floor");std::strcpy(scene.details[i].ground,"t_floor");}
+        scene.world.cell_count=uint32_t(scene.positions.size());scene.world.coordinates=scene.positions.data();
+        scene.slices[0].cell_count=scene.world.cell_count;
+        auto &base=scene.world.appearance.base;base.grid_height=24;base.cells=scene.appearance.data();base.cell_count=scene.appearance.size();
+        base.pixel_width=1280;base.pixel_height=800;
+        scene.world.appearance.details=scene.details.data();scene.world.appearance.detail_count=scene.details.size();
+        scene.world.appearance.environment.daylight=.95f;scene.world.appearance.environment.sun_x=.6f;
+        scene.world.appearance.environment.sun_y=-.4f;scene.world.appearance.environment.sun_z=.69f;
+        auto fence=[&](int x,int y,uint32_t connections){const int i=scene.cell(x,y,0);
+            std::strcpy(scene.appearance[i].terrain,"t_chainfence");scene.details[i].terrain_shape=NCMM_SHAPE_FENCE;
+            scene.details[i].terrain_flags=NCMM_SURFACE_CONNECTIONS|connections;};
+        float yaw=pi*.5f,pitch=-.17f;base.camera_x=12.5f;base.camera_y=6.5f;
+        if(name=="straight-vertical"){
+            for(int y=3;y<=20;++y)fence(12,y,(y>3?uint32_t(NCMM_SURFACE_CONNECT_N):0u)|(y<20?uint32_t(NCMM_SURFACE_CONNECT_S):0u));
+            base.camera_x=9.5f;base.camera_y=12.5f;yaw=0;
+        }else if(name=="corner"){
+            for(int x=12;x<=20;++x)fence(x,10,(x>12?uint32_t(NCMM_SURFACE_CONNECT_W):uint32_t(NCMM_SURFACE_CONNECT_S))|(x<20?uint32_t(NCMM_SURFACE_CONNECT_E):0u));
+            for(int y=11;y<=19;++y)fence(12,y,NCMM_SURFACE_CONNECT_N|(y<19?uint32_t(NCMM_SURFACE_CONNECT_S):0u));
+            base.camera_x=9.0f;base.camera_y=7.0f;yaw=pi*.25f;pitch=-.12f;
+        }else{
+            for(int x=3;x<=21;++x)fence(x,10,(x>3?uint32_t(NCMM_SURFACE_CONNECT_W):0u)|(x<21?uint32_t(NCMM_SURFACE_CONNECT_E):0u));
+            if(name=="straight-oblique"){base.camera_x=6.5f;base.camera_y=7.5f;yaw=.72f;pitch=-.12f;}
+            if(name=="gate-open"){const int gate=scene.cell(12,10,0);
+                std::strcpy(scene.appearance[gate].terrain,"t_chaingate_o");scene.details[gate].terrain_shape=NCMM_SHAPE_GATE_OPEN;
+                base.camera_x=15.5f;base.camera_y=7.0f;yaw=std::atan2(3.8f,-3.3f);pitch=-.12f;}
+        }
+        frame image;
+        if(!build_frame(scene.world.appearance,yaw,pitch,{},image,1280,800,{},nullptr,nullptr,nullptr,{},nullptr,&scene.world))
+            throw std::runtime_error("chain capture could not render its physical fixture");
+        std::ofstream out(directory/(name+".ppm"),std::ios::binary);out<<"P6\n"<<image.width<<' '<<image.height<<"\n255\n";
+        for(const uint32_t pixel:image.pixels){const char rgb[]={char(pixel>>24),char(pixel>>16),char(pixel>>8)};out.write(rgb,3);}
+        if(!out)throw std::runtime_error("chain capture could not write its CPU readback");
+        std::cout<<"CPU chain capture "<<name<<" "<<image.width<<'x'<<image.height<<'\n';
+    }
+}
+}
+int main(int argc,char **argv){try{
+    if(argc>1){
+        if(argc!=3||std::string(argv[1])!="--chain-captures")throw std::runtime_error("usage: first_person_multilevel_render_tests [--chain-captures directory]");
+        chain_captures(std::filesystem::path(argv[2]));return 0;
+    }
+    multilevel_observer_stair_regression();static_stair_permission_regression();chain_link_regression();skyline_host_regression();skyline_render_regression();
+    for(const auto &test:{std::pair<const char *,unsigned>{"t_railroad_track_h",1},{"t_railroad_track_on_tie_v",2},{"t_railroad_track_d1",4},{"t_railroad_track_d2",8}}){
+        fixture rail(1);rail.slab(0);const int at=rail.cell(6,1,0);std::strcpy(rail.appearance[at].terrain,test.first);
+        check(ncmm_rail::track(test.first)&&ncmm_rail::axes(test.first)==test.second,"Native rail suffix selects its physical direction");
+        collector geometry;frame stats;renderer(rail.world.appearance,0,-.2f,{},stats,{},nullptr,{},nullptr,&rail.world).collect(geometry,400,260);
+        vec lo{100,100,100},hi{-100,-100,-100};size_t raised=0;
+        for(const auto &t:geometry.triangles)if(t.m.cell==at&&t.m.finish==surface::metal)for(const auto &v:t.v){++raised;
+            lo={std::min(lo.x,v.p.x),std::min(lo.y,v.p.y),std::min(lo.z,v.p.z)};hi={std::max(hi.x,v.p.x),std::max(hi.y,v.p.y),std::max(hi.z,v.p.z)};}
+        check(raised>50&&std::abs(hi.z-.19f)<.0001f&&lo.z>.06f,"rails have a raised web, foot and head rather than a floor decal");
+        check(test.second==1?hi.x-lo.x>.99f&&hi.y-lo.y<.16f:test.second==2?hi.y-lo.y>.99f&&hi.x-lo.x<.16f:true,"straight rails join the correct adjacent tiles");
+    }
     check(!std::strcmp(ncmm_graphics_shapes::facade_id(NCMM_SHAPE_WALL,"t_mod_secret_brick_partition"),"t_brick_wall"),"coarse upper brick finish matches the visible lower facade");
     check(!std::strcmp(ncmm_graphics_shapes::facade_id(NCMM_SHAPE_WALL,"t_hidden_material t_brick_wall"),"t_brick_wall"),"coarse facade respects declared material aliases");
     check(!std::strcmp(ncmm_graphics_shapes::facade_id(NCMM_SHAPE_DOOR_CLOSED,"t_hidden_brick_door"),"t_wall"),"coarse finish cannot publish the actual hidden terrain identity");
@@ -121,6 +637,43 @@ int main(){try{
     empty.details[stair_cell].terrain_shape=NCMM_SHAPE_FLAT;
     float top=0;for(const auto &t:stairs.triangles)for(const auto &v:t.v)top=std::max(top,v.p.z);
     check(top>=NCMM_WORLD_LEVEL_HEIGHT,"staircase connects a full physical Z storey");
+    for(uint32_t facing=0;facing<4;++facing){
+        empty.positions[stair_cell].direction=facing;collector turned;
+        renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(turned,400,260);
+        unsigned tread=0;
+        for(const auto &t:turned.triangles)if(t.m.cell==stair_cell&&t.normal.z>.9f&&std::abs(t.v[0].p.z-NCMM_WORLD_LEVEL_HEIGHT)<.0001f){
+            ++tread;for(const auto &v:t.v)check(v.p.x>=4.0799f&&v.p.x<=4.9201f&&v.p.y>=1.0799f&&v.p.y<=1.9201f,"rotated top tread fits the real stair aperture");
+        }
+        check(tread>0,"every staircase facing reaches its upper opening");
+    }
+    empty.positions[stair_cell].direction=0;
+    {
+        // The rural church's first basement UP is one tile away from its
+        // ground-floor DOWN; a rock-wall tile sits below that upper exit.
+        fixture shifted(2);shifted.slab(0);shifted.slab(1);
+        const int root=shifted.cell(4,1,0),wall=shifted.cell(5,1,0),upper=shifted.cell(5,1,1);
+        shifted.positions[root].flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;
+        shifted.positions[wall].flags|=NCMM_WORLD_OPAQUE;shifted.details[wall].terrain_shape=NCMM_SHAPE_WALL;
+        std::strcpy(shifted.appearance[wall].terrain,"t_rock_wall");
+        shifted.positions[upper].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_DOWN|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+        collector generated;renderer(shifted.world.appearance,0,.3f,{},statistics,{},nullptr,{},nullptr,&shifted.world).collect(generated,400,260);
+        unsigned top_steps=0,cut_wall=0;
+        for(const auto &t:generated.triangles){
+            if(t.m.cell==root&&t.normal.z>.9f&&std::abs(t.v[0].p.z-2.5f)<.0001f){++top_steps;
+                for(const auto &v:t.v)check(v.p.x>=5.0799f&&v.p.x<=5.9201f,"offset staircase ends in the actual upper stair tile");}
+            if(t.m.cell==wall){++cut_wall;for(const auto &v:t.v)if(v.p.z>1.1001f&&std::abs(v.p.y-1.5f)<.379f)
+                check(v.p.x>=5.9399f,"upper flight is not filled by the Native wall's assumed full-height cube");}
+        }
+        check(top_steps&&cut_wall,"offset staircase and its Native wall support both retain geometry");
+        first_person::gpu::scene_cache cache;first_person::gpu::packet a,b;ncmm_gpu_metrics_v1 host{};host.resource_epoch=1;
+        check(cache.build(shifted.world.appearance,0,.3f,{},a,statistics,host,{},nullptr,nullptr,400,260,NCMM_GPU_FORCE,&shifted.world),"offset stair GPU cache");
+        uint64_t old_mesh=0;for(const auto &draw:a.draws)if(draw.cell==unsigned(root))old_mesh=draw.mesh_key;
+        shifted.positions[upper].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+        const int other=shifted.cell(3,1,1);shifted.positions[other].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_DOWN|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+        check(cache.build(shifted.world.appearance,0,.3f,{},b,statistics,host,{},nullptr,nullptr,400,260,NCMM_GPU_FORCE,&shifted.world),"changed offset stair GPU cache");
+        uint64_t new_mesh=0;for(const auto &draw:b.draws)if(draw.cell==unsigned(root))new_mesh=draw.mesh_key;
+        check(old_mesh&&new_mesh&&old_mesh!=new_mesh,"neighbour exit changes invalidate the otherwise unchanged stair mesh");
+    }
     const int stair=empty.cell(4,1,0);empty.positions[stair].flags|=NCMM_WORLD_RAMP;
     collector ramp;renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(ramp,400,260);
     bool slope=false;for(const auto &t:ramp.triangles)if(t.normal.z>.1f&&t.normal.z<.9f)slope=true;

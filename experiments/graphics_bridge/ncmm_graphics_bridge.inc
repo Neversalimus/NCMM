@@ -36,6 +36,30 @@ void graphics_snapshot_external_callback(const char *module_id)
         graphics_snapshot_lease.invalidate();graphics_camera_cache.suspend();}
 }
 bool &graphics_gameplay_context = graphics_context.perspective;
+ncmm_graphics_input::router graphics_input_router;
+void graphics_locomotion_reset();
+void graphics_projectiles_reset();
+bool graphics_projectiles_active(uint64_t);
+void graphics_projectiles_presented(uint64_t);
+void graphics_locomotion_pause(uint64_t);
+void graphics_locomotion_tick(uint64_t);
+void graphics_locomotion_presented();
+bool graphics_locomotion_sync(bool consume=false);
+bool graphics_locomotion_continuous();
+bool graphics_locomotion_moving();
+float graphics_locomotion_movement();
+ncmm_graphics_camera::offset graphics_locomotion_offset();
+void graphics_fps_sync();
+void graphics_fps_reset();
+void graphics_fps_on_enable();
+void graphics_fps_settings();
+std::string graphics_fps_hint();
+int graphics_set_focus(int32_t cell);
+extern double graphics_fps_sensitivity;
+extern bool graphics_fps_invert;
+extern bool graphics_fps_enabled;
+std::optional<tripoint_bub_ms> graphics_fps_target(bool adjacent);
+void graphics_fps_queue_target(const tripoint_bub_ms &,const std::string &);
 // Set only by the opt-in native firing audit to reproduce the original policy.
 bool graphics_fire_audit_legacy_context = false;
 const ncmm_graphics_scene_v1 *graphics_frame = nullptr;
@@ -59,7 +83,7 @@ void graphics_clear_world();
 
 void graphics_erase( const std::string &id )
 {
-    if( graphics_view.owner == id ) { graphics_release_mouse(); graphics_cancel_animation(); graphics_context.reset(); graphics_view = {}; graphics_clear_hybrid(); }
+    if( graphics_view.owner == id ) { graphics_release_mouse(); graphics_fps_reset(); graphics_cancel_animation(); graphics_context.reset(); graphics_view = {}; graphics_clear_hybrid(); }
 }
 
 int graphics_register( const char *id, ncmm_graphics_render_v1 render,
@@ -79,12 +103,12 @@ int graphics_enable( const char *id, int enabled )
     const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
     if( changed || !graphics_view.enabled ) graphics_cancel_animation();
+    if( changed && graphics_view.enabled ) graphics_fps_on_enable();
     if( !graphics_view.enabled ) { graphics_clear_target(); graphics_release_mouse(); graphics_clear_gpu(); graphics_clear_world(); }
 #if defined(TILES)
     if( changed && character_state_available() ) {
         add_msg( m_info, "%s", graphics_view.enabled ?
-                 tr_ui( "First person ON. Hold RMB: look; arrows: relative movement; F6: map; F11: quality.",
-                        "Первое лицо. Зажать ПКМ: осмотр; стрелки: движение по взгляду; F6: карта; F11: качество." ) :
+                 tr_ui( "First person ON.", "Первое лицо включено." ) :
                  tr_ui( "First person OFF.", "Вид от первого лица выключен." ) );
     }
 #endif
@@ -123,12 +147,14 @@ void graphics_register_actions( input_context &ctxt )
 {
     if( !graphics_view.render && !graphics_view.hybrid_render && !graphics_view.world_render ) return;
     const std::pair<const char *, int> keys[] = {
+        { "ncmm.view.fps_settings", keycode::f5 },
         { "ncmm.view.turn_left", keycode::f7 }, { "ncmm.view.turn_right", keycode::f8 },
         { "ncmm.view.look_up", keycode::f9 }, { "ncmm.view.look_down", keycode::f10 }, { "ncmm.view.quality", keycode::f11 },
         { "ncmm.view.acceleration", keycode::f12 }
     };
     for( const auto &key : keys ) {
-        const std::string label = key.second == keycode::f12 ? tr_ui( "First person: Auto / CPU / GPU renderer", "Первое лицо: рендерер Auto / CPU / GPU" ) :
+        const std::string label = key.second == keycode::f5 ? tr_ui( "First person: control settings", "Первое лицо: настройки управления" ) :
+            key.second == keycode::f12 ? tr_ui( "First person: Auto / CPU / GPU renderer", "Первое лицо: рендерер Auto / CPU / GPU" ) :
             key.second == keycode::f11 ? tr_ui( "First person: balanced / high quality", "Первое лицо: сбалансированное / высокое качество" ) :
             key.second == keycode::f9 ? tr_ui( "First person: look up", "Первое лицо: смотреть вверх" ) :
             key.second == keycode::f10 ? tr_ui( "First person: look down", "Первое лицо: смотреть вниз" ) :
@@ -143,6 +169,7 @@ void graphics_register_actions( input_context &ctxt )
 
 bool graphics_action( const std::string &action )
 {
+    if(action=="ncmm.view.fps_settings") { graphics_fps_settings();return true; }
     const uint32_t turn = action == "ncmm.view.turn_left" ? NCMM_GFX_TURN_LEFT :
                           action == "ncmm.view.turn_right" ? NCMM_GFX_TURN_RIGHT :
                           action == "ncmm.view.look_up" ? NCMM_GFX_LOOK_UP :
@@ -175,6 +202,8 @@ bool graphics_world_needs_redraw();
 #include "ncmm_graphics_held.inc"
 #include "ncmm_graphics_hybrid.inc"
 #include "ncmm_graphics_world.inc"
+#include "ncmm_graphics_locomotion.inc"
+#include "ncmm_graphics_projectiles.inc"
 
 #if defined(TILES)
 // Opt-in evidence for the real native UI. No readback/IO on the normal path.
@@ -212,7 +241,9 @@ void graphics_capture_before_present()
 }
 #endif
 
-bool graphics_draw( int x, int y, int width, int height )
+#include "ncmm_graphics_fps.inc"
+
+bool graphics_draw_impl( int x, int y, int width, int height )
 {
 #if defined(TILES)
     if( !graphics_view.enabled || ( !graphics_view.render && !graphics_view.hybrid_render && !graphics_view.world_render ) || !graphics_gameplay_context ||
@@ -403,6 +434,19 @@ bool graphics_draw( int x, int y, int width, int height )
     ( void )x; ( void )y; ( void )width; ( void )height;
     return false;
 #endif
+}
+
+bool graphics_draw( int x, int y, int width, int height )
+{
+    ncmm_graphics_turn_diagnostics::draw_scope measurement( width, height );
+    const bool rendered = graphics_draw_impl( x, y, width, height );
+#if defined(TILES)
+    measurement.complete( rendered, !graphics_view.world_render ? ncmm_graphics_turn_diagnostics::backend::legacy :
+                          graphics_gpu_frame ? ncmm_graphics_turn_diagnostics::backend::gpu : ncmm_graphics_turn_diagnostics::backend::cpu );
+#else
+    measurement.complete( rendered, ncmm_graphics_turn_diagnostics::backend::legacy );
+#endif
+    return rendered;
 }
 
 // Only the existing explicit --ncmm-gameplay-smoke path invokes this fixture.

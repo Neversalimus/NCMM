@@ -10,7 +10,7 @@
 
 namespace {
 bool count_allocations=false;
-std::size_t allocations=0;
+std::size_t allocations=0,allocation_bytes=0;
 int checks=0;
 void check(bool value){++checks;if(!value)throw std::runtime_error("snapshot storage invariant");}
 struct object {
@@ -21,14 +21,129 @@ struct object {
 int object::live=0;
 }
 void *operator new(std::size_t size){
-    if(void *p=std::malloc(std::max(std::size_t(1),size))){if(count_allocations)++allocations;return p;}
+    if(void *p=std::malloc(std::max(std::size_t(1),size))){if(count_allocations){++allocations;allocation_bytes+=size;}return p;}
     throw std::bad_alloc();
 }
+void *operator new[](std::size_t size){return ::operator new(size);}
+void *operator new(std::size_t size,const std::nothrow_t &)noexcept{try{return ::operator new(size);}catch(...){return nullptr;}}
+void *operator new[](std::size_t size,const std::nothrow_t &)noexcept{try{return ::operator new[](size);}catch(...){return nullptr;}}
 void operator delete(void *p) noexcept {std::free(p);}
 void operator delete(void *p,std::size_t) noexcept {std::free(p);}
+void operator delete[](void *p) noexcept {::operator delete(p);}
+void operator delete[](void *p,std::size_t) noexcept {::operator delete(p);}
+void operator delete(void *p,const std::nothrow_t &)noexcept{::operator delete(p);}
+void operator delete[](void *p,const std::nothrow_t &)noexcept{::operator delete[](p);}
+// Keep the aligned allocation/deallocation family entirely with the runtime.
+
+namespace {
+using detail_cell=ncmm_graphics_cell_v2;
+using detail_storage=ncmm_graphics_scratch::vector_storage<detail_cell,NCMM_WORLD_MAX_CELLS>;
+uint64_t detail_digest(const std::vector<detail_cell> &values){
+    uint64_t hash=1469598103934665603ull;
+    const auto *bytes=reinterpret_cast<const unsigned char *>(values.data());
+    for(std::size_t i=0;i<values.size()*sizeof(detail_cell);++i)hash=(hash^bytes[i])*1099511628211ull;
+    return hash;
+}
+void fill_detail(detail_cell &d,std::size_t index,int frame){
+    if((index+std::size_t(frame))%11==0)return; // Invisible cells stay value-initialized.
+    d.terrain_shape=uint32_t(index%9);d.terrain_flags=uint32_t((index+frame)&31);
+    d.orientation=uint32_t((index+frame)%4);
+    const char *ground=frame%2?"t_floor":"t_floor_wood_with_a_longer_previous_id";
+    std::memcpy(d.ground,ground,std::strlen(ground));
+    d.light_r=float(index%13)/16;d.light_g=float(index%7)/8;d.light_b=float(index%3)/4;
+    if((index+frame)%3==0)d.furniture_shape=5;
+    if((index+frame)%5==0){
+        d.vehicle_features=17;d.vehicle_group=uint32_t(index%6+1);
+        d.vehicle_x=float(index%17)+.5f;d.vehicle_y=-float(index%19)-.25f;
+        d.vehicle_yaw=float(index%4)*.5f;d.vehicle_health=.75f;
+        d.mount_x=int32_t(index%7)-3;d.mount_y=int32_t(index%5)-2;
+    }
+    if((index+frame)%7==0){
+        const char *field=frame%2?"fd_fire":"fd_smoke_with_a_longer_previous_id";
+        std::memcpy(d.field,field,std::strlen(field));d.field_shape=2;d.emission=3.5f;
+    }
+}
+void detail_storage_checks(){
+    // This is a pure storage-pattern baseline of the current Host statement,
+    // not a measurement or fail-before run of graphics_draw_hybrid itself.
+    // Native extraction, simulation, renderer work and wall time are absent.
+    for(std::size_t count:{std::size_t(97*97),std::size_t(NCMM_WORLD_MAX_CELLS)}){
+        std::array<std::size_t,2> fresh_calls{},fresh_bytes{},reused_calls{},reused_bytes{};
+        std::array<uint64_t,2> fresh_hashes{},reused_hashes{};
+        for(int frame=0;frame<2;++frame){
+            allocations=allocation_bytes=0;count_allocations=true;
+            std::vector<detail_cell> fresh(count);
+            count_allocations=false;fresh_calls[frame]=allocations;fresh_bytes[frame]=allocation_bytes;
+            for(std::size_t i=0;i<count;++i)fill_detail(fresh[i],i,frame);
+            fresh_hashes[frame]=detail_digest(fresh);
+        }
+        detail_storage storage;
+        for(int frame=0;frame<2;++frame){
+            auto loan=storage.acquire();check(loan.get().empty()&&loan.reused()==bool(frame));
+            allocations=allocation_bytes=0;count_allocations=true;
+            // Reserve before resize prevents vector's geometric growth from
+            // overshooting the retained-element bound near 65536 cells.
+            loan.reserve(count);loan.resize(count);
+            count_allocations=false;reused_calls[frame]=allocations;reused_bytes[frame]=allocation_bytes;
+            check(loan.growths()==allocations&&storage.bytes()==0);
+            check(loan.bytes()>=count*sizeof(detail_cell)&&loan.bytes()<=std::size_t(NCMM_WORLD_MAX_CELLS)*sizeof(detail_cell));
+            for(std::size_t i=0;i<count;++i)fill_detail(loan.get()[i],i,frame);
+            reused_hashes[frame]=detail_digest(loan.get());
+        }
+        check(fresh_calls[0]==1&&fresh_calls[1]==1&&reused_calls[0]==1&&reused_calls[1]==0);
+        check(fresh_bytes[0]>=count*sizeof(detail_cell)&&fresh_bytes[1]>=count*sizeof(detail_cell));
+        check(reused_bytes[0]>=count*sizeof(detail_cell)&&reused_bytes[1]==0&&fresh_hashes==reused_hashes);
+        std::cout<<"Detail storage component (not Host frame timing): cells="<<count<<" fresh allocations="<<fresh_calls[0]<<"/"<<fresh_calls[1]
+                 <<" retained="<<reused_calls[0]<<"/"<<reused_calls[1]<<" fresh bytes="<<fresh_bytes[0]<<"/"<<fresh_bytes[1]
+                 <<" retained="<<reused_bytes[0]<<"/"<<reused_bytes[1]<<"; full byte digest preserved\n";
+    }
+    detail_storage storage;
+    const std::array<std::size_t,12> counts{{9409,27,0,9409,60000,65536,65535,1,32768,0,65536,16}};
+    for(int frame=0;frame<int(counts.size());++frame){
+        const auto count=counts[std::size_t(frame)];std::vector<detail_cell> fresh(count);
+        auto loan=storage.acquire();check(loan.get().empty());loan.reserve(count);loan.resize(count);
+        check(storage.bytes()==0&&loan.bytes()<=std::size_t(NCMM_WORLD_MAX_CELLS)*sizeof(detail_cell));
+        // Check initial bytes too: testing only written fields would miss stale
+        // IDs, omitted vehicles/fields, invisible cells and former tail values.
+        check(!count||std::memcmp(fresh.data(),loan.get().data(),count*sizeof(detail_cell))==0);
+        for(std::size_t i=0;i<count;++i){fill_detail(fresh[i],i,frame);fill_detail(loan.get()[i],i,frame);}
+        check(!count||std::memcmp(fresh.data(),loan.get().data(),count*sizeof(detail_cell))==0);
+        if(count)std::memset(loan.get().data(),0x5a,count*sizeof(detail_cell));
+    }
+    const auto retained=storage.bytes();check(retained==std::size_t(NCMM_WORLD_MAX_CELLS)*sizeof(detail_cell));
+    {
+        auto outer=storage.acquire();outer.resize(8);outer.get()[0].orientation=471;
+        const auto *address=outer.get().data();const auto active=outer.bytes();check(storage.bytes()==0);
+        {
+            auto inner=storage.acquire();check(!inner.reused());inner.reserve(16);inner.resize(16);inner.get()[0].orientation=812;
+            check(outer.get().data()==address&&outer.get()[0].orientation==471&&storage.bytes()==0);
+            check(outer.bytes()+inner.bytes()+storage.bytes()==active+16*sizeof(detail_cell));
+        }
+        // A nested callback may return a distinct retained allocation while
+        // the outer array is active. Their capacities must each count once.
+        check(storage.bytes()==16*sizeof(detail_cell)&&outer.bytes()+storage.bytes()==active+16*sizeof(detail_cell));
+    }
+    check(storage.bytes()==retained);
+    {
+        auto active=storage.acquire();active.resize(32);active.get()[0].terrain_shape=19;
+        storage.clear();check(storage.bytes()==0&&active.get()[0].terrain_shape==19);
+    }
+    check(storage.bytes()==0); // A retired active loan cannot resurrect its capacity.
+    try{auto active=storage.acquire();active.reserve(32);active.resize(32);throw 71;}catch(int tag){check(tag==71);}
+    check(storage.bytes()==32*sizeof(detail_cell));
+    {auto active=storage.acquire();active.resize(1);detail_cell zero{};check(std::memcmp(&zero,active.get().data(),sizeof(zero))==0);}
+    storage.clear();check(storage.bytes()==0);
+    {
+        auto oversized=storage.acquire();oversized.reserve(std::size_t(NCMM_WORLD_MAX_CELLS)+1);oversized.resize(std::size_t(NCMM_WORLD_MAX_CELLS)+1);
+        check(oversized.get().size()==std::size_t(NCMM_WORLD_MAX_CELLS)+1);
+    }
+    check(storage.bytes()==0); // Oversized transient data is valid, but never retained.
+}
+}
 
 int main(){try{
     using ncmm_graphics_scratch::vector_storage;
+    detail_storage_checks();
     vector_storage<ncmm_graphics_cell_v1,256> cells;
     {
         auto loan=cells.acquire();check(loan.get().empty()&&!loan.reused());

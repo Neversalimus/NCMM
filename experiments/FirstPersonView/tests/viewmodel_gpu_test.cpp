@@ -73,6 +73,25 @@ int main(){try{size_t checks=0;auto check=[&](bool value,const char *message){++
     auto style=viewmodel::region_style{{.17f,.24f,.7f},0,true,true,true};auto a=viewmodel::texture_for(style),b=viewmodel::texture_for(style);
     check(a==b&&a->data!=source.bare_pixels&&a->data!=source.glove_pixels,"derived garment pixels are cached once");
     viewmodel::clear_textures();check(a->data[0]==b->data[0],"active owners survive an appearance-cache reset");
+    // The actual Native compact window leaves a 448x640 terrain viewport.
+    // A pole's forward grip must stay reachable there, including animation and
+    // body-size variants; a failed attachment must not disable perspective.
+    std::strcpy(scene.environment.held_item,"naginata");
+    for(size_t side=0;side<2;++side)appearance.view.glove[side][0]=appearance.view.sleeve[side][0]=0;
+    for(const auto size:{std::pair<int,int>{448,640},{320,640},{640,480},{1768,1084}})
+        for(float scale:{.7f,1.f,1.25f})for(float swing:{0.f,-.4f,.4f}){
+            scene.base.pixel_width=size.first;scene.base.pixel_height=size.second;appearance.view.body_scale=scale;
+            animation::pose pole;pole.grip=NCMM_GRIP_POLE;pole.length=2.1f;pole.swing=swing;
+            hybrid::frame cpu;
+            check(hybrid::build_frame(scene,0,0,provider,cpu,size.first,size.second,pole,nullptr,nullptr,&appearance),
+                  "Native portrait pole frame keeps reachable PSX grips");
+            check(cpu.viewmodel_draws==2&&!cpu.viewmodel_errors,"portrait pole keeps both authored hands");
+            gpu::packet portrait;hybrid::frame observed;
+            check(cache.build(scene,0,0,provider,portrait,observed,host,pole,&appearance,nullptr,size.first,size.second,NCMM_GPU_FORCE),
+                  "GPU portrait pole keeps perspective");
+            check(!ncmm_gpu::validate(portrait.finish(nullptr))&&observed.viewmodel_draws==2&&!observed.viewmodel_errors,
+                  "CPU/GPU portrait grips satisfy the same contract");
+        }
     cache.clear();check(cache.bytes()==0,"F6/world teardown releases all GPU producer owners");
     std::printf("PSX GPU/cache/equivalence: %zu checks PASS\n",checks);return 0;
 }catch(const std::exception &e){std::fprintf(stderr,"PSX GPU: %s\n",e.what());return 1;}}

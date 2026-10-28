@@ -4,10 +4,11 @@
     g->ncmm_graphics_smoke_prepare_turns();
     const auto native_ui=g->create_or_get_main_ui_adaptor();
     const std::string old_renderer=get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");
-    struct restore_probe {std::string mode;~restore_probe(){graphics_camera_input_probe.active=false;graphics_release_mouse();
+    struct restore_probe {std::string mode;~restore_probe(){graphics_camera_input_probe.active=false;graphics_fps_audit_active=false;graphics_fps_audit_wait.store(0);graphics_release_mouse();
         get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);}} restoring{old_renderer};
     get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("gpu");
     ncmm::graphics_note_input_context("DEFAULTMODE");
+    graphics_fps_initial_capture=true;
     require(SDL_SetRenderTarget(get_sdl_renderer().get(),nullptr),"camera_input_window_target_failed");
     graphics_camera_input_probe={};graphics_camera_input_probe.active=true;
     g->invalidate_main_ui_adaptor();ui_manager::redraw();refresh_display();
@@ -24,21 +25,35 @@
     graphics_camera_input_probe.reference_pixels=std::move(initial_reference);
     graphics_camera_input_probe.reference_bounds=initial_bounds;
     graphics_camera_input_probe.last_composed_perspective=true;graphics_camera_input_probe.last_composed_gpu=true;
+    float pointer_x=0,pointer_y=0;
+    require(SDL_RenderCoordinatesToWindow(get_sdl_renderer().get(),float(graphics_viewport.x+graphics_viewport.w/2),
+        float(graphics_viewport.y+graphics_viewport.h/2),&pointer_x,&pointer_y),"camera_input_pointer_coordinates");
+    graphics_release_mouse();SDL_WarpMouseInWindow(get_sdl_window(),pointer_x,pointer_y);inp_mngr.pump_events();
+    graphics_fps_audit_active=true;graphics_fps_audit_wait.store(0);
     std::ofstream progress(game_root()/"ncmm"/"first-person-audit-progress.txt");
     struct input_worker {
         std::atomic<bool> stop{false},done{false};std::thread thread;
         input_worker(SDL_WindowID window,float x,float y):thread([this,window,x,y](){
-            SDL_Delay(100);
-            for(int sample=0;sample<480&&!stop.load();++sample){
+            // Confirm a real Native event wait and a fresh safe capture after
+            // startup/resize. Never assume the earlier fixture redraw owns it.
+            const auto deadline=SDL_GetTicks()+12000;bool requested=false,ready=false;
+            while(!stop.load()&&SDL_GetTicks()<deadline){
+                SDL_Delay(20);const auto waiting=graphics_fps_audit_wait.load();
+                if(!(waiting&1u))continue;
+                if(waiting&16u){ready=true;break;}
+                if(requested)continue;
+                requested=true;
+                SDL_Event focus={};focus.type=SDL_EVENT_WINDOW_FOCUS_GAINED;focus.window.windowID=window;SDL_PushEvent(&focus);
+                SDL_Event click={};click.type=SDL_EVENT_MOUSE_BUTTON_DOWN;click.button.windowID=window;
+                click.button.button=SDL_BUTTON_LEFT;click.button.x=x;click.button.y=y;SDL_PushEvent(&click);
+                click.type=SDL_EVENT_MOUSE_BUTTON_UP;SDL_PushEvent(&click);
+            }
+            for(int sample=0;ready&&sample<480&&!stop.load();++sample){
                 SDL_Event event={};
-                if(sample%32==0){event.type=SDL_EVENT_MOUSE_BUTTON_DOWN;event.button.windowID=window;
-                    event.button.button=SDL_BUTTON_RIGHT;event.button.x=x;event.button.y=y;SDL_PushEvent(&event);}
                 event={};event.type=SDL_EVENT_MOUSE_MOTION;event.motion.windowID=window;
-                event.motion.state=SDL_BUTTON_RMASK;event.motion.x=x;event.motion.y=y;event.motion.xrel=10;event.motion.yrel=0;
+                event.motion.state=0;event.motion.x=x;event.motion.y=y;event.motion.xrel=10;event.motion.yrel=0;
                 SDL_PushEvent(&event);SDL_Delay(20);
             }
-            SDL_Event release={};release.type=SDL_EVENT_MOUSE_BUTTON_UP;release.button.windowID=window;
-            release.button.button=SDL_BUTTON_RIGHT;release.button.x=x;release.button.y=y;SDL_PushEvent(&release);
             // A real registered camera hotkey releases the ordinary Native
             // input wait without moving an avatar or opening another UI.
             SDL_Event key={};key.type=SDL_EVENT_KEY_DOWN;key.key.windowID=window;key.key.key=SDLK_F8;key.key.scancode=SDL_SCANCODE_F8;
@@ -50,7 +65,7 @@
     };
     size_t input_calls=0;
     {
-        input_worker feed(SDL_GetWindowID(get_sdl_window()),float(graphics_viewport.x+graphics_viewport.w/2),float(graphics_viewport.y+graphics_viewport.h/2));
+        input_worker feed(SDL_GetWindowID(get_sdl_window()),pointer_x,pointer_y);
         const auto deadline=SDL_GetTicks()+30000;
         do{
             require(SDL_GetTicks()<deadline,"camera_input_native_loop_timeout");

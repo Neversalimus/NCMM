@@ -9,6 +9,16 @@ namespace {
 size_t checks=0;void require(bool value,const char *message){++checks;if(!value)throw std::runtime_error(message);}
 std::set<uint64_t> meshes,textures;
 int resident(uint64_t key,uint32_t texture){return (texture?textures:meshes).count(key)!=0;}
+struct sight_probe:hybrid::geometry_sink {
+    const held::model *target=nullptr;bool observed=false;viewmodel::point position{};
+    bool dirty(int)const override{return false;}bool any_dirty()const override{return false;}
+    void emit(const hybrid::triangle &)override{}
+    bool arms(const viewmodel::submission &)override{return true;}
+    bool item(const held::submission &submission)override{const auto &entry=submission.value;
+        if(entry.geometry==target){const auto &sight=target->grips.sight;position=viewmodel::position(submission.world,viewmodel::position(entry.bones.global[sight.node],sight.point));observed=true;}return true;}
+    void skin(const creature::model &,const creature::skeleton_pose &,int,hybrid::vec,int,hybrid::vec,bool,bool,float,hybrid::vec)override{}
+    void impostor(const creature::asset &,const creature::pose_state &,hybrid::vec,int,int,bool)override{}
+};
 ncmm_held_item_v1 item(const char *id,const held::model &model){
     ncmm_held_item_v1 value{};value.struct_size=sizeof(value);value.version=1;std::strcpy(value.canonical,id);value.base_length_m=model.nominal_length;
     switch(model.kind){
@@ -117,6 +127,12 @@ int main(){try{
         gpu::packet accessory;require(cache.build(scene,0,0,provider,accessory,stats,host,action,&appearance,nullptr,640,480,NCMM_GPU_FORCE),"attached item packet");
         require(prepared->selected.body&&prepared->selected.attachment_count==1&&!stats.viewmodel_errors,"accessory contact and original PSX rig remain compatible");
         const auto &packet=accessory.finish(nullptr);require(!ncmm_gpu::validate(packet),"accessory material/palette packet satisfies the same ABI");
+        if(source.kind==held::family::optic){
+            for(uint32_t i=0;i<packet.mesh_count;++i)meshes.insert(packet.meshes[i].key);
+            for(uint32_t i=0;i<packet.texture_count;++i)textures.insert(packet.textures[i].key);
+            gpu::packet warm;require(cache.build(scene,0,0,provider,warm,stats,host,action,&appearance,nullptr,640,480,NCMM_GPU_FORCE),"warm optic mount packet");
+            const auto &resident=warm.finish(&api);require(!resident.mesh_count&&!resident.texture_count,"physical optic riser uploads no warm static or dynamic triangles");
+        }
     }
     rifle.mod_count=1;
     for(size_t i=0;i<std::size(ids);++i)for(float phase:{-1.f,.12f,.5f,.9f})for(float equip:{0.f,1.f}){
@@ -128,6 +144,21 @@ int main(){try{
             gpu::packet packet;require(cache.build(scene,0,0,provider,packet,stats,host,action,&appearance,nullptr,viewport.first,viewport.second,NCMM_GPU_FORCE),"held interruption packet");
             if(!prepared->selected.body||stats.viewmodel_errors)std::cerr<<ids[i]<<" phase="<<phase<<" equip="<<equip<<" width="<<viewport.first<<" fallback="<<uint32_t(prepared->selected.reason)<<'\n';
             require(prepared->selected.body&&!stats.viewmodel_errors,"draw/confirmed attack retains shared contacts and real bone lengths");}
+    }
+    for(size_t gun=0;gun<7;++gun)for(int optic=0;optic<2;++optic){
+        if(optic&&models[gun]->optic_socket<0)continue;
+        auto value=item(ids[gun],*models[gun]);if(optic){auto &mod=value.mods[value.mod_count++];std::strcpy(mod.canonical,"red_dot_sight");std::strcpy(mod.location,"sights");}
+        animation::pose aimed;aimed.grip=NCMM_GRIP_GUN;aimed.aim=1;
+        require(prepared->prepare(value,aimed),"ADS prepares actual gun and optional optic");aimed.prepared_item=prepared.get();std::strcpy(scene.environment.held_item,ids[gun]);
+        const held::model *sight=prepared->entries[0].geometry;
+        for(size_t i=1;i<prepared->count;++i)if(prepared->entries[i].geometry->kind==held::family::optic)sight=prepared->entries[i].geometry;
+        for(auto viewport:{std::pair<int,int>{448,640},{640,480},{1768,1084}}){scene.base.pixel_width=viewport.first;scene.base.pixel_height=viewport.second;
+            sight_probe probe;probe.target=sight;hybrid::frame output;
+            hybrid::renderer(scene,0,0,provider,output,aimed,&appearance).collect(probe,viewport.first,viewport.second);
+            if(!probe.observed||output.viewmodel_errors||output.viewmodel_draws!=2)std::cerr<<"ADS "<<ids[gun]<<" optic="<<optic<<" viewport="<<viewport.first<<"x"<<viewport.second<<" errors="<<output.viewmodel_errors<<" hands="<<output.viewmodel_draws<<" observed="<<probe.observed<<'\n';
+            require(probe.observed&&!output.viewmodel_errors&&output.viewmodel_draws==2,"ADS keeps both real hands attached in portrait and wide views");
+            require(std::abs(probe.position.y-scene.base.camera_y)<.0001f&&std::abs(probe.position.z-appearance.view.eye_height)<.0001f&&probe.position.x>scene.base.camera_x+.08f,"authored iron/optic sight projects to the centre reticle");
+        }
     }
     std::cout<<"Held selection, exact contacts, GPU residency: "<<checks<<" checks PASS\n";return 0;
 }catch(const std::exception &error){std::cerr<<error.what()<<'\n';return 1;}}

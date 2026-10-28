@@ -851,9 +851,9 @@ static const material materials[]={
 {{1.0f,1.0f,1.0f,1.0f},0,texture_4b237314143dd48ee66ca29e,8,8,5414297707105604750ull},
 };
 static const model value={
-1,"machete",9327558358049767452ull,family::machete,
+1,"machete",1254887322785759570ull,family::machete,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{9.31322575e-10f,-0.170220885f,0.0176401502f}},{0,{9.31322575e-10f,0.000952727646f,0.0176401502f}},{0,{9.31322575e-10f,-0.170220885f,0.0176401502f}},{0,{9.31322575e-10f,0.244745448f,0.0106664589f}},{0,{9.31322575e-10f,0.244745448f,0.0106664589f}},{0,{9.31322575e-10f,-0.170220885f,0.0176401502f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{9.31322575e-10f,-0.170220885f,0.0176401502f}},{0,{9.31322575e-10f,0.000952727646f,0.0176401502f}},{0,{9.31322575e-10f,-0.170220885f,0.0176401502f}},{0,{9.31322575e-10f,0.244745448f,0.0106664589f}},{0,{9.31322575e-10f,0.244745448f,0.0106664589f}},{0,{9.31322575e-10f,-0.170220885f,0.0176401502f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f},0.014f,0.014f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.61f,false
 };
 const model &asset_machete() noexcept {return value;}

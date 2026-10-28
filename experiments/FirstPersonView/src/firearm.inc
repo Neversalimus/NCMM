@@ -1,21 +1,29 @@
+        if(pose.grip==NCMM_GRIP_GUN&&gun_profile.kind==NCMM_GUN_BOW){
+            const vec pivot{gun_profile.pivot.x,gun_profile.pivot.y,gun_profile.pivot.z};
+            material wood{nullptr,{.28f,.18f,.09f},1,false,false,true,-1,surface::wood};
+            material string{nullptr,{.71f,.65f,.47f},1,false,false,true,-1};
+            const vec draw=pivot+vec{.014f,.026f,-.14f-.18f*pose.aim};
+            for(float side:{-1.f,1.f}){vec previous=pivot;
+                for(int n=1;n<=5;++n){const float t=n/5.f;const vec next=pivot+vec{0,side*.46f*t,.28f*t*t};
+                    tube(previous,next,.014f*(1-t*.5f),.012f*(1-t*.5f),wood);previous=next;}
+                tube(previous,draw,.0015f,.0015f,string);}
+            if(pose.ammo_loaded){material arrow{nullptr,{.39f,.31f,.18f},1,false,false,true,-1,surface::wood};
+                tube(draw,pivot+vec{.014f,.026f,.62f},.003f,.003f,arrow);}
+            const viewmodel::point bow_axis{0,1,0};
+            hand(pivot,true,nullptr,nullptr,&bow_axis);hand(draw,false,nullptr,nullptr,&bow_axis);f.held_pixels=1;return;
+        }
         if(pose.grip==NCMM_GRIP_GUN && (!metadata||metadata->view.gun_kind!=NCMM_GUN_BOW)){
-            uint32_t kind=metadata?metadata->view.gun_kind:uint32_t(NCMM_GUN_RIFLE);
+            const uint32_t kind=gun_profile.kind;
             const uint32_t mods=metadata?metadata->view.gunmods:0;
             // Physical profiles from the supported games' data/json/items/gun.
             // Canonical IDs often omit "revolver"; never match translated names.
-            if(kind==NCMM_GUN_PISTOL){
-                const std::string id=std::string(s.environment.held_item).substr(0,std::string(s.environment.held_item).find("_plus_"));
-                for(const char *revolver:{"raging_bull","colt_navy","sw_500","colt_saa","taurus_judge","ruger_lcr_22",
-                    "rough_rider_pistol","rough_rider_pistol_9","sw617","460_xvr","bfr","model_10_revolver","ruger_lcr_38",
-                    "colt_python","sw_619","chiappa_rhino","rp63","sw642","sw629","colt_anaconda_8","colt_anaconda_6","colt_anaconda_4","colt_army"})
-                    if(id==revolver){kind=NCMM_GUN_REVOLVER;break;}}
             const bool pistol=kind==NCMM_GUN_PISTOL||kind==NCMM_GUN_REVOLVER;
             const float length=std::clamp(metadata?metadata->view.held_length:pose.length,pistol?.16f:.42f,pistol?.48f:1.8f);
-            const vec pivot{.185f,-.215f,.66f};
+            const vec pivot{gun_profile.pivot.x,gun_profile.pivot.y,gun_profile.pivot.z};
             const float muzzle=pistol?length:length-.16f;
             const float support=std::clamp(muzzle*.55f,.18f,.38f);
-            const auto primary=pivot+vec{0,-.052f,pistol?.020f:-.012f};
-            const auto secondary=pivot+(pistol?vec{-.035f,-.065f,.030f}:vec{0,mods&NCMM_MOD_FOREGRIP?-.09f:-.037f,support});
+            const auto primary=pivot+vec{0,-.079f,pistol?.020f:-.012f};
+            const auto secondary=pivot+(pistol?vec{-.035f,-.087f,.030f}:vec{0,mods&NCMM_MOD_FOREGRIP?-.09f:-.037f,support});
             const auto trigger=pivot+vec{.007f,-.046f,pistol?.075f:.045f},sight=pivot+vec{0,.055f,muzzle-.022f};
             const viewmodel::anchors contacts{{primary.x,primary.y,primary.z},{secondary.x,secondary.y,secondary.z},
                 {trigger.x,trigger.y,trigger.z},{pivot.x,pivot.y,pivot.z},{sight.x,sight.y,sight.z}};
@@ -63,9 +71,15 @@
             cuboid({-.019f,.041f,.006f},{.019f,.055f,.020f},metal);
             if(mods&NCMM_MOD_OPTIC){
                 cuboid({-.020f,.052f,.07f},{.020f,.078f,.17f},polymer);
-                cylinder({0,.094f,.05f},{0,.094f,.23f},.028f,metal);
+                // A sight has an aperture, not the solid cap of a barrel.
+                for(int n=0;n<16;++n){const float p=2*pi*n/16,q=2*pi*(n+1)/16;
+                    auto ring=[&](float r,float z,float angle){return origin+vec{std::cos(angle)*r,.094f+std::sin(angle)*r,z};};
+                    face(ring(.028f,.05f,p),ring(.028f,.05f,q),ring(.028f,.23f,q),ring(.028f,.23f,p),metal);
+                    face(ring(.023f,.05f,q),ring(.023f,.05f,p),ring(.023f,.23f,p),ring(.023f,.23f,q),polymer);
+                    face(ring(.028f,.05f,q),ring(.028f,.05f,p),ring(.023f,.05f,p),ring(.023f,.05f,q),metal);
+                    face(ring(.028f,.23f,p),ring(.028f,.23f,q),ring(.023f,.23f,q),ring(.023f,.23f,p),metal);}
+                lens.alpha=.10f;held_lenses=true;
                 cylinder({0,.094f,.044f},{0,.094f,.050f},.023f,lens);
-                // Open sight lines: the optic remains below the world crosshair.
             }
             if(mods&NCMM_MOD_SUPPRESSOR)cylinder({0,.016f,muzzle+.02f},{0,.016f,muzzle+.18f},.025f,metal);
             if(mods&NCMM_MOD_STOCK){
@@ -81,7 +95,9 @@
                 cylinder({x,y,muzzle*.735f},{x,y,muzzle*.74f},radius*.72f,bulb);}
             if(mods&NCMM_MOD_BAYONET){const vec a=origin+vec{-.014f,-.026f,muzzle-.06f},b=origin+vec{.014f,-.026f,muzzle-.06f},tip=origin+vec{0,-.018f,muzzle+.25f};face(a,b,tip,tip,rail);}
             if(mods&NCMM_MOD_UNDERBARREL)cylinder({0,-.077f,muzzle*.30f},{0,-.077f,muzzle*.88f},.034f,metal);
-            hand({contacts.primary.x,contacts.primary.y,contacts.primary.z},false,&contacts.trigger);
-            hand({contacts.secondary.x,contacts.secondary.y,contacts.secondary.z},true);
+            const viewmodel::point primary_axis{0,1,pistol?.25f:.20f},secondary_axis=pistol?primary_axis:
+                mods&NCMM_MOD_FOREGRIP?viewmodel::point{0,1,0}:viewmodel::point{0,0,1};
+            hand({contacts.primary.x,contacts.primary.y,contacts.primary.z},false,&contacts.trigger,nullptr,&primary_axis);
+            hand({contacts.secondary.x,contacts.secondary.y,contacts.secondary.z},true,nullptr,nullptr,&secondary_axis);
             f.held_pixels=valid?uint32_t((img->right-img->left)*(img->bottom-img->top)):1u;return;
         }

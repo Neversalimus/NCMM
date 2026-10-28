@@ -7,26 +7,46 @@ bool graphics_attack_pending = false;
 bool graphics_frame_pending_present = false;
 bool graphics_cursor_was_visible = true;
 float graphics_mouse_dx = 0, graphics_mouse_dy = 0;
+float graphics_deferred_dx = 0, graphics_deferred_dy = 0;
 uint64_t graphics_attack_serial = 0, graphics_last_redraw = 0;
 uint32_t graphics_attack_kind = 0;
 double graphics_attack_started = 0;
 struct { int x=0,y=0,w=0,h=0; } graphics_viewport;
 
 extern bool graphics_click_pending;
+extern bool graphics_grass_active;
+bool graphics_fps_ads_animating_impl();
 void graphics_cancel_animation()
 {
     graphics_attack_pending = false; graphics_frame_pending_present=false;graphics_attack_started = -1;graphics_click_pending=false;
 }
 
-void graphics_release_mouse()
+bool graphics_apply_mouse_capture(bool capture)
 {
 #if defined(TILES)
-    if( graphics_mouse_drag ) {
-        SDL_SetWindowRelativeMouseMode( get_sdl_window(), false );
-        if( graphics_cursor_was_visible ) SDL_ShowCursor();
+    if(capture==graphics_mouse_drag)return true;
+    if(capture) {
+        graphics_cursor_was_visible=SDL_CursorVisible();
+        if(!SDL_SetWindowRelativeMouseMode(get_sdl_window(),true))return false;
+        SDL_HideCursor();
+        graphics_mouse_drag=true;
+        ::refresh_mouse_config(); // ImGui must not show it again on its next frame.
+    } else {
+        SDL_SetWindowRelativeMouseMode(get_sdl_window(),false);
+        graphics_mouse_drag=false;
+        ::refresh_mouse_config();
+        if(graphics_cursor_was_visible)SDL_ShowCursor();
     }
 #endif
-    graphics_mouse_drag = false; graphics_mouse_dx = graphics_mouse_dy = 0;
+    graphics_mouse_drag=capture;graphics_mouse_dx=graphics_mouse_dy=0;graphics_deferred_dx=graphics_deferred_dy=0;return true;
+}
+void graphics_release_mouse()
+{
+    graphics_input_router.release();
+#if defined(TILES)
+    graphics_locomotion_pause(SDL_GetTicks());
+#endif
+    graphics_apply_mouse_capture(false);
 }
 
 int graphics_set_camera( float yaw, float pitch )
@@ -104,7 +124,7 @@ bool graphics_forward_visible( const tripoint_bub_ms &origin, const tripoint_bub
 
 std::string graphics_map_relative_action( const std::string &action, const input_event &event, bool vehicle_control )
 {
-    if( !graphics_view.enabled || !graphics_control_context || vehicle_control ||
+    if( !graphics_view.enabled || !graphics_control_context || vehicle_control || !graphics_fps_enabled || graphics_input_router.command_mode() ||
         event.modifiers.size() || ( event.type != input_event_t::keyboard_code && event.type != input_event_t::keyboard_char ) ) return action;
     int forward = 0, right = 0;
     const int key = event.get_first_input();
@@ -114,9 +134,7 @@ std::string graphics_map_relative_action( const std::string &action, const input
     else if( key == inp_mngr.get_keycode( event.type, "RIGHT" ) && action == "RIGHT" ) right = 1;
     else return action;
     const auto delta = ncmm_graphics_camera::movement( graphics_camera_yaw, forward, right );
-    if( delta.second < 0 ) return delta.first < 0 ? "LEFTUP" : delta.first > 0 ? "RIGHTUP" : "UP";
-    if( delta.second > 0 ) return delta.first < 0 ? "LEFTDOWN" : delta.first > 0 ? "RIGHTDOWN" : "DOWN";
-    return delta.first < 0 ? "LEFT" : "RIGHT";
+    return action_ident(get_movement_action_from_delta(tripoint_rel_ms(delta.first,delta.second,0),iso_rotate::yes));
 }
 
 void graphics_notify_attack( uint32_t kind )
@@ -142,13 +160,20 @@ bool graphics_process_mouse( uint32_t kind, float x, float y, float dx, float dy
     if( kind == 1 ) {
         if( x < graphics_viewport.x || y < graphics_viewport.y || x >= graphics_viewport.x + graphics_viewport.w ||
             y >= graphics_viewport.y + graphics_viewport.h ) return false;
-        graphics_cursor_was_visible = SDL_CursorVisible(); graphics_mouse_drag = true;
-        SDL_SetWindowRelativeMouseMode( get_sdl_window(), true ); SDL_HideCursor(); return true;
+        return graphics_apply_mouse_capture(true);
     }
     if( kind == 2 ) { const bool was_dragging = graphics_mouse_drag; graphics_release_mouse(); return was_dragging; }
     if( kind == 3 && graphics_mouse_drag && std::isfinite( dx ) && std::isfinite( dy ) ) {
+        // SDL can be pumped during presentation. Never re-enter a module's
+        // input callback while its render callback owns borrowed scene data.
+        if(graphics_render_active){
+            graphics_deferred_dx=std::clamp(graphics_deferred_dx+dx,-32000.f,32000.f);
+            graphics_deferred_dy=std::clamp(graphics_deferred_dy+dy,-32000.f,32000.f);
+            return true;
+        }
         const float previous_yaw=graphics_camera_yaw;
-        graphics_mouse_dx = std::clamp( dx, -2000.0f, 2000.0f ); graphics_mouse_dy = std::clamp( dy, -2000.0f, 2000.0f );
+        graphics_mouse_dx = std::clamp( dx, -2000.0f, 2000.0f )*float(graphics_fps_sensitivity);
+        graphics_mouse_dy = std::clamp( dy, -2000.0f, 2000.0f )*float(graphics_fps_sensitivity)*(graphics_fps_invert?-1.f:1.f);
         graphics_action( "ncmm.view.mouse_look" ); graphics_mouse_dx = graphics_mouse_dy = 0;
         if(graphics_camera_input_probe.active){++graphics_camera_input_probe.mouse_events;
             graphics_camera_input_probe.rotation_radians+=std::abs(std::remainder(graphics_camera_yaw-previous_yaw,2*ncmm_graphics_camera::pi));}
@@ -160,16 +185,28 @@ bool graphics_process_mouse( uint32_t kind, float x, float y, float dx, float dy
     return false;
 }
 
+uint32_t graphics_redraw_interval(uint64_t now){
+    const double age=now/1000.0-graphics_attack_started;
+    const bool attack=graphics_attack_serial&&age>=0&&age<(graphics_attack_kind==2?.95:.53);
+    return graphics_mouse_dirty||attack||graphics_input_router.walking_held()||graphics_projectiles_active(now)||graphics_fps_ads_animating_impl()||graphics_world_needs_redraw()?16u:graphics_grass_active?33u:90u;
+}
+int graphics_input_wait_limit(int native_ms){
+#if defined(TILES)
+    if(graphics_view.enabled&&graphics_control_context&&graphics_input_router.captured()&&character_state_available()){
+        const uint64_t now=SDL_GetTicks();
+        return ncmm_graphics_input::router::presentation_wait(native_ms,now,graphics_last_redraw,graphics_redraw_interval(now));
+    }
+#endif
+    return native_ms;
+}
 bool graphics_redraw_due()
 {
 #if defined(TILES)
     if( !graphics_view.enabled || !graphics_control_context || !character_state_available() ) return false;
     const uint64_t now = SDL_GetTicks();
-    const double age = now / 1000.0 - graphics_attack_started;
-    // One recovery frame after the last keyframe restores the idle pose.
-    const bool attack = graphics_attack_serial && age >= 0 && age < .53;
+    graphics_locomotion_tick(now);
     // Slow ambient animation while idle; simulation time still never advances.
-    if( now - graphics_last_redraw < ( graphics_mouse_dirty || attack || graphics_world_needs_redraw() ? 16u : 90u ) ) return false;
+    if( now - graphics_last_redraw < graphics_redraw_interval(now) ) return false;
     graphics_last_redraw = now; graphics_mouse_dirty = false;
     if( g ) g->invalidate_main_ui_adaptor();
     return true;

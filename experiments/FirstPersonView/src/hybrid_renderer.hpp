@@ -1,4 +1,7 @@
 #pragma once
+#include "projectile_assets.hpp"
+#include "ncmm_graphics_grass.hpp"
+#include "ncmm_graphics_rail.hpp"
 #include "ncmm_graphics_v2.h"
 #include "ncmm_world_policy.hpp"
 #include "ncmm_world_lod.hpp"
@@ -6,6 +9,9 @@
 #include "animation.hpp"
 #include "viewmodel.hpp"
 #include "held_pose.hpp"
+#include "weapon_view.hpp"
+#include "world_props.generated.hpp"
+#include "furniture_layout.hpp"
 #include "creature_scene.hpp"
 #include "effects.hpp"
 #include "liquid_surface.hpp"
@@ -21,6 +27,7 @@
 #include <functional>
 #include <limits>
 #include <map>
+#include <memory>
 #include <tuple>
 #include <thread>
 #include <system_error>
@@ -44,9 +51,11 @@ inline float noise(float x,float y){int ix=int(std::floor(x)),iy=int(std::floor(
     auto n=[](int a,int b){return random(uint32_t(a)*374761393u+uint32_t(b)*668265263u);};
     return(n(ix,iy)*(1-fx)+n(ix+1,iy)*fx)*(1-fy)+(n(ix,iy+1)*(1-fx)+n(ix+1,iy+1)*fx)*fy;}
 struct presentation_data {
+    std::vector<projectile_assets::flight> projectiles;
     ncmm_graphics_presentation_v1 view{};
     std::vector<ncmm_graphics_detail_v1> cells;
     std::vector<ncmm_lod_patch_v1> horizon;
+    std::vector<ncmm_skyline_feature_v1> skyline;
     uint64_t horizon_revision=0;bool horizon_enabled=false;
 };
 struct cached_transparency;
@@ -54,12 +63,12 @@ struct frame {
     double geometry_ms=0,raster_ms=0,effects_ms=0;
     uint32_t raster_calls=0;uint64_t submitted_triangles=0;
     std::shared_ptr<const cached_transparency> transparency;
-    bool dynamic_world=false;
+    bool dynamic_world=false;uint32_t sky_kind=NCMM_SKY_EARTH;
     std::array<uint32_t,4> creature_lods{};uint32_t creature_culled=0,creature_fallback=0;
     int width=0,height=0;std::vector<uint32_t> pixels;std::vector<float> depth;
     std::vector<int32_t> creatures;
     std::vector<uint32_t> effects;int effect_width=0,effect_height=0;
-    int32_t aimed=-1;float label_x=.5f,label_y=.4f;vec sky_horizon{},sky_top{};
+    int32_t aimed=-1,focus=-1;float focus_depth=std::numeric_limits<float>::infinity();float label_x=.5f,label_y=.4f;vec sky_horizon{},sky_top{};
     std::vector<float> held_depth;
     std::vector<float> sun_shadows;
     std::vector<int32_t> owners;uint32_t triangles=0,vehicle_parts=0,weather_particles=0,held_pixels=0;
@@ -147,6 +156,55 @@ inline const image &forest_impostor(){
     static const storage value;return value.sprite;
 }
 
+// Orthographic cutouts of the actual near radio-cell lattice. The two columns
+// remain vertical and separate; the seventh storey is narrower, never tapered.
+// Eight fixed face cards per site bound both cold geometry and texture memory.
+struct radio_lattice_storage {
+        std::vector<uint32_t> pixels;image sprite;
+        explicit radio_lattice_storage(bool top){
+            const int w=top?128:256,h=top?256:512,levels=top?1:6;
+            const float width=top?1.81f:ncmm_world::radio_width,height=levels*NCMM_WORLD_LEVEL_HEIGHT;
+            pixels.resize(size_t(w)*h);
+            const float texel=std::max(width/(w-1),height/(h-1));
+            const auto line=[&](float ax,float az,float bx,float bz,float radius){
+                const float dx=bx-ax,dz=bz-az,length=dx*dx+dz*dz;
+                const int x0=std::max(0,int(std::floor((std::min(ax,bx)-radius-texel+width*.5f)/width*(w-1))));
+                const int x1=std::min(w-1,int(std::ceil((std::max(ax,bx)+radius+texel+width*.5f)/width*(w-1))));
+                const int y0=std::max(0,int(std::floor((1-(std::max(az,bz)+radius+texel)/height)*(h-1))));
+                const int y1=std::min(h-1,int(std::ceil((1-(std::min(az,bz)-radius-texel)/height)*(h-1))));
+                for(int y=y0;y<=y1;++y)for(int x=x0;x<=x1;++x){
+                    const float xx=float(x)/(w-1)*width-width*.5f,zz=(1-float(y)/(h-1))*height;
+                    const float t=std::clamp(((xx-ax)*dx+(zz-az)*dz)/length,0.f,1.f);
+                    const float alpha=clamp((radius+.5f*texel-std::hypot(xx-ax-t*dx,zz-az-t*dz))/texel);
+                    const uint32_t a=uint32_t(alpha*255);auto &pixel=pixels[size_t(y)*w+x];
+                    if(a>(pixel&255))pixel=pack({.48f,.49f,.47f},a);
+                }
+            };
+            for(float center:{top?-.5f:-2.5f,top?.5f:2.5f}){
+                for(float side:{-.38f,.38f})line(center+side,0,center+side,height,.025f);
+                for(int level=0;level<levels;++level){const float z=level*NCMM_WORLD_LEVEL_HEIGHT;
+                    for(float at:{.04f,1.25f,2.48f})line(center-.38f,z+at,center+.38f,z+at,.018f);
+                    for(int tier=0;tier<2;++tier){const float lo=z+tier*1.25f+.06f,hi=z+(tier+1)*1.25f-.06f;
+                        line(center-.38f,lo,center+.38f,hi,.015f);line(center+.38f,lo,center-.38f,hi,.015f);}
+                }
+            }
+            sprite.data={sizeof(sprite.data),uint32_t(w),uint32_t(h),uint32_t(w),pixels.data()};sprite.analyse();
+        }
+};
+inline auto &radio_lattices(){static std::array<std::unique_ptr<radio_lattice_storage>,2> masks;return masks;}
+inline const image &radio_lattice_impostor(bool top){
+    auto &mask=radio_lattices()[top?1:0];if(!mask)mask=std::make_unique<radio_lattice_storage>(top);return mask->sprite;
+}
+inline size_t radio_lattice_owned_bytes(){
+    size_t bytes=0;for(const auto &mask:radio_lattices())if(mask)bytes+=sizeof(*mask)+
+        (mask->pixels.capacity()+mask->sprite.filtered.capacity()+mask->sprite.mip.capacity())*sizeof(uint32_t);
+    return bytes;
+}
+inline void clear_radio_lattices(){for(auto &mask:radio_lattices())mask.reset();}
+inline size_t horizon_owned_bytes(const presentation_data &p){
+    return p.horizon.capacity()*sizeof(ncmm_lod_patch_v1)+p.skyline.capacity()*sizeof(ncmm_skyline_feature_v1)+radio_lattice_owned_bytes();
+}
+
 // Upper terrain uses a foliage-only cutout. Some 2D atlas fallbacks map
 // treetops to an opaque log cross-section; that art is not a 3D crown.
 inline const image &canopy_impostor(bool evergreen){
@@ -186,8 +244,26 @@ inline surface ground_surface(const char *id){
 struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float alpha=1;
     bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;bool creature=false,spill=false;uint32_t liquid=0,banks=0;
     bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;
-    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false,distance_lod=false;};
+    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false,distance_lod=false,grass=false,gpu_local=false;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
+struct prop_placement {props::id model;vec scale,origin;unsigned turns=0;surface finish=surface::none;};
+inline bool opaque_prop(props::id id){
+    static const auto values=[](){std::array<bool,size_t(props::id::count)> out{};
+        for(size_t i=0;i<out.size();++i){out[i]=true;const auto &model=props::get(props::id(i));
+            for(size_t n=0;n<model.count;++n)out[i]=out[i]&&model.triangles[n].color[3]>=.99f;}return out;}();
+    return size_t(id)<values.size()&&values[size_t(id)];
+}
+inline vec quarter_turn(vec p,unsigned turns){switch(turns&3u){case 1:return{-p.y,p.x,p.z};case 2:return{-p.x,-p.y,p.z};case 3:return{p.y,-p.x,p.z};default:return p;}}
+template<class Emit> inline void prop_triangles(const prop_placement &placed,int cell,Emit emit){
+    const auto &model=props::get(placed.model);
+    for(size_t n=0;n<model.count;++n){const auto &source=model.triangles[n];triangle t{};
+        for(size_t k=0;k<3;++k){const auto &p=source.vertices[k];
+            t.v[k]={placed.origin+quarter_turn({p.x*placed.scale.x,p.y*placed.scale.y,p.z*placed.scale.z},placed.turns),k==0?0.f:1.f,k==2?1.f:0.f,{1,1,1}};}
+        t.normal=normalize(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p));
+        t.m={nullptr,{source.color[0]*.86f,source.color[1]*.86f,source.color[2]*.86f},source.color[3],false,false,false,cell,placed.finish};
+        t.m.gpu_local=true;emit(t);
+    }
+}
 
 // Geometry-only destination. The shared generator preserves the existing art
 // and dimensions; this path never enters project(), raster() or pixel effects.
@@ -195,12 +271,19 @@ struct geometry_sink {
     virtual ~geometry_sink()=default;
     virtual bool dirty(int cell)const=0;
     virtual bool any_dirty()const{return true;}
+    virtual bool collects_grass()const{return true;}
+    virtual bool local_geometry()const{return false;}
     virtual void emit(const triangle &value)=0;
     virtual void world_complete(){}
     virtual bool horizon_dirty()const{return true;}
     virtual void horizon_complete(){}
     virtual bool arms(const viewmodel::submission &){return false;}
     virtual bool item(const held::submission &){return false;}
+    virtual bool prop(const prop_placement &,int){return false;}
+    // Optional producer shortcut for an otherwise empty opaque TOP-only cell.
+    // The material has already passed all ground/rail/liquid overrides. CPU
+    // and other sinks retain the ordinary quad/slab path by returning false.
+    virtual bool opaque_floor(int,const material &){return false;}
     virtual void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,
                       vec origin,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)=0;
     virtual void impostor(const creature::asset &asset,const creature::pose_state &pose,vec origin,int cell,int lod,bool targetable)=0;
@@ -237,9 +320,15 @@ class renderer {
     std::array<std::shared_ptr<const viewmodel::texture_pixels>,4> arm_pixels;
     ncmm_graphics_detail_v1 empty_detail{};
     const ncmm_graphics_detail_v1 &extra(int i)const{return metadata&&i>=0&&size_t(i)<metadata->cells.size()?metadata->cells[i]:empty_detail;}
-    uint32_t sky_style()const{return metadata?metadata->view.sky_style:uint32_t(NCMM_SKY_EARTH);}
+    uint32_t sky_style()const{
+        if(world_data&&world_data->origin_z<0){const int i=index(int(base.camera_x),int(base.camera_y));
+            if(i<0||(world_flags(i)&NCMM_WORLD_ROOFED))return NCMM_SKY_VOID;}
+        return metadata?metadata->view.sky_style:uint32_t(NCMM_SKY_EARTH);
+    }
+    float fog_density(int i)const{return world_data&&(world_flags(i)&NCMM_WORLD_ROOFED)?0.f:s.environment.fog_density+.003f;}
     using sprite_key=std::tuple<uintptr_t,uint32_t,uint32_t,uint32_t>;
-    std::vector<image *> image_refs;std::array<image *,NCMM_GFX_GLOVE_RIGHT+1> held_refs{};
+    // Allocate callback-local references only for layers this scene requests.
+    std::array<std::vector<image *>,NCMM_GFX_GLOVE_RIGHT+1> image_refs;std::array<image *,NCMM_GFX_GLOVE_RIGHT+1> held_refs{};
     std::map<sprite_key,image> images;std::vector<triangle> transparent,opaque,overlay;
     std::map<std::tuple<uint32_t,int,int>,int> vehicle_mounts;
     struct vehicle_palette {vec color{};float weight=0;};
@@ -278,8 +367,9 @@ class renderer {
         if(i==UINT32_MAX)ref=&held_refs[layer];
         else {
             if(i>=base.cell_count)return nullptr;
-            if(image_refs.empty())image_refs.resize(base.cell_count*(NCMM_GFX_GLOVE_RIGHT+1),nullptr);
-            ref=&image_refs[size_t(i)*(NCMM_GFX_GLOVE_RIGHT+1)+layer];
+            auto &refs=image_refs[layer];
+            if(refs.empty())refs.resize(base.cell_count,nullptr);
+            ref=&refs[i];
         }
         if(*ref){if(prepare&&(*ref)->valid()&&(*ref)->filtered.empty())(*ref)->analyse();return *ref;}
         image img;img.data.struct_size=sizeof(img.data);
@@ -371,14 +461,17 @@ class renderer {
         int xmin,xmax,ymin,ymax;float inv,dw0,dw1;bool coarse,detailed;
     };
     void project(const triangle &t,std::vector<projected_triangle> &output){
+        // Keep world-space clipping exact; reuse the input view transforms.
+        const std::array<vec,3> viewed={view(t.v[0].p),view(t.v[1].p),view(t.v[2].p)};
+        const bool uncut=viewed[0].z>=.08f&&viewed[1].z>=.08f&&viewed[2].z>=.08f;
         std::array<vertex,5> poly{};int count=0;
-        for(int i=0;i<3;++i){const auto &a=t.v[i],&b=t.v[(i+1)%3];float za=view(a.p).z,zb=view(b.p).z;
+        for(int i=0;i<3;++i){const auto &a=t.v[i],&b=t.v[(i+1)%3];float za=viewed[i].z,zb=viewed[(i+1)%3].z;
             if(za>=0.08f)poly[count++]=a;
             if((za>=0.08f)!=(zb>=0.08f))poly[count++]=interpolate(a,b,(0.08f-za)/(zb-za));}
         if(count<3)return;
         for(int piece=1;piece<count-1;++piece){std::array<vertex,3> v{poly[0],poly[piece],poly[piece+1]};std::array<vec,3> p{};
             std::array<float,3> iz{},uu{},vv{};
-            for(int i=0;i<3;++i){auto q=view(v[i].p);iz[i]=1/q.z;p[i]={f.width*0.5f+projection*q.x*iz[i],f.height*0.5f-projection*q.y*iz[i],q.z};uu[i]=v[i].u*iz[i];vv[i]=v[i].v*iz[i];}
+            for(int i=0;i<3;++i){auto q=uncut?viewed[i]:view(v[i].p);iz[i]=1/q.z;p[i]={f.width*0.5f+projection*q.x*iz[i],f.height*0.5f-projection*q.y*iz[i],q.z};uu[i]=v[i].u*iz[i];vv[i]=v[i].v*iz[i];}
             auto edge=[](vec a,vec b,float x,float y){return(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
             float area=edge(p[0],p[1],p[2].x,p[2].y);if(!std::isfinite(area)||std::abs(area)<0.00001f)continue;
             int xmin=std::max(0,int(std::floor(std::clamp(std::min({p[0].x,p[1].x,p[2].x}),-1.0f,float(f.width)))));
@@ -395,7 +488,7 @@ class renderer {
             const bool reflective=t.m.finish==surface::paint||t.m.finish==surface::metal;
             const vec flat_color=reflective?surface_color(t.m.color,t.m,(v[0].p+v[1].p+v[2].p)*(1.0f/3),t.normal,(p[0].z+p[1].z+p[2].z)/3):t.m.color;
             std::array<float,3> fine{},medium{};
-            for(int n=0;n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
+            for(int n=0;!t.m.grass&&n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
                 fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
             const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&t.m.finish!=surface::contact&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
             output.push_back({v,p,iz,uu,vv,fine,medium,t.m,t.normal,flat_light,flat_color,xmin,xmax,ymin,ymax,inv,dw0,dw1,coarse,detailed});
@@ -407,6 +500,8 @@ class renderer {
         const auto flat_light=t.flat_light,flat_color=t.flat_color;
         const int xmin=t.xmin,xmax=t.xmax,ymin=t.ymin,ymax=t.ymax;
         const float inv=t.inv,dw0=t.dw0,dw1=t.dw1;const bool coarse=t.coarse,detailed=t.detailed;
+        const bool solid_grass=t.m.grass&&!t.m.overlay&&!t.m.texture&&!t.m.smooth&&t.m.alpha>=.99f&&t.m.finish==surface::none;
+        const vec grass_color{flat_color.x*flat_light.x,flat_color.y*flat_light.y,flat_color.z*flat_light.z};
         float dux=0,duy=0,dvx=0,dvy=0,dzx=0,dzy=0;
         if(t.m.impostor||(t.m.texture&&t.m.texture->creature_skin)){
             const float dw0y=(p[2].x-p[1].x)*inv,dw1y=(p[0].x-p[2].x)*inv;
@@ -447,6 +542,12 @@ class renderer {
                 const float w2=1-w0-w1;
                 float recip=w0*iz[0]+w1*iz[1]+w2*iz[2];if(recip<=0)continue;float z=1/recip;size_t k=size_t(y)*f.width+x;
                 if(!t.m.impostor&&z>(t.m.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
+                if(solid_grass){
+                    const float fog=clamp((z-2)*fog_density(t.m.cell));
+                    f.pixels[k]=pack(grass_color*(1-fog)+fog_color*fog);f.depth[k]=z;f.owners[k]=t.m.cell;f.creatures[k]=-1;
+                    if(x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=t.m.cell;}
+                    continue;
+                }
                 vec c=flat_color;float alpha=t.m.alpha;vec pixel_light=flat_light;
                 if(t.m.smooth){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;pixel_light=v[0].light*a+v[1].light*b+v[2].light*cw;}
                 if(t.m.impostor){const auto &sprite=*t.m.impostor;
@@ -478,11 +579,14 @@ class renderer {
                     const float fade=clamp(1-4*(u*u+vv0*vv0));alpha*=fade*fade;
                 }
                 if(alpha<.01f)continue;
+                // One writer owns the centre pixel. Transparent glass blocks
+                // interaction picking without changing colour or opaque depth.
+                if(!t.m.overlay&&x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=t.m.cell;}
                 if(detailed){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;
                     const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
                     c=surface_color(c,t.m,pos,t.normal,z,fine[0]*a+fine[1]*b+fine[2]*cw,medium[0]*a+medium[1]*b+medium[2]*cw);}
                 c={c.x*pixel_light.x,c.y*pixel_light.y,c.z*pixel_light.z};
-                if(!t.m.overlay){float fog=clamp((z-2)*(s.environment.fog_density+.003f));c=c*(1-fog)+fog_color*fog;}
+                if(!t.m.overlay){float fog=clamp((z-2)*fog_density(t.m.cell));c=c*(1-fog)+fog_color*fog;}
                 if(alpha<.99f)c=c*alpha+unpack(f.pixels[k])*(1-alpha);
                 f.pixels[k]=pack(c);
                 if(alpha>=.99f||t.m.cutout){if(t.m.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=t.m.cell;if(!t.m.overlay)f.creatures[k]=t.m.creature?t.m.cell:t.m.creature_visual?-2:-1;}
@@ -508,7 +612,8 @@ class renderer {
     void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr){
         if(queue.empty()&&(!last||last->empty()))return;
         const auto begun=std::chrono::steady_clock::now();++f.raster_calls;f.submitted_triangles+=queue.size()+(last?last->size():0);
-        const int count=size_t(f.width)*f.height>=500000?int(std::clamp(std::thread::hardware_concurrency(),1u,4u)):1;
+        const bool dense_grass=queue.size()>=2048&&queue.front().m.grass;
+        const int count=size_t(f.width)*f.height>=500000||dense_grass?int(std::clamp(std::thread::hardware_concurrency(),1u,4u)):1;
         std::vector<projected_triangle> projected;projected.reserve(queue.size()+(last?last->size():0));
         for(const auto &t:queue)project(t,projected);
         if(last)for(const auto &t:*last)project(t,projected);
@@ -594,20 +699,20 @@ class renderer {
             const size_t at=size_t(y)*f.width+x;
             if(!options.skip_hidden_sky||!std::isfinite(f.depth[at]))f.pixels[at]=pack(color*lit);}
     }
-    void sky_palette(){const auto &e=s.environment;const uint32_t style=sky_style();float day=clamp(e.daylight);
+    void sky_palette(){const auto &e=s.environment;const uint32_t style=sky_style();f.sky_kind=style;float day=clamp(e.daylight);
         const bool celestial=style==NCMM_SKY_EARTH||style==NCMM_SKY_HIGHLANDS;
         if(style==NCMM_SKY_VOID||style==NCMM_SKY_STARS)day=0;vec top=vec{.018f,.026f,.065f}*(1-day)+vec{.17f,.40f,.72f}*day;
         vec bottom=vec{.06f,.07f,.12f}*(1-day)+vec{.61f,.75f,.88f}*day;float twilight=clamp(1-std::abs(e.sun_z)*6)*clamp(day*5)*(1-e.cloud_cover*.6f);
         bottom=bottom*(1-twilight*.4f)+vec{.92f,.47f,.23f}*(twilight*.4f);fog_color=bottom;
         if(e.sky_tint>0){vec tint{e.sky_r,e.sky_g,e.sky_b};top=top*(1-e.sky_tint*.7f)+tint*(e.sky_tint*.32f);bottom=bottom*(1-e.sky_tint*.7f)+tint*(e.sky_tint*.4f);fog_color=bottom;}
-        if(style==NCMM_SKY_VOID){top={.001f,.002f,.005f};bottom={.008f,.009f,.014f};}
+        if(style==NCMM_SKY_VOID){top={0,0,0};bottom={0,0,0};}
         else if(style==NCMM_SKY_GREY){top={.14f,.14f,.14f};bottom={.39f,.39f,.39f};}
         else if(style==NCMM_SKY_SCARLET){top={.16f,.014f,.025f};bottom={.45f,.065f,.054f};}
         else if(style==NCMM_SKY_STARS){top={.006f,.008f,.025f};bottom={.027f,.031f,.065f};}
         else if(style==NCMM_SKY_HIGHLANDS){top=top*.62f+vec{.28f,.32f,.34f}*.38f;bottom=bottom*.62f+vec{.57f,.60f,.59f}*.38f;}
         else if(style==NCMM_SKY_RADIOSPHERE){top={.027f,.037f,.055f};bottom={.14f,.17f,.19f};}
         else if(style==NCMM_SKY_FUNGAL){top={.27f,.32f,.25f};bottom={.56f,.62f,.46f};}
-        if(e.lightning){top={.55f,.6f,.73f};bottom={.85f,.86f,.94f};}
+        if(e.lightning&&style!=NCMM_SKY_VOID){top={.55f,.6f,.73f};bottom={.85f,.86f,.94f};}
         fog_color=bottom;f.sky_horizon=bottom;f.sky_top=top;sky_top=top;sky_bottom=bottom;
     }
     void sky(){const auto &e=s.environment;const uint32_t style=sky_style();float day=clamp(e.daylight);
@@ -621,7 +726,7 @@ class renderer {
             const float up=(f.height*.5f-y)/projection;
             const float elevation=std::atan2(sp+up*cp,std::abs(cp-up*sp));
             const float t=clamp(1-elevation/(pi*.5f));
-            const uint32_t c=pack(world_data&&elevation<0?(metadata&&metadata->horizon_enabled?bottom:vec{.012f,.016f,.024f}):top*(1-t)+bottom*t);
+            const uint32_t c=pack(style==NCMM_SKY_VOID?vec{}:world_data&&elevation<0?(metadata&&metadata->horizon_enabled?bottom:vec{.012f,.016f,.024f}):top*(1-t)+bottom*t);
             if(!options.skip_hidden_sky){std::fill_n(f.pixels.data()+size_t(y)*f.width,f.width,c);count+=f.width;}
             else for(int x=0;x<f.width;++x){const size_t at=size_t(y)*f.width+x;
                 if(!std::isfinite(f.depth[at])){f.pixels[at]=c;++count;}}
@@ -681,15 +786,23 @@ class renderer {
         }});
     }
     #include "architecture.inc"
+    #if defined(NCMM_TERRAIN_EDGES_REFERENCE)
+    #include NCMM_TERRAIN_EDGES_REFERENCE
+    #else
+    #include "terrain_edges.inc"
+    #endif
+    #include "world_objects.inc"
     void architecture(int i,uint32_t shape,uint32_t layer){
         if(world_data&&layer==NCMM_GFX_TERRAIN&&(world_flags(i)&(NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP)))return; // World flags own the complete transition geometry.
         if(special_architecture(i,shape,layer))return;
+        if(world_object(i,shape,layer))return;
         if(!ncmm_graphics_shapes::vertical(shape))return;
         vec center=cell_center(i);float angle=s.details[i].orientation?pi*.5f:0;
         material m=mat(i,layer,{.43f,.40f,.35f});material trim{nullptr,{.35f,.32f,.28f},1,false,false,false,i};
         trim.finish=surface::wood;
         if(ncmm_graphics_shapes::contains(base.cells[i].terrain,"metal")||ncmm_graphics_shapes::contains(base.cells[i].terrain,"steel"))trim.finish=surface::metal;
-        if(shape==NCMM_SHAPE_WALL){auto wall=wall_material(i,layer);box(center,{-.5f,-.5f,0},{.5f,.5f,2.5f},wall);return;}
+        if(shape==NCMM_SHAPE_WALL){if(layer==NCMM_GFX_TERRAIN&&world_stair_wall(i))return;
+            auto wall=wall_material(i,layer);box(center,{-.5f,-.5f,0},{.5f,.5f,2.5f},wall);return;}
         if(shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_DOOR_OPEN||shape==NCMM_SHAPE_DOOR_FRAME){door_model(i,shape,layer);return;}
         if(shape==NCMM_SHAPE_WINDOW||shape==NCMM_SHAPE_WINDOW_BROKEN||shape==NCMM_SHAPE_WINDOW_COVERED){++f.vertical_windows;
             const float depth=world_data&&layer==NCMM_GFX_TERRAIN?.5f:.13f;
@@ -984,6 +1097,8 @@ class renderer {
     }
     #include "creatures.inc"
     #include "multilevel_geometry.inc"
+    #include "grass.inc"
+    #include "rail.inc"
     void horizon(){
         if(!metadata||!metadata->horizon_enabled||!world_data)return;
         for(const auto &p:metadata->horizon){
@@ -1007,6 +1122,21 @@ class renderer {
                 quad(at+vec{3,3,p.height+.02f},at+vec{p.width-3,3,p.height+.02f},at+vec{p.width-3,p.depth-3,p.height+.02f},at+vec{3,p.depth-3,p.height+.02f},roof);
             }
         }
+        for(const auto &feature:metadata->skyline){
+            if(feature.kind!=NCMM_SKYLINE_RADIO_STANDARD)continue;
+            material lattice{nullptr,{1,1,1},1,false,false,false,-1};lattice.cutout=true;lattice.distance_lod=true;
+            for(int top=0;top<2;++top){
+                const float width=top?1.81f:feature.width,half=width*.5f,plane=top?.88f:2.88f;
+                const float z=feature.z+(top?15.f:0.f),height=top?2.5f:15.f;
+                lattice.texture=&radio_lattice_impostor(top!=0);
+                const vec base{feature.x,feature.y,z};
+                for(int side=0;side<4;++side){
+                    const auto turn=[&](vec p){return base+quarter_turn(p,unsigned(side));};
+                    quad(turn({-half,-plane,0}),turn({half,-plane,0}),turn({half,-plane,height}),turn({-half,-plane,height}),
+                         lattice,quarter_turn({0,-1,0},unsigned(side)));
+                }
+            }
+        }
     }
     void world(){
         std::vector<int> order;order.reserve(base.cell_count);
@@ -1022,32 +1152,49 @@ class renderer {
             const bool floor=in_view(at+vec{0,0,-.10f},at+vec{1,1,NCMM_WORLD_LEVEL_HEIGHT});
             if(!model&&!floor){++f.culled_cells;continue;}
             ++f.geometry_cells;order.push_back(i);}
-        std::stable_sort(order.begin(),order.end(),[&](int a,int b){
-            const vec a_delta=cell_center(a)-eye,b_delta=cell_center(b)-eye;
-            return dot(a_delta,a_delta)<dot(b_delta,b_delta);});
+        // CPU rasterization benefits from front-to-back depth rejection. GPU
+        // collection retains complete cell-local meshes; its collector emits
+        // the final cell/pass order independently of this traversal.
+        if(!gpu_sink&&order.size()>1){
+            // Resolve each distance once. Rank only selected cells, and keep
+            // their source order when equal; hidden cells need no rank storage.
+            struct ranked_cell {float distance;int index;};
+            std::vector<ranked_cell> ranked;ranked.reserve(order.size());
+            for(int i:order){const vec delta=cell_center(i)-eye;ranked.push_back({dot(delta,delta),i});}
+            std::stable_sort(ranked.begin(),ranked.end(),[](const ranked_cell &a,const ranked_cell &b){return a.distance<b.distance;});
+            for(size_t n=0;n<order.size();++n)order[n]=ranked[n].index;
+        }
         for(int pass=0;pass<2;++pass)for(int i:order){const vec at=cell_origin(i);const int x=int(at.x),y=int(at.y);const auto &c=base.cells[i];const auto &d=s.details[i];
             if(pass==1){
             if(world_data)world_slab(i);
-            else if(!(c.flags&NCMM_GFX_NO_FLOOR)&&in_view({float(x),float(y),0},{float(x+1),float(y+1),0})){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
+            else if(!(c.flags&NCMM_GFX_NO_FLOOR)&&in_view({float(x),float(y),0},{float(x+1),float(y+1),0})){auto floor=ground_edges(i,mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f}));floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
+                if(ncmm_rail::bed(c.terrain))floor=rail_bed(i);
                 const uint32_t liquid=terrain_liquid(i);
                 if(liquid){floor.texture=nullptr;floor.color=liquid_color(liquid);floor.finish=surface::water;floor.liquid=liquid;floor.banks=liquid_banks(i);}
-                quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
+                if(!gpu_sink||!gpu_sink->opaque_floor(i,floor))
+                    quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
             }
             if(!world_data&&(c.flags&NCMM_GFX_CEILING)&&(!d.vehicle_features||(d.terrain_flags&NCMM_SURFACE_TERRAIN_CEILING)))ceiling(i,x,y);
             if(world_data&&!(world_flags(i)&NCMM_WORLD_BODY_VISIBLE))continue;
             if(d.field[0]&&d.field_shape==NCMM_SHAPE_FLAT&&!extra(i).gas){auto field=mat(i,NCMM_GFX_FIELD,{.48f,.18f,.12f},true);
-                if(extra(i).field_liquid){field.texture=nullptr;field.liquid=extra(i).field_liquid;field.color=liquid_color(field.liquid);field.finish=surface::water;field.spill=true;}
-                quad(at+vec{0,0,.013f},at+vec{1,0,.013f},at+vec{1,1,.013f},at+vec{0,1,.013f},field);}
-            if(c.item[0]&&extra(i).item_liquid){
-                material puddle{nullptr,liquid_color(extra(i).item_liquid),1,false,false,false,i,surface::water};
-                puddle.liquid=extra(i).item_liquid;puddle.spill=true;
-                quad(at+vec{0,0,.017f},at+vec{1,0,.017f},at+vec{1,1,.017f},at+vec{0,1,.017f},puddle);}
+                if(extra(i).field_liquid)puddle(i,extra(i).field_liquid,.014f);
+                else quad(at+vec{0,0,.013f},at+vec{1,0,.013f},at+vec{1,1,.013f},at+vec{0,1,.013f},field);}
+            if(c.item[0]&&extra(i).item_liquid&&extra(i).item_liquid!=extra(i).field_liquid)puddle(i,extra(i).item_liquid,.014f);
             continue;}
             if(world_data&&!(world_flags(i)&NCMM_WORLD_BODY_VISIBLE)){
-                if(world_flags(i)&NCMM_WORLD_STRUCTURE_VISIBLE)architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
+                if(world_flags(i)&NCMM_WORLD_STRUCTURE_VISIBLE){
+                    // The Host may publish an ordinary terrain staircase as
+                    // static architecture while Native perception withholds
+                    // every item, actor, field and furnishing in this cell.
+                    // Ramps/ladders keep their existing BODY permission path.
+                    if((world_flags(i)&NCMM_WORLD_UP)&&!(world_flags(i)&(NCMM_WORLD_RAMP|NCMM_WORLD_LADDER)))world_transition(i);
+                    architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
+                }
                 continue;
             }
             contact_shadow(i,x,y);
+            if(gpu_sink&&gpu_sink->collects_grass())lawn(i);
+            railway(i);
             if(world_data)world_transition(i);
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
             if(d.vehicle_features)vehicle(i);else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
@@ -1091,16 +1238,23 @@ class renderer {
         image *img=nullptr;
         held_light=light(index(int(std::floor(base.camera_x)),int(std::floor(base.camera_y))),{0,0,1});
         held_light={std::max(.04f,held_light.x),std::max(.04f,held_light.y),std::max(.04f,held_light.z)};
-        const float hud_scale=std::min(1.0f,float(f.height)/f.width*1.6f)*(metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f);
+        const float aspect=float(f.height)/f.width;
+        // Keep the established vertical viewmodel FOV in portrait terrain
+        // viewports. With a fixed horizontal FOV, a distant pole grip otherwise
+        // becomes physically unreachable from a shoulder below the lower edge.
+        // Wide and 4:3 viewports retain their exact former scale.
+        const float body_scale=metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f;
+        const float hud_scale=std::max(1.0f,aspect/.75f)*std::min(1.0f,aspect*1.6f)*
+            body_scale;
+        const auto gun_profile=weapon::fallback(metadata?metadata->view.gun_kind:uint32_t(NCMM_GUN_RIFLE),
+            metadata?metadata->view.gunmods:0,metadata?metadata->view.held_length:pose.length,s.environment.held_item);
+        const auto aligned=weapon::aim_offset(pose,gun_profile);
         auto animate=[&](vec p){
-            // Empty strikes already move the source rig. Applying the former
-            // primitive-hand swing again exposes the upper-arm root in view.
-            if(empty)return p+vec{pose.sway_x,pose.sway_y-.20f*(1-pose.equip_phase),-.06f*(1-pose.equip_phase)};
-            const vec pivot{.27f,-.28f,.84f};p=p-pivot;
-            const float a=pose.swing,co=std::cos(a),sn=std::sin(a);
-            p={p.x*co-p.y*sn,p.x*sn+p.y*co,p.z};
-            return p+pivot+vec{-.12f*pose.swing+pose.sway_x,.04f*pose.swing+pose.sway_y-.20f*(1-pose.equip_phase),pose.thrust-pose.recoil-.06f*(1-pose.equip_phase)};};
-        auto held_view=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return p;};
+            const auto value=weapon::animate({p.x,p.y,p.z},pose,aligned,empty);return vec{value.x,value.y,value.z};};
+        // Body size is uniform in all three axes. Scaling only XY crushed
+        // the authored handles and made small-character support grips farther
+        // away than their arms could reach in portrait viewports.
+        auto held_view=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;p.z*=body_scale;return p;};
         auto hud=[&](vec p){return local(held_view(p));};
         auto face=[&](vec a,vec b,vec c,vec d,material m){a=hud(a);b=hud(b);c=hud(c);d=hud(d);quad(a,b,c,d,m,normalize(cross(b-a,d-a)));};
         auto tube=[&](vec a,vec b,float ra,float rb,material m){
@@ -1119,7 +1273,7 @@ class renderer {
         viewmodel::matrix model_to_world{};
         const auto zero=hud({0,0,0});const vec columns[]={hud({1,0,0})-zero,hud({0,1,0})-zero,hud({0,0,1})-zero,zero};
         for(int column=0;column<4;++column){model_to_world.columns[column*4]=columns[column].x;model_to_world.columns[column*4+1]=columns[column].y;model_to_world.columns[column*4+2]=columns[column].z;}model_to_world.columns[15]=1;
-        const float lower_view_slope=float(f.height)/f.width*std::tan(70*pi/360)/std::max(.1f,hud_scale);
+        const float lower_view_slope=float(f.height)/f.width*std::tan(70*pi/360)/std::max(.1f,hud_scale/body_scale);
         // Transform the actual lower camera plane back into attachment space,
         // including item swing, equip motion, sway and body scaling.
         const auto view_zero=held_view({0,0,0});const vec view_columns[]={held_view({1,0,0})-view_zero,held_view({0,1,0})-view_zero,held_view({0,0,1})-view_zero};
@@ -1127,8 +1281,8 @@ class renderer {
         const std::array<float,4> lower_plane={(view_columns[0].y+screen_slope*view_columns[0].z)/hud_scale,
             (view_columns[1].y+screen_slope*view_columns[1].z)/hud_scale,(view_columns[2].y+screen_slope*view_columns[2].z)/hud_scale,
             (view_zero.y+screen_slope*view_zero.z)/hud_scale};
-        auto hand=[&](vec grip,bool left,const viewmodel::point *trigger=nullptr,const viewmodel::hand_pose *prepared=nullptr){
-            if(!prepared&&!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,fallback_arm_pose,trigger,&lower_plane)){++f.viewmodel_errors;return;}
+        auto hand=[&](vec grip,bool left,const viewmodel::point *trigger=nullptr,const viewmodel::hand_pose *prepared=nullptr,const viewmodel::point *axis=nullptr){
+            if(!prepared&&!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,fallback_arm_pose,trigger,&lower_plane,axis)){++f.viewmodel_errors;return;}
             const auto &arm_pose=prepared?*prepared:fallback_arm_pose;
             const int side=left?0:1;
             viewmodel::appearance appearance;
@@ -1183,14 +1337,16 @@ class renderer {
             auto contact=[&](const held::posed &entry,const held::contact &point){return viewmodel::position(entry.local,viewmodel::position(entry.bones.global[point.node],point.point));};
             const auto primary=contact(body,model.grips.primary),trigger=contact(body,model.grips.trigger);
             auto secondary=contact(body,model.grips.secondary);
+            float secondary_radius=model.grips.secondary_radius*prepared.selected.scale;
             auto primary_axis=viewmodel::unit(viewmodel::direction(body.local,model.grips.primary_axis));
             auto secondary_axis=viewmodel::unit(viewmodel::direction(body.local,model.grips.secondary_axis));
             bool both=model.two_handed||model.kind==held::family::pistol;
             for(size_t i=1;i<prepared.count;++i)if(prepared.entries[i].geometry->kind==held::family::foregrip){const auto &entry=prepared.entries[i];
-                secondary=contact(entry,entry.geometry->grips.primary);secondary_axis=viewmodel::unit(viewmodel::direction(entry.local,entry.geometry->grips.primary_axis));both=true;}
+                secondary=contact(entry,entry.geometry->grips.primary);secondary_axis=viewmodel::unit(viewmodel::direction(entry.local,entry.geometry->grips.primary_axis));
+                secondary_radius=entry.geometry->grips.primary_radius*prepared.selected.attachments[i-1].scale;both=true;}
             const auto *trigger_contact=pose.grip==NCMM_GRIP_GUN?&trigger:nullptr;
-            bool attached=arms.attach(primary,false,lower_view_slope,prepared.hands[0],trigger_contact,&lower_plane,&primary_axis);
-            if(both)attached=attached&&arms.attach(secondary,true,lower_view_slope,prepared.hands[1],nullptr,&lower_plane,&secondary_axis);
+            bool attached=arms.attach(primary,false,lower_view_slope,prepared.hands[0],trigger_contact,&lower_plane,&primary_axis,model.grips.primary_radius*prepared.selected.scale);
+            if(both)attached=attached&&arms.attach(secondary,true,lower_view_slope,prepared.hands[1],nullptr,&lower_plane,&secondary_axis,secondary_radius);
             if(attached){
                 hand({primary.x,primary.y,primary.z},false,trigger_contact,&prepared.hands[0]);
                 if(both)hand({secondary.x,secondary.y,secondary.z},true,nullptr,&prepared.hands[1]);
@@ -1198,6 +1354,13 @@ class renderer {
                 for(size_t entry_index=0;entry_index<prepared.count;++entry_index){auto &entry=prepared.entries[entry_index];const auto &source=entry.geometry->geometry;
                     const auto world=viewmodel::multiply(model_to_world,entry.local);
                     if(gpu_sink&&gpu_sink->item({entry,world}))continue;
+                    if(entry.riser>.001f){const auto p=entry.mount;const vec lo{p.x-.014f,p.y,p.z-.013f},hi{p.x+.014f,p.y+entry.riser,p.z+.013f};
+                        material rail{nullptr,{.08f,.09f,.09f},1,false,false,true,-1,surface::metal};
+                        face({lo.x,lo.y,lo.z},{hi.x,lo.y,lo.z},{hi.x,hi.y,lo.z},{lo.x,hi.y,lo.z},rail);
+                        face({hi.x,lo.y,hi.z},{lo.x,lo.y,hi.z},{lo.x,hi.y,hi.z},{hi.x,hi.y,hi.z},rail);
+                        face({lo.x,lo.y,hi.z},{lo.x,lo.y,lo.z},{lo.x,hi.y,lo.z},{lo.x,hi.y,hi.z},rail);
+                        face({hi.x,lo.y,lo.z},{hi.x,lo.y,hi.z},{hi.x,hi.y,hi.z},{hi.x,hi.y,lo.z},rail);
+                        face({lo.x,hi.y,lo.z},{hi.x,hi.y,lo.z},{hi.x,hi.y,hi.z},{lo.x,hi.y,hi.z},rail);}
                     ++entry.draws;entry.palette_matrices+=uint32_t(source.palette_count);
                     for(size_t material_index=0;material_index<entry.geometry->material_count;++material_index){const auto &material=entry.geometry->materials[material_index];
                         auto &image=item_images[entry_index*16+material_index];if(material.pixels){image.data={sizeof(image.data),material.width,material.height,material.width,material.pixels};image.prepared=image.data.rgba;image.right=int(material.width);image.bottom=int(material.height);}}
@@ -1242,11 +1405,13 @@ class renderer {
             for(int n=0;n<5;++n){const int j=(n+1)%5;face(outline[n],outline[j],base,base,steel);
                 face(outline[j]+vec{0,0,.012f},outline[n]+vec{0,0,.012f},base+vec{0,0,.012f},base+vec{0,0,.012f},steel);
                 face(outline[n],outline[n]+vec{0,0,.012f},outline[j]+vec{0,0,.012f},outline[j],steel);}
-            hand(butt+axis*.31f,false);hand(butt+axis*std::min(.50f,pose.length*.45f),true);
+            const viewmodel::point haft{axis.x,axis.y,axis.z};
+            hand(butt+axis*.31f,false,nullptr,nullptr,&haft);hand(butt+axis*std::min(.50f,pose.length*.45f),true,nullptr,nullptr,&haft);
             f.held_pixels=valid?uint32_t((img->right-img->left)*(img->bottom-img->top)):1u;
             return;
         }
-        if(!valid){hand({.27f,-.28f,.83f},false);material fallback{nullptr,{.50f,.52f,.52f},1,false,false,true,-1,surface::metal};
+        const viewmodel::point upright{0,1,0};
+        if(!valid){hand({.27f,-.28f,.83f},false,nullptr,nullptr,&upright);material fallback{nullptr,{.50f,.52f,.52f},1,false,false,true,-1,surface::metal};
             face({.24f,-.30f,.84f},{.29f,-.30f,.84f},{.15f,.08f,.94f},{.10f,.08f,.94f},fallback);return;}
         const float w=float(img->right-img->left),h=float(img->bottom-img->top);float angle=-.15f;
         if(s.environment.held_kind==2&&img->elongation>1.5f){float axis=img->axis_angle;if(std::sin(axis)<0)axis+=pi;angle=pi*.58f-axis;}
@@ -1263,7 +1428,8 @@ class renderer {
                 const vec p=point(x+.5f,y+.5f);const float score=std::abs(p.y-target)*3+std::abs(p.x-.29f);
                 if(score<best){best=score;chosen=p;}}
             return chosen;};
-        hand(grip(.13f),false);if(pose.grip==NCMM_GRIP_GUN)hand(grip(.43f),true);
+        const viewmodel::point item_axis=viewmodel::unit({-sa,ca,.12f*ca});
+        hand(grip(.13f),false,nullptr,nullptr,&item_axis);if(pose.grip==NCMM_GRIP_GUN)hand(grip(.43f),true,nullptr,nullptr,&item_axis);
         material item{img,{.4f,.4f,.4f},1,true,false,true,-1};
         const int step=std::max(1,(std::max(int(img->data.width),int(img->data.height))+63)/64);
         auto opaque=[&](int x,int y){return x>=0&&y>=0&&x<int(img->data.width)&&y<int(img->data.height)&&(img->data.rgba[size_t(y)*img->data.pitch_pixels+x]&255)>=150;};
@@ -1275,6 +1441,19 @@ class renderer {
                 face(point(ax,ay),point(bx,by),point(bx,by,.028f),point(ax,ay,.028f),edge);}}
         face(point(0,float(img->data.height)),point(float(img->data.width),float(img->data.height)),point(float(img->data.width),0),point(0,0),item);
     }
+    void projectiles(){
+        if(!metadata)return;
+        for(const auto &flight:metadata->projectiles){
+            const float phase=std::clamp(float(s.environment.animation_seconds-flight.started)/projectile_assets::duration(flight),0.f,1.f);
+            const auto head=projectile_assets::along(flight,flight.length*phase);
+            const float minimum=std::clamp(1.5f*projectile_assets::length(head-projectile_assets::point{eye.x,eye.y,eye.z})/projection,.002f,.08f);
+            projectile_assets::draw(flight,s.environment.animation_seconds,[&](auto a,auto b,auto c,auto d,auto color){
+            auto convert=[](auto p){return vec{p.x,p.y,p.z};};
+            material m{nullptr,{clamp(color.x),clamp(color.y),clamp(color.z)},1,false,false,false,-2,surface::none};
+            quad(convert(a),convert(b),convert(c),convert(d),m,normalize(cross(convert(b-a),convert(c-a))));
+            },minimum);
+        }
+    }
 public:
     // A borrowed index must describe this exact validated world and outlive the
     // renderer. CPU calls omit it and keep their existing owned lookup.
@@ -1285,7 +1464,7 @@ public:
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;
-        if(creature_data)dynamic_creatures();held();gpu_sink=nullptr;
+        if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
     }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;
@@ -1299,22 +1478,38 @@ public:
             f.geometry_cells=f.culled_cells=f.culled_quads=f.sky_pixels=0;
             f.geometry_ms=f.raster_ms=f.effects_ms=0;f.raster_calls=0;f.submitted_triangles=0;
             f.transparency.reset();f.dynamic_world=bool(creature_data);
+            f.focus=-1;f.focus_depth=std::numeric_limits<float>::infinity();
             sky_palette();if(!options.skip_hidden_sky)sky();
             const auto geometry_begun=std::chrono::steady_clock::now();shadows_build();vehicles_build();world();horizon();
             f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-geometry_begun).count();paint(opaque);
             if(options.skip_hidden_sky)sky();
             std::stable_sort(transparent.begin(),transparent.end(),[&](const triangle &a,const triangle &b){return view(a.v[0].p+a.v[1].p+a.v[2].p).z>view(b.v[0].p+b.v[1].p+b.v[2].p).z;});
-            if(creature_data)f.transparency=std::make_shared<cached_transparency>(transparent);else paint(transparent);
+            f.transparency=std::make_shared<cached_transparency>(transparent);
             f.sun_shadows=shadows;
             if(world_output)*world_output=f;
         }
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;
+        // Animate only these near-field blades. The floor, walls and distant
+        // world remain in the CPU cache; animation never changes Native time.
+        opaque.clear();transparent.clear();
+        std::vector<int> lawns;
+        for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&ncmm_grass::terrain(base.cells[i].terrain)&&
+            (!world_data||(world_flags(i)&NCMM_WORLD_BODY_VISIBLE))){const vec delta=cell_center(i)-eye;
+            if(delta.x*delta.x+delta.y*delta.y<22.f*22.f){const vec at=cell_origin(i);
+                if(in_view(at,at+vec{1,1,ncmm_grass::height(base.cells[i].terrain)*1.35f+.012f}))lawns.push_back(i);}}
+        std::sort(lawns.begin(),lawns.end(),[&](int a,int b){const vec da=cell_center(a)-eye,db=cell_center(b)-eye;return dot(da,da)<dot(db,db);});
+        // Opaque blades are depth-tested near first, so hidden layers never
+        // shade over already covered grass in the software renderer.
+        for(int i:lawns)lawn(i);
+        paint(opaque);
         if(creature_data){opaque.clear();transparent.clear();const auto begun=std::chrono::steady_clock::now();dynamic_creatures();
             f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();paint(opaque);
             // Local contact shadows and cached glass both depth-test against the
             // current creature pass. Glass never becomes an opaque cache layer.
-            paint(transparent);if(f.transparency)paint(f.transparency->triangles);
+            paint(transparent);
         }
+        opaque.clear();transparent.clear();projectiles();paint(opaque);paint(transparent);
+        if(f.transparency)paint(f.transparency->triangles);
         f.aimed=-1;
         const int target=f.creatures[size_t(f.height/2)*f.width+f.width/2];
         if(target>=0){f.aimed=target;const float h=extra(target).creature_height>0?extra(target).creature_height:1.7f;
@@ -1348,8 +1543,16 @@ inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,co
     return true;
 }
 inline bool valid_presentation(const presentation_data &p,size_t count){
+    if(p.projectiles.size()>NCMM_PROJECTILE_LIMIT)return false;
+    if(!p.skyline.empty()){
+        if(!p.horizon_enabled||p.horizon.size()>NCMM_LOD_MAX_PATCHES||p.skyline.size()>NCMM_SKYLINE_MAX_FEATURES)return false;
+        ncmm_graphics_skyline_scene_v1 skyline{sizeof(skyline),1,uint32_t(p.skyline.size()),0,p.horizon_revision,
+            {sizeof(ncmm_graphics_lod_scene_v1),1,uint32_t(p.horizon.size()),1,p.horizon_revision,0,0,p.horizon.data()},p.skyline.data()};
+        if(!ncmm_world::valid_skyline(skyline))return false;
+    }
+    for(const auto &flight:p.projectiles)if(!projectile_assets::valid(flight))return false;
     const auto &v=p.view;
-    if(v.struct_size<sizeof(v)||p.cells.size()!=count||(v.flags&~NCMM_PRESENT_GPU_EFFECTS)||v.sky_style>NCMM_SKY_FUNGAL||v.gun_kind>NCMM_GUN_BOW||
+    if(v.struct_size<sizeof(v)||p.cells.size()!=count||(v.flags&~(NCMM_PRESENT_GPU_EFFECTS|NCMM_PRESENT_AIMING))||v.sky_style>NCMM_SKY_FUNGAL||v.gun_kind>NCMM_GUN_BOW||
        !terminated(v.dimension)||!std::isfinite(v.eye_height)||v.eye_height<.1f||v.eye_height>4||!std::isfinite(v.body_scale)||v.body_scale<.1f||v.body_scale>3||
        !std::isfinite(v.held_length)||v.held_length<.05f||v.held_length>4||!std::isfinite(v.movement)||v.movement<0||v.movement>1)return false;
     for(int n=0;n<2;++n)if(!terminated(v.sleeve[n])||!terminated(v.glove[n])||v.sleeve_material[n]>NCMM_MAT_CLOTH||v.glove_material[n]>NCMM_MAT_CLOTH)return false;

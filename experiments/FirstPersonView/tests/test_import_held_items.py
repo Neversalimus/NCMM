@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'tools'))
 from import_held_items import Inputs, IDENTITY, convert, inverse, prepare, read_obj, transform, triangulate
 
 
-def glb_fixture(clips=False, extra_weights=False):
+def glb_fixture(clips=False, extra_weights=False, trigger=False):
     binary=bytearray(); views=[]; accessors=[]
     def array(kind, component, values):
         while len(binary)%4:binary.append(0)
@@ -30,7 +30,7 @@ def glb_fixture(clips=False, extra_weights=False):
     second=list(first);second[13]=.2
     matrices=array('MAT4',5126,[inverse(tuple(first)),inverse(tuple(second))])
     document=dict(asset=dict(version='2.0'),buffers=[dict(byteLength=len(binary))],bufferViews=views,accessors=accessors,
-                  nodes=[dict(name='Body',translation=[.1,0,0],children=[1]),dict(name='Tip',translation=[0,.2,0]),dict(name='Mesh',mesh=0,skin=0)],
+                  nodes=[dict(name='Body',translation=[.1,0,0],children=[1]),dict(name='Trigger' if trigger else 'Tip',translation=[0,.2,0]),dict(name='Mesh',mesh=0,skin=0)],
                   skins=[dict(joints=[0,1],inverseBindMatrices=matrices)],
                   meshes=[dict(primitives=[dict(attributes=attrs,indices=indices,material=0)])],
                   materials=[dict(pbrMetallicRoughness=dict(baseColorFactor=[.2,.3,.4,1]))])
@@ -105,6 +105,27 @@ class HeldImportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'hash mismatch'):convert(path,self.root/'out')
         self.assertFalse((self.root/'out').exists())
         with self.assertRaises(ValueError):Inputs(self.root,dict(schema=1,files={'../secret':'0'*64},models=[{}]))
+
+    def test_handle_correction_is_bounded_and_static_only(self):
+        inputs,_=self.inputs({'mesh.glb':glb_fixture()})
+        for radii in ([0,.02], [.02,float('nan')], [.02], [.08,.02]):
+            p=self.profile();p['grip_radii']=radii
+            with self.assertRaisesRegex(ValueError,'grip radii'):prepare(inputs,p)
+        p=self.profile();p['handle_sections']=[[0,.3,.3],[1,1,1]]
+        with self.assertRaisesRegex(ValueError,'unrigged upright OBJ'):prepare(inputs,p)
+
+    def test_handle_correction_keeps_head_uvs_topology_and_unit_normals(self):
+        obj=b'mtllib mesh.mtl\nv 1 0 1\nv 0 1 1\nv 1 2 0\nvn 0 0 1\nusemtl flat\nf 1//1 2//1 3//1\n'
+        inputs,_=self.inputs({'mesh.obj':obj,'mesh.mtl':b'newmtl flat\nKd .2 .3 .4\n'})
+        p=self.profile();p.update(source='mesh.obj',length_axis=1)
+        original=prepare(inputs,p);p['handle_sections']=[[0,.3,.3],[1,1,1],[2,1,1]];fitted=prepare(inputs,p)
+        self.assertEqual(original['indices'],fitted['indices'])
+        self.assertEqual(original['palettes'],fitted['palettes'])
+        self.assertEqual(original['vertices'][-1],fitted['vertices'][-1])
+        self.assertEqual(fitted['vertices'][0][0],(.3,0,.3))
+        for v in fitted['vertices']:self.assertAlmostEqual(sum(c*c for c in v[1]),1)
+        p['handle_sections']=[[0,.3,.3],[0,1,1]]
+        with self.assertRaisesRegex(ValueError,'handle sections'):prepare(inputs,p)
 
     def test_output_is_deterministic_and_check_rejects_tampering(self):
         _,selection=self.inputs({'mesh.glb':glb_fixture()},self.profile())

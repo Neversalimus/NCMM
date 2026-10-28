@@ -36,6 +36,7 @@ bool valid(const model &value) noexcept {
     for(const auto *c:{&value.grips.primary,&value.grips.secondary,&value.grips.trigger,&value.grips.muzzle,&value.grips.sight,&value.grips.pivot})
         if(!contact_valid(*c,mesh))return false;
     for(auto axis:{value.grips.primary_axis,value.grips.secondary_axis})if(!finite(axis)||std::abs(viewmodel::dot(axis,axis)-1)>.001f)return false;
+    for(float radius:{value.grips.primary_radius,value.grips.secondary_radius})if(!std::isfinite(radius)||radius<.004f||radius>.047f)return false;
     for(auto index:{value.optic_socket,value.muzzle_socket,value.rail_socket,value.light_socket,value.trigger_node,value.slide_node})
         if(index < -1||index>=int(mesh.node_count))return false;
     const auto q=value.mount_rotation;

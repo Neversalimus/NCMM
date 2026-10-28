@@ -6,6 +6,8 @@
 *.exe binary
 *.dll binary
 experiments/graphics_bridge/third_party/sdl3-port/** -text
+# The frozen Native PLF oracle retains upstream indentation and its exact digest.
+experiments/FirstPersonView/tests/third_party/native_plf_list.h whitespace=-space-before-tab
 
 # Keep derived measurement tables collapsed in code review; reports remain readable.
 experiments/FirstPersonView/qualification/0.13.0-psx-*-ablation.json linguist-generated=true

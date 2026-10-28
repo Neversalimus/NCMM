@@ -22,7 +22,7 @@ internal static class FirstPersonInstallerTests
     }
     private static void CheckHeldResources(string root, string payload)
     {
-        foreach (string name in new[] { "held-assets.manifest.json", "held-assets-licenses.txt" })
+        foreach (string name in new[] { "held-assets.manifest.json", "held-assets-licenses.txt", "world-assets.manifest.json", "world-assets-license.txt", "weapon-effects.references.json" })
         {
             string relative = Path.Combine("code_mods", "FirstPersonView", name);
             Require(File.Exists(Path.Combine(root, relative)) &&
@@ -121,6 +121,9 @@ internal static class FirstPersonInstallerTests
             Require(SetupCore.DiscoverBundledModules(Path.Combine(payload, "code_mods")).Any(m => m.Manifest.id == "first_person_view"), "First Person View absent from installer selection");
             string[] selection = { "first_person_view" };
             InstallResult first = SetupCore.Install(root, payload, selection);
+            CheckHeldResources(root, payload);
+            File.WriteAllText(Path.Combine(root, "code_mods", "FirstPersonView", "world-assets.manifest.json"), "damaged-world-receipt");
+            Require(SetupCore.Install(root, payload, selection).CompletionVerified, "World resource repair failed");
             CheckHeldResources(root, payload);
             File.WriteAllText(Path.Combine(root, "code_mods", "FirstPersonView", "held-assets.manifest.json"), "damaged-resource-receipt");
             Require(SetupCore.Install(root, payload, selection).CompletionVerified, "Held resource repair failed");

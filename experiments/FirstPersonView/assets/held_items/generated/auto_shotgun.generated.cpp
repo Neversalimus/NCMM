@@ -3255,7 +3255,7 @@ static const viewmodel::node nodes[]={
 {"Body",14,{{2.67336783e-17f,0.0114550302f,-0.0635248944f},{-0.707106829f,9.19771902e-17f,9.19771902e-17f,0.707106829f},{1.0f,1.0f,1.0f}}},
 {"Shotgun_Auto_West",14,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
 {"Shotgun_Auto_West.Rig",15,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
-{"NCMM_units_axes_grip",-1,{{-2.39472432e-17f,0.0612648259f,0.21129269f},{0.0f,1.0f,0.0f,0.0f},{1.36785787f,1.36785787f,1.36785787f}}},
+{"NCMM_units_axes_grip",-1,{{-2.39472432e-17f,0.0845482459f,0.217113545f},{0.0f,1.0f,0.0f,0.0f},{1.36785787f,1.36785787f,1.36785787f}}},
 };
 static const uint16_t order[]={
 15,14,12,0,1,2,3,4,6,5,7,8,9,10,11,13,
@@ -3297,9 +3297,9 @@ static const material materials[]={
 {{0.839215749f,0.670588235f,0.172549039f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"auto_shotgun",5300571656978910302ull,family::auto_shotgun,
+1,"auto_shotgun",4110842519919895988ull,family::auto_shotgun,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{12,{-1.00952268e-16f,-0.217994628f,-0.0562439349f}},{12,{2.47896261e-18f,0.112291184f,-0.0405815843f}},{2,{6.66406177e-18f,0.00899999758f,2.41845845e-09f}},{9,{0.0f,0.0f,0.0f}},{7,{0.0f,0.0f,0.0f}},{12,{-1.00952268e-16f,-0.217994628f,-0.0562439349f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{12,{-1.02059327e-16f,-0.222250078f,-0.0732657455f}},{12,{-2.17900282e-17f,0.0190030174f,-0.0113387964f}},{2,{-0.00460791355f,0.0166278353f,-0.000314178158f}},{9,{0.0f,0.0f,0.0f}},{12,{-1.71748623e-16f,-0.10669929f,0.0779286373f}},{12,{-1.02059327e-16f,-0.222250078f,-0.0732657455f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f},0.021f,0.026f},
 7,9,8,11,2,5,{-7.29171967e-18f,-0.0160835402f,-2.16096578e-09f},1.068f,true
 };
 const model &asset_auto_shotgun() noexcept {return value;}

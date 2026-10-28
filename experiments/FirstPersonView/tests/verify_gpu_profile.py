@@ -5,14 +5,14 @@ import math
 from pathlib import Path
 
 
-def verify(report):
+def verify(report, *, expected_scenes=('smoke-gas', 'creatures-1')):
     assert report['actual_cdda_sdl'] and report['focused_reproduction']
     assert report['phase_samples_available'] and not report['player_fps']
     assert not report['gpu_timestamps_available']
     records = report['records']
-    assert len(records) == 4
+    assert len(records) == len(expected_scenes) * 2
     assert {(r['scene'], r['renderer']) for r in records} == {
-        (scene, renderer) for scene in ['smoke-gas', 'creatures-1'] for renderer in ['cpu', 'gpu']
+        (scene, renderer) for scene in expected_scenes for renderer in ['cpu', 'gpu']
     }
     fields = ['frame_wall_samples', 'native_tiles_wall_samples', 'perspective_wall_samples',
               'actual_present_wall_samples', 'unattributed_wall_samples']
@@ -49,7 +49,7 @@ def verify(report):
                'backend', 'device', 'software_device']
     print(json.dumps({'phase_summary': [{k: record[k] for k in columns} for record in records]}))
     return {'success': True, 'actual_cdda_sdl': True, 'manual_playthrough': False,
-            'gpu_execution_timestamps_available': False, 'cases': 4, 'frames_per_case': 96,
+            'gpu_execution_timestamps_available': False, 'cases': len(records), 'frames_per_case': 96,
             'exclusive_frame_phases_verified': True}
 
 

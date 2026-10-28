@@ -1,0 +1,92 @@
+#pragma once
+#include "ncmm_graphics_projectiles.h"
+#include "weapon_view.hpp"
+#include <array>
+#include <cstring>
+#include <vector>
+namespace first_person::projectile_assets {
+using point=viewmodel::point;
+struct flight {uint64_t serial=0;uint32_t kind=0,count=0;double started=0;std::array<point,NCMM_PROJECTILE_POINTS> path{};float length=0;};
+inline float length(point p){return std::sqrt(viewmodel::dot(p,p));}
+inline float duration(const flight &f){
+    if(f.kind==NCMM_PROJECTILE_LASER)return .085f;
+    const float speed=f.kind==NCMM_PROJECTILE_ARROW||f.kind==NCMM_PROJECTILE_BOLT?45.f:f.kind==NCMM_PROJECTILE_THROWN?20.f:f.kind==NCMM_PROJECTILE_FLAME?35.f:220.f;
+    // Readable visual flight only; the Native shot has already been resolved.
+    return std::clamp(f.length/speed,.075f,1.4f);
+}
+inline bool valid(const ncmm_graphics_projectile_v1 &p){
+    if(!p.serial||p.count<2||p.count>NCMM_PROJECTILE_POINTS||p.kind<NCMM_PROJECTILE_BULLET||p.kind>NCMM_PROJECTILE_THROWN||
+       !std::isfinite(p.seconds)||!std::memchr(p.weapon,0,sizeof(p.weapon)))return false;
+    for(uint32_t n=1;n<p.count;++n){const auto &a=p.path[n-1],&b=p.path[n];
+        if(std::abs(int64_t(a.x)-b.x)>1||std::abs(int64_t(a.y)-b.y)>1||std::abs(int64_t(a.z)-b.z)>1)return false;}
+    return true;
+}
+inline bool valid(const flight &f){
+    if(!f.serial||f.kind<1||f.kind>NCMM_PROJECTILE_THROWN||f.count<2||f.count>NCMM_PROJECTILE_POINTS||
+       !std::isfinite(f.started)||!std::isfinite(f.length)||f.length<=0||f.length>256)return false;
+    for(uint32_t n=0;n<f.count;++n)for(float v:{f.path[n].x,f.path[n].y,f.path[n].z})if(!std::isfinite(v)||std::abs(v)>100000)return false;
+    return true;
+}
+class mounts {
+    struct entry {uint64_t serial=0,epoch=0;point muzzle{},end{};int32_t x=0,y=0,z=0;bool visible=false;};
+    std::array<entry,NCMM_PROJECTILE_LIMIT> entries{};size_t cursor=0;
+public:
+    void reset(){entries={};cursor=0;}
+    flight prepare(const ncmm_graphics_projectile_v1 &p,int32_t x,int32_t y,int32_t z,float level,point muzzle,const char *weapon,
+            const ncmm_projectile_aim_v1 *aim=nullptr,point forward={}){
+        flight f;if(!valid(p)||!std::isfinite(level)||level<=0)return f;
+        entry *mount=nullptr;for(auto &e:entries)if(e.serial==p.serial&&e.epoch==p.world_epoch){mount=&e;break;}
+        if(!mount){mount=&entries[cursor++%entries.size()];
+            const auto &source=p.path[0];const point start{float(int64_t(source.x)-x)+.5f,float(int64_t(source.y)-y)+.5f,float(int64_t(source.z)-z)*level+1.25f};
+            const bool bound=p.weapon[0]&&weapon&&std::strcmp(weapon,p.weapon)==0;
+            const auto &last=p.path[p.count-1];
+            point end{float(int64_t(last.x)-x)+.5f,float(int64_t(last.y)-y)+.5f,float(int64_t(last.z)-z)*level+1.25f};
+            if(bound&&aim&&aim->free_ray==1&&std::isfinite(aim->offset_x+aim->offset_y+aim->eye_height+aim->yaw+aim->pitch)&&
+               std::abs(aim->offset_x)<=1&&std::abs(aim->offset_y)<=1&&std::abs(aim->pitch)<=1.35f&&aim->eye_height>0&&aim->eye_height<=4){
+                end.x+=aim->offset_x;end.y+=aim->offset_y;
+                const float horizontal=std::hypot(float(int64_t(last.x)-source.x),float(int64_t(last.y)-source.y));
+                const float plane=float(int64_t(last.z)-z)*level;
+                end.z=std::clamp(start.z-1.25f+aim->eye_height+std::tan(aim->pitch)*horizontal,plane+.005f,plane+level-.005f);
+            }
+            const point beginning=bound?muzzle:start;
+            // A long barrel can already extend beyond the first grid centre.
+            // Never splice a backward first leg into the confirmed trajectory.
+            // A point-blank impact behind the visible barrel has no flight.
+            const bool visible=!bound||length(forward)<.1f||viewmodel::dot(end-beginning,forward)>.02f;
+            *mount={p.serial,p.world_epoch,beginning,end,x,y,z,visible};}
+        if(!mount->visible)return f;
+        f.serial=p.serial;f.kind=p.kind;f.count=2;f.started=p.seconds;
+        const point rebase{float(int64_t(mount->x)-x),float(int64_t(mount->y)-y),float(int64_t(mount->z)-z)*level};
+        f.path[0]=mount->muzzle+rebase;f.path[1]=mount->end+rebase;
+        f.length=length(f.path[1]-f.path[0]);
+        if(!std::isfinite(f.length)||f.length<=.001f||f.length>256)f.serial=0;return f;
+    }
+};
+inline point along(const flight &f,float distance){
+    for(uint32_t n=1;n<f.count;++n){const float segment=length(f.path[n]-f.path[n-1]);if(distance<=segment)return f.path[n-1]+(f.path[n]-f.path[n-1])*(segment>.00001f?std::clamp(distance/segment,0.f,1.f):0.f);distance-=segment;}
+    return f.path[f.count-1];
+}
+// Authored code-native assets: a short bullet streak, pellet, shaft + tip +
+// fletching for arrows/bolts, a laser pulse, plasma packet and flame tongue.
+// Emit world geometry, so every asset shares the actual scene depth buffer.
+template<class Emit> void draw(const flight &f,double now,Emit emit,float minimum_width=0){
+    if(!f.serial||f.count<2||f.count>NCMM_PROJECTILE_POINTS)return;
+    const float age=float(now-f.started),time=duration(f);if(age<0||age>=time)return;
+    const float head=std::min(f.length,f.length*age/time);
+    float span=f.kind==NCMM_PROJECTILE_ARROW?.65f:f.kind==NCMM_PROJECTILE_BOLT?.36f:f.kind==NCMM_PROJECTILE_PELLET?.32f:f.kind==NCMM_PROJECTILE_LASER?f.length:1.25f;
+    // The presentation clock leads the first visible sample by 10 ms. At
+    // bullet speed that is already over two metres: retain the muzzle end of
+    // this first streak, rather than spawning a disconnected trail in midair.
+    const auto tip=along(f,head),tail=along(f,age<=.0101f?0.f:std::max(0.f,head-span));const auto delta=tip-tail;const float d=length(delta);if(d<.002f)return;
+    const auto forward=delta*(1/d);point right=viewmodel::cross(forward,{0,0,1});if(length(right)<.001f)right={1,0,0};else right=right*(1/length(right));
+    const auto up=viewmodel::cross(right,forward);
+    auto ribbon=[&](point a,point b,float width,point color,float minimum_scale=1){width=std::max(width,minimum_width*minimum_scale);emit(a-right*width,b-right*width,b+right*width,a+right*width,color);emit(a-up*width,b-up*width,b+up*width,a+up*width,color);};
+    if(f.kind==NCMM_PROJECTILE_ARROW||f.kind==NCMM_PROJECTILE_BOLT){ribbon(tail,tip,.009f,{.48f,.31f,.16f});
+        ribbon(tip-forward*std::min(.09f,d*.25f),tip,.024f,{.75f,.77f,.79f});
+        ribbon(tail,tail+forward*std::min(.15f,d*.3f),.032f,{.68f,.67f,.54f});return;}
+    const bool laser=f.kind==NCMM_PROJECTILE_LASER,plasma=f.kind==NCMM_PROJECTILE_PLASMA,flame=f.kind==NCMM_PROJECTILE_FLAME;
+    const point color=laser?point{2.5f,.06f,.025f}:plasma?point{.08f,1.8f,2.5f}:flame?point{2.4f,.66f,.04f}:f.kind==NCMM_PROJECTILE_THROWN?point{.5f,.48f,.43f}:point{1.9f,1.15f,.35f};
+    const float width=plasma?.045f:flame?.08f:f.kind==NCMM_PROJECTILE_THROWN?.035f:f.kind==NCMM_PROJECTILE_PELLET?.008f:.014f;
+    ribbon(tail,tip,width,color);if(!flame)ribbon(tail,tip,width*.3f,{2.4f,2.2f,1.7f},.25f);
+}
+}

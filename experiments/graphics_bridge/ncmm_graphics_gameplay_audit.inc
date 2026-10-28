@@ -28,7 +28,11 @@
         for(int z=-1;z<=2;++z)for(int y=-24;y<=24;++y)for(int x=-24;x<=24;++x){const auto p=point_at(x,y,z);if(!here.ncmm_graphics_loaded(p))continue;
             here.ter_set(p,ter_id(z<=0?"t_floor":"t_open_air"));here.furn_set(p,furn_id("f_null"));here.clear_fields(p);here.i_clear(p);here.remove_trap(p);
             if(npc *n=get_creature_tracker().creature_at<npc>(p)){const auto id=n->getID();g->remove_npc(id);overmap_buffer.remove_npc(id);}}
-        you.setpos(here,point_at(0,0),false);you.set_moves(10000);g->set_safe_mode(SAFE_MODE_OFF);graphics_clear_world();graphics_clear_creatures();camera(-ncmm_graphics_camera::pi*.5f,-.08f);refresh();};
+        you.setpos(here,point_at(0,0),false);
+        // Native vertical_move reads the map's current Z, not avatar.posz().
+        // Diagnostic teleport/setup after a stair must restore both domains.
+        if(here.get_abs_sub().z()!=you.posz())g->vertical_shift(you.posz());
+        you.set_moves(10000);g->set_safe_mode(SAFE_MODE_OFF);graphics_clear_world();graphics_clear_creatures();camera(-ncmm_graphics_camera::pi*.5f,-.08f);refresh();};
     // UI construction/redraw may pump and discard a prequeued key. Feed the
     // normal SDL queue after the menu has entered its own input loop instead.
     // The worker touches no game state and is joined before leaving the scope.
@@ -87,6 +91,28 @@
         require(ready&&!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback,"audit_models_or_gpu_never_ready");return milliseconds(begin);};
     auto capture=[&](const std::string &name){capture_name="first-person-audit-"+name+".bmp";render();};
     auto settle=[&](){for(int n=0;n<100&&graphics_world_transition_active;++n){SDL_Delay(5);render();}require(!graphics_world_transition_active,"audit_camera_never_settled");};
+    // The scope covers only the real turn. Setup, reporting and the explicit
+    // render after an empty turn stay outside it. Callback wall time is an
+    // inclusive outermost union; the remainder is not a pure AI measurement.
+    struct turn_sample {int initial_enemies,round;std::string requested_renderer;
+        ncmm_graphics_turn_diagnostics::turn_record timing;};
+    std::vector<turn_sample> native_turn_samples;native_turn_samples.reserve(26);
+    auto measured_native_turn=[&](int initial_enemies,int round,const char *failure){
+        turn_sample sample{initial_enemies,round,get_option<std::string>("NCMM_FIRST_PERSON_RENDERER"),{}};
+        bool ended=false;
+        {ncmm_graphics_turn_diagnostics::turn_capture capture(sample.timing,ncmm_graphics_turn_diagnostics::steady_now,true);
+            ended=g->do_turn();capture.complete();}
+        require(!ended,failure);
+        require(ncmm_graphics_turn_diagnostics::valid(sample.timing),"audit_native_turn_capture_invalid");
+        const auto &t=sample.timing;
+        const double wall=t.wall_ns/1000000.0,draw=t.draw_wall_ns/1000000.0;
+        const std::string group=initial_enemies?"native_turn_"+std::to_string(initial_enemies)+"_enemies":"native_turn_empty";
+        stages[initial_enemies?"combat_native_turn_wall_ms":"native_game_turn_wall_ms"].push_back(wall);
+        stages[group+"_wall_ms"].push_back(wall);
+        stages[group+"_perspective_union_wall_ms"].push_back(draw);
+        stages[group+"_other_wall_ms"].push_back((t.wall_ns-t.draw_wall_ns)/1000000.0);
+        native_turn_samples.push_back(std::move(sample));
+    };
     floor();warm("cpu");
     report.member("actions");report.start_array();
     auto action=[&](const char *name,const std::function<void()> &run){checkpoint(name);const auto begin=audit_clock::now();
@@ -105,10 +131,23 @@
         report.member("ordinary_performance_measurement",false);report.member("success",true);report.end_object();
         stream.close();require(bool(stream),"target_hud_probe_report_write_failed");checkpoint("target_hud_gallery_complete");return;
     }
+    auto fps_cases = [&]() {
+        #include "ncmm_graphics_fps_audit.inc"
+    };
+    if(std::getenv("NCMM_FP_FPS_INPUT_ONLY")) {
+        action("native_fps_input_and_actions",fps_cases);
+        action("native_fps_renderer_hotkey_cycle",[&](){for(int i=0;i<3;++i)f12();});
+        report.end_array();
+        you.set_moves(original_moves);camera(original_yaw,original_pitch);clear_monsters();graphics_clear_world();
+        report.member("diagnostic_only",true);report.member("ordinary_performance_measurement",false);
+        report.member("success",true);report.end_object();stream.close();
+        require(bool(stream),"fps_input_only_report_write");return;
+    }
     action("native_held_assets_and_shared_psx_contacts",[&](){graphics_run_held_gallery(you,here,require,frames);floor();warm("cpu");});
     action("native_firing_ui_context_and_presented_frames",[&](){
         #include "ncmm_graphics_fire_audit.inc"
     });
+    action("native_fps_input_and_actions",fps_cases);
     action("native_target_health_identity_visibility_and_font",target_cases);
     action("native_walk_and_visual_continuity",[&](){
         for(const tripoint_rel_ms step:{tripoint_rel_ms(1,0,0),tripoint_rel_ms(0,-1,0),tripoint_rel_ms(-1,0,0),tripoint_rel_ms(0,1,0)}){
@@ -192,7 +231,7 @@
                 if(round&&!targets.empty()){auto nearest=targets.front();for(const auto &m:targets)if(!m->is_dead_state()&&rl_dist(you.pos_bub(),m->pos_bub())<rl_dist(you.pos_bub(),nearest->pos_bub()))nearest=m;
                     if(!nearest->is_dead_state()){if(rl_dist(you.pos_bub(),nearest->pos_bub())<=1){const auto weapon=you.get_wielded_item();require(weapon&&you.attack_speed(*weapon)<=300,"audit_combat_weapon_requires_interactive_confirmation");you.melee_attack(*nearest,false);++trial.melee;}
                         if(!nearest->is_dead_state()&&you.get_wielded_item()&&you.get_wielded_item()->ammo_remaining()>0)trial.shots+=you.fire_gun(here,nearest->pos_bub(),1,*you.get_wielded_item());}}
-                checkpoint("native_combat_"+std::to_string(count)+"_turn_"+std::to_string(round));you.set_moves(0);const auto begin=audit_clock::now();require(!g->do_turn(),"audit_combat_native_turn_ended_game");stages["combat_native_turn_wall_ms"].push_back(milliseconds(begin));++trial.turns;
+                checkpoint("native_combat_"+std::to_string(count)+"_turn_"+std::to_string(round));you.set_moves(0);measured_native_turn(count,round,"audit_combat_native_turn_ended_game");++trial.turns;
                 for(const auto &entry:graphics_creature_records)if(entry.second.snapshot.event==NCMM_CR_MELEE)enemy_attack_events.insert(entry.second.snapshot.event_serial);
                 trial.observed_enemy_attacks=int(enemy_attack_events.size());
                 warm("cpu");warm("gpu");
@@ -202,11 +241,43 @@
         if(you.has_trait(protection))you.toggle_trait(protection);
         floor();warm("cpu");
     });
-    action("native_turn_processing",[&](){clear_monsters();for(int i=0;i<8;++i){you.set_moves(0);const auto begin=audit_clock::now();require(!g->do_turn(),"audit_native_turn_ended_game");stages["native_game_turn_wall_ms"].push_back(milliseconds(begin));render();}});
+    action("native_turn_processing",[&](){clear_monsters();for(int i=0;i<8;++i){you.set_moves(0);measured_native_turn(0,i,"audit_native_turn_ended_game");render();}});
     action("native_f6_and_f12_dispatch",[&](){const auto pos=you.pos_abs();const int moves=you.get_moves();const auto turn=calendar::turn;press_f6();require(!graphics_view.enabled&&graphics_world_sources.bytes()==0,"audit_f6_cache_not_released");press_f6();
         const std::string before=get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");for(int n=0;n<3;++n){f12();render();}require(get_option<std::string>("NCMM_FIRST_PERSON_RENDERER")==before,"audit_f12_cycle_not_restored");require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==turn,"audit_toggle_changed_native_state");
     });
     report.end_array();report.member("native_action_stages");write_stages(stages);report.member("combat_trials");report.start_array();for(const auto &t:combat_trials){report.start_object();report.member("spawned",t.spawned);report.member("native_turns",t.turns);report.member("native_shots",t.shots);report.member("native_melee",t.melee);report.member("observed_enemy_attacks",t.observed_enemy_attacks);report.member("avatar_debug_protection",true);report.member("avatar_stamina_reset_each_turn",true);report.member("avatar_combat_state_reset_each_turn",true);report.end_object();}report.end_array();
+    require(native_turn_samples.size()==26,"audit_native_turn_samples_missing");
+    report.member("native_turn_diagnostics");report.start_object();report.member("schema",3);
+    report.member("controlled_fixture_without_interactive_main_loop",true);
+    report.member("ordinary_performance_measurement",false);
+    report.member("draw_wall_scope","union of outermost graphics_draw callbacks inside do_turn");
+    report.member("remainder_scope","other Native work, UI, waits and scheduling; not pure AI");
+    report.member("callback_scope","adjacent outermost callback wall phases; module includes submission/waits, not GPU execution");
+    report.member("cpu_metric_scope","fresh validated submit_cpu_metrics event inside this module call; reported components may overlap");
+    report.member("samples");report.start_array();for(const auto &s:native_turn_samples){const auto &t=s.timing;
+        report.start_object();report.member("initial_enemies",s.initial_enemies);report.member("round",s.round);
+        report.member("requested_renderer",s.requested_renderer);report.member("valid",ncmm_graphics_turn_diagnostics::valid(t));
+        report.member("wall_ns",t.wall_ns);report.member("draw_wall_ns",t.draw_wall_ns);report.member("other_wall_ns",t.wall_ns-t.draw_wall_ns);
+        report.member("draw_calls",t.draw_calls);report.member("outer_draws",t.outer_draws);report.member("max_depth",t.max_depth);
+        report.member("cpu_draws",t.cpu_draws);report.member("gpu_draws",t.gpu_draws);report.member("legacy_draws",t.legacy_draws);report.member("skipped_draws",t.skipped_draws);
+        report.member("errors",t.errors);report.member("claimed",t.claimed);report.member("returned",t.returned);report.member("closed",t.closed);
+        report.member("callback_details",t.callback_details);report.member("callbacks");report.start_array();
+        for(size_t i=0;i<t.callback_count;++i){const auto &c=t.callbacks[i];report.start_object();
+            report.member("ordinal",c.ordinal);report.member("returned",c.returned);report.member("rendered",c.rendered);
+            report.member("backend",c.mode==ncmm_graphics_turn_diagnostics::backend::gpu?"gpu":c.mode==ncmm_graphics_turn_diagnostics::backend::cpu?"cpu":"legacy");
+            report.member("viewport_width",c.viewport_width);report.member("viewport_height",c.viewport_height);
+            report.member("image_width",c.image_width);report.member("image_height",c.image_height);
+            report.member("source_cells",c.source_cells);report.member("source_slices",c.source_slices);
+            report.member("cpu_metrics");report.start_object();report.member("reports",c.cpu_reports);report.member("available",c.cpu_reports==1);
+            report.member("width",c.cpu.width);report.member("height",c.cpu.height);report.member("raster_calls",c.cpu.raster_calls);
+            report.member("triangles",c.cpu.triangles);report.member("cache_bytes",c.cpu.cache_bytes);
+            report.member("frame_ms",c.cpu.frame_ms);report.member("geometry_ms",c.cpu.geometry_ms);
+            report.member("raster_ms",c.cpu.raster_ms);report.member("effects_ms",c.cpu.effects_ms);report.end_object();
+            report.member("boundaries");report.start_array();for(size_t j=0;j<c.count;++j){report.start_object();
+                report.member("tag",ncmm_graphics_turn_diagnostics::label(c.tags[j]));report.member("offset_ns",c.offsets_ns[j]);report.end_object();}
+            report.end_array();report.end_object();
+        }report.end_array();report.end_object();
+    }report.end_array();report.end_object();
     const std::string original_tileset=get_option<std::string>("TILES");std::vector<std::string> tilesets{original_tileset};if(std::getenv("NCMM_FP_UDP"))tilesets.push_back("UndeadPeople_0J_Hybrid_v3");
     report.member("tilesets");report.start_array();
     for(size_t ti=0;ti<tilesets.size();++ti){const auto &tileset=tilesets[ti];checkpoint("load_tileset_"+tileset);const auto reload_begin=audit_clock::now();get_options().get_option("TILES").setValue(tileset);tilecontext->load_tileset(tileset,false,true);

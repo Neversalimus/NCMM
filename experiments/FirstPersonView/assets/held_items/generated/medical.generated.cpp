@@ -1606,9 +1606,9 @@ static const material materials[]={
 {{0.177349523f,0.177349523f,0.177349523f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"medical",16171324316762266495ull,family::medical,
+1,"medical",1063651055600412959ull,family::medical,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0008865f,0.63470297f,0.0f}},{0,{0.04777983f,0.0f,0.0f}},{0,{-0.4680468f,0.0f,0.0f}},{0,{0.782442f,0.0773625f,0.0f}},{0,{0.782442f,0.0773625f,0.0f}},{0,{0.0008865f,0.63470297f,0.0f}},{1.0f,0.0f,0.0f},{1.0f,0.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0008865f,0.63470297f,0.0f}},{0,{0.04777983f,0.0f,0.0f}},{0,{-0.4680468f,0.0f,0.0f}},{0,{0.782442f,0.0773625f,0.0f}},{0,{0.782442f,0.0773625f,0.0f}},{0,{0.0008865f,0.63470297f,0.0f}},{1.0f,0.0f,0.0f},{1.0f,0.0f,0.0f},0.014f,0.014f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.14f,false
 };
 const model &asset_medical() noexcept {return value;}

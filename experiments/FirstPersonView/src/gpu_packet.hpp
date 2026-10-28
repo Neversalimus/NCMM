@@ -49,11 +49,22 @@ class packet {
     std::vector<ncmm_gpu_mesh_v1> mesh_views;
     std::vector<ncmm_gpu_texture_v1> texture_views;
 public:
+    static constexpr size_t scratch_limit=16u*1024u*1024u;
     ncmm_gpu_scene_v1 scene{};
     std::vector<ncmm_gpu_draw_v1> draws;
     std::vector<ncmm_gpu_matrix_v1> bones;
     std::vector<ncmm_gpu_cell_v1> cells;
     packet(){scene.struct_size=sizeof(scene);bones.push_back(identity());}
+    size_t scratch_bytes()const{return draws.capacity()*sizeof(draws[0])+bones.capacity()*sizeof(bones[0])+
+        cells.capacity()*sizeof(cells[0])+mesh_views.capacity()*sizeof(mesh_views[0])+texture_views.capacity()*sizeof(texture_views[0]);}
+    void reset(bool release=false){
+        release=release||scratch_bytes()>scratch_limit;
+        mesh_owners.clear();texture_owners.clear();mesh_views.clear();texture_views.clear();
+        draws.clear();bones.clear();cells.clear();scene={};scene.struct_size=sizeof(scene);
+        if(release){decltype(draws){}.swap(draws);decltype(bones){}.swap(bones);decltype(cells){}.swap(cells);
+            decltype(mesh_views){}.swap(mesh_views);decltype(texture_views){}.swap(texture_views);}
+        bones.push_back(identity());
+    }
     void mesh(std::shared_ptr<const owned_mesh> value) {
         if(!value||!value->key)return;
         if(!mesh_owners.try_emplace(value->key,value).second)return;

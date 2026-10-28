@@ -407,9 +407,9 @@ static const material materials[]={
 {{1.0f,1.0f,1.0f,1.0f},0,texture_4b237314143dd48ee66ca29e,8,8,5414297707105604750ull},
 };
 static const model value={
-1,"bat",14937736584689959638ull,family::bat,
+1,"bat",11314871061206408929ull,family::bat,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.196017361f,-1.86264515e-09f}},{0,{0.0f,0.0204253087f,-1.86264515e-09f}},{0,{0.0f,-0.196017361f,-1.86264515e-09f}},{0,{0.0f,0.427337527f,-3.7252903e-09f}},{0,{0.0f,0.427337527f,-3.7252903e-09f}},{0,{0.0f,-0.196017361f,-1.86264515e-09f}},{0.0f,0.696706709f,0.717356091f},{0.0f,0.696706709f,0.717356091f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.196017361f,-1.86264515e-09f}},{0,{0.0f,0.0204253087f,-1.86264515e-09f}},{0,{0.0f,-0.196017361f,-1.86264515e-09f}},{0,{0.0f,0.427337527f,-3.7252903e-09f}},{0,{0.0f,0.427337527f,-3.7252903e-09f}},{0,{0.0f,-0.196017361f,-1.86264515e-09f}},{0.0f,0.696706709f,0.717356091f},{0.0f,0.696706709f,0.717356091f},0.016f,0.022f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.864f,true
 };
 const model &asset_bat() noexcept {return value;}

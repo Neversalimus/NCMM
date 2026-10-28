@@ -1226,9 +1226,9 @@ static const material materials[]={
 {{1.0f,1.0f,1.0f,1.0f},0,texture_4b237314143dd48ee66ca29e,8,8,5414297707105604750ull},
 };
 static const model value={
-1,"knife",18071480864885201267ull,family::knife,
+1,"knife",13132142768703645487ull,family::knife,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.0618197739f,-0.000411615707f}},{0,{0.0f,0.0546266925f,-0.000411615707f}},{0,{0.0f,-0.0618197739f,-0.000411615707f}},{0,{0.0f,0.22047469f,-0.000411601737f}},{0,{0.0f,0.22047469f,-0.000411601737f}},{0,{0.0f,-0.0618197739f,-0.000411615707f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.0618197739f,-0.000411615707f}},{0,{0.0f,0.0546266925f,-0.000411615707f}},{0,{0.0f,-0.0618197739f,-0.000411615707f}},{0,{0.0f,0.22047469f,-0.000411601737f}},{0,{0.0f,0.22047469f,-0.000411601737f}},{0,{0.0f,-0.0618197739f,-0.000411615707f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f},0.012f,0.012f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.3f,false
 };
 const model &asset_knife() noexcept {return value;}

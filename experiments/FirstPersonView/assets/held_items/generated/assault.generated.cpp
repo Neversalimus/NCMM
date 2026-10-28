@@ -9055,7 +9055,7 @@ static const viewmodel::node nodes[]={
 {"Body",20,{{-8.59496905e-17f,0.0170377232f,-0.0546462983f},{-0.707106829f,7.85046481e-17f,7.85046547e-17f,0.707106829f},{1.0f,0.99999994f,1.0f}}},
 {"Rifle_Assault_West",20,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
 {"Rifle_Assault_West.Rig",21,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
-{"NCMM_units_axes_grip",-1,{{-1.5855711e-16f,0.0459408805f,0.11340026f},{0.0f,1.0f,0.0f,0.0f},{1.1443065f,1.1443065f,1.1443065f}}},
+{"NCMM_units_axes_grip",-1,{{-1.5855711e-16f,0.0692243005f,0.119221115f},{0.0f,1.0f,0.0f,0.0f},{1.1443065f,1.1443065f,1.1443065f}}},
 };
 static const uint16_t order[]={
 21,20,18,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,19,
@@ -9109,9 +9109,9 @@ static const material materials[]={
 {{0.839215749f,0.670588235f,0.172549039f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"assault",15266056218449587673ull,family::assault,
+1,"assault",2519410326844886461ull,family::assault,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{18,{-8.67505034e-17f,-0.153745829f,-0.0571850922f}},{18,{1.10280606e-16f,0.109576664f,-0.0555984384f}},{1,{6.55382968e-24f,0.00899999758f,2.4184585e-09f}},{14,{0.0f,0.0f,0.0f}},{12,{0.0f,0.0f,0.0f}},{18,{-8.67505034e-17f,-0.153745829f,-0.0571850922f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{18,{-8.78799992e-17f,-0.158832623f,-0.0775322786f}},{18,{1.10280605e-16f,0.109576658f,-0.00666050753f}},{1,{-0.00317580556f,0.0191882691f,-0.00211853578f}},{14,{0.0f,0.0f,0.0f}},{18,{-4.59685548e-17f,-0.0660281522f,0.0555145646f}},{18,{-8.78799992e-17f,-0.158832623f,-0.0775322786f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f},0.015f,0.024f},
 12,14,13,17,1,8,{-4.26894607e-18f,-0.0192256168f,-2.58313139e-09f},0.798f,true
 };
 const model &asset_assault() noexcept {return value;}

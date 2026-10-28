@@ -28,13 +28,23 @@ float graphics_aim_x=.5f, graphics_aim_y=.4f;
 std::vector<uint32_t> graphics_effect_pixels;
 uint32_t graphics_effect_width=0, graphics_effect_height=0;
 bool graphics_effect_failed=false,graphics_click_pending=false;
+bool graphics_grass_active=false;
+bool graphics_fps_ads_impl();
 uint64_t graphics_click_time=0;
+struct {
+    std::optional<tripoint_abs_ms> target,origin;
+    uint64_t entity=0,world=0;
+    float yaw=0,pitch=0;
+} graphics_click_request;
 size_t graphics_effect_gpu_frames=0, graphics_effect_cpu_frames=0;
 
 int graphics_get_presentation( ncmm_graphics_presentation_v1 *out )
 {
     if( !graphics_hybrid_frame || active_module_id != graphics_view.owner || !out || out->struct_size < sizeof( *out ) ) return 0;
-    *out = graphics_presentation; return 1;
+    *out = graphics_presentation;
+    if(graphics_fps_ads_impl())out->flags|=NCMM_PRESENT_AIMING;
+    else out->flags&=~NCMM_PRESENT_AIMING;
+    return 1;
 }
 int graphics_get_presentation_cells( ncmm_graphics_detail_v1 *out, size_t count )
 {
@@ -98,7 +108,9 @@ uint32_t graphics_item_material( const item &it )
 std::array<float,3> graphics_sample_rgb(const tripoint_bub_ms &p)
 {
     map &here=get_map();if(!here.ncmm_graphics_loaded(p))return{0,0,0};
-    const float raw=std::max(0.f,here.ambient_light_at(p)),level=std::clamp(.025f+std::sqrt(raw/(raw+24.f)),0.f,1.f);
+    // No invented ambient floor in sealed rooms. Preserve Native source RGB,
+    // with a smooth dark toe instead of lifting every unlit surface to grey.
+    const float raw=std::max(0.f,here.ambient_light_at(p)),level=std::clamp(std::sqrt(raw/(raw+24.f))*std::min(1.f,raw),0.f,1.f);
     const auto &color=here.get_cache_ref(p.z()).light_color_cache[p.x()][p.y()];
     const float maximum=std::max({color.r,color.g,color.b,0.f}),tint=std::clamp(maximum/std::max(raw,1.f),0.f,.9f);
     auto channel=[&](float c){return level*(1-tint+(maximum>0?tint*c/maximum:0));};
@@ -128,6 +140,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     if(previous_position&&*previous_position!=current_position)last_step=ticks;
     previous_position=current_position;
     p.movement=last_step ? std::clamp(1.0f-float(ticks-last_step)/340.0f,0.0f,1.0f) : 0.0f;
+    if(graphics_locomotion_continuous())p.movement=graphics_locomotion_movement();
     p.body_scale=std::clamp( you.height()/175.0f, .45f, 2.0f ); p.held_length=.5f;
     graphics_copy_text( p.dimension, g->get_dimension_prefix().str() ); p.sky_style=sky( p.dimension );
     const char *cpu=std::getenv( "NCMM_FP_CPU" );
@@ -181,12 +194,17 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     auto material_for=[&](std::string_view id){auto found=materials.find(id);if(found!=materials.end())return found->second;
         const uint32_t value=material(std::string(id));materials.emplace(id,value);return value;};
     graphics_presentation_cells.assign( base.cell_count, {} );
+    graphics_grass_active=false;
     const vehicle *occupied=nullptr;
     std::map<const vehicle *,std::tuple<int,bool,int,float>> layouts;
     if( const auto vp=here.veh_at( you.pos_bub() ) ) if( you.in_vehicle ) { occupied=&vp->vehicle(); p.eye_height=std::min(p.eye_height,1.18f); }
     for( size_t i=0; i<base.cell_count; ++i ) {
         if( !( base.cells[i].flags&NCMM_GFX_VISIBLE ) ) continue;
         auto &d=graphics_presentation_cells[i]; const auto &pos=positions[i];
+        if(ncmm_grass::terrain(base.cells[i].terrain)&&!base.cells[i].furniture[0]&&
+           details[i].terrain_shape==NCMM_SHAPE_FLAT&&!(base.cells[i].flags&NCMM_GFX_NO_FLOOR)&&
+           (!world||(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE))&&
+           rl_dist(pos,you.pos_bub())<22)graphics_grass_active=true;
         auto *owned=world?graphics_camera_cache.find(world->coordinates[i].x,world->coordinates[i].y,world->coordinates[i].z):nullptr;
         if(owned&&owned->presentation_ready&&!graphics_camera_cache.verify){d=owned->presentation;++graphics_camera_cache.totals.presentation_hits;continue;}
         struct store_presentation {
@@ -255,10 +273,47 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     }
     graphics_clear_target(); graphics_effect_pixels.clear();
 }
+bool graphics_reach_in_range(const avatar &you,const item &weapon,const tripoint_bub_ms &target)
+{
+    // Native can_reach_attack checks vertical reach only. The target UI owns
+    // the horizontal check; a direct primary click must apply the same rule.
+    const int reach=weapon.current_reach_range(you).first;
+    return reach>1&&target.z()==you.posz()&&
+        std::round(rl_dist_exact(you.pos_bub(),target))<=reach;
+}
 std::string graphics_click_action_impl()
 {
-    if( !graphics_view.enabled || !graphics_control_context || !graphics_aim || !character_state_available() ) return "";
+    if( !graphics_view.enabled || !graphics_control_context || !character_state_available() ) return "";
     avatar &you=get_avatar(); map &here=get_map();
+    if(you.controlling_vehicle||you.is_dead_state())return "";
+    if(!graphics_aim) {
+        const auto focus=graphics_fps_target(false);const auto held=you.get_wielded_item();
+        // The physical focus can remain valid while the optional HUD label is
+        // absent. A hostile under this ray is still a primary reach target.
+        if(focus&&held&&!held->is_gun()&&graphics_reach_in_range(you,*held,*focus)) {
+            const auto *cr=get_creature_tracker().creature_at<Creature>(*focus);
+            if(cr&&!cr->is_dead_state()&&cr->attitude_to(you)==Creature::Attitude::HOSTILE&&you.can_reach_attack(*cr)) {
+                graphics_click_pending=true;graphics_click_time=SDL_GetTicks();
+                graphics_click_request={here.get_abs(*focus),here.get_abs(you.pos_bub()),cr->ncmm_graphics_entity_id(),graphics_creature_world_epoch,graphics_camera_yaw,graphics_camera_pitch};
+                return "fire";
+            }
+        }
+        if(held&&held->is_gun()) {
+            if(!focus)return "fire"; // Native coordinate targeting, no invented sky intersection.
+            you.last_target.reset();you.last_target_pos=here.get_abs(*focus);
+            const auto *creature=get_creature_tracker().creature_at<Creature>(*focus);
+            // Neutral/friendly actors retain the complete Native target UI.
+            if(creature)return "fire";
+            graphics_click_pending=true;graphics_click_time=SDL_GetTicks();
+            graphics_click_request={here.get_abs(*focus),here.get_abs(you.pos_bub()),0,graphics_creature_world_epoch,graphics_camera_yaw,graphics_camera_pitch};
+            return "fire";
+        }
+        const auto adjacent=graphics_fps_target(true);
+        if(adjacent&&can_interact_at(ACTION_SMASH,here,*adjacent)) {
+            graphics_fps_queue_target(*adjacent,"smash");return "smash";
+        }
+        return "";
+    }
     if( you.controlling_vehicle || you.is_dead_state() || !graphics_aim_origin ||
         *graphics_aim_origin!=here.get_abs(you.pos_bub()) || std::abs(std::remainder(graphics_camera_yaw-graphics_aim_yaw,6.2831853f))>.001f || std::abs(graphics_camera_pitch-graphics_aim_pitch)>.001f ) return "";
     if( !graphics_mouse_drag ) {
@@ -271,26 +326,46 @@ std::string graphics_click_action_impl()
     if( !cr || !graphics_aim_reference.matches(graphics_target_reference(*cr,pos)) || cr->is_dead_state() || cr->attitude_to( you )!=Creature::Attitude::HOSTILE || !you.sees( here,*cr ) ||
         !(graphics_view.world_render?graphics_world_target_visible(you.pos_bub(),pos):graphics_forward_visible(you.pos_bub(),pos)))return "";
     you.last_target=g->shared_from( *cr ); you.last_target_pos=*graphics_aim;
-    if( const auto held=you.get_wielded_item() ) if( held->is_gun() || ( held->reach_range( you ).first>1 && you.can_reach_attack( *cr ) ) ) {graphics_click_pending=true;graphics_click_time=SDL_GetTicks();return "fire";}
+    if( const auto held=you.get_wielded_item() ) if( held->is_gun() || ( graphics_reach_in_range(you,*held,pos) && you.can_reach_attack( *cr ) ) ) {
+        graphics_click_pending=true;graphics_click_time=SDL_GetTicks();
+        graphics_click_request={*graphics_aim,here.get_abs(you.pos_bub()),cr->ncmm_graphics_entity_id(),graphics_creature_world_epoch,graphics_camera_yaw,graphics_camera_pitch};return "fire";}
     if(pos.z()!=you.posz())return ""; // An XY move is not a vertical melee action.
     const int dx=pos.x()-you.pos_bub().x(),dy=pos.y()-you.pos_bub().y();
     if( std::max( std::abs( dx ),std::abs( dy ) )!=1 ) return "";
-    if( dy<0 ) return dx<0 ? "LEFTUP" : dx>0 ? "RIGHTUP" : "UP";
-    if( dy>0 ) return dx<0 ? "LEFTDOWN" : dx>0 ? "RIGHTDOWN" : "DOWN";
-    return dx<0 ? "LEFT" : "RIGHT";
+    return action_ident(get_movement_action_from_delta(tripoint_rel_ms(dx,dy,0),iso_rotate::yes));
 }
 bool graphics_consume_click_impl(int x,int y,int z)
 {
     const bool pending=graphics_click_pending;graphics_click_pending=false;
-    if(!pending||!graphics_view.enabled||!graphics_aim||!graphics_aim_origin||SDL_GetTicks()-graphics_click_time>5000)return false;
+    if(!pending||!graphics_view.enabled||!graphics_click_request.target||!graphics_click_request.origin||SDL_GetTicks()-graphics_click_time>5000)return false;
     avatar &you=get_avatar();map &here=get_map();const tripoint_bub_ms p(x,y,z);
-    if(here.get_abs(p)!=*graphics_aim||here.get_abs(you.pos_bub())!=*graphics_aim_origin)return false;
+    if(here.get_abs(p)!=*graphics_click_request.target||here.get_abs(you.pos_bub())!=*graphics_click_request.origin||
+       graphics_creature_world_epoch!=graphics_click_request.world||
+       std::abs(std::remainder(graphics_camera_yaw-graphics_click_request.yaw,6.2831853f))>.001f||std::abs(graphics_camera_pitch-graphics_click_request.pitch)>.001f)return false;
     const Creature *cr=get_creature_tracker().creature_at<Creature>(p);
-    return cr&&graphics_aim_reference.matches(graphics_target_reference(*cr,p))&&!cr->is_dead_state()&&
+    if(!graphics_click_request.entity)return !cr&&here.ncmm_graphics_loaded(p)&&you.sees(here,p)&&
+        (graphics_view.world_render?graphics_world_target_visible(you.pos_bub(),p):graphics_forward_visible(you.pos_bub(),p));
+    return cr&&cr->ncmm_graphics_entity_id()==graphics_click_request.entity&&!cr->is_dead_state()&&
         cr->attitude_to(you)==Creature::Attitude::HOSTILE&&you.sees(here,*cr)&&
         (graphics_view.world_render?graphics_world_target_visible(you.pos_bub(),p):graphics_forward_visible(you.pos_bub(),p));
+}
+bool graphics_take_reach_target_impl(std::optional<tripoint_bub_ms> &out)
+{
+    out.reset();
+    if(!graphics_click_pending)return false;
+    // Ownership survives the Native fire entry checks. Consume even a stale
+    // primary request: it must not fall through into an unrelated selector.
+    const auto absolute=graphics_click_request.target;
+    const auto target=absolute?get_map().get_bub(*absolute):get_avatar().pos_bub();
+    if(!graphics_consume_click_impl(target.x(),target.y(),target.z()))return true;
+    avatar &you=get_avatar();const auto weapon=you.get_wielded_item();
+    const auto *cr=get_creature_tracker().creature_at<Creature>(target);
+    if(weapon&&!weapon->is_gun()&&graphics_reach_in_range(you,*weapon,target)&&
+       cr&&you.can_reach_attack(*cr))out=target;
+    return true;
 }
 #else
 std::string graphics_click_action_impl() { return ""; }
 bool graphics_consume_click_impl(int,int,int) { return false; }
+bool graphics_take_reach_target_impl(std::optional<tripoint_bub_ms> &) { return false; }
 #endif

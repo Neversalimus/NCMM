@@ -2,7 +2,8 @@
 // is exposed to a module; submitted pixels are validated and copied atomically.
 const ncmm_graphics_scene_v2 *graphics_hybrid_frame = nullptr;
 const ncmm_graphics_multilevel_scene_v1 *graphics_multilevel_frame = nullptr;
-void graphics_world_extracted(double);
+void graphics_world_extracted(double,size_t,size_t,bool);
+ncmm_graphics_scratch::vector_storage<ncmm_graphics_cell_v2,NCMM_WORLD_MAX_CELLS> graphics_hybrid_detail_storage;
 const std::vector<tripoint_bub_ms> *graphics_hybrid_positions = nullptr;
 std::vector<uint32_t> graphics_hybrid_pixels;
 uint32_t graphics_hybrid_width = 0, graphics_hybrid_height = 0;
@@ -371,12 +372,18 @@ template<class Shape> uint32_t graphics_structure_connections(const tripoint_bub
     return connections|NCMM_SURFACE_CONNECTIONS;
 }
 
+#include "ncmm_graphics_static_detail.inc"
+
 bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector<tripoint_bub_ms> &positions, int x, int y,
                            ncmm_graphics_multilevel_scene_v1 *world=nullptr,const std::vector<std::array<float,3>> *facade_lights=nullptr )
 {
     ncmm_graphics_trace::cpu_zone snapshot_zone("Snapshot");
     avatar &you = get_avatar(); map &here = get_map();
-    std::vector<ncmm_graphics_cell_v2> details( base.cell_count );
+    // Keep the callback's array private even during nested draws or resets.
+    // Empty retained capacity avoids repeated allocation; resize still fully
+    // value-initializes every cell, including invisible and cached cells.
+    auto detail_loan=graphics_hybrid_detail_storage.acquire();auto &details=detail_loan.get();
+    detail_loan.reserve(base.cell_count);detail_loan.resize(base.cell_count);
     std::map<const vehicle *, uint32_t> groups;
     std::map<const vehicle *, std::pair<float, float>> vehicle_anchors;
     const ncmm_world::coordinates world_coordinates(world,true);
@@ -408,25 +415,8 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
             ~store_detail(){if(!owned)return;if(owned->detail_ready&&cache.verify){++cache.totals.verification_checks;if(std::memcmp(&owned->detail,&value,sizeof(value)))++cache.totals.verification_mismatches;}
                 owned->detail=value;owned->detail_ready=true;}
         } save_detail{owned,graphics_camera_cache,d};
+        if(graphics_populate_static_detail(here,p,d,world,facade_lights,i,terrain_shape,copy_id))continue;
         const ter_t &ter = here.ter( p ).obj(); const furn_t &furn = here.furn( p ).obj();
-        if(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)){
-            d.terrain_shape=d.furniture_shape=NCMM_SHAPE_FLAT;
-            // A neutral structural surface carries no hidden room texture.
-            // The shared slab collector uses its untextured fallback material.
-            const auto top_rgb=graphics_sample_rgb(p);const auto &lower=world->coordinates[i].lower_light;
-            const bool surface=(world->coordinates[i].flags&(NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_STRUCTURE_VISIBLE))!=0;
-            d.light_r=surface?top_rgb[0]:lower[0];d.light_g=surface?top_rgb[1]:lower[1];d.light_b=surface?top_rgb[2]:lower[2];
-            if(facade_lights&&(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)){const auto &rgb=(*facade_lights)[i];d.light_r=rgb[0];d.light_g=rgb[1];d.light_b=rgb[2];}
-            if(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE){
-                d.terrain_shape=terrain_shape(ter);
-                // Opaque furniture/gas in this voxel is not an opaque window
-                // panel. The terrain itself owns its opening and cover state.
-                d.terrain_flags=ter.transparent?uint32_t(NCMM_SURFACE_TRANSPARENT):0u;
-                d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation,terrain_shape);
-                copy_id(d.ground,"t_floor");
-            }
-            continue;
-        }
         d.terrain_shape = terrain_shape(ter);
         if(world&&(world->coordinates[i].flags&NCMM_WORLD_RAMP))d.terrain_shape=NCMM_SHAPE_FLAT;
         d.terrain_flags = ter.transparent ? static_cast<uint32_t>(NCMM_SURFACE_TRANSPARENT) : 0u;
@@ -583,7 +573,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     }
     graphics_prepare_creatures( base, positions,world );
     graphics_snapshot_ms = std::chrono::duration<double,std::milli>( std::chrono::steady_clock::now() - graphics_snapshot_begun ).count();
-    if(world)graphics_world_extracted(graphics_snapshot_ms);
+    if(world)graphics_world_extracted(graphics_snapshot_ms,detail_loan.bytes(),detail_loan.growths(),detail_loan.reused());
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
     graphics_resolved_textures = graphics_resolved_vehicle_textures = 0;
     graphics_frame_invalid = false; graphics_gpu_frame = false; graphics_hybrid_frame = world?&world->appearance:&scene; graphics_hybrid_positions = &positions;
@@ -592,6 +582,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     bool ok = false;
     snapshot_zone.stop();
     const auto callback_begun = std::chrono::steady_clock::now();
+    if(world)ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::module_begin,uint32_t(base.cell_count),world->slice_count);
     try {
         module_call_scope scope( graphics_view.owner.c_str() );
         ok=world?graphics_view.world_render(world,graphics_view.user_data)!=0:
@@ -603,6 +594,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;graphics_multilevel_frame=nullptr;
     graphics_render_active = false;
     graphics_callback_ms = std::chrono::duration<double,std::milli>( std::chrono::steady_clock::now() - callback_begun ).count();
+    if(world)ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::module_end,graphics_hybrid_width,graphics_hybrid_height);
     if( !ok || graphics_frame_invalid || ( !graphics_gpu_frame && graphics_hybrid_pixels.empty() ) ) {
         graphics_view.enabled = false; graphics_hybrid_pixels.clear(); graphics_release_mouse(); graphics_cancel_animation();
         add_msg( m_warning, "%s", tr_ui( "First person could not draw this scene; returned to the map. F6 retries.",
@@ -629,7 +621,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     ok = SDL_SetRenderClipRect( renderer, &clip ) && ok;
     const SDL_FRect destination = { float( x ), float( y ), float( base.pixel_width ), float( base.pixel_height ) };
     ok = SDL_RenderTexture( renderer, frame, nullptr, &destination ) && ok;
-    if( ok && !graphics_gpu_frame ) ok = graphics_present_effects( renderer,frame,destination );
+    if( ok ) ok = graphics_present_effects( renderer,frame,destination );
     if( ok ) {
         Uint8 r=0,g=0,b=0,a=0;SDL_GetRenderDrawColor( renderer,&r,&g,&b,&a );
         SDL_SetRenderDrawColor( renderer,216,224,224,255 );
@@ -649,6 +641,10 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         else ncmm_draw_perspective_label(graphics_aim_name,anchor_x,anchor_y,clip);
     }
     target_hud_zone.stop();
+    if(ok) {
+        const auto hint=graphics_fps_hint();
+        if(!hint.empty())ncmm_draw_perspective_label(hint,x+base.pixel_width/2,y+base.pixel_height/2+24,SDL_Rect{x,y,base.pixel_width,base.pixel_height});
+    }
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;
     graphics_frame_pending_present=ok;
     if( !ok ) { graphics_clear_stream(); graphics_view.enabled = false; graphics_release_mouse(); }

@@ -1451,7 +1451,7 @@ part::body,part::body,part::body,part::body,part::body,part::body,part::body,par
 };
 static const viewmodel::node nodes[]={
 {"Source",1,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
-{"NCMM_units_axes_grip",-1,{{-0.00503752007f,-0.299836948f,-0.0f},{0.0f,0.0f,0.0f,1.0f},{0.13344424f,0.13344424f,0.13344424f}}},
+{"NCMM_units_axes_grip",-1,{{-0.00503752007f,-0.318706948f,-0.0f},{0.0f,0.0f,0.0f,1.0f},{0.13344424f,0.13344424f,0.13344424f}}},
 };
 static const uint16_t order[]={
 1,0,
@@ -1471,9 +1471,9 @@ static const material materials[]={
 {{0.177349523f,0.177349523f,0.177349523f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"gas_can",5816343015445798450ull,family::gas_can,
+1,"gas_can",6207088838951090897ull,family::gas_can,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.03775f,2.24690813f,0.0f}},{0,{0.044053f,1.30718979f,0.0f}},{0,{0.044053f,0.4911186f,0.0f}},{0,{0.03775f,2.469473f,0.0f}},{0,{0.03775f,2.469473f,0.0f}},{0,{0.03775f,2.24690813f,0.0f}},{1.0f,0.0f,0.0f},{0.0f,1.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.03775f,2.38831551f,0.0f}},{0,{0.044053f,1.30718979f,0.0f}},{0,{0.044053f,0.4911186f,0.0f}},{0,{0.03775f,2.469473f,0.0f}},{0,{0.03775f,2.469473f,0.0f}},{0,{0.03775f,2.38831551f,0.0f}},{1.0f,0.0f,0.0f},{0.0f,1.0f,0.0f},0.014f,0.014f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.33f,false
 };
 const model &asset_gas_can() noexcept {return value;}

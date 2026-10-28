@@ -58,23 +58,53 @@ public:
 // A closed plane is a geometric proof only when every tile in the bounded
 // source window has a full opaque slab. Open stairs, glass and water fail it.
 class sealed_plane_cache {
-    int32_t ox=0,oy=0;int low=0,high=-1,width=0,height=0;uint64_t world=0,revision=0;
+    int32_t ox=0,oy=0;int low=0,high=-1,width=0,height=0,head_x=0,head_y=0;uint64_t world=0,revision=0;
     std::array<uint8_t,NCMM_WORLD_MAX_SLICES> state{};
     std::array<std::vector<uint32_t>,NCMM_WORLD_MAX_SLICES> openings;
+    // Each byte is unknown/open/full slab. These owned facts depend only on
+    // UNKNOWN/FLOOR/GLASS at this absolute XYZ and the explicit source revision,
+    // while complete-plane proofs and prefixes belong to the current window.
+    std::array<std::vector<uint8_t>,NCMM_WORLD_MAX_SLICES> facts;
+    size_t relative_slot(int x,int y)const{
+        int column=x+head_x,row=y+head_y;if(column>=width)column-=width;if(row>=height)row-=height;
+        return size_t(row)*width+size_t(column);
+    }
+    template<class Read> bool slab(int x,int y,size_t level,Read &read){
+        auto &plane=facts[level];
+        if(plane.empty()){
+            const size_t count=size_t(width)*height;
+            if(count>plane.capacity())std::vector<uint8_t>(count,0).swap(plane);
+            else plane.assign(count,0);
+        }
+        auto &value=plane[relative_slot(x,y)];
+        if(!value)value=full_opaque_slab(read(ox+x,oy+y,low+int(level)))?2u:1u;
+        return value==2;
+    }
 public:
     void clear(){*this=sealed_plane_cache{};}
     bool prepare(int32_t x,int32_t y,int minz,int maxz,int w,int h,uint64_t epoch,uint64_t changed){
         if(!epoch||!changed||w<1||h<1||w>97||h>97||minz < -128||maxz>128||minz>maxz||int64_t(maxz)-minz>=NCMM_WORLD_MAX_SLICES||
            int64_t(x)+w-1>INT32_MAX||int64_t(y)+h-1>INT32_MAX){clear();return false;}
-        if(ox!=x||oy!=y||low!=minz||high!=maxz||width!=w||height!=h||world!=epoch||revision!=changed){
-            state.fill(0);for(auto &plane:openings)plane.clear();
+        const bool same_source=low==minz&&high==maxz&&width==w&&height==h&&world==epoch&&revision==changed;
+        if(same_source&&ox==x&&oy==y)return true;
+        state.fill(0);for(auto &plane:openings)plane.clear();
+        const int64_t dx=int64_t(x)-ox,dy=int64_t(y)-oy;
+        if(same_source&&std::abs(dx)<w&&std::abs(dy)<h){
+            head_x=(head_x+int(dx)+w)%w;head_y=(head_y+int(dy)+h)%h;
+            const int left=dx>0?w-int(dx):0,right=dx>0?w:int(-dx),top=dy>0?h-int(dy):0,bottom=dy>0?h:int(-dy);
+            for(auto &plane:facts)if(!plane.empty()){
+                if(dx)for(int gy=0;gy<h;++gy)for(int gx=left;gx<right;++gx)plane[relative_slot(gx,gy)]=0;
+                if(dy)for(int gy=top;gy<bottom;++gy)for(int gx=0;gx<w;++gx)plane[relative_slot(gx,gy)]=0;
+            }
+        }else{
+            head_x=head_y=0;for(auto &plane:facts)plane.clear();
         }
         ox=x;oy=y;low=minz;high=maxz;width=w;height=h;world=epoch;revision=changed;return true;
     }
     template<class Read> bool closed(int z,Read read){
         if(!world||z<low||z>high)return false;
         auto &cached=state[size_t(z-low)];if(cached)return cached==2;
-        for(int y=0;y<height;++y)for(int x=0;x<width;++x)if(!full_opaque_slab(read(ox+x,oy+y,z))){cached=1;return false;}
+        for(int y=0;y<height;++y)for(int x=0;x<width;++x)if(!slab(x,y,size_t(z-low),read)){cached=1;return false;}
         cached=2;return true;
     }
     // Every segment between the eye and a cell stays inside their XY bounding
@@ -88,9 +118,11 @@ public:
         const size_t level=size_t(z-low);if(state[level]==2)return true;
         auto &prefix=openings[level];const size_t stride=size_t(width)+1;
         if(prefix.empty()){
-            prefix.assign(stride*(size_t(height)+1),0);
+            const size_t count=stride*(size_t(height)+1);
+            if(count>prefix.capacity())std::vector<uint32_t>(count,0).swap(prefix);
+            else prefix.assign(count,0);
             for(int y=0;y<height;++y){uint32_t row=0;
-                for(int x=0;x<width;++x){row+=full_opaque_slab(read(ox+x,oy+y,z))?0u:1u;
+                for(int x=0;x<width;++x){row+=slab(x,y,level,read)?0u:1u;
                     prefix[size_t(y+1)*stride+size_t(x+1)]=prefix[size_t(y)*stride+size_t(x+1)]+row;}}
             state[level]=prefix.back()?1:2;
         }
@@ -98,7 +130,7 @@ public:
                      c=size_t(y1+1)*stride+size_t(x0),d=size_t(y1+1)*stride+size_t(x1+1);
         return uint64_t(prefix[d])+prefix[a]==uint64_t(prefix[b])+prefix[c];
     }
-    size_t bytes()const{size_t total=sizeof(state);for(const auto &plane:openings)total+=plane.capacity()*sizeof(uint32_t);return total;}
+    size_t bytes()const{size_t total=sizeof(state);for(const auto &plane:openings)total+=plane.capacity()*sizeof(uint32_t);for(const auto &plane:facts)total+=plane.capacity()*sizeof(uint8_t);return total;}
 };
 // Derived geometry and roof facts are keyed by absolute XYZ and an explicit
 // geometry revision. Walking rotates fixed storage and invalidates entering
@@ -116,6 +148,16 @@ class geometry_cache {
 public:
     uint64_t hits=0,misses=0;
     void clear(){*this=geometry_cache{};}
+    // Invalidate the actual dependency neighbourhood, retaining every other
+    // absolute-coordinate fact, including after the ring has rotated.
+    void invalidate(int64_t x,int64_t y,int low,int high,int64_t w,int64_t h){
+        if(w<=0||h<=0){std::fill(revisions.begin(),revisions.end(),0);return;}
+        const int64_t left=std::max(x,int64_t(ox)),right=std::min(x+w,int64_t(ox)+width),
+                      top=std::max(y,int64_t(oy)),bottom=std::min(y+h,int64_t(oy)+height);
+        for(int z=std::max(low,minz);z<=std::min(high,maxz);++z)
+            for(int64_t yy=top;yy<bottom;++yy)for(int64_t xx=left;xx<right;++xx)
+                revisions[relative_slot(int(xx-ox),int(yy-oy),z-minz)]=0;
+    }
     bool prepare(int32_t x,int32_t y,int low,int high,int w,int h,uint64_t world){
         if(!world||w<1||h<1||w>97||h>97||low < -128||high > 128||low>high||int64_t(high)-low>=NCMM_WORLD_MAX_SLICES)return false;
         hits=misses=0;
@@ -154,6 +196,24 @@ public:
     }
     size_t bytes()const{return facts.capacity()*sizeof(uint32_t)+revisions.capacity()*sizeof(uint64_t);}
 };
+// Only radius-one horizontal stair partners depend on the bounded source
+// window's XY edges. Entering strips are already cold after prepare(); the
+// retained old/new edges can gain or lose a neighbour on each shifted axis.
+// A perpendicular border's middle keeps exactly the same real/UNKNOWN samples.
+inline void invalidate_shifted_geometry_borders(geometry_cache &cache,int64_t old_left,int64_t old_top,
+        int64_t left,int64_t top,int low,int high,int side){
+    auto border=[&](int64_t x,int64_t y){
+        if(old_top!=top){
+            cache.invalidate(x,y,low,high,side,1);
+            cache.invalidate(x,y+side-1,low,high,side,1);
+        }
+        if(old_left!=left){
+            cache.invalidate(x,y,low,high,1,side);
+            cache.invalidate(x+side-1,y,low,high,1,side);
+        }
+    };
+    border(old_left,old_top);border(left,top);
+}
 /* Main-thread private source facts; canonical intersections survive a shifted
  * viewport. No engine pointer, ID, item or entity is retained. */
 class source_cache {

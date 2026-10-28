@@ -190,9 +190,9 @@ static const material materials[]={
 {{1.0f,1.0f,1.0f,1.0f},0,texture_e104f3becaaf8de045461428,512,512,16214352559210466784ull},
 };
 static const model value={
-1,"hatchet",7057878770381050835ull,family::hatchet,
+1,"hatchet",16676660470902715021ull,family::hatchet,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.0512f,0.0f}},{0,{0.0f,0.13568f,0.0f}},{0,{0.0f,0.0512f,0.0f}},{0,{-0.01607353f,0.256f,0.0f}},{0,{-0.01607353f,0.256f,0.0f}},{0,{0.0f,0.0512f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.0512f,0.0f}},{0,{0.0f,0.13568f,0.0f}},{0,{0.0f,0.0512f,0.0f}},{0,{-0.01607353f,0.256f,0.0f}},{0,{-0.01607353f,0.256f,0.0f}},{0,{0.0f,0.0512f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f},0.015f,0.015f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.38f,false
 };
 const model &asset_hatchet() noexcept {return value;}

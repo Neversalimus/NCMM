@@ -9,14 +9,16 @@
     void slab_piece(int i,float x0,float y0,float x1,float y1){
         const vec at=cell_origin(i);const uint32_t flags=world_flags(i);
         material bottom=slab_underside(i),top=bottom;
-        if(flags&NCMM_WORLD_FLOOR_TOP){top=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});top.opaque_texture=true;top.finish=ground_surface(s.details[i].ground);}
+        if(flags&NCMM_WORLD_FLOOR_TOP){top=ground_edges(i,mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f}));top.opaque_texture=true;top.finish=ground_surface(s.details[i].ground);}
+        if((flags&NCMM_WORLD_FLOOR_TOP)&&ncmm_rail::bed(base.cells[i].terrain))top=rail_bed(i);
         if(flags&NCMM_WORLD_GLASS_FLOOR){top=bottom={nullptr,{.37f,.58f,.63f},.22f,false,false,false,i};}
         bottom.slab_lower=true;
         auto point=[&](float x,float y,float z){return at+vec{x,y,z};};
         const vec a=point(x0,y0,0),b=point(x1,y0,0),c=point(x1,y1,0),d=point(x0,y1,0);
+        const bool whole=x0==0&&y0==0&&x1==1&&y1==1;
+        if(whole&&(flags&NCMM_WORLD_FLOOR_TOP)&&gpu_sink&&gpu_sink->opaque_floor(i,top))return;
         if(flags&NCMM_WORLD_FLOOR_TOP)quad(a,b,c,d,top,{0,0,1},{x0,y0,x1,y1});
         const int below=neighbor(i,0,0,-1);
-        const bool whole=x0==0&&y0==0&&x1==1&&y1==1;
         const bool buried_bottom=whole&&complete_wall(below);
         if((flags&NCMM_WORLD_FLOOR_BOTTOM)&&!buried_bottom)quad(d+vec{0,0,-.08f},c+vec{0,0,-.08f},b+vec{0,0,-.08f},a+vec{0,0,-.08f},bottom,{0,0,-1});
         // Bounded slab thickness closes exposed edges without a second ceiling
@@ -44,13 +46,35 @@
             const vec at=cell_origin(i);quad(at,at+vec{1,0,0},at+vec{1,1,0},at+vec{0,1,0},water,{0,0,1});return;
         }
         if((flags&NCMM_WORLD_DOWN)&&!(flags&(NCMM_WORLD_LADDER|NCMM_WORLD_RAMP))){
-            slab_piece(i,0,0,.14f,1);slab_piece(i,.86f,0,1,1);
-            slab_piece(i,.14f,0,.86f,.08f);slab_piece(i,.14f,.92f,.86f,1);
+            // The same square aperture as floor_blocks() fits the complete
+            // flight and rails at every facing, including a rotated church.
+            slab_piece(i,0,0,.08f,1);slab_piece(i,.92f,0,1,1);
+            slab_piece(i,.08f,0,.92f,.08f);slab_piece(i,.08f,.92f,.92f,1);
         }
+    }
+    auto world_stair_query()const{
+        return [this](int x,int y,int z){const int cell=world_coordinates.find(x-world_data->origin_x,y-world_data->origin_y,z);
+            return cell>=0?world_flags(cell):uint32_t(NCMM_WORLD_UNKNOWN);};
+    }
+    bool world_stair_wall(int i){
+        if(!world_data)return false;const auto &p=world_data->coordinates[i];
+        const auto root=ncmm_world::stair_wall_root(p.x,p.y,p.z,world_stair_query());if(!root)return false;
+        const int stair=world_coordinates.find(root->x-world_data->origin_x,root->y-world_data->origin_y,root->z);
+        if(stair<0||!(world_flags(stair)&(NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_STRUCTURE_VISIBLE)))return false;
+        // A Native wall tile below an offset exit is the solid support of that
+        // stairwell, not a full-height cube across its upper flight. Ground
+        // collision/Native visibility remain unchanged; only its mesh is cut.
+        const float angle=std::atan2(float(p.y-root->y),float(p.x-root->x));
+        const vec center=cell_center(i);auto wall=wall_material(i,NCMM_GFX_TERRAIN);
+        box(center,{-.5f,-.5f,0},{.5f,.5f,1.10f},wall,angle);
+        box(center,{-.5f,-.5f,1.10f},{.5f,-.38f,NCMM_WORLD_LEVEL_HEIGHT},wall,angle);
+        box(center,{-.5f,.38f,1.10f},{.5f,.5f,NCMM_WORLD_LEVEL_HEIGHT},wall,angle);
+        box(center,{.44f,-.38f,1.10f},{.5f,.38f,NCMM_WORLD_LEVEL_HEIGHT},wall,angle);
+        return true;
     }
     void world_transition(int i){
         const uint32_t flags=world_flags(i);if(!(flags&NCMM_WORLD_UP))return;
-        const vec center=cell_center(i);const float angle=world_data->coordinates[i].direction*pi*.5f;
+        vec center=cell_center(i);float angle=world_data->coordinates[i].direction*pi*.5f,span=.84f;
         material structure=slab_underside(i);structure.color=structure.color*.82f;
         const bool connected=(flags&NCMM_WORLD_CONNECTED_UP)!=0;
         const float height=(connected||(flags&NCMM_WORLD_RAMP_END))?world_data->level_height:std::min(1.1f,world_data->level_height);
@@ -77,14 +101,20 @@
             for(float side:{-.5f,.5f})quad(p(-.5f,side,0),p(.5f,side,0),p(.5f,side,height),p(-.5f,side,.02f),structure,rotate({0,side>0?1.f:-1.f,0},{},angle));
             quad(p(.5f,-.5f,0),p(.5f,.5f,0),p(.5f,.5f,height),p(.5f,-.5f,height),structure,rotate({1,0,0},{},angle));return;
         }
-        const int steps=std::max(5,int(std::ceil(height/.21f)));const float run=.72f/steps,rise=height/steps;
-        for(int n=0;n<steps;++n){const float x=-.36f+n*run;
+        const auto &origin=world_data->coordinates[i];
+        if(connected)if(const auto target=ncmm_world::stair_partner(origin.x,origin.y,origin.z,1,world_stair_query())){
+            const int dx=target->x-origin.x,dy=target->y-origin.y;
+            if(dx||dy){center=center+vec{dx*.5f,dy*.5f,0};angle=std::atan2(float(dy),float(dx));span=1.84f;}
+        }
+        const float half=span*.5f;
+        const int steps=std::max(5,int(std::ceil(height/.21f)));const float run=span/steps,rise=height/steps;
+        for(int n=0;n<steps;++n){const float x=-half+n*run;
             box(center,{x,-.32f,0},{x+run,.32f,(n+1)*rise},structure,angle);}
         material rail{nullptr,{.29f,.31f,.32f},1,false,false,false,i,surface::metal};
         for(float side:{-.35f,.35f}){
-            for(int n=0;n<=3;++n){const float x=-.36f+n*.72f/3,z=(x+.36f)*height/.72f;
+            for(int n=0;n<=3;++n){const float x=-half+n*span/3,z=(x+half)*height/span;
                 box(center,{x-.014f,side-.014f,z+.04f},{x+.014f,side+.014f,z+.75f},rail,angle);}
             auto p=[&](float x,float y,float z){return rotate({x,y,z},center,angle);};
-            quad(p(-.36f,side-.017f,.77f),p(.36f,side-.017f,height+.77f),p(.36f,side+.017f,height+.80f),p(-.36f,side+.017f,.80f),rail);
+            quad(p(-half,side-.017f,.77f),p(half,side-.017f,height+.77f),p(half,side+.017f,height+.80f),p(-half,side+.017f,.80f),rail);
         }
     }

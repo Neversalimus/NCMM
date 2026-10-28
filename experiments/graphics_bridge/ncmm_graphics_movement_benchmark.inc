@@ -2,6 +2,7 @@
 // moves, camera easing, SDL presentation and source visibility all participate.
 {
     using clock=std::chrono::steady_clock;
+    using native_step_points=std::array<clock::time_point,11>;
     const bool full_size_gpu_matrix=std::getenv("NCMM_FP_PERF_GPU_FULLSIZE")!=nullptr;
     auto elapsed=[](auto begin){return std::chrono::duration<double,std::milli>(clock::now()-begin).count();};
     auto percentile=[](std::vector<double> values,double p){if(values.empty())return 0.0;std::sort(values.begin(),values.end());
@@ -15,6 +16,7 @@
     std::ofstream stream(game_root()/"ncmm"/"first-person-movement-benchmark.json");JsonOut report(stream);
     report.start_object();report.member("schema",2);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);
     report.member("profiler_markers_enabled",ncmm_graphics_trace::enabled());
+    report.member("native_sight_comparison_enabled",std::getenv("NCMM_FP_SIGHT_COMPARE")!=nullptr);
     report.member("gpu_debug_requested",std::getenv("SDL_RENDER_GPU_DEBUG")!=nullptr);
     report.member("distance_radius",NCMM_GRAPHICS_V2_RADIUS);
     const bool legacy_z_option=get_options().has_option("FOV_3D_Z_RANGE");
@@ -23,12 +25,22 @@
     report.member("native_pass_retained",true);
     report.member("simulation_turns_advanced",0);report.member("full_size_gpu_matrix",full_size_gpu_matrix);report.member("records");report.start_array();
     auto at=[&](int x,int y,int z){return here.get_bub(tripoint_abs_ms(original_position.x()+x,original_position.y()+y,z));};
-    auto refresh=[&](){g->ter_view_p=you.pos_bub();g->reset_light_level();here.build_map_cache(you.posz());here.invalidate_visibility_cache();here.update_visibility_cache(you.posz());};
+    auto refresh=[&](native_step_points *points=nullptr){
+        g->ter_view_p=you.pos_bub();if(points)(*points)[3]=clock::now();
+        g->reset_light_level();if(points)(*points)[4]=clock::now();
+        here.build_map_cache(you.posz());if(points)(*points)[5]=clock::now();
+        here.invalidate_visibility_cache();if(points)(*points)[6]=clock::now();
+        here.update_visibility_cache(you.posz());if(points)(*points)[7]=clock::now();};
     const std::string original_tileset=get_option<std::string>("TILES");
     const auto &trace_scene=ncmm_graphics_trace::capture_scene();
     const bool trace_capture=!trace_scene.empty();
     require(!trace_capture||trace_scene=="quiet"||trace_scene=="rotate"||trace_scene=="step"||trace_scene=="shot"||trace_scene=="hands"||trace_scene=="smoke"||trace_scene=="city","trace_capture_unknown_scene");
     const bool extended=std::getenv("NCMM_FP_EXTENDED")!=nullptr||trace_capture;
+    const char *sight_compare_setting=std::getenv("NCMM_FP_SIGHT_COMPARE");
+    const bool sight_compare=sight_compare_setting!=nullptr;
+    require(!sight_compare||(std::strcmp(sight_compare_setting,"1")==0&&!extended&&!full_size_gpu_matrix&&
+        !std::getenv("NCMM_FP_CAMERA_CACHE_VERIFY")&&!std::getenv("SDL_RENDER_GPU_DEBUG")),
+        "sight_comparison_requires_ordinary_short_movement_diagnostic");
     require(!full_size_gpu_matrix||(extended&&!trace_capture),"full_size_gpu_matrix_requires_ordinary_extended_run");
     struct readback_profile_guard {bool previous;~readback_profile_guard(){graphics_sprite_readbacks.enabled=previous;}} readback_guard{graphics_sprite_readbacks.enabled};
     graphics_sprite_readbacks.enabled=extended;
@@ -95,10 +107,15 @@
             graphics_mouse_dx=std::remainder(-ncmm_graphics_camera::pi*.5f-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
             graphics_mouse_dy=(graphics_camera_pitch+.08f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"movement_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);refresh();
+            if(sight_compare&&viewport==viewports.front()&&std::string(mode)=="cpu"){
+                #include "ncmm_graphics_sight_comparison.inc"
+            }
             std::vector<double> frame_ms,visibility_ms,first_ms,first_frame_ms,easing_ms,cold_turn_ms,warm_turn_ms;
             std::vector<double> geometry_ms,resource_ms;std::vector<uint64_t> range_evaluations,range_hits,ray_hits,ray_misses,geometry_hits,geometry_misses,roof_misses,source_misses,geometry_revisions,material_evaluations,material_hits;
             std::vector<double> native_tiles_ms,perspective_ms,present_ms,unattributed_ms,extract_ms,callback_ms,upload_ms,record_ms,submit_ms;
             std::vector<uint32_t> first_frame_indices;
+            struct native_step_sample {native_step_points points;tripoint_abs_ms from,to;int moves_before=0,moves_after=0;ncmm_graphics_move_diagnostics::action_record submaps;};
+            std::vector<native_step_sample> native_step_samples;native_step_samples.reserve(steps);
             std::vector<double> thread_cpu_ms,process_cpu_ms,sprite_readback_ms;
             std::vector<uint64_t> sprite_readback_attempts,sprite_cache_bytes,gpu_generated_cells,native_atlas_cache_bytes;
             std::vector<uint64_t> frame_upload_capacity,frame_upload_creations;
@@ -209,8 +226,20 @@
                     monster *target=g->place_critter_at(mtype_id("mon_zombie"),at(-1,-1,0));require(target!=nullptr,"movement_punch_target_missing");
                     const auto serial=graphics_attack_serial;you.melee_attack(*target,false);require(graphics_attack_serial>serial&&graphics_attack_kind==1,"movement_native_punch_not_confirmed");++attacks;}
                 first_frame_indices.push_back(uint32_t(frame_ms.size()));
-                const auto before=you.pos_abs();const int moves=you.get_moves();const auto begin=clock::now();require(avatar_action::move(you,here,route[step%4]),"movement_native_walk_failed");
-                require(you.pos_abs()!=before&&you.get_moves()<moves,"movement_native_cost_missing");refresh();render(true);first_ms.push_back(elapsed(begin));first_frame_ms.push_back(frame_ms.back());
+                native_step_sample action_sample{};auto &points=action_sample.points;
+                const auto before=you.pos_abs();const int moves=you.get_moves();const auto begin=clock::now();points[0]=begin;
+                bool moved=false;
+                {ncmm_graphics_move_diagnostics::action_capture capture(action_sample.submaps);
+                    moved=avatar_action::move(you,here,route[step%4]);}
+                points[1]=clock::now();require(moved,"movement_native_walk_failed");
+                require(you.pos_abs()!=before&&you.get_moves()<moves,"movement_native_cost_missing");points[2]=clock::now();
+                refresh(&points);points[8]=clock::now();render(true);points[9]=clock::now();points[10]=clock::now();
+                // Keep the original first-ready boundary before sample storage.
+                // The render's existing inner sample excludes its vector/counter
+                // bookkeeping; retain that signed difference rather than call
+                // the outer-minus-inner interval a Native function duration.
+                first_ms.push_back(std::chrono::duration<double,std::milli>(points[10]-begin).count());first_frame_ms.push_back(frame_ms.back());
+                action_sample.from=before;action_sample.to=you.pos_abs();action_sample.moves_before=moves;action_sample.moves_after=you.get_moves();native_step_samples.push_back(action_sample);
                 int samples=0;while(graphics_world_transition_active&&samples++<100){SDL_Delay(17);const auto ease_begin=clock::now();render(true);easing_ms.push_back(elapsed(ease_begin));}
                 require(!graphics_world_transition_active,"movement_camera_did_not_settle");
                 // Only the short functional route runs the Native source oracle.
@@ -279,6 +308,66 @@
                 report.member("snapshot_retained_capacity_bytes",snapshot_retained_bytes);report.member("snapshot_candidate_counts",snapshot_candidates);
                 report.member("gpu_bones",bones);report.member("gpu_held_bones",held_bones);report.member("gpu_resource_bytes",resource_bytes);report.member("host_cpu_cache_bytes",host_bytes);report.member("gpu_producer_cache_bytes",producer_bytes);report.member("process_rss_bytes",rss);}
             report.member("first_frame_after_step_samples_ms",first_frame_ms);report.member("first_frame_after_step_median_ms",percentile(first_frame_ms,.5));report.member("first_frame_after_step_p95_ms",percentile(first_frame_ms,.95));
+            report.member("native_step_phases");report.start_object();report.member("clock","std::chrono::steady_clock");report.member("units","milliseconds");
+            report.member("phase_labels",std::array<const char *,10>{"move","post_action_checks","view_center","reset_light_level","build_map_cache","invalidate_visibility_cache","update_visibility_cache","refresh_return","render_call","outer_tail"});
+            report.member("samples");report.start_array();
+            for(size_t sample_index=0;sample_index<native_step_samples.size();++sample_index){const auto &sample=native_step_samples[sample_index];
+                std::array<double,11> offsets{};std::array<double,10> durations{};double accounted=0;
+                for(size_t point=0;point<offsets.size();++point)offsets[point]=std::chrono::duration<double,std::milli>(sample.points[point]-sample.points[0]).count();
+                for(size_t phase=0;phase<durations.size();++phase){durations[phase]=std::chrono::duration<double,std::milli>(sample.points[phase+1]-sample.points[phase]).count();accounted+=durations[phase];}
+                report.start_object();report.member("step",sample_index);report.member("frame_index",first_frame_indices[sample_index]);
+                report.member("from",std::array<int,3>{sample.from.x(),sample.from.y(),sample.from.z()});report.member("to",std::array<int,3>{sample.to.x(),sample.to.y(),sample.to.z()});
+                report.member("moves_before",sample.moves_before);report.member("moves_after",sample.moves_after);
+                report.member("boundary_offsets_ms",offsets);report.member("phase_wall_ms",durations);
+                report.member("first_ready_wall_ms",first_ms[sample_index]);report.member("first_frame_wall_ms",first_frame_ms[sample_index]);
+                report.member("render_bookkeeping_wall_ms",durations[8]-first_frame_ms[sample_index]);report.member("residual_wall_ms",first_ms[sample_index]-accounted);
+                // Serialization is after the original first-ready boundary.
+                // Nested records are inclusive; qualification rejects them.
+                const auto &sub=sample.submaps;report.member("native_submap_updates");report.start_object();
+                report.member("schema",1);report.member("clock","std::chrono::steady_clock");report.member("units","milliseconds");report.member("diagnostic_probe_overhead_included",true);
+                report.member("claimed",sub.claimed);report.member("reused_storage",sub.reused_storage);report.member("nested_capture",sub.nested_capture);report.member("counter_overflow",sub.counter_overflow);
+                report.member("invocations",sub.invocations);report.member("recorded",sub.recorded);report.member("dropped",sub.dropped);report.member("max_depth",sub.max_depth);
+                report.member("exceptional_invocations",sub.exceptional_invocations);report.member("protocol_errors",sub.protocol_errors);report.member("events");report.start_array();
+                for(size_t e=0;e<sub.recorded&&e<ncmm_graphics_move_diagnostics::event_capacity;++e){const auto &event=sub.events[e];
+                    std::vector<std::string> labels;std::vector<double> boundaries;
+                    for(size_t b=0;b<event.count&&b<ncmm_graphics_move_diagnostics::boundary_capacity;++b){labels.emplace_back(ncmm_graphics_move_diagnostics::label(event.tags[b]));
+                        boundaries.push_back(std::chrono::duration<double,std::milli>(event.points[b]-sample.points[0]).count());}
+                    report.start_object();report.member("ordinal",event.ordinal);report.member("depth",event.depth);report.member("parent_ordinal",event.parent_ordinal);
+                    report.member("input_xy",event.input_xy);report.member("output_xy",event.output_xy);report.member("shift_xy",event.shift_xy);report.member("z_level_changed",event.z_level_changed);
+                    report.member("shift_known",event.shift_known);report.member("complete",event.complete);report.member("exceptional",event.exceptional);
+                    report.member("boundary_labels",labels);report.member("boundary_offsets_ms",boundaries);report.end_object();}
+                report.end_array();report.end_object();
+                report.member("native_map_shifts");report.start_object();
+                report.member("schema",1);report.member("clock","std::chrono::steady_clock");report.member("units","milliseconds");report.member("diagnostic_probe_overhead_included",true);
+                report.member("invocations",sub.shift_invocations);report.member("recorded",sub.shift_recorded);report.member("dropped",sub.shift_dropped);
+                report.member("max_depth",sub.shift_max_depth);report.member("exceptional_invocations",sub.shift_exceptional_invocations);
+                report.member("events");report.start_array();
+                for(size_t e=0;e<sub.shift_recorded&&e<ncmm_graphics_move_diagnostics::shift_event_capacity;++e){const auto &event=sub.shifts[e];
+                    std::vector<std::string> labels;std::vector<double> boundaries;
+                    for(size_t b=0;b<event.count&&b<ncmm_graphics_move_diagnostics::shift_boundary_capacity;++b){labels.emplace_back(ncmm_graphics_move_diagnostics::label(event.tags[b]));
+                        boundaries.push_back(std::chrono::duration<double,std::milli>(event.points[b]-sample.points[0]).count());}
+                    report.start_object();report.member("ordinal",event.ordinal);report.member("depth",event.depth);report.member("parent_ordinal",event.parent_ordinal);
+                    report.member("parent_update_ordinal",event.parent_update_ordinal);report.member("shift_xy",event.shift_xy);
+                    report.member("route_accepted",event.route_accepted);report.member("complete",event.complete);report.member("exceptional",event.exceptional);
+                    report.member("boundary_labels",labels);report.member("boundary_offsets_ms",boundaries);report.end_object();}
+                report.end_array();report.end_object();
+                report.member("native_map_cache_builds");report.start_object();
+                report.member("schema",1);report.member("clock","std::chrono::steady_clock");report.member("units","milliseconds");report.member("diagnostic_probe_overhead_included",true);
+                report.member("invocations",sub.cache_invocations);report.member("recorded",sub.cache_recorded);report.member("dropped",sub.cache_dropped);
+                report.member("max_depth",sub.cache_max_depth);report.member("exceptional_invocations",sub.cache_exceptional_invocations);
+                report.member("events");report.start_array();
+                for(size_t e=0;e<sub.cache_recorded&&e<ncmm_graphics_move_diagnostics::cache_event_capacity;++e){const auto &event=sub.caches[e];
+                    std::vector<std::string> labels;std::vector<double> boundaries;
+                    for(size_t b=0;b<event.count&&b<ncmm_graphics_move_diagnostics::cache_boundary_capacity;++b){labels.emplace_back(ncmm_graphics_move_diagnostics::label(event.tags[b]));
+                        boundaries.push_back(std::chrono::duration<double,std::milli>(event.points[b]-sample.points[0]).count());}
+                    report.start_object();report.member("ordinal",event.ordinal);report.member("depth",event.depth);report.member("parent_ordinal",event.parent_ordinal);
+                    report.member("parent_update_ordinal",event.parent_update_ordinal);report.member("parent_shift_ordinal",event.parent_shift_ordinal);
+                    report.member("zlev",event.zlev);report.member("skip_lightmap",event.skip_lightmap);report.member("zlevels",event.zlevels);
+                    report.member("bounds_known",event.bounds_known);report.member("min_z",event.min_z);report.member("max_z",event.max_z);
+                    report.member("complete",event.complete);report.member("exceptional",event.exceptional);
+                    report.member("boundary_labels",labels);report.member("boundary_offsets_ms",boundaries);report.end_object();}
+                report.end_array();report.end_object();report.end_object();}
+            report.end_array();report.end_object();
             report.member("first_ready_median_ms",percentile(first_ms,.5));report.member("first_ready_p95_ms",percentile(first_ms,.95));report.member("easing_median_ms",percentile(easing_ms,.5));report.member("easing_p95_ms",percentile(easing_ms,.95));
             report.member("cold_rotation_samples_ms",cold_turn_ms);report.member("warm_rotation_samples_ms",warm_turn_ms);
             report.member("cold_rotation_median_ms",percentile(cold_turn_ms,.5));report.member("cold_rotation_p95_ms",percentile(cold_turn_ms,.95));report.member("cold_rotation_max_ms",*std::max_element(cold_turn_ms.begin(),cold_turn_ms.end()));

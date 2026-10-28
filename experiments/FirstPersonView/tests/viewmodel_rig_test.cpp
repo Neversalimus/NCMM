@@ -47,7 +47,7 @@ int main(int argc,char **){size_t checks=0;auto check=[&](bool v){++checks;if(!v
             const point grip=left?point{-.23f,-.38f,.74f}:point{.27f,-.34f,.70f};
             if(!model.attach(grip,left,slope,placed)){std::fprintf(stderr,"Attach failed empty=%d gun=%d phase=%f slope=%f left=%d\n",empty,gun,phase,slope,left);return 1;}
             const auto h=size_t(node_index(asset,left?"hand.L":"hand.R"));
-            const auto contact=position(placed.joints[h],{0,.055f,.015f})-placed.grip;
+            const auto contact=position(placed.joints[h],empty?point{0,.055f,.015f}:grip_center(left))-placed.grip;
             check(dot(contact,contact)<1e-10f);
             const auto arm=placed.elbow-placed.shoulder,forearm=placed.wrist-placed.elbow;
             check(std::abs(std::sqrt(dot(arm,arm))-.322236f)<1e-4f);

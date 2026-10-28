@@ -10,6 +10,10 @@ on:
         type: choice
         default: quick
         options: [quick, integration, full]
+      terrain_pair:
+        description: 'CI-only same-Host pre-71 terrain include ablation (seven alternating pairs)'
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -30,6 +34,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Require a Native tier for the optional terrain ablation
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.terrain_pair && inputs.qualification == 'quick' }}
+        run: |
+          echo 'Terrain ablation requires integration or full qualification.'
+          exit 1
       - uses: actions/github-script@v7
         with:
           script: |
@@ -73,8 +82,14 @@ jobs:
         run: python experiments/FirstPersonView/compile_gpu_shaders.py --verify --output experiments/graphics_bridge/ncmm_gpu_shader_bytes.hpp
       - name: Check release verifier syntax
         run: python -m py_compile experiments/FirstPersonView/tests/verify_horizon_release.py
+      - name: Native paired sight comparison receipt negative tests
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_sight_comparison.py -v
+      - name: Reject partial or double-counted controlled Native turn intervals
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_turn_attribution.py -v
       - name: Reject invalid first-frame phase accounting
         run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_movement_phases.py -v
+      - name: Reject stale sources, partial terrain pairs, fallback phases and changed captures
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_terrain_pair.py -v
       - name: Reject incomplete or mismatched packaged hardware evidence
         run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_compare_movement_runs.py -v
       - name: Reject mismatched ordinary four-mode hardware comparisons
@@ -83,6 +98,8 @@ jobs:
         run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fire_audit.py -v
       - name: Reject stale target identities, invented HP and hidden targets
         run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_target_audit.py -v
+      - name: Reject incomplete or uncosted Native FPS controls evidence
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fps_audit.py -v
       - name: Reject changed or partial private SDL graphics dependencies
         run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_native_sdl_bridge.py -v
       - name: Keep isolated Linux startup language and deferred values explicit
@@ -97,6 +114,7 @@ jobs:
           ./experiments/FirstPersonView/tests/Test-BenchmarkDataCopy.ps1
           ./experiments/FirstPersonView/tests/Test-CompilerWrapper.ps1
           ./experiments/FirstPersonView/tests/Test-HeldPackage.ps1
+          ./experiments/FirstPersonView/tests/Test-WorldPackage.ps1
       - name: Diagnostic environment isolation on Windows PowerShell
         if: runner.os == 'Windows'
         shell: powershell
@@ -107,6 +125,7 @@ jobs:
           ./experiments/FirstPersonView/tests/Test-BenchmarkCapture.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkDataCopy.ps1
           ./experiments/FirstPersonView/tests/Test-HeldPackage.ps1
+          ./experiments/FirstPersonView/tests/Test-WorldPackage.ps1
       - name: Configure isolated module
         run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release -DFIRST_PERSON_BUILD_BENCHMARK=ON
       - name: Build prototype and contract tests
@@ -119,11 +138,17 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check pillow==11.3.0
           python -B experiments/FirstPersonView/tests/test_import_held_items.py -v
+          python -B experiments/FirstPersonView/tests/test_calibrate_grips.py -v
+          python -B experiments/FirstPersonView/tools/calibrate_grips.py --selection experiments/FirstPersonView/assets/held_items/selection.json --check
+          python -B experiments/FirstPersonView/tools/calibrate_sights.py --selection experiments/FirstPersonView/assets/held_items/selection.json
+          python -B experiments/FirstPersonView/tests/test_import_world_props.py -v
           python -B experiments/FirstPersonView/tests/test_verify_held_gallery.py -v
           python -B experiments/FirstPersonView/tools/import_held_items.py --selection experiments/FirstPersonView/assets/held_items/selection.json --output experiments/FirstPersonView/assets/held_items/generated --check
       - name: Native firing pixel verifier negative tests
         run: |
           python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fire_pixels.py -v
+      - name: Static-stair causal evidence verifier negative tests
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_static_stair_audit.py -v
       - name: Record renderer timing and work counters (no FPS threshold)
         run: cmake --build fp-build --config Release --target first_person_measure
       - name: Configure focused cache and facade sanitizers
@@ -131,10 +156,10 @@ jobs:
         run: cmake -S experiments/FirstPersonView -B fp-cache-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build focused cache and facade sanitizers
         if: runner.os == 'Linux'
-        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_snapshot_cache_tests first_person_scene_signature_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_gpu_cache_tests first_person_facade_continuity_tests first_person_viewmodel_asset_tests first_person_viewmodel_rig_tests first_person_viewmodel_gpu_tests
+        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_snapshot_cache_tests first_person_scene_signature_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_gpu_cache_tests first_person_facade_continuity_tests first_person_viewmodel_asset_tests first_person_viewmodel_rig_tests first_person_viewmodel_gpu_tests first_person_sight_cache_tests first_person_sight_distance_tests
       - name: ASan and UBSan sparse coordinates, face masks and facade continuity
         if: runner.os == 'Linux'
-        run: ctest --test-dir fp-cache-sanitize -R "^first_person_(snapshot_cache|scene_signature|multilevel_(policy|cache|gpu_cache)|facade_continuity|viewmodel_(asset|rig|gpu))$" --output-on-failure
+        run: ctest --test-dir fp-cache-sanitize -R "^first_person_(snapshot_cache|scene_signature|multilevel_(policy|cache|gpu_cache)|facade_continuity|viewmodel_(asset|rig|gpu)|sight_(cache|distance))$" --output-on-failure
       - name: Configure sanitizer coverage
         if: runner.os == 'Linux' && needs.qualification_plan.outputs.full == 'true'
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
@@ -157,7 +182,7 @@ jobs:
           retention-days: 7
   host:
     if: needs.qualification_plan.outputs.native == 'true'
-    needs: [qualification_plan, module]
+    needs: [qualification_plan]
     name: Experimental MSVC Host - ${{ matrix.build }}
     strategy:
       fail-fast: false
@@ -375,7 +400,7 @@ jobs:
             Write-Host "Verified $name; executable SHA256: $((Get-FileHash $exes[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
             "$($variant.output)=$($exes[0].Directory.FullName)" >> $env:GITHUB_OUTPUT
           }
-      - name: Acquire SHA256-verified exact 0.12 main baseline Host and DLL
+      - name: Acquire SHA256-verified 0.13 main baseline Host and DLL
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
@@ -383,33 +408,33 @@ jobs:
           New-Item -ItemType Directory -Force installer-result | Out-Null
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $pins=@{
-            '1040'=@{id=11922850055;sha='4aef0fe60cc0861db9b3ec067aeceabaf253bb06897628db486e59027b6d17ae';inner='a751fbe620ea94b2d1e6a28ca223b3b9313435c425feef02c9491dbfb92b8eba'}
-            '1807'=@{id=11922805752;sha='392a562429339227eff2332c035ee98a30cabd2f28b2c989ed594c8b440780ba';inner='c63a15d7e231830ed1e549deadcb97d69d67586ce3ba49e81e437cdc87bb2596'}
+            '1040'=@{id=12380745602;sha='a7b90d8fd659eb2ab97c3c294b0467040537ad4db278df391c68f4bf7250bcb3';inner='444c4976616a73cc80418d8fe7ca0800e69f5d71bf10672fa53d02724e19fdbb'}
+            '1807'=@{id=12381775756;sha='19c23c138923311aa7e7a29a72593e98ddf3814806d4f4cae38f643cd2afc69d';inner='2250c50307df5456644fe13acf4cb79cc8c7df4245b1a07de68422dd050eb211'}
           }
           $pin=$pins['${{ matrix.build }}']
-          $outer=Join-Path $env:RUNNER_TEMP 'fp012-baseline-artifact.zip'
+          $outer=Join-Path $env:RUNNER_TEMP 'fp013-baseline-artifact.zip'
           Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $env:GH_TOKEN";Accept='application/vnd.github+json'} -Uri ("https://api.github.com/repos/Neversalimus/NCMM/actions/artifacts/"+$pin.id+'/zip') -OutFile $outer
           if((Get-FileHash $outer -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.sha){throw 'Baseline artifact SHA256 mismatch.'}
-          $inner=Join-Path $env:RUNNER_TEMP 'fp012-baseline-installer.zip'
+          $inner=Join-Path $env:RUNNER_TEMP 'fp013-baseline-installer.zip'
           $zip=[IO.Compression.ZipFile]::OpenRead($outer)
           try {
-            $entry=@($zip.Entries | Where-Object {$_.FullName.Replace('\','/').EndsWith('NCMM_FirstPersonView_0.12.0_TEST_${{ matrix.build }}_Windows_x64.zip')})
+            $entry=@($zip.Entries | Where-Object {$_.FullName.Replace('\','/').EndsWith('NCMM_FirstPersonView_0.13.0_TEST_${{ matrix.build }}_Windows_x64.zip')})
             if($entry.Count -ne 1){throw 'Baseline installer is missing or ambiguous.'}
             [IO.Compression.ZipFileExtensions]::ExtractToFile($entry[0],$inner,$true)
           } finally {$zip.Dispose()}
           if((Get-FileHash $inner -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.inner){throw 'Baseline installer SHA256 mismatch.'}
-          $base=Join-Path $env:RUNNER_TEMP 'fp012-baseline'
+          $base=Join-Path $env:RUNNER_TEMP 'fp013-baseline'
           Expand-Archive -LiteralPath $inner -DestinationPath $base
           $bundles=@(Get-ChildItem $base -Filter first-person-bundle.json -Recurse -File)
           if($bundles.Count -ne 1){throw 'Baseline bundle missing.'}
           $payload=$bundles[0].Directory.FullName
           $bundle=Get-Content $bundles[0].FullName -Raw | ConvertFrom-Json
-          if($bundle.source_commit -ne '${{ matrix.source }}' -or $bundle.ncmm_source_commit -ne '74315d034bc28f96133f4af9a71ed44a0d077f7e'){throw 'Baseline source identity differs from the qualified 0.12 candidate.'}
+          if($bundle.source_commit -ne '${{ matrix.source }}' -or $bundle.ncmm_source_commit -ne '9e3d6230f7adbd7462de80a665fb69e939cd81f1'){throw 'Baseline source identity differs from main 0.13.'}
           foreach($file in $bundle.files.PSObject.Properties){
             if((Get-FileHash (Join-Path $payload $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value){throw "Baseline payload mismatch: $($file.Name)"}
           }
-          "FP012_BASELINE_PAYLOAD=$payload" >> $env:GITHUB_ENV
-          [ordered]@{baseline_main='c5a0a0a5e12991df06ba000f80dd359f274b7f50';qualified_head='9c3c69397bbb5ae9d3ec16f8ef21732e15e08b34';qualified_merge=$bundle.ncmm_source_commit;engine_source=$bundle.source_commit;artifact_sha256=$pin.sha;installer_sha256=$pin.inner;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';host_and_module_replaced=$true} | ConvertTo-Json | Set-Content installer-result/first-person-baseline-provenance.json -Encoding UTF8
+          "FP013_BASELINE_PAYLOAD=$payload" >> $env:GITHUB_ENV
+          [ordered]@{baseline_main='5258e5313ad5deae23f967a4a7fc91c7554377f4';baseline_source=$bundle.ncmm_source_commit;source_equivalence='Only feed/index.json and feed/rejected.json differ from baseline source to main';engine_source=$bundle.source_commit;artifact_sha256=$pin.sha;installer_sha256=$pin.inner;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';host_and_module_replaced=$true} | ConvertTo-Json | Set-Content installer-result/first-person-baseline-provenance.json -Encoding UTF8
       - name: Build preview installer and verify transactions with Windows long paths disabled
         id: installer_gate
         shell: powershell
@@ -452,6 +477,102 @@ jobs:
               if(!(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending'))){throw 'Bootstrap lifecycle markers inconsistent.'}
             }
           }
+      - name: Actual Native FPS input and actions before the long galleries
+        timeout-minutes: 12
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-fps-input'
+          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -FpsInputProbe -CaptureCrashDump
+          python -B ncmmrepo/experiments/FirstPersonView/tests/verify_fps_audit.py --root (Join-Path $output 'evidence') --output installer-result/first-person-fps-early-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Early Native FPS input/action qualification failed.'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-fps-input-${{ matrix.build }}
+          path: |
+            ${{ runner.temp }}/fp-fps-input/evidence/*.json
+            ${{ runner.temp }}/fp-fps-input/evidence/*.log
+            ${{ runner.temp }}/fp-fps-input/evidence/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Same-Host Native terrain include ablation without another game copy
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.terrain_pair }}
+        timeout-minutes: 150
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          python -B ncmmrepo/experiments/FirstPersonView/tests/run_terrain_pair.py --repository (Join-Path $PWD 'ncmmrepo') --game (Join-Path $env:RUNNER_TEMP 'fp-fps-input/game') --payload (Join-Path $PWD 'installer-result/_first_person_installer/payload') --build (Join-Path $PWD 'installer-result/_fp_build') --output (Join-Path $env:RUNNER_TEMP 'fp-terrain-pair') --pairs 7
+          if($LASTEXITCODE -ne 0){throw 'Controlled same-Host terrain ablation failed.'}
+      - name: Preserve source-bound terrain pair receipts and exact captures
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.terrain_pair }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-person-terrain-pair-${{ matrix.build }}
+          path: ${{ runner.temp }}/fp-terrain-pair/**
+          if-no-files-found: error
+          retention-days: 7
+      - name: Observe static stairs without changing discovery or visibility rules
+        timeout-minutes: 12
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --disable-pip-version-check pillow==11.3.0
+          if($LASTEXITCODE -ne 0){throw 'Static-stair pixel verifier dependency unavailable.'}
+          $output=Join-Path $env:RUNNER_TEMP 'fp-static-stair'
+          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -StaticStairProbe -CaptureCrashDump
+          python -B ncmmrepo/experiments/FirstPersonView/tests/verify_static_stair_audit.py --root (Join-Path $output 'evidence') --output installer-result/first-person-static-stair-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Static-stair diagnostic evidence failed verification.'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-static-stair-${{ matrix.build }}
+          path: |
+            ${{ runner.temp }}/fp-static-stair/evidence/*.json
+            ${{ runner.temp }}/fp-static-stair/evidence/*.bmp
+            ${{ runner.temp }}/fp-static-stair/evidence/*.log
+            ${{ runner.temp }}/fp-static-stair/evidence/*.txt
+            installer-result/first-person-static-stair-verified.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/checkout@v4
+        if: always() && steps.installer_gate.outcome == 'success'
+        with:
+          repository: Neversalimus/CDDA-Mods
+          ref: 59123092c33244d516fa9d5ca69eaafb8d487f37
+          path: udp-resources
+          persist-credentials: false
+          sparse-checkout: mods/undeadpeople/content
+      - name: Native walking, camera easing and full-size UDP viewport
+        if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
+        timeout-minutes: 20
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-movement'
+          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -TilesetRoot (Join-Path $PWD 'udp-resources/mods/undeadpeople/content') -MovementBenchmark -SightCacheComparison
+          $evidence=Join-Path $output 'evidence'
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_sight_comparison.py --directory $evidence --output (Join-Path $evidence 'first-person-sight-comparison-verified.json')
+          if($LASTEXITCODE -ne 0){throw 'Strict Native sight comparison qualification failed.'}
+          Copy-Item (Join-Path $evidence 'first-person-movement-benchmark.json') installer-result/first-person-movement-benchmark.json
+          Copy-Item (Join-Path $output 'benchmark-provenance.json') installer-result/first-person-movement-provenance.json
+          Get-ChildItem $evidence -Filter 'first-person-movement-*.bmp' | Copy-Item -Destination installer-result
+      # Diagnostic bytes are available before the long galleries/gameplay gates;
+      # the final movement/horizon verifier still requires their completed receipts.
+      - name: Preserve early movement diagnostics without qualifying the installer
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-movement-${{ matrix.build }}
+          path: |
+            ${{ runner.temp }}/fp-movement/benchmark-provenance.json
+            ${{ runner.temp }}/fp-movement/evidence/*.json
+            ${{ runner.temp }}/fp-movement/evidence/first-person-movement-*.bmp
+            ${{ runner.temp }}/fp-movement/evidence/first-person-facade-normal-vision-*.bmp
+            ${{ runner.temp }}/fp-movement/evidence/first-person-horizon-*.bmp
+            ${{ runner.temp }}/fp-movement/evidence/first-person-geometry-*.bmp
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Actual SDL mouse rotation and native input snapshot reuse
         timeout-minutes: 10
         shell: powershell
@@ -498,6 +619,16 @@ jobs:
               Get-ChildItem -LiteralPath $evidence -File | Where-Object {$_.Name -like 'first-person-held-*' -or $_.Name -eq 'first-person-process-result.json'} | Copy-Item -Destination $dest
             }
           }
+      # Review exact grip evidence while the remaining qualification continues.
+      - name: Publish completed Native held gallery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-person-held-gallery-${{ matrix.build }}
+          path: installer-result/held-gallery/**
+          compression-level: 9
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Native target HP, visibility, large and flying creatures, wide viewport
         timeout-minutes: 15
         shell: powershell
@@ -553,14 +684,6 @@ jobs:
             Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue
             Remove-Item Env:\NCMM_FP_VERIFY_DEFERRED_OPTIONS -ErrorAction SilentlyContinue
           }
-      - uses: actions/checkout@v4
-        if: always() && steps.installer_gate.outcome == 'success'
-        with:
-          repository: Neversalimus/CDDA-Mods
-          ref: 59123092c33244d516fa9d5ca69eaafb8d487f37
-          path: udp-resources
-          persist-credentials: false
-          sparse-checkout: mods/undeadpeople/content
       - name: Automated native gameplay, CPU/GPU profiling and actual UDP Hybrid v3
         timeout-minutes: 95
         shell: powershell
@@ -576,6 +699,9 @@ jobs:
           if(@($audit.tilesets).Count -ne 2){throw 'Actual UDP Hybrid v3 evidence is incomplete.'}
           python ncmmrepo/experiments/FirstPersonView/tests/verify_gameplay_audit.py --root $evidence --minimum-soak-seconds $duration --output installer-result/first-person-gameplay-verified.json
           if($LASTEXITCODE -ne 0){throw 'Native gameplay evidence verification failed.'}
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_fps_audit.py --root $evidence --output installer-result/first-person-fps-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Native FPS input/action qualification failed.'}
+          Copy-Item (Join-Path $evidence 'first-person-fps-input.json') installer-result/first-person-fps-input.json
           python ncmmrepo/experiments/FirstPersonView/tests/verify_fire_audit.py --root $evidence --output installer-result/first-person-fire-verified.json
           if($LASTEXITCODE -ne 0){throw 'Native firing metadata/command qualification failed.'}
           python -m pip install --disable-pip-version-check pillow==11.3.0
@@ -590,9 +716,25 @@ jobs:
           Get-ChildItem $evidence -Filter 'first-person-fire-frame-*.png' | Copy-Item -Destination $fireImages
           Copy-Item (Join-Path $output 'benchmark-provenance.json') 'installer-result/first-person-gameplay-provenance.json'
           Copy-Item (Join-Path $evidence 'first-person-gameplay-audit.json') 'installer-result/first-person-gameplay-audit.json'
+          Copy-Item (Join-Path $evidence 'first-person-process-result.json') 'installer-result/first-person-gameplay-process-result.json'
+          Copy-Item (Join-Path $PWD 'installer-result/_first_person_installer/payload/host/first-person-source.json') 'installer-result/first-person-gameplay-source.json'
           Copy-Item (Join-Path $evidence 'first-person-multilevel-save-after.json') 'installer-result/first-person-gameplay-save-load.json'
           Copy-Item (Join-Path $evidence 'udp-asset-sha256.json') 'installer-result/first-person-gameplay-udp-assets.json'
           Get-ChildItem $evidence -Filter 'first-person-audit-*.bmp' | Copy-Item -Destination installer-result
+      # Publish numerical gameplay/turn evidence before long galleries, baseline
+      # comparisons and image uploads. This does not qualify the full installer.
+      - name: Preserve early verified Native gameplay program reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-person-gameplay-${{ matrix.build }}
+          path: |
+            installer-result/first-person-gameplay-audit.json
+            installer-result/first-person-gameplay-provenance.json
+            installer-result/first-person-gameplay-verified.json
+            installer-result/first-person-gameplay-process-result.json
+            installer-result/first-person-gameplay-source.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Focused GPU phases and eight clean process teardowns
         if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
         timeout-minutes: 25
@@ -619,18 +761,6 @@ jobs:
               Get-ChildItem $evidence -Filter 'first-person-gpu-*.bmp' | ForEach-Object {Copy-Item $_.FullName (Join-Path installer-result ($_.Name.Replace('first-person-gpu-','first-person-gpu-focused-')))}
             }
           }
-      - name: Native walking, camera easing and full-size UDP viewport
-        if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
-        timeout-minutes: 20
-        shell: powershell
-        run: |
-          $ErrorActionPreference='Stop'
-          $output=Join-Path $env:RUNNER_TEMP 'fp-movement'
-          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -TilesetRoot (Join-Path $PWD 'udp-resources/mods/undeadpeople/content') -MovementBenchmark
-          $evidence=Join-Path $output 'evidence'
-          Copy-Item (Join-Path $evidence 'first-person-movement-benchmark.json') installer-result/first-person-movement-benchmark.json
-          Copy-Item (Join-Path $output 'benchmark-provenance.json') installer-result/first-person-movement-provenance.json
-          Get-ChildItem $evidence -Filter 'first-person-movement-*.bmp' | Copy-Item -Destination installer-result
       - name: Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items
         if: env.FP_FULL_QUALIFICATION == 'true'
         timeout-minutes: 120
@@ -671,7 +801,7 @@ jobs:
             Remove-Item Env:NCMM_FP_APPEARANCE_DEBUG_DIR -ErrorAction SilentlyContinue
 
           }
-      - name: Paired exact 0.12 Host and module world benchmark
+      - name: Paired exact main 0.13 Host and module world benchmark
         if: env.FP_FULL_QUALIFICATION == 'true'
         timeout-minutes: 120
         shell: powershell
@@ -688,19 +818,19 @@ jobs:
             New-Item -ItemType Directory -Force $jsonBackup | Out-Null
             Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*.json' | Copy-Item -Destination $jsonBackup
             $afterImages=@(Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*.bmp' -File)
-            $baselineHost=Join-Path $root 'cataclysm-tiles.fp012-baseline.exe'
+            $baselineHost=Join-Path $root 'cataclysm-tiles.fp013-baseline.exe'
             try {
-              Copy-Item (Join-Path $env:FP012_BASELINE_PAYLOAD 'host/cataclysm-tiles.ncmm.exe') $baselineHost
-              Copy-Item (Join-Path $env:FP012_BASELINE_PAYLOAD 'code_mods/FirstPersonView/ncmm_mod.dll') (Join-Path $module 'ncmm_mod.dll') -Force
-              Copy-Item (Join-Path $env:FP012_BASELINE_PAYLOAD 'code_mods/FirstPersonView/mod.json') (Join-Path $module 'mod.json') -Force
+              Copy-Item (Join-Path $env:FP013_BASELINE_PAYLOAD 'host/cataclysm-tiles.ncmm.exe') $baselineHost
+              Copy-Item (Join-Path $env:FP013_BASELINE_PAYLOAD 'code_mods/FirstPersonView/ncmm_mod.dll') (Join-Path $module 'ncmm_mod.dll') -Force
+              Copy-Item (Join-Path $env:FP013_BASELINE_PAYLOAD 'code_mods/FirstPersonView/mod.json') (Join-Path $module 'mod.json') -Force
               $env:NCMM_FP_MULTILEVEL_BEFORE='1'
               $env:NCMM_FP_APPEARANCE_BEFORE='1'
               $env:NCMM_FP_APPEARANCE_SMOKE='1'
               ./ncmmrepo/experiments/FirstPersonView/tests/Reset-SmokeWorld.ps1 -GameRoot $root
               $p=Start-Process $baselineHost -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-appearance-011' -WorkingDirectory $root -PassThru
-              if(-not $p.WaitForExit(3000000)){& taskkill.exe /pid $p.Id /t /f;$null=$p.WaitForExit(10000);throw 'Paired 0.12 baseline deadline exceeded.'}
+              if(-not $p.WaitForExit(3000000)){& taskkill.exe /pid $p.Id /t /f;$null=$p.WaitForExit(10000);throw 'Paired main 0.13 baseline deadline exceeded.'}
               $p.Refresh()
-              if($p.ExitCode -ne 0){throw "Paired 0.12 baseline failed: $($p.ExitCode)"}
+              if($p.ExitCode -ne 0){throw "Paired main 0.13 baseline failed: $($p.ExitCode)"}
               foreach($name in @('first-person-multilevel-save-before','first-person-multilevel-before','first-person-appearance-before-cpu')){
                 Copy-Item (Join-Path $root ("ncmm/$name.json")) ("installer-result/$name-"+$variant.name+'.json')
               }
@@ -734,7 +864,7 @@ jobs:
           foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
             python ncmmrepo/experiments/FirstPersonView/tests/verify_appearance.py --root (Join-Path $variant.root 'ncmm') --output ("installer-result/first-person-appearance-paired-"+$variant.name+'.json')
             if($LASTEXITCODE -ne 0){throw 'Paired appearance input/image verification failed.'}
-            python ncmmrepo/experiments/FirstPersonView/tests/verify_multilevel.py --baseline-version 0.12 --root (Join-Path $variant.root 'ncmm') --output ("installer-result/first-person-multilevel-paired-"+$variant.name+'.json')
+            python ncmmrepo/experiments/FirstPersonView/tests/verify_multilevel.py --baseline-version 0.13 --root (Join-Path $variant.root 'ncmm') --output ("installer-result/first-person-multilevel-paired-"+$variant.name+'.json')
             if($LASTEXITCODE -ne 0){throw 'Paired multilevel input/image verification failed.'}
           }
       - name: Collect runtime evidence
@@ -806,6 +936,8 @@ jobs:
             installer-result/first-person-movement-*.json
             installer-result/first-person-movement-*.bmp
             installer-result/first-person-gameplay*.json
+            installer-result/first-person-fps*.json
+            installer-result/first-person-fire*.json
             installer-result/first-person-target*.json
             installer-result/first-person-audit*.bmp
             installer-result/first-person-baseline-provenance.json
@@ -821,7 +953,7 @@ jobs:
           retention-days: 7
   native_linux:
     if: needs.qualification_plan.outputs.native == 'true'
-    needs: [qualification_plan, module]
+    needs: [qualification_plan]
     uses: ./.github/workflows/ncmm-fpv-linux-native.yml
   required_qualification:
     name: First Person required qualification

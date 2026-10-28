@@ -3034,7 +3034,7 @@ static const viewmodel::node nodes[]={
 {"Body",11,{{8.85435841e-19f,0.00657731295f,-0.0448923483f},{-0.707106709f,8.42936956e-08f,-8.42936885e-08f,0.707106829f},{1.0f,1.0f,1.0f}}},
 {"Pistol_Full_West",11,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
 {"Pistol_Full_West.Rig",12,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
-{"NCMM_units_axes_grip",-1,{{-1.72711519e-16f,0.0180521482f,0.0289375633f},{0.0f,1.0f,0.0f,0.0f},{1.06785181f,1.06785181f,1.06785181f}}},
+{"NCMM_units_axes_grip",-1,{{-1.72711518e-16f,0.0413355682f,0.0347584183f},{0.0f,1.0f,0.0f,0.0f},{1.06785181f,1.06785181f,1.06785181f}}},
 };
 static const uint16_t order[]={
 12,11,9,0,1,2,3,4,5,6,7,8,10,
@@ -3072,9 +3072,9 @@ static const material materials[]={
 {{0.839215749f,0.670588235f,0.172549039f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"pistol",14791841195022867111ull,family::pistol,
+1,"pistol",3231519454163068963ull,family::pistol,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{9,{5.59864184e-09f,-0.0719912124f,-0.0234824053f}},{9,{0.0220000075f,-0.0669912139f,-0.0314824014f}},{0,{6.99182212e-10f,0.00850881648f,-0.00293258317f}},{8,{0.0f,0.0f,0.0f}},{6,{0.0f,0.0f,0.0f}},{9,{5.59864184e-09f,-0.0719912124f,-0.0234824053f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.9701425f,0.242535625f}},
+vertex_material,triangle_part,materials,std::size(materials),{{9,{1.07971155e-08f,-0.0774422122f,-0.0452863854f}},{9,{0.0220000075f,-0.0669912139f,-0.0314824014f}},{0,{-0.00184494122f,0.0162546839f,-0.00126682537f}},{8,{0.0f,0.0f,0.0f}},{9,{-8.0289941e-09f,-0.0652037096f,0.0336760427f}},{9,{1.07971155e-08f,-0.0774422122f,-0.0452863854f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.9701425f,0.242535625f},0.015f,0.027f},
 6,8,7,-1,0,2,{-7.89194506e-16f,-0.0206021103f,4.17843593e-09f},0.233f,false
 };
 const model &asset_pistol() noexcept {return value;}

@@ -10,6 +10,18 @@ this performance mode. Configured Native renderer VSync, physical window size,
 display scale and the runtime SDL version are recorded separately from the
 offscreen scene dimensions.
 
+Movement records also contain `native_step_phases`: eleven monotonic clock
+boundaries divide each accepted action into movement, assertions, view-center
+assignment, light reset, map-cache build, visibility invalidation/update,
+refresh return, inclusive render and outer tail. Native calls, route, matrix
+and action assertions are preserved. Storage is reserved before timing and
+sample metadata is appended afterwards. The receipt retains the original
+first-ready/frame samples, accepted XYZ/cost, render bookkeeping and signed
+accounting residual. The release verifier requires consistent adjacent scopes
+and original frame indices. Historical reports without this receipt have no
+measured action/refresh split. These are synchronous wall times including
+probe overhead; `render_call` includes `first_frame`, so never add both.
+
 For component comparisons, `-DisableHeldAssets`, `-DisableTargetHud` and
 `-DisableCameraSnapshot` affect only the diagnostic child. They are separate
 from the one player-facing HUD option. A disabled-components run is an
@@ -27,15 +39,53 @@ a 1280x720 viewport and Native NPC aggregate health. Each GPU record includes
 its actual backend/device and software-adapter status; the physical window's
 display scale is recorded rather than changed globally.
 
+`-StaticStairProbe` is a separate CPU correctness experiment in an isolated
+Native process. It records day/dusk/night normal -> DEBUG_NIGHTVISION -> normal
+observations without advancing turns or updating discovery. A terrain stair
+2-4 cells from the avatar is compared with a furniture-only GOES_UP control
+and hidden contents behind a wall. Physical state, map memory and resident
+overmap disclosure must remain unchanged. This mode is for remote diagnostic
+qualification; do not run it on a desktop where Native harnesses are forbidden.
+
+`tests/verify_static_stair_audit.py --root <evidence> --output <result.json>`
+checks actual BMP pixels and ledgers. Eligible normal snapshots have four
+CPU-only controls varying target BODY and missing measured terrain navigation
+bits. Matrix00 must reproduce the untouched normal snapshot. Confirmation
+requires a signed factorial interaction of at least 24 triangles and eight
+pixels with RGB interaction at least 4/255 in the predetermined ROI. Missing
+normal targets, changed raw Native illumination or insufficient interaction
+remain inconclusive. Debug renderer colours are recorded separately; only the
+four controls with unchanged normal appearance enter the causal pixel formula.
+A successful recorder does not establish a visibility defect,
+qualify a production fix or measure ordinary gameplay frame times. The
+existing 180-case FPS input matrix remains separate.
+
+Schema 2 additionally checks retained ordinary terrain stairs when the real
+normal target has BODY=0, STRUCTURE_VISIBLE and UP/CONNECTED_UP. The
+`normal_static` owned copy must reproduce the actual `normal_after` pixels,
+geometry and source digest. Its `nav_removed` partner removes only
+UP/CONNECTED_UP and sets direction to zero; DOWN, BODY, STRUCTURE, normal
+appearance, illumination, hidden contents and Native ledgers stay unchanged.
+The separate `retained_geometry_verified` status requires at least 24 removed
+triangles and eight changed ROI pixels at RGB difference 4/255. The old
+factorial confirmation remains separate and takes precedence if still present.
+Schema 1 remains readable but cannot contain schema-2 retained protocol fields.
+Synthetic verifier tests do not establish a fixed Native renderer result.
+
 ## Native firing UI context
 
 The gameplay audit now dispatches the ordinary game command through SDL input,
 then processes the native aim activity and target UI. Its private qualification
 gateway calls `game::handle_action`; it does not fabricate an attack notification.
 One legacy-policy cancel trial must reproduce the old native-map presentation.
-The current fixed-policy fixture requires 192 attempts on CPU/GPU, including confirmed single
+The current fixed-policy fixture requires 196 attempts on CPU/GPU, including confirmed single
 and automatic shots, cancellation, an empty weapon, no target, a window, a blocked
-wall, a dead target, a changed weapon, pointer-only LMB and a vertical cancellation. Each successful native window presentation
+wall, a dead target, a changed weapon, pointer-only LMB, a vertical cancellation
+and four deterministic dirty-gun misfires. Owned successful-shot fixtures use
+Native reliability flags to exclude random mechanical failures. Dirty-gun
+fixtures instead require the normal Native firing UI to spend time without
+consuming ammunition or reporting a shot. Player weapon rules are unchanged.
+Each successful native window presentation
 has a lossless PNG, mode/backend state and a contiguous trial/frame receipt.
 `verify_fire_audit.py` checks image integrity and rejects any intermediate map
 frame or silent CPU fallback. The fixture alternates keychar/keycode through the

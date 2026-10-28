@@ -4,6 +4,8 @@
 #include "scene_hash.hpp"
 #include "gpu_scene.hpp"
 #include "held_pose.hpp"
+#include "weapon_effects.hpp"
+#include "ncmm_graphics_focus.h"
 #include <cstdlib>
 #include <chrono>
 namespace {
@@ -14,6 +16,7 @@ const ncmm_host_graphics_v2 *hybrid=nullptr;
 const ncmm_host_graphics_multilevel_v1 *multilevel=nullptr;
 const ncmm_graphics_multilevel_scene_v1 *active_world=nullptr;
 const ncmm_host_graphics_controls_v1 *controls=nullptr;
+const ncmm_host_graphics_focus_v1 *focus=nullptr;
 const ncmm_host_graphics_held_v1 *held_api=nullptr;
 std::unique_ptr<first_person::held::prepared> held_state;
 bool held_assets_enabled=true;
@@ -33,6 +36,7 @@ const ncmm_host_graphics_gpu_v1 *gpu=nullptr;
 const ncmm_host_api_v2_core *settings=nullptr;
 void (*diagnostic_log)(ncmm_log_level_v1,const char *)=nullptr;
 std::unique_ptr<first_person::gpu::scene_cache> gpu_world;
+first_person::gpu::packet gpu_frame;
 uint32_t renderer_mode=NCMM_GPU_AUTO;std::string last_setting="auto",last_gpu_reason;
 bool mode_override=false;
 first_person::hybrid::presentation_data metadata;
@@ -41,8 +45,17 @@ std::unique_ptr<first_person::creature::presentation> creature_state;
 double yaw=-first_person::pi*0.5;
 float pitch=0,look_sway_x=0,look_sway_y=0;
 double look_sway_started=0,last_scene_seconds=0;
+float aim_blend=0;
+double aim_seconds=0;
+struct {bool ready=false;double x=0,y=0;float phase=0;uint64_t epoch=0;} gait;
+uint64_t aim_epoch=0;
 first_person::animation::timeline hand_timeline;
 first_person::viewmodel::animator hand_animator;
+first_person::weapon_fx::timeline weapon_effects;
+const ncmm_host_graphics_projectiles_v1 *projectile_api=nullptr;
+const ncmm_host_graphics_projectiles_v2 *projectile_v2_api=nullptr;
+first_person::projectile_assets::mounts projectile_mounts;
+std::vector<uint32_t> weapon_effect_pixels,weapon_composed_pixels;
 std::vector<ncmm_graphics_quad_v1> commands;
 first_person::hybrid::frame pixels;
 first_person::hybrid::frame world_pixels;
@@ -55,6 +68,7 @@ std::chrono::steady_clock::time_point world_built{};
 void select_renderer(uint32_t mode){
     if(mode==renderer_mode)return;
     renderer_mode=mode;frame_valid=world_valid=false;
+    gpu_frame.reset(true);
     if(mode==NCMM_GPU_CPU&&gpu)gpu->invalidate();
 }
 void report_gpu_fallback(const std::string &reason){
@@ -112,30 +126,102 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
         has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());
     }
-    metadata.horizon.clear();metadata.horizon_revision=0;metadata.horizon_enabled=false;
-    if(active_world&&multilevel&&multilevel->struct_size>=sizeof(*multilevel)&&multilevel->get_lod){
+    metadata.horizon.clear();metadata.skyline.clear();metadata.horizon_revision=0;metadata.horizon_enabled=false;
+    bool replacement_horizon=false;
+    if(active_world&&multilevel&&multilevel->minor>=2&&
+       multilevel->struct_size>=offsetof(ncmm_host_graphics_multilevel_v1,get_skyline)+sizeof(multilevel->get_skyline)&&multilevel->get_skyline){
+        ncmm_graphics_skyline_scene_v1 distant{};distant.struct_size=sizeof(distant);
+        if(multilevel->get_skyline(&distant)&&ncmm_world::valid_skyline(distant)){
+            replacement_horizon=true;
+            if(distant.geography.enabled){
+                if(distant.geography.count)metadata.horizon.assign(distant.geography.patches,distant.geography.patches+distant.geography.count);
+                if(distant.count)metadata.skyline.assign(distant.features,distant.features+distant.count);
+                metadata.horizon_revision=distant.revision;metadata.horizon_enabled=true;
+            }
+        }
+    }
+    if(!replacement_horizon&&active_world&&multilevel&&multilevel->minor>=1&&
+       multilevel->struct_size>=offsetof(ncmm_host_graphics_multilevel_v1,get_lod)+sizeof(multilevel->get_lod)&&multilevel->get_lod){
         ncmm_graphics_lod_scene_v1 distant{};distant.struct_size=sizeof(distant);
         if(multilevel->get_lod(&distant)&&ncmm_world::valid_lod(distant)&&distant.enabled){
             if(distant.count)metadata.horizon.assign(distant.patches,distant.patches+distant.count);
             metadata.horizon_revision=distant.revision;
-            for(float value:{scene->environment.daylight,scene->environment.sun_z,scene->environment.sky_r,scene->environment.sky_g,scene->environment.sky_b,scene->environment.sky_tint})metadata.horizon_revision=first_person::hash_bytes(metadata.horizon_revision,&value,sizeof(value));
             metadata.horizon_enabled=true;
         }
     }
+    if(metadata.horizon_enabled)for(float value:{scene->environment.daylight,scene->environment.sun_z,scene->environment.sky_r,scene->environment.sky_g,scene->environment.sky_b,scene->environment.sky_tint})
+        metadata.horizon_revision=first_person::hash_bytes(metadata.horizon_revision,&value,sizeof(value));
     bool has_creatures=false;
     if(creatures&&creature_state){auto &input=creature_state->input;input.view={};input.view.struct_size=sizeof(input.view);
         if(creatures->get_scene(&input.view)&&input.view.count<=scene->base.cell_count+256){input.creatures.resize(input.view.count);
             has_creatures=creatures->get_creatures(input.creatures.data(),input.creatures.size())&&first_person::creature::valid(input,scene->base.cell_count);}
         if(has_creatures)creature_state->observe();}
     auto pose=hand_timeline.observe(state,scene->environment.animation_seconds,scene->environment.held_item,active_world?active_world->world_epoch:0);
+    const uint64_t epoch=active_world?active_world->world_epoch:0;
+    const double seconds=scene->environment.animation_seconds;
+    if(epoch!=aim_epoch||seconds<aim_seconds){aim_blend=0;aim_seconds=seconds;aim_epoch=epoch;}
+    const float desired_aim=has_metadata&&(metadata.view.flags&NCMM_PRESENT_AIMING)&&pose.grip==NCMM_GRIP_GUN?1.f:0.f;
+    const float aim_step=float(std::clamp(seconds-aim_seconds,0.0,.1))/.16f;
+    aim_blend+=std::clamp(desired_aim-aim_blend,-aim_step,aim_step);aim_seconds=seconds;pose.aim=aim_blend;
     if(has_metadata){const float t=float(std::fmod(scene->environment.animation_seconds,1000.0));
         const float lag=std::exp(-float(std::max(0.0,scene->environment.animation_seconds-look_sway_started))*9);
-        pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
-        pose.sway_y=std::sin(t*2.2f)*.0032f+std::abs(std::sin(t*10))*metadata.view.movement*.010f+look_sway_y*lag;}
+        float phase=t*8;
+        if(active_world){
+            const double x=double(active_world->origin_x)+scene->base.camera_x+active_world->camera_dx,
+                         y=double(active_world->origin_y)+scene->base.camera_y+active_world->camera_dy;
+            const double step=std::hypot(x-gait.x,y-gait.y);
+            if(!gait.ready||gait.epoch!=epoch||step>.5)gait.phase=0;
+            else gait.phase=std::fmod(gait.phase+float(step)*8,4*first_person::hybrid::pi);
+            gait.x=x;gait.y=y;gait.epoch=epoch;gait.ready=true;phase=gait.phase;
+        }
+        const float movement=metadata.view.movement*(1-.8f*pose.aim);
+        pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(phase*.5f)*movement*.006f+look_sway_x*lag;
+        pose.sway_y=std::sin(t*2.2f)*.0032f+std::cos(phase)*movement*.006f+look_sway_y*lag;}
     pose.prepared_frame=&hand_animator.prepare(pose,!scene->environment.held_item[0],pose.grip==NCMM_GRIP_GUN&&(!has_metadata||metadata.view.gun_kind!=NCMM_GUN_BOW));
-    if(held_api&&held_state&&held_assets_enabled){ncmm_held_item_v1 item{};item.struct_size=sizeof(item);
-        if(held_api->get_item(&item))held_state->prepare(item,pose);else held_state->reset();pose.prepared_item=held_state.get();}
+    if(held_api&&held_state){ncmm_held_item_v1 item{};item.struct_size=sizeof(item);
+        if(held_api->get_item(&item)){
+            pose.combustion=(item.flags&NCMM_HELD_COMBUSTION)!=0;pose.ammo_loaded=(item.flags&NCMM_HELD_AMMO_LOADED)!=0;
+            if(held_assets_enabled)held_state->prepare(item,pose);else held_state->reset();
+        }else held_state->reset();pose.prepared_item=held_state.get();}
     else if(held_state)held_state->reset();
+    const auto weapon_profile=first_person::weapon::fallback(has_metadata?metadata.view.gun_kind:uint32_t(NCMM_GUN_NONE),
+        has_metadata?metadata.view.gunmods:0,has_metadata?metadata.view.held_length:pose.length,scene->environment.held_item);
+    first_person::viewmodel::point weapon_eye{scene->base.camera_x,scene->base.camera_y,has_metadata?metadata.view.eye_height:1.55f};
+    int eye_cell=-1;
+    if(active_world){weapon_eye=weapon_eye+first_person::viewmodel::point{float(active_world->origin_x)+active_world->camera_dx,
+            float(active_world->origin_y)+active_world->camera_dy,active_world->origin_z*active_world->level_height+active_world->camera_dz};
+        const int x=int(std::floor(weapon_eye.x)),y=int(std::floor(weapon_eye.y)),z=active_world->origin_z+int(std::floor(active_world->camera_dz/active_world->level_height));
+        const auto *begin=active_world->coordinates,*end=begin+active_world->cell_count;
+        const auto *found=std::lower_bound(begin,end,std::make_tuple(z,y,x),[](const auto &a,const auto &b){return std::make_tuple(a.z,a.y,a.x)<b;});
+        if(found!=end&&found->x==x&&found->y==y&&found->z==z)eye_cell=int(found-begin);
+    }else{const int x=int(std::floor(weapon_eye.x)),y=int(std::floor(weapon_eye.y));
+        if(x>=0&&y>=0&&x<int(scene->base.grid_width)&&y<int(scene->base.grid_height))eye_cell=y*scene->base.grid_width+x;}
+    const auto weapon_camera=first_person::weapon_fx::make_camera(weapon_eye,float(yaw),pitch,
+        first_person::weapon::hud_scale(float(scene->base.pixel_height)/scene->base.pixel_width,has_metadata?metadata.view.body_scale:1.f),
+        has_metadata?std::clamp(metadata.view.body_scale,.70f,1.25f):1.f);
+    metadata.projectiles.clear();
+    if(has_metadata&&active_world&&(projectile_v2_api||projectile_api)){
+        std::array<ncmm_graphics_projectile_v2,NCMM_PROJECTILE_LIMIT> paths{};
+        int count=0;
+        if(projectile_v2_api)count=projectile_v2_api->get_paths(paths.data(),paths.size());
+        else{std::array<ncmm_graphics_projectile_v1,NCMM_PROJECTILE_LIMIT> legacy{};
+            count=projectile_api->get_paths(legacy.data(),legacy.size());
+            if(count>=0&&size_t(count)<=legacy.size())for(int n=0;n<count;++n)paths[n].base=legacy[n];}
+        // Projectiles and world meshes use the small window-local coordinates.
+        // Adding/subtracting a large absolute float origin first can round a
+        // barrel's centimetre offsets away, even though the gun renders locally.
+        auto flight_camera=weapon_camera;
+        flight_camera.eye={scene->base.camera_x+active_world->camera_dx,scene->base.camera_y+active_world->camera_dy,
+            metadata.view.eye_height+active_world->camera_dz};
+        const auto muzzle=flight_camera.world(first_person::weapon::muzzle(pose,weapon_profile));
+        if(count>=0&&size_t(count)<=paths.size())for(int n=0;n<count;++n){auto flight=projectile_mounts.prepare(paths[n].base,active_world->origin_x,active_world->origin_y,active_world->origin_z,active_world->level_height,muzzle,scene->environment.held_item,&paths[n].aim,weapon_camera.forward);
+            if(flight.serial)metadata.projectiles.push_back(std::move(flight));}
+    }
+    weapon_effects.observe(state,pose,weapon_profile,weapon_camera,scene->environment.held_item,epoch);
+    const bool weapon_effect_active=weapon_effects.active(seconds);
+    const auto weapon_light=eye_cell>=0&&size_t(eye_cell)<scene->detail_count?
+        first_person::viewmodel::point{scene->details[eye_cell].light_r,scene->details[eye_cell].light_g,scene->details[eye_cell].light_b}:first_person::viewmodel::point{.3f,.3f,.3f};
+    const first_person::viewmodel::point weapon_wind{scene->environment.wind_x,scene->environment.wind_y,0};
     held_metrics_guard held_report;
     if(settings){const char *value=settings->world_setting_get_string("NCMM_FIRST_PERSON_RENDERER","auto");
         const std::string selected=value?value:"auto";if(selected!=last_setting){last_setting=selected;mode_override=false;}
@@ -149,15 +235,21 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         if(available_now&&(renderer_mode!=NCMM_GPU_AUTO||!available.software_device)){
             const float factor=std::min({1.f,float(high_quality?2560:1920)/scene->base.pixel_width,float(high_quality?1440:1080)/scene->base.pixel_height});
             const int width=std::max(1,int(scene->base.pixel_width*factor)),height=std::max(1,int(scene->base.pixel_height*factor));
-            first_person::gpu::packet packet;first_person::hybrid::frame statistics;
+            gpu_frame.reset();auto &packet=gpu_frame;first_person::hybrid::frame statistics;
             const first_person::hybrid::sprite_provider provider=[](uint32_t cell,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){return hybrid&&hybrid->get_sprite(cell,layer,&sprite)!=0;};
             const bool built=gpu_world->build(*scene,float(yaw),pitch,provider,packet,statistics,available,pose,has_metadata?&metadata:nullptr,has_creatures?creature_state.get():nullptr,width,height,renderer_mode,active_world);
             bool submitted=false;
-            if(built){const auto &base=packet.finish(gpu);if(active_world){ncmm_gpu_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.base=base;
+            if(built){const auto &base=packet.finish(gpu);packet.scene.producer_cache_bytes+=packet.scratch_bytes()+first_person::hybrid::horizon_owned_bytes(metadata);if(active_world){ncmm_gpu_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.base=base;
                     world.coordinates=active_world->coordinates;world.cell_count=active_world->cell_count;world.origin_x=active_world->origin_x;world.origin_y=active_world->origin_y;world.origin_z=active_world->origin_z;world.level_height=active_world->level_height;
                     submitted=multilevel&&multilevel->submit_gpu(&world);}
                 else submitted=gpu->submit_scene(&base);}
             if(submitted){
+                if(presentation&&weapon_effect_active){
+                    const float scale=std::min({1.f,640.f/width,480.f/height});const int fx_width=std::max(1,int(width*scale)),fx_height=std::max(1,int(height*scale));
+                    weapon_effect_pixels.assign(size_t(fx_width)*fx_height,0);
+                    weapon_effects.paint(weapon_effect_pixels,fx_width,fx_height,weapon_camera,seconds,scene->environment.daylight,weapon_light,weapon_wind);
+                    presentation->submit_effects(weapon_effect_pixels.data(),fx_width,fx_height,fx_width);
+                }
                 ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);
                 const bool current_pick=gpu->metrics(&result)&&result.active&&result.frame_serial==packet.scene.frame_serial;
                 if(presentation)presentation->set_target(current_pick?result.target_cell:-1,result.label_x,result.label_y);
@@ -170,7 +262,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     }else if(renderer_mode!=NCMM_GPU_CPU)report_gpu_fallback("Host does not provide compatible Graphics GPU/Mesh API v1");
     const uint64_t common=geometry_key(*scene,has_creatures);
     uint64_t key=scene_key(*scene,common);
-    for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y,pose.equip_phase,pose.attack_phase}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
+    for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y,pose.equip_phase,pose.attack_phase,pose.aim}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
     key=first_person::hash_bytes(key,&pose.seconds,sizeof(pose.seconds));key=first_person::hash_bytes(key,&pose.attack_serial,sizeof(pose.attack_serial));
     key=first_person::hash_bytes(key,&pose.attack_kind,sizeof(pose.attack_kind));
     key=(key^pose.grip)*1099511628211ull;
@@ -180,6 +272,12 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         key^=creature_state->statistics().generated;
         wk=first_person::hash_bytes(wk,&input.view.world_epoch,sizeof(input.view.world_epoch));wk=first_person::hash_bytes(wk,&input.view.tileset_epoch,sizeof(input.view.tileset_epoch));}
     if(has_metadata){auto hash=[&](const void *data,size_t n){wk=first_person::hash_bytes(wk,data,n);};
+        const auto flight_count=uint32_t(metadata.projectiles.size());key=first_person::hash_bytes(key,&flight_count,sizeof(flight_count));
+        for(const auto &flight:metadata.projectiles){
+            key=first_person::hash_bytes(key,&flight.serial,sizeof(flight.serial));key=first_person::hash_bytes(key,&flight.kind,sizeof(flight.kind));
+            key=first_person::hash_bytes(key,&flight.started,sizeof(flight.started));key=first_person::hash_bytes(key,&flight.count,sizeof(flight.count));
+            key=first_person::hash_bytes(key,flight.path.data(),flight.count*sizeof(flight.path[0]));
+        }
         // Appearance and movement only change composition, not static geometry.
         const uint64_t presentation_key=first_person::hash_bytes(1469598103934665603ull,&metadata.view,sizeof(metadata.view));
         key^=presentation_key;
@@ -194,20 +292,38 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(!frame_valid||rebuild_world||key!=frame_key||now-frame_built>std::chrono::milliseconds(250)){
         cpu_built=true;
         const first_person::hybrid::sprite_provider provider=[](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &s){return hybrid&&hybrid->get_sprite(i,layer,&s)!=0;};
-        if(!first_person::hybrid::build_frame(*scene,float(yaw),pitch,provider,pixels,high_quality?1280:960,high_quality?800:600,pose,rebuild_world?nullptr:&world_pixels,rebuild_world?&world_pixels:nullptr,has_metadata?&metadata:nullptr,{},has_creatures?creature_state.get():nullptr,active_world)){frame_valid=world_valid=false;return 0;}
+        if(!first_person::hybrid::build_frame(*scene,float(yaw),pitch,provider,pixels,high_quality?1280:960,high_quality?800:600,pose,rebuild_world?nullptr:&world_pixels,rebuild_world?&world_pixels:nullptr,has_metadata?&metadata:nullptr,{},has_creatures?creature_state.get():nullptr,active_world)){
+            if(diagnostic_log)diagnostic_log(NCMM_LOG_ERROR,("First Person CPU frame rejected: scene="+
+                std::to_string(first_person::hybrid::valid_scene(*scene,float(yaw),pitch,active_world))+
+                " presentation="+std::to_string(!has_metadata||first_person::hybrid::valid_presentation(metadata,scene->base.cell_count))+
+                " creatures="+std::to_string(!has_creatures||first_person::creature::valid(creature_state->input,scene->base.cell_count))+
+                " viewmodel_errors="+std::to_string(pixels.viewmodel_errors)+" viewport="+std::to_string(scene->base.pixel_width)+"x"+std::to_string(scene->base.pixel_height)+
+                " pose="+std::to_string(pose.swing)+","+std::to_string(pose.thrust)+","+std::to_string(pose.equip_phase)).c_str());
+            frame_valid=world_valid=false;return 0;
+        }
         if(rebuild_world){world_key=wk;world_built=now;world_valid=true;}
         frame_key=key;frame_built=now;frame_valid=true;
     }
     if(has_creatures)submit_creature_metrics(pixels,std::count_if(pixels.creatures.begin(),pixels.creatures.end(),[](int32_t cell){return cell!=-1;}));
+    if(focus)focus->set_focus(pixels.focus);
     if(presentation){presentation->set_target(pixels.aimed,pixels.label_x,pixels.label_y);
         if(!pixels.effects.empty()&&!presentation->submit_effects(pixels.effects.data(),pixels.effect_width,pixels.effect_height,pixels.effect_width)){
             ncmm_graphics_composite::blend(pixels.pixels,pixels.width,pixels.height,pixels.effects,pixels.effect_width,pixels.effect_height);frame_valid=false;}}
-    const int submitted=hybrid->submit_frame(pixels.pixels.data(),uint32_t(pixels.width),uint32_t(pixels.height),uint32_t(pixels.width));
+    const uint32_t *frame_pixels=pixels.pixels.data();double weapon_effect_ms=0;
+    if(weapon_effect_active){const auto effect_begun=std::chrono::steady_clock::now();weapon_composed_pixels=pixels.pixels;
+        weapon_effects.paint(weapon_composed_pixels,pixels.width,pixels.height,weapon_camera,seconds,scene->environment.daylight,weapon_light,weapon_wind);
+        weapon_effect_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-effect_begun).count();
+        frame_pixels=weapon_composed_pixels.data();}
+    const int submitted=hybrid->submit_frame(frame_pixels,uint32_t(pixels.width),uint32_t(pixels.height),uint32_t(pixels.width));
+    if(!submitted&&diagnostic_log)diagnostic_log(NCMM_LOG_ERROR,("First Person CPU submission rejected: pixels="+
+        std::to_string(pixels.width)+"x"+std::to_string(pixels.height)+" viewport="+
+        std::to_string(scene->base.pixel_width)+"x"+std::to_string(scene->base.pixel_height)).c_str());
     if(gpu&&gpu->struct_size>=offsetof(ncmm_host_graphics_gpu_v1,submit_cpu_metrics)+sizeof(gpu->submit_cpu_metrics)&&gpu->submit_cpu_metrics){ncmm_gpu_cpu_metrics_v1 metrics{};metrics.struct_size=sizeof(metrics);metrics.width=pixels.width;metrics.height=pixels.height;
         metrics.frame_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-frame_begun).count();
         if(cpu_built){metrics.raster_calls=pixels.raster_calls;metrics.triangles=pixels.submitted_triangles;metrics.geometry_ms=pixels.geometry_ms;metrics.raster_ms=pixels.raster_ms;metrics.effects_ms=pixels.effects_ms;}
+        metrics.effects_ms+=weapon_effect_ms;
         metrics.cache_bytes=(pixels.pixels.capacity()+world_pixels.pixels.capacity())*sizeof(uint32_t)+(pixels.depth.capacity()+world_pixels.depth.capacity()+pixels.held_depth.capacity()+world_pixels.held_depth.capacity())*sizeof(float)+
-            (pixels.owners.capacity()+world_pixels.owners.capacity()+pixels.creatures.capacity()+world_pixels.creatures.capacity())*sizeof(int32_t);gpu->submit_cpu_metrics(&metrics);}
+            (pixels.owners.capacity()+world_pixels.owners.capacity()+pixels.creatures.capacity()+world_pixels.creatures.capacity())*sizeof(int32_t)+first_person::hybrid::horizon_owned_bytes(metadata);gpu->submit_cpu_metrics(&metrics);}
     return submitted;
 }
 int render_multilevel(const ncmm_graphics_multilevel_scene_v1 *scene,void *){
@@ -238,13 +354,15 @@ void input(uint32_t action,void *) {
     if(controls)controls->set_camera(float(yaw),pitch);
 }
 int init(const ncmm_host_api_v1 *api) {
+    projectile_api=nullptr;projectile_v2_api=nullptr;projectile_mounts.reset();
     hand_timeline.reset();hand_animator.reset();
+    weapon_effects.reset();weapon_effect_pixels.clear();weapon_composed_pixels.clear();
     held_api=nullptr;held_state.reset();const char *held_switch=std::getenv("NCMM_FP_HELD_ASSETS");held_assets_enabled=!held_switch||std::strcmp(held_switch,"0")!=0;
     first_person::viewmodel::clear_textures();
     graphics=nullptr;
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
-    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();renderer_mode=NCMM_GPU_AUTO;last_setting="auto";mode_override=false;last_gpu_reason.clear();
-    controls=nullptr;presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();look_sway_x=look_sway_y=0;look_sway_started=last_scene_seconds=0;frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
+    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_frame.reset(true);gpu_world.reset();gait={};renderer_mode=NCMM_GPU_AUTO;last_setting="auto";mode_override=false;last_gpu_reason.clear();
+    controls=nullptr;focus=nullptr;presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();look_sway_x=look_sway_y=0;look_sway_started=last_scene_seconds=0;frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
     const auto core=ncmm::sdk::require_core(api,caps,sizeof(caps)/sizeof(caps[0]),NCMM_SDK_CORE_FIELD_END(api_minor));
     if(!core) return 0;
     diagnostic_log=core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(log)?core.core->log:api->log;
@@ -255,6 +373,24 @@ int init(const ncmm_host_api_v1 *api) {
     if(core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(world_setting_get_string)&&core.core->world_setting_register_enum&&core.core->world_setting_get_string){
         const char *values[]={"auto","gpu","cpu"},*labels[]={"Auto","GPU","CPU"};
         if(core.core->world_setting_register_enum(id,"NCMM_FIRST_PERSON_RENDERER","First Person renderer / Рендерер первого лица","Auto uses a hardware SDL GPU and chooses CPU for software adapters. / Auto: аппаратный GPU; при программном адаптере используется CPU. F12: Auto → CPU → GPU → Auto.",values,labels,3,"auto",NCMM_WORLD_SETTING_LIVE))settings=core.core;}
+    if(settings&&settings->world_setting_register_bool&&settings->world_setting_register_float&&settings->world_setting_register_int){
+        settings->world_setting_register_bool(id,"NCMM_FP_ENABLED","FPS controls / FPS-управление","Physical keys and relative mouse. Tab restores Native commands. / Физические клавиши и мышь. Tab возвращает штатные команды.",1,NCMM_WORLD_SETTING_LIVE);
+        settings->world_setting_register_float(id,"NCMM_FP_SENSITIVITY","Mouse sensitivity / Чувствительность мыши","Linear multiplier; no added acceleration. / Линейный множитель без дополнительного ускорения.",.05,4,1,.05,NCMM_WORLD_SETTING_LIVE);
+        settings->world_setting_register_bool(id,"NCMM_FP_INVERT_Y","Invert mouse Y / Инверсия мыши по вертикали","Invert vertical look. / Инвертировать вертикальный осмотр.",0,NCMM_WORLD_SETTING_LIVE);
+        settings->world_setting_register_int(id,"NCMM_FP_REPEAT_MS","Held movement interval / Интервал удерживаемого движения","Milliseconds; at most one action when Native is ready. / Миллисекунды; одно действие только при готовности игры.",100,400,140,NCMM_WORLD_SETTING_LIVE);
+        settings->world_setting_register_float(id,"NCMM_FP_WALK_SPEED","Walking speed / Скорость ходьбы","Continuous movement within tiles; crossing a tile spends one game step. / Плавное движение внутри клетки; переход через границу выполняет игровой шаг.",1,6,3,.25,NCMM_WORLD_SETTING_LIVE);
+        settings->world_setting_register_bool(id,"NCMM_FP_HELP","Show FPS help once / Показать подсказку FPS один раз","Cleared after showing; enable to show again. / Выключается после показа; включите для повторной подсказки.",1,NCMM_WORLD_SETTING_LIVE);
+        const char *keys[]={"A","B","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","Tab","Up","Down","Left","Right"};
+        struct binding {const char *id,*name,*key;};
+        const binding bindings[]={
+            {"NCMM_FP_FORWARD","Forward / Вперёд","W"},{"NCMM_FP_BACK","Back / Назад","S"},
+            {"NCMM_FP_LEFT","Strafe left / Влево","A"},{"NCMM_FP_RIGHT","Strafe right / Вправо","D"},
+            {"NCMM_FP_INTERACT","Interact / Взаимодействие","E"},{"NCMM_FP_RELOAD","Reload / Перезарядка","R"},
+            {"NCMM_FP_PICKUP","Pick up / Подобрать","G"},{"NCMM_FP_INVENTORY","Inventory / Инвентарь","I"},
+            {"NCMM_FP_COMMANDS","Native commands / Штатные команды","Tab"},{"NCMM_FP_USE","Use held item / Применить предмет в руках","U"}};
+        for(const auto &binding:bindings)settings->world_setting_register_enum(id,binding.id,binding.name,
+            "Physical US key position, independent of text layout. / Физическая позиция клавиши, независимо от языка ввода.",keys,keys,sizeof(keys)/sizeof(keys[0]),binding.key,NCMM_WORLD_SETTING_LIVE);
+    }
     if(api->has_capability(NCMM_GRAPHICS_V2_CAP)) {
         auto *candidate=static_cast<const ncmm_host_graphics_v2 *>(api->query_interface(NCMM_GRAPHICS_V2_ID,2,0));
         if(!candidate || candidate->abi_version!=2 || candidate->major!=2 || candidate->struct_size<sizeof(ncmm_host_graphics_v2) ||
@@ -266,6 +402,12 @@ int init(const ncmm_host_api_v1 *api) {
         if(multilevel){if(!multilevel->register_view(id,render_multilevel,input,nullptr))return 0;}
         else if(!candidate->register_view(id,render_hybrid,input,nullptr))return 0;
         hybrid=candidate;yaw=-first_person::pi*.5;pitch=0;
+        const auto *paths=static_cast<const ncmm_host_graphics_projectiles_v1 *>(api->query_interface(NCMM_GRAPHICS_PROJECTILES_ID,1,0));
+        if(paths&&paths->abi_version==1&&paths->major==1&&paths->struct_size>=sizeof(*paths)&&paths->get_paths)projectile_api=paths;
+        const auto *paths2=static_cast<const ncmm_host_graphics_projectiles_v2 *>(api->query_interface(NCMM_GRAPHICS_PROJECTILES_V2_ID,2,0));
+        if(paths2&&paths2->abi_version==1&&paths2->major==2&&paths2->struct_size>=sizeof(*paths2)&&paths2->get_paths)projectile_v2_api=paths2;
+        const auto *f=static_cast<const ncmm_host_graphics_focus_v1 *>(api->query_interface(NCMM_GRAPHICS_FOCUS_ID,1,0));
+        if(f&&f->abi_version==1&&f->major==1&&f->struct_size>=sizeof(*f)&&f->set_focus)focus=f;
         auto *g=static_cast<const ncmm_host_graphics_gpu_v1 *>(api->query_interface(NCMM_GRAPHICS_GPU_ID,1,0));
         if(g&&g->version==1&&g->api_major==1&&g->struct_size>=offsetof(ncmm_host_graphics_gpu_v1,has_resource)+sizeof(g->has_resource)&&g->available&&g->submit_scene&&g->metrics&&g->invalidate&&g->has_resource){gpu=g;gpu_world=std::make_unique<first_person::gpu::scene_cache>();}
         if(api->has_capability(NCMM_GRAPHICS_PRESENTATION_CAP)){
@@ -294,27 +436,31 @@ int init(const ncmm_host_api_v1 *api) {
     return 1;
 }
 void shutdown() {
+    projectile_api=nullptr;projectile_v2_api=nullptr;projectile_mounts.reset();
+    aim_blend=0;aim_seconds=0;aim_epoch=0;
     hand_timeline.reset();hand_animator.reset();
     held_api=nullptr;held_state.reset();
     if(multilevel)multilevel->set_enabled(id,0);
     else if(hybrid) hybrid->set_enabled(id,0);
     if(graphics) graphics->set_enabled(id,0);
-    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();
+    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_frame.reset(true);gpu_world.reset();gait={};
     first_person::viewmodel::clear_textures();
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
-    controls=nullptr;
+    controls=nullptr;focus=nullptr;
     presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();
     graphics=nullptr;
     commands.clear();
     pixels={};world_pixels={};frame_valid=world_valid=false;
+    first_person::hybrid::clear_radio_lattices();
 }
 const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View",FIRST_PERSON_VERSION,
     caps,sizeof(caps)/sizeof(caps[0]),init,shutdown};
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}
 extern "C" NCMM_EXPORT void ncmm_open_ui_v1(const ncmm_host_api_v1 *) {
+    projectile_mounts.reset();
     hand_timeline.reset();hand_animator.reset();
-    if(multilevel){frame_valid=world_valid=false;const bool enabled=!multilevel->is_enabled(id);multilevel->set_enabled(id,enabled);if(!enabled&&gpu_world)gpu_world->clear();}
-    else if(hybrid){frame_valid=world_valid=false;const bool enabled=!hybrid->is_enabled(id);hybrid->set_enabled(id,enabled);if(!enabled&&gpu_world)gpu_world->clear();}
+    if(multilevel){frame_valid=world_valid=false;const bool enabled=!multilevel->is_enabled(id);multilevel->set_enabled(id,enabled);if(!enabled&&gpu_world){gpu_frame.reset(true);gpu_world->clear();gait={};}}
+    else if(hybrid){frame_valid=world_valid=false;const bool enabled=!hybrid->is_enabled(id);hybrid->set_enabled(id,enabled);if(!enabled&&gpu_world){gpu_frame.reset(true);gpu_world->clear();gait={};}}
     if(graphics) graphics->set_enabled(id,!graphics->is_enabled(id));
 }

@@ -107,7 +107,15 @@ bool graphics_scene_smoke()
         require( !graphics_view.enabled, "view_not_initially_disabled" );
         press_f6();
         require( graphics_view.enabled, "view_did_not_enable" );
-        if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
+        if( const char *static_stairs=std::getenv( "NCMM_FP_STATIC_STAIRS_ONLY" ) ) {
+            require(std::strcmp(static_stairs,"1")==0&&!std::getenv("NCMM_FP_GAMEPLAY_AUDIT")&&
+                !std::getenv("NCMM_FP_FPS_INPUT_ONLY")&&!std::getenv("NCMM_FP_TARGET_HUD_ONLY")&&
+                !std::getenv("NCMM_FP_SAVE_ONLY")&&!std::getenv("NCMM_FP_CAMERA_INPUT")&&
+                !std::getenv("NCMM_FP_HELD_GALLERY_ONLY")&&!std::getenv("NCMM_FP_MOVEMENT_ONLY")&&
+                !std::getenv("NCMM_FP_GPU_BENCHMARK_ONLY"),"static_stair_probe_requires_exclusive_opt_in");
+            #include "ncmm_graphics_static_stair_audit.inc"
+            press_f6();require(!graphics_view.enabled,"static_stair_f6_restore_failed");
+        } else if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
             #include "ncmm_graphics_multilevel_save_smoke.inc"
         } else if( std::getenv( "NCMM_FP_CAMERA_INPUT" ) ) {
             #include "ncmm_graphics_camera_input.inc"
@@ -196,26 +204,131 @@ bool graphics_scene_smoke()
         ncmm::graphics_note_input_context( "INVENTORY" );
         require( ncmm::graphics_relative_action( "UP", arrow( "UP" ), false ) == "UP", "menu_arrows_rotated" );
         ncmm::graphics_note_input_context( "DEFAULTMODE" );
-        for( int i = 0; i < 6; ++i ) ncmm::handle_gameplay_action( "ncmm.view.turn_left" );
-        require( ncmm::graphics_mouse_event( 1, 320, 240, 0, 0, true ), "mouse_drag_did_not_capture" );
+        for (int i = 0; i < 6; ++i)
+            ncmm::handle_gameplay_action("ncmm.view.turn_left");
+        // setup() alone leaves the startup menu's ImGui ownership behind.
+        // Use the actual gameplay UI before testing live SDL capture.
+        g->ncmm_graphics_smoke_prepare_turns();
+        const auto mouse_native_ui = g->create_or_get_main_ui_adaptor();
+        require(SDL_SetRenderTarget(smoke_renderer, nullptr), "mouse_native_ui_target");
+        g->invalidate_main_ui_adaptor();
+        ui_manager::redraw();
+        refresh_display();
+        graphics_release_mouse();
+        float pointer_x = 0, pointer_y = 0;
+        require(SDL_RenderCoordinatesToWindow(
+                    smoke_renderer, float(graphics_viewport.x + graphics_viewport.w / 2),
+                    float(graphics_viewport.y + graphics_viewport.h / 2), &pointer_x, &pointer_y),
+                "mouse_fixture_window_coordinates");
+        SDL_WarpMouseInWindow(get_sdl_window(), pointer_x, pointer_y);
+        inp_mngr.pump_events();
         const float before_mouse_yaw = graphics_camera_yaw;
-        SDL_Event motion = {}; motion.type = SDL_EVENT_MOUSE_MOTION;
-        motion.motion.windowID = SDL_GetWindowID( get_sdl_window() );
-        motion.motion.x = 320; motion.motion.y = 240; motion.motion.xrel = 100; motion.motion.yrel = 0;
-        require( SDL_PushEvent( &motion ), "mouse_motion_not_queued" );
-        SDL_Event look = {}; look.type = SDL_EVENT_KEY_DOWN;
-        look.key.windowID = SDL_GetWindowID( get_sdl_window() ); look.key.key = SDLK_F9; look.key.scancode = SDL_SCANCODE_F9;
-        require( SDL_PushEvent( &look ), "mouse_pump_key_not_queued" );
-        require( gameplay.handle_input( 2000 ) == "ncmm.view.look_up", "mouse_event_consumed_gameplay_key" );
-        require( std::abs( graphics_camera_yaw - before_mouse_yaw - .3f ) < .001f, "sdl_mouse_motion_did_not_rotate_camera" );
-        require( ncmm::graphics_mouse_event( 3, 320, 240, -100, 0, true ), "mouse_return_motion_failed" );
-        ncmm::graphics_note_input_context( "INVENTORY" );
-        require( !graphics_mouse_drag && !SDL_GetWindowRelativeMouseMode( get_sdl_window() ), "menu_did_not_release_cursor" );
-        ncmm::graphics_note_input_context( "DEFAULTMODE" );
-        require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,
-                 "mouse_or_relative_camera_spent_turn" );
+        {
+            struct mouse_script {
+                std::atomic<bool> stop{false}, sent{false};
+                std::atomic<uint32_t> last_wait{0};
+                bool previous;
+                std::thread worker;
+                mouse_script(SDL_WindowID window, float x, float y)
+                    : previous(graphics_fps_audit_active), worker([this, window, x, y]() {
+                          const auto deadline = SDL_GetTicks() + 12000;
+                          uint64_t next_capture = 0;
+                          while (!stop.load() && SDL_GetTicks() < deadline) {
+                              SDL_Delay(20);
+                              const auto waiting = graphics_fps_audit_wait.load();
+                              last_wait.store(waiting);
+                              if (!(waiting & 1u))
+                                  continue;
+                              if (!(waiting & 16u)) {
+                                  if (SDL_GetTicks() < next_capture)
+                                      continue;
+                                  next_capture = SDL_GetTicks() + 160;
+                                  SDL_Event focus{};
+                                  focus.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
+                                  focus.window.windowID = window;
+                                  SDL_PushEvent(&focus);
+                                  SDL_Event click{};
+                                  click.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+                                  click.button.windowID = window;
+                                  click.button.button = SDL_BUTTON_LEFT;
+                                  click.button.x = x;
+                                  click.button.y = y;
+                                  SDL_PushEvent(&click);
+                                  click.type = SDL_EVENT_MOUSE_BUTTON_UP;
+                                  SDL_PushEvent(&click);
+                                  continue;
+                              }
+                              if (!sent.exchange(true)) {
+                                  SDL_Event motion{};
+                                  motion.type = SDL_EVENT_MOUSE_MOTION;
+                                  motion.motion.windowID = window;
+                                  motion.motion.x = x;
+                                  motion.motion.y = y;
+                                  motion.motion.xrel = 100;
+                                  SDL_PushEvent(&motion);
+                              }
+                              // The real hotkey acknowledges this diagnostic wait.
+                              // Only the wake key repeats; the relative delta does not.
+                              SDL_Event look{};
+                              look.type = SDL_EVENT_KEY_DOWN;
+                              look.key.windowID = window;
+                              look.key.key = SDLK_F9;
+                              look.key.scancode = SDL_SCANCODE_F9;
+                              SDL_PushEvent(&look);
+                              look.type = SDL_EVENT_KEY_UP;
+                              SDL_PushEvent(&look);
+                              SDL_Delay(100);
+                          }
+                      }) {
+                    graphics_fps_audit_active = true;
+                    graphics_fps_audit_wait.store(0);
+                }
+                ~mouse_script() {
+                    stop.store(true);
+                    worker.join();
+                    graphics_fps_audit_active = previous;
+                    graphics_fps_audit_wait.store(0);
+                    SDL_FlushEvent(SDL_EVENT_KEY_DOWN);
+                    SDL_FlushEvent(SDL_EVENT_MOUSE_BUTTON_DOWN);
+                    SDL_FlushEvent(SDL_EVENT_MOUSE_BUTTON_UP);
+                }
+            } feed(SDL_GetWindowID(get_sdl_window()), pointer_x, pointer_y);
+            std::string look_action;
+            for (int attempt = 0; attempt < 52; ++attempt) {
+                look_action = gameplay.handle_input(250);
+                if (look_action == "ncmm.view.look_up")
+                    break;
+            }
+            if (!feed.sent.load() || look_action != "ncmm.view.look_up")
+                log_line(NCMM_LOG_ERROR,
+                         ("Mouse wait diagnostic bits=" + std::to_string(feed.last_wait.load()) +
+                          " owner=" + std::to_string(int(graphics_input_router.owner())) +
+                          " ui=" + std::to_string(graphics_fps_ui_claimed) + " focused=" +
+                          std::to_string(graphics_fps_focused) + " action=" + look_action)
+                             .c_str());
+            require(feed.sent.load() && look_action == "ncmm.view.look_up",
+                    "mouse_event_consumed_gameplay_key");
+        }
+        require(std::abs(graphics_camera_yaw - before_mouse_yaw - .3f) < .001f,
+                "sdl_mouse_motion_did_not_rotate_camera");
+        require(ncmm::graphics_mouse_event(3, 320, 240, -100, 0, true),
+                "mouse_return_motion_failed");
+        require(SDL_SetRenderTarget(smoke_renderer, smoke_canvas) &&
+                    SDL_SetRenderLogicalPresentation(smoke_renderer, 0, 0,
+                                                     SDL_LOGICAL_PRESENTATION_DISABLED) &&
+                    SDL_SetRenderScale(smoke_renderer, 1, 1) &&
+                    SDL_SetRenderViewport(smoke_renderer, nullptr) &&
+                    SDL_SetRenderClipRect(smoke_renderer, nullptr),
+                "mouse_native_ui_canvas_restore");
+        ncmm::graphics_note_input_context("INVENTORY");
+        require(!graphics_mouse_drag && !SDL_GetWindowRelativeMouseMode(get_sdl_window()),
+                "menu_did_not_release_cursor");
+        ncmm::graphics_note_input_context("DEFAULTMODE");
+        require(you.pos_bub() == start_pos && you.get_moves() == start_moves &&
+                    calendar::turn == start_time,
+                "mouse_or_relative_camera_spent_turn");
         draw();
-        const float daytime_light = g->natural_light_level( 0 );
+        const float daytime_light = g->natural_light_level(0);
         require( you.get_memorized_tile( here.get_abs( door ) ).get_ter_id() == "t_door_c",
                  "closed_door_not_memorized" );
         SDL_Renderer *renderer = get_sdl_renderer().get();
@@ -391,6 +504,8 @@ bool graphics_scene_smoke()
             const auto traits = graphics_traits( furn, !furn.close.is_null() );
             const uint32_t shape = ncmm_graphics_shapes::furniture( furn.id.str() + " " + furn.looks_like, traits );
             require( shape < NCMM_SHAPE_COUNT, "furniture_shape_out_of_range" );
+            if(furn.id.str()=="f_indoor_plant"||furn.id.str()=="f_indoor_plant_y")
+                require(shape==NCMM_SHAPE_PLANT,"native_potted_plant_became_a_door");
             if( traits.tree || traits.shrub || traits.window || ( traits.door && !traits.flat && !ncmm_graphics_shapes::contains( furn.id.str(), "trapdoor" ) ) ) require( ncmm_graphics_shapes::vertical( shape ), "semantic_furniture_became_floor" );
             ++taxonomy[shape]; ++furniture_count;
         }
@@ -529,7 +644,12 @@ bool graphics_scene_smoke()
         graphics_effect_pixels.assign(4,0x20408040u);graphics_effect_width=graphics_effect_height=2;
         graphics_effect_failed=true;const auto fallback_count=graphics_effect_cpu_frames;
         const SDL_FRect full={0,0,640,480};
+        const bool saved_gpu_frame=graphics_gpu_frame;graphics_gpu_frame=false;
         require(graphics_present_effects(renderer,graphics_stream_texture,full)&&graphics_effect_cpu_frames==fallback_count+1,"atmosphere_cpu_recovery_failed");
+        graphics_gpu_frame=true;
+        SDL_Texture *recovery_frame=saved_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->output():graphics_stream_texture;
+        require(recovery_frame&&graphics_present_effects(renderer,recovery_frame,full)&&graphics_effect_cpu_frames==fallback_count+1,"atmosphere_gpu_world_not_preserved");
+        graphics_gpu_frame=saved_gpu_frame;
         graphics_effect_failed=false;here.clear_fields(sample);draw();
         item rifle(itype_id("modular_m27_assault_rifle"),calendar::turn);
         rifle.force_insert_item(item(itype_id("rifle_scope"),calendar::turn),pocket_type::MOD);

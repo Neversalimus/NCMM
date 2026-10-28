@@ -25,6 +25,10 @@ struct hand_pose {
     std::array<uint16_t,maximum_nodes> node_palette{};
     uint32_t side=0,palette_count=0;
 };
+// Centre of the cylinder enclosed by the original grab clip, in hand space.
+// Measured from all three phalanges of the middle/ring/little fingers; the
+// wrist origin and the centre of the palm are not the handle centre.
+point grip_center(bool left,float radius=.016f) noexcept;
 struct submission {
     const asset &geometry;
     const hand_pose &pose;
@@ -46,7 +50,7 @@ public:
     frame(const animation::pose &action,bool no_item,bool firearm) noexcept;
     // Optional bottom camera plane in attachment space, with unit XY normal.
     bool attach(point grip,bool left,float lower_view_slope,hand_pose &out,const point *trigger=nullptr,
-                const std::array<float,4> *lower_plane=nullptr,const point *grip_axis=nullptr)const noexcept;
+                const std::array<float,4> *lower_plane=nullptr,const point *grip_axis=nullptr,float grip_radius=.016f)const noexcept;
     const asset &geometry()const noexcept{return source;}
 };
 // One fixed-size local-pose snapshot makes even repeated interruptions

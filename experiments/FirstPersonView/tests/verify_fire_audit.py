@@ -46,6 +46,7 @@ def verify(root):
     assert not report['manual_playthrough'] and not report['synthetic_attack_notifications']
     assert report['normal_game_command_dispatch'] and report['native_activity_and_target_ui']
     assert not report['ordinary_ai_turns']
+    assert report['controlled_native_gun_reliability'] is True
     trials, frames = report['trials'], report['frames']
     controls = [t for t in trials if t['legacy_control']]
     measured = [t for t in trials if not t['legacy_control']]
@@ -54,9 +55,10 @@ def verify(root):
     firing = {'keyboard_single', 'lmb_single', 'window'}
     expected = Counter({(mode, name): 20 if name in firing else 10 for mode in ['cpu', 'gpu'] for name in common})
     expected.update({(mode, name): 1 for mode in ['cpu', 'gpu'] for name in extra})
+    expected.update({(mode, 'misfire'): 2 for mode in ['cpu', 'gpu']})
     assert Counter((t['renderer'], t['scenario']) for t in measured) == expected
     for mode in ['cpu', 'gpu']:
-        for name in common:
+        for name in common | {'misfire'}:
             assert {t['keyboard_mode'] for t in measured if t['renderer'] == mode and t['scenario'] == name} == {'keychar', 'keycode'}
     assert len(measured) >= 100 and len(controls) == 1 and controls[0]['scenario'] == 'cancel'
     assert frames and all(f['captured'] and f['presented'] for f in frames)
@@ -74,7 +76,14 @@ def verify(root):
         cursor = last
         selected = frames[first:last]
         assert 1 <= trial['dispatch_calls'] <= 128
-        assert trial['native_command'] == ('SELECT' if trial['scenario'] in {'lmb_single', 'pointer_only'} else 'fire')
+        expected_command='fire' if report.get('fps_input_router') else ('SELECT' if trial['scenario'] in {'lmb_single', 'pointer_only'} else 'fire')
+        assert trial['native_command'] == expected_command
+        misfire = trial['scenario'] == 'misfire'
+        assert trial['native_gun_dirt'] == (10000 if misfire else 0)
+        assert trial['native_never_jams'] is (not misfire) and trial['native_waterproof'] is True
+        if report.get('fps_input_router'):
+            assert report['fps_input_router'] is True
+            assert trial['fps_attack_intents'] == int(trial['scenario'] in {'lmb_single', 'pointer_only'}), 'FPS mouse input ownership mismatch'
         assert trial['native_keyboard_mode'] == trial['keyboard_mode'], 'Native cached keyboard mode differs from the requested option'
         chars, codes = trial['default_keychar_inputs'], trial['default_keycode_inputs']
         assert (chars > 0 and codes == 0) if trial['native_keyboard_mode'] == 'keychar' else (codes > 0 and chars == 0)
@@ -86,8 +95,10 @@ def verify(root):
         assert all(f['enabled'] and f['perspective'] and f['gpu'] == (trial['renderer'] == 'gpu') for f in selected)
         delta = trial['attack_serial_after'] - trial['attack_serial_before']
         spent = trial['ammo_before'] - trial['ammo_after']
-        if trial['scenario'] in {'cancel', 'empty', 'no_target', 'blocked_wall', 'vertical_cancel', 'dead_target'}:
+        if trial['scenario'] in {'cancel', 'empty', 'no_target', 'blocked_wall', 'vertical_cancel', 'dead_target', 'misfire'}:
             assert delta == spent == 0
+            if misfire:
+                assert trial['moves_after'] < trial['moves_before'] and not trial['escape_recovery']
         else:
             assert delta > 0 and delta == spent and trial['moves_after'] < trial['moves_before']
             assert delta >= 2 if trial['scenario'] == 'burst' else delta == 1
@@ -96,6 +107,7 @@ def verify(root):
     assert cursor == len(frames) and shots >= 120
     return {'success': True, 'actual_cdda_sdl': True, 'manual_playthrough': False,
             'normal_native_ui_attempts': len(measured), 'confirmed_shots': shots,
+            'native_misfire_refusals': sum(t['scenario'] == 'misfire' for t in measured),
             'original_context_regression_reproduced': True, 'presented_images': len(frames),
             'images': manifest, 'ordinary_ai_turns': False,
             'limitations': ['Pointer-only LMB uses SDL pointer positioning in the owned diagnostic window',

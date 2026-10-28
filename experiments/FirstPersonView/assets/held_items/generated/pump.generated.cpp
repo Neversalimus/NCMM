@@ -2269,7 +2269,7 @@ static const viewmodel::node nodes[]={
 {"Body",7,{{3.07738849e-17f,0.0296505f,0.138593256f},{-0.707106829f,8.407788e-17f,8.407788e-17f,0.707106829f},{1.0f,1.0f,1.0f}}},
 {"Shotgun_Pump_West",7,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
 {"Shotgun_Pump_West.Rig",8,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
-{"NCMM_units_axes_grip",-1,{{-0.00603382603f,0.054408973f,0.384307855f},{0.0f,1.0f,0.0f,0.0f},{2.01127534f,2.01127534f,2.01127534f}}},
+{"NCMM_units_axes_grip",-1,{{-0.00603382603f,0.034408973f,0.409308007f},{0.0f,1.0f,0.0f,0.0f},{2.01127534f,2.01127534f,2.01127534f}}},
 };
 static const uint16_t order[]={
 8,7,5,0,1,2,3,4,6,
@@ -2302,9 +2302,9 @@ static const material materials[]={
 {{0.839215749f,0.670588235f,0.172549039f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"pump",8709306422760533965ull,family::pump,
+1,"pump",5206371155896709347ull,family::pump,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{5,{-0.003f,-0.0524834285f,-0.0567024758f}},{5,{3.26904008e-17f,0.266871761f,-0.0331908376f}},{4,{-5.76605529e-16f,0.00899999758f,2.41845854e-09f}},{5,{6.81616452e-17f,0.416030825f,0.00876651235f}},{5,{6.3405482e-17f,0.396030826f,0.0237665076f}},{5,{-0.003f,-0.0524834285f,-0.0567024758f}},{0.0f,0.9701425f,0.242535625f},{0.0f,0.0f,1.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{5,{-0.003f,-0.0649134282f,-0.0467585395f}},{5,{1.51784608e-18f,0.133965329f,-0.0282188865f}},{4,{-0.00325938567f,0.00390845295f,0.00475479097f}},{5,{6.81616452e-17f,0.416030825f,0.00876651235f}},{5,{6.38391628e-17f,0.396030826f,0.0242637045f}},{5,{-0.003f,-0.0649134282f,-0.0467585395f}},{0.0f,0.5f,0.866025404f},{0.0f,0.0f,1.0f},0.023f,0.027f},
 -1,-1,-1,-1,4,-1,{0.0f,0.0f,0.0f},1.2f,true
 };
 const model &asset_pump() noexcept {return value;}

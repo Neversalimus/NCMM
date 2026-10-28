@@ -7,8 +7,24 @@
     }
     void chain_panel(vec center,float a,float width,material metal){
         box(center,{-width*.5f,-.017f,1.80f},{width*.5f,.017f,1.84f},metal,a);
+        float phase=0;const float co=std::cos(a),sn=std::sin(a);
+        if(std::abs(co)<.0001f||std::abs(sn)<.0001f){
+            // All cardinal panels sample the same world x+y lattice. A
+            // reflected half-panel must continue each wire, not turn it back
+            // at every post. Keep an opened gate's own hinged local lattice.
+            const int i=metal.cell;const vec cell=cell_center(i);
+            const int64_t sum=world_data?int64_t(world_data->coordinates[i].x)+world_data->coordinates[i].y+1:
+                int64_t(i%base.grid_width)+i/base.grid_width+1;
+            // One metre advances five .02 m ticks modulo the .18 m pitch.
+            // Integer reduction keeps negative/far world coordinates exact;
+            // only the small panel offset enters floating-point arithmetic.
+            const int tick=int(((sum%9+9)%9)*5%9);
+            const float offset=(center.x-cell.x)+(center.y-cell.y);
+            phase=(tick*.02f+offset)*(co+sn>0?1.f:-1.f);
+            phase-=std::floor(phase/.18f)*.18f;
+        }
         for(int slope:{-1,1})for(int wire=-4;wire<=14;++wire){
-            const float intercept=wire*.18f;float x0=-width*.5f,x1=width*.5f;
+            const float intercept=wire*.18f+slope*phase;float x0=-width*.5f,x1=width*.5f;
             if(slope>0){x0=std::max(x0,.08f-intercept);x1=std::min(x1,1.8f-intercept);}
             else{x0=std::max(x0,intercept-1.8f);x1=std::min(x1,intercept-.08f);}
             if(x0>=x1)continue;

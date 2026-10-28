@@ -6,6 +6,7 @@ from pathlib import Path
 from verify_fire_audit import verify as verify_fire_audit
 from verify_held_gallery import verify as verify_held_gallery
 from verify_target_audit import verify as verify_target_audit
+from verify_turn_attribution import verify as verify_turn_attribution
 
 p=argparse.ArgumentParser()
 p.add_argument('--root',type=Path,required=True)
@@ -15,7 +16,7 @@ a=p.parse_args()
 r=json.loads((a.root/'first-person-gameplay-audit.json').read_text(encoding='utf-8-sig'))
 assert r['success'] and r['actual_cdda_sdl'] and not r['manual_playthrough']
 assert not r['gpu_execution_timestamps_available']
-actions={'native_held_assets_and_shared_psx_contacts','native_target_health_identity_visibility_and_font','native_firing_ui_context_and_presented_frames','native_walk_and_visual_continuity','native_door_open_close_and_furniture',
+actions={'native_held_assets_and_shared_psx_contacts','native_target_health_identity_visibility_and_font','native_firing_ui_context_and_presented_frames','native_fps_input_and_actions','native_walk_and_visual_continuity','native_door_open_close_and_furniture',
          'native_pickup_inventory_cancel_and_item_use','native_melee_aim_fire_and_reload_completion',
          'native_stairs_and_basement','native_vehicle_board_controls_displacement_and_exit',
          'rapid_tall_avatar_stairs_respect_scene_bounds',
@@ -25,6 +26,7 @@ assert {x['name'] for x in r['actions']}==actions and all(x['success'] for x in 
 fire_audit = verify_fire_audit(a.root)
 held_gallery = verify_held_gallery(a.root)
 target_audit = verify_target_audit(a.root)
+turn_attribution = verify_turn_attribution(r)
 assert r['native_action_stages']['native_game_turn_wall_ms']['samples']==8
 assert r['native_action_stages']['native_stair_first_ready_wall_ms']['samples']==4
 assert [t['spawned'] for t in r['combat_trials']]==[1,5,20]
@@ -74,6 +76,7 @@ assert save['success'] and save['actual_cdda_save_load'] and [x['z'] for x in sa
 assert all(x['restored_xyz'] and x['restored_moves'] and x['restored_turn'] and x['f6_restored_tiles'] for x in save['levels'])
 result={'success':True,'actual_cdda_sdl':True,'manual_playthrough':False,'native_action_groups':len(actions),
         'tilesets':[x['id'] for x in r['tilesets']],'paired_cpu_gpu_cases':len(scenes)*2,
-        'automated_soak_seconds':s['actual_wall_seconds'],'gpu_execution_timestamps_available':False}
+        'automated_soak_seconds':s['actual_wall_seconds'],'gpu_execution_timestamps_available':False,
+        'native_turn_attribution':turn_attribution}
 a.output.write_text(json.dumps(result,indent=2)+'\n')
 print('Native action audit, actual UDP, CPU/GPU phases, bounded soak and saves PASS')

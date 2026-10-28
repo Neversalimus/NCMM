@@ -13,6 +13,7 @@ struct contact {uint16_t node=0;viewmodel::point point;};
 struct contacts {
     contact primary,secondary,trigger,muzzle,sight,pivot;
     viewmodel::point primary_axis{0,1,0},secondary_axis{0,1,0};
+    float primary_radius=.016f,secondary_radius=.016f;
 };
 struct material {
     float color[4];uint32_t finish;

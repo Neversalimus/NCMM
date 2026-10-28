@@ -3,6 +3,7 @@ ncmm_multilevel_metrics_v1 graphics_world_metrics = {};
 uint64_t graphics_world_range_evaluations=0,graphics_world_range_hits=0;
 uint64_t graphics_world_material_evaluations=0,graphics_world_material_hits=0;
 uint64_t graphics_world_epoch=1,graphics_world_revision=1,graphics_world_serial=0;
+uint64_t graphics_world_geometry_revision=1,graphics_world_planes_revision=1;
 std::array<uint64_t,257> graphics_world_level_revisions = {};
 std::array<uint64_t,257> graphics_world_source_revisions = {};
 void graphics_world_changed_impl(const map *source,int z)
@@ -11,6 +12,8 @@ void graphics_world_changed_impl(const map *source,int z)
     if(!g||source!=&get_map())return;
     graphics_snapshot_lease.invalidate();
     ++graphics_world_revision;
+    const bool cache_only=ncmm::graphics_native_cache_reset::contains(source,z);
+    if(!cache_only){++graphics_world_geometry_revision;++graphics_world_planes_revision;}
     if(z==INT32_MIN){
         for(auto &revision:graphics_world_level_revisions)++revision;
         for(auto &revision:graphics_world_source_revisions)++revision;
@@ -18,7 +21,7 @@ void graphics_world_changed_impl(const map *source,int z)
         ++graphics_world_level_revisions[size_t(z+128)];
         // Public revisions and native lighting/visibility cache rebuilds stay
         // unchanged. Only private source validity distinguishes cache-only work.
-        if(ncmm::graphics_native_cache_reset::contains(source,z))return;
+        if(cache_only)return;
         // A roof/canopy change can notify the adjacent plane in Native code.
         for(int level=std::max(-128,z-1);level<=std::min(128,z+1);++level)
             ++graphics_world_source_revisions[size_t(level+128)];
@@ -29,6 +32,7 @@ void graphics_world_changed_impl(const map *source,int z)
 }
 #if defined(TILES)
 #include "ncmm_graphics_lod.inc"
+#include "ncmm_graphics_terrain_stair.inc"
 struct graphics_world_candidate {
     ncmm_world_cell_v1 world{};tripoint_bub_ms pos;uint32_t permission=0;float distance=0;std::array<float,3> facade_light{};
 };
@@ -39,11 +43,13 @@ ncmm_graphics_scratch::vector_storage<ncmm_world_cell_v1,NCMM_WORLD_MAX_CELLS> g
 ncmm_graphics_scratch::vector_storage<ncmm_world_slice_v1,NCMM_WORLD_MAX_SLICES> graphics_world_slice_storage;
 ncmm_graphics_scratch::vector_storage<std::array<float,3>,NCMM_WORLD_MAX_CELLS> graphics_world_facade_storage;
 uint64_t graphics_world_snapshot_growths=0,graphics_world_snapshot_reuses=0,graphics_world_snapshot_candidates=0;
-uint64_t graphics_world_snapshot_storage_bytes(){
+uint64_t graphics_world_snapshot_storage_bytes(bool include_details=true){
     return graphics_world_candidate_storage.bytes()+graphics_world_cell_storage.bytes()+graphics_world_position_storage.bytes()+
-        graphics_world_coordinate_storage.bytes()+graphics_world_slice_storage.bytes()+graphics_world_facade_storage.bytes();
+        graphics_world_coordinate_storage.bytes()+graphics_world_slice_storage.bytes()+graphics_world_facade_storage.bytes()+
+        (include_details?graphics_hybrid_detail_storage.bytes():0);
 }
 ncmm_world::source_cache graphics_world_sources;
+void graphics_world_geometry_region_changed(int32_t,int32_t,int,int,int);
 void graphics_world_region_changed_impl(const map *source,int32_t x,int32_t y,int z,int w,int h)
 {
     if(!g||source!=&get_map())return;
@@ -51,12 +57,21 @@ void graphics_world_region_changed_impl(const map *source,int32_t x,int32_t y,in
     ++graphics_world_revision;
     if(z>=-128&&z<=128)++graphics_world_level_revisions[size_t(z+128)];
     graphics_world_sources.invalidate(x,y,z,w,h);
+    graphics_world_geometry_region_changed(x,y,z,w,h);
 }
 const map *graphics_world_map_identity=nullptr; // comparison only
 std::string graphics_world_realm;
 uint64_t graphics_world_ray_epoch=1,graphics_world_ray_revision=0;
 ncmm_world::geometry_cache graphics_world_roofs,graphics_world_derived;
 ncmm_world::sealed_plane_cache graphics_world_sealed;
+void graphics_world_geometry_region_changed(int32_t x,int32_t y,int z,int w,int h){
+    ++graphics_world_planes_revision;
+    if(w<=0||h<=0||z< -128||z>128){++graphics_world_geometry_revision;return;}
+    // Derived flags consult direct neighbours and the level above/below.
+    // Roofs depend on the complete column, never on a distant field/item.
+    graphics_world_derived.invalidate(int64_t(x)-1,int64_t(y)-1,z-1,z+1,int64_t(w)+2,int64_t(h)+2);
+    graphics_world_roofs.invalidate(x,y,0,0,w,h);
+}
 int graphics_world_cached_low=0,graphics_world_cached_high=-1;
 ncmm_world::point graphics_world_ray_eye{};
 std::optional<tripoint_abs_ms> graphics_world_previous_position,graphics_world_ray_position;
@@ -133,37 +148,31 @@ bool graphics_verify_world_sources(size_t &checked,size_t *tile_checked=nullptr)
 }
 void graphics_clear_world()
 {
+    graphics_projectiles_reset();
+    graphics_locomotion_reset();
     graphics_snapshot_lease.invalidate();graphics_camera_cache.clear();
     graphics_world_candidate_storage.clear();graphics_world_cell_storage.clear();graphics_world_position_storage.clear();
     graphics_world_coordinate_storage.clear();graphics_world_slice_storage.clear();graphics_world_facade_storage.clear();
+    graphics_hybrid_detail_storage.clear();
     graphics_world_snapshot_growths=graphics_world_snapshot_reuses=graphics_world_snapshot_candidates=0;
     graphics_world_sources.clear();graphics_world_roofs.clear();graphics_world_derived.clear();graphics_world_sealed.clear();graphics_world_map_identity=nullptr;graphics_world_realm.clear();
     graphics_world_previous_position.reset();graphics_world_ray_position.reset();graphics_world_camera_motion.reset();
     graphics_world_transition_active=graphics_world_vertical_transition_active=false;graphics_world_pending_present=false;graphics_multilevel_frame=nullptr;
+    graphics_clear_lod();
     ++graphics_world_epoch;
 }
 void graphics_world_frame_presented()
 {
     if(graphics_frame_pending_present&&graphics_view.enabled){
         const auto ticks=SDL_GetTicks();
-        if(graphics_world_pending_present)graphics_world_camera_motion.presented(ticks);
+        graphics_projectiles_presented(ticks);
+        if(graphics_world_pending_present){graphics_world_camera_motion.presented(ticks);graphics_locomotion_presented();}
         if(graphics_attack_pending){graphics_attack_started=ticks/1000.0;graphics_attack_pending=false;}
     }
     graphics_world_pending_present=graphics_frame_pending_present=false;
 }
 std::array<float,3> graphics_world_rgb(const tripoint_bub_ms &p){return graphics_sample_rgb(p);}
-bool graphics_world_in_visual_range(const tripoint_bub_ms &p,int maximum,bool no_sight,ncmm_world::light_range_cache *ranges=nullptr,const tripoint_bub_ms *surface_light=nullptr)
-{
-    map &here=get_map();avatar &you=get_avatar();if(!here.ncmm_graphics_loaded(p)||std::abs(p.z()-you.posz())>fov_3d_z_range)return false;
-    const auto &lit=surface_light?*surface_light:p;if(!here.ncmm_graphics_loaded(lit))return false;
-    const float raw=here.ambient_light_at(lit);const int current=ranges?ranges->get(raw,[&]{return you.sight_range(raw);}):you.sight_range(raw),minimum=std::min(current,maximum);
-    const int wanted=rl_dist(you.pos_bub(),p);const bool artificial=raw>here.get_cache_ref(p.z()).natural_light_level_cache;
-    if(!(wanted<=minimum||(wanted<=maximum&&artificial)))return false;
-    return wanted<=(no_sight?1:artificial?MAX_VIEW_DISTANCE:minimum);
-}
-bool graphics_world_in_visual_range(const tripoint_bub_ms &p){const auto &you=get_avatar();
-    return graphics_world_in_visual_range(p,std::max(you.sight_range(default_daylight_level()),you.sight_range(0)),you.has_effect(efftype_id("no_sight")));}
-bool graphics_world_perception(const tripoint_bub_ms &p){return graphics_world_in_visual_range(p)&&get_avatar().sees(get_map(),p);}
+#include "ncmm_graphics_range.inc"
 bool graphics_draw_world(int x,int y,int width,int height)
 {
     ncmm_graphics_trace::cpu_zone snapshot_zone("Snapshot");
@@ -171,7 +180,13 @@ bool graphics_draw_world(int x,int y,int width,int height)
     const auto begun=std::chrono::steady_clock::now();avatar &you=get_avatar();map &here=get_map();
     // Ordinary transient caches only. update_visibility_cache() writes discovery
     // and is not called to reveal additional levels for graphics.
+    ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::native_cache_begin);
     here.build_map_cache(you.posz());
+    ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::native_cache_end);
+    // Native redraws before entering its SDL poll as well. The explicit input
+    // lease permits a bounded held-state sample in that safe pre-poll frame;
+    // no simulation phase or nested modal can advance the solver here.
+    if(graphics_snapshot_lease.active())graphics_locomotion_tick(SDL_GetTicks());
     const auto absolute=you.pos_abs();const int radius=NCMM_GRAPHICS_V2_RADIUS,side=radius*2+1;
     if(!ncmm_world::source_window_fits(absolute.x(),absolute.y(),radius))return false;
     const int32_t ox=absolute.x()-radius,oy=absolute.y()-radius;
@@ -190,7 +205,12 @@ bool graphics_draw_world(int x,int y,int width,int height)
     if(!graphics_world_sources.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch)||
        !graphics_world_derived.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch)||
        !graphics_world_roofs.prepare(ox,oy,0,0,side,side,graphics_world_epoch)||
-       !graphics_world_sealed.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch,graphics_world_revision))return false;
+       !graphics_world_sealed.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch,graphics_world_planes_revision))return false;
+    if(graphics_world_previous_position&&graphics_world_previous_position->xy()!=absolute.xy()){
+        ncmm_world::invalidate_shifted_geometry_borders(graphics_world_derived,
+            int64_t(graphics_world_previous_position->x())-radius,int64_t(graphics_world_previous_position->y())-radius,
+            ox,oy,loaded.front(),loaded.back(),side);
+    }
     graphics_world_metrics={};graphics_world_metrics.struct_size=sizeof(graphics_world_metrics);
     graphics_world_metrics.available_slices=uint32_t(loaded.size());
     ncmm_world::material_semantics_cache material_definitions,elevated_material_definitions;
@@ -199,6 +219,12 @@ bool graphics_draw_world(int x,int y,int width,int height)
         return graphics_world_sources.get(ax,ay,z,graphics_world_source_revisions[size_t(z+128)]+1,[&]{
             return graphics_world_read_source(here,ax,ay,z,material_definitions,elevated_material_definitions);
         });
+    };
+    // Rare non-BODY stair proofs must never inherit hidden furniture, field
+    // or vehicle navigation. This const view is bounded to the same source
+    // window and owns no Native data beyond the individual terrain read.
+    auto terrain_stair_flags=[&](int ax,int ay,int z){
+        return graphics_world_terrain_stair_flags(here,ax,ay,z,ox,oy,side,side,loaded.front(),loaded.back());
     };
     // Lazy absolute-coordinate facts survive ordinary viewport shifts. Native
     // geometry notifications invalidate derived neighbours and roof columns.
@@ -211,14 +237,19 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if((value&NCMM_WORLD_GLASS_FLOOR)&&(below&NCMM_WORLD_UP)&&(below&NCMM_WORLD_RAMP))value&=~NCMM_WORLD_GLASS_FLOOR;
         if((value&NCMM_WORLD_UP)&&((above&NCMM_WORLD_OPEN_DOWN)||((above&NCMM_WORLD_DOWN)&&(above&NCMM_WORLD_RAMP))))value|=NCMM_WORLD_CONNECTED_UP;
         if((value&NCMM_WORLD_DOWN)&&(below&NCMM_WORLD_UP))value|=NCMM_WORLD_CONNECTED_DOWN;
+        if(!(value&(NCMM_WORLD_RAMP|NCMM_WORLD_LADDER))){
+            if((value&NCMM_WORLD_UP)&&ncmm_world::stair_partner(ax,ay,z,1,base_flags))value|=NCMM_WORLD_CONNECTED_UP;
+            if((value&NCMM_WORLD_DOWN)&&ncmm_world::stair_partner(ax,ay,z,-1,base_flags))value|=NCMM_WORLD_CONNECTED_DOWN;
+        }
         return value;
     };
     auto flags=[&](int ax,int ay,int z){
         const int64_t x=int64_t(ax)-ox,y=int64_t(ay)-oy;
         if(x<0||y<0||x>=side||y>=side||z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE|NCMM_WORLD_ROOFED);
-        return graphics_world_derived.get(ax,ay,z,graphics_world_revision,[&]{return derive_flags(ax,ay,z);});
+        return graphics_world_derived.get(ax,ay,z,graphics_world_geometry_revision,[&]{return derive_flags(ax,ay,z);});
     };
     const uint64_t ticks=SDL_GetTicks();
+    const bool continuous_step=graphics_locomotion_sync(true);
     auto continuing=graphics_world_camera_motion.sample(ticks);
     if(graphics_world_previous_position&&*graphics_world_previous_position!=absolute){
         const auto previous=*graphics_world_previous_position;const int dz=absolute.z()-previous.z();
@@ -228,7 +259,8 @@ bool graphics_draw_world(int x,int y,int width,int height)
         const uint32_t from=flags(previous.x(),previous.y(),previous.z()),to=flags(absolute.x(),absolute.y(),absolute.z());
         const bool passage=dz>0?((from&NCMM_WORLD_CONNECTED_UP)&&((same_xy&&(to&NCMM_WORLD_OPEN_DOWN))||((from&NCMM_WORLD_RAMP)&&(to&(NCMM_WORLD_RAMP|NCMM_WORLD_FLOOR))))):((to&NCMM_WORLD_CONNECTED_UP)&&((same_xy&&(from&NCMM_WORLD_OPEN_DOWN))||((to&NCMM_WORLD_RAMP)&&(from&(NCMM_WORLD_RAMP|NCMM_WORLD_FLOOR)))));
         const bool walk=dz==0&&std::abs(dx)<=1&&std::abs(dy)<=1&&std::abs(continuing.z)<.002f&&!you.in_vehicle;
-        if((can_interpolate&&passage)||walk)
+        if(continuous_step)graphics_world_camera_motion.reset();
+        else if((can_interpolate&&passage)||walk)
             graphics_world_camera_motion.begin({continuing.x-float(dx),continuing.y-float(dy),continuing.z-dz*NCMM_WORLD_LEVEL_HEIGHT},ticks);
         else graphics_world_camera_motion.reset();
     }
@@ -237,7 +269,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     const uint32_t ceiling=flags(absolute.x(),absolute.y(),absolute.z()+1);
     const float raw_eye=graphics_eye_height(),safe_eye=(ceiling&(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_UNKNOWN))?std::min(raw_eye,NCMM_WORLD_LEVEL_HEIGHT-.18f):raw_eye;
     auto animated=graphics_world_camera_motion.sample(ticks);
-    auto query=[&](ncmm_world::voxel p){return graphics_world_derived.get_relative(p.x,p.y,absolute.z()+p.z-loaded.front(),graphics_world_revision,
+    auto query=[&](ncmm_world::voxel p){return graphics_world_derived.get_relative(p.x,p.y,absolute.z()+p.z-loaded.front(),graphics_world_geometry_revision,
         [&]{return derive_flags(ox+p.x,oy+p.y,absolute.z()+p.z);});};
     auto motion_query=[&](ncmm_world::voxel p){
         uint32_t value=ncmm_world::structural_flags(query(p));
@@ -256,9 +288,11 @@ bool graphics_draw_world(int x,int y,int width,int height)
     // A rapid tall-avatar stair sequence must cancel its visual lag rather than
     // publish an invalid scene and disable the renderer.
     if(std::abs(animated.z+safe_eye-raw_eye)>NCMM_WORLD_LEVEL_HEIGHT*2){graphics_world_camera_motion.reset();animated={};}
-    const float camera_dz=animated.z+safe_eye-raw_eye;
+    const auto fractional=graphics_locomotion_offset();
+    animated.x+=fractional.x;animated.y+=fractional.y;
+    const float camera_dz=animated.z+safe_eye-raw_eye+fractional.z;
     graphics_world_transition_active=graphics_world_camera_motion.active(ticks);graphics_world_vertical_transition_active=std::abs(animated.z)>.002f;
-    const ncmm_world::point eye{radius+.5f+animated.x,radius+.5f+animated.y,safe_eye+animated.z};
+    const ncmm_world::point eye{radius+.5f+animated.x,radius+.5f+animated.y,safe_eye+animated.z+fractional.z};
     // Walking reuses the authoritative eye instead of retracing the world for
     // each subpixel sample. A stair camera still traces its displayed height:
     // using the destination storey would remove the floor around the camera
@@ -293,6 +327,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(first_person::creature::death_clip_pending(s,record.presented_event_serial==s.event_serial,presentation_now))
             observed_deaths.push_back({s.world_x,s.world_y,s.world_z});}
     std::sort(observed_deaths.begin(),observed_deaths.end());
+    ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::visibility_begin);
     const auto visibility_started=std::chrono::steady_clock::now();
     ncmm_graphics_trace::cpu_zone visibility_zone("Visibility");
     const int visual_maximum=std::max(you.sight_range(default_daylight_level()),you.sight_range(0));
@@ -357,13 +392,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         const bool local_air=air&&!entity&&!observed_death&&std::as_const(here).maptile_at(p).get_items().empty();
         // Frustum and local-air rejection precede native light/perception work.
         if(local_air&&(!atmosphere||dx*dx+dy*dy>16.f*16.f||z<eye_level||z>eye_level+2))continue;
-        const auto below=tripoint_bub_ms(p.xy(),z-1);
-        const bool current_in_range=in_visual_range(p),lower_in_range=in_visual_range(below);
-        // Architecture is continuous inside the physical sight radius, even
-        // when a dark room/tile centre has never passed the top-down FOV test.
-        // Its light and the raster depth still determine what reaches the eye.
-        const bool structure_range=rl_dist(you.pos_bub(),p)<=(visual_no_sight?1:visual_maximum);
-        const bool static_surface=structure_range&&(semantic&(graphics_world_architecture|NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN));
+#include "ncmm_graphics_candidate_range.inc"
         // No permission below can survive if neither side is within native
         // visual range. In particular, don't trace thousands of dark buried
         // floors. Their private structural facts still occlude other rays.
@@ -375,7 +404,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
                 const auto adjacent=ncmm_world::facade_neighbor({ax,ay,z},face);
                 if(ncmm_world::structural_flags(base_flags(adjacent.x,adjacent.y,adjacent.z))&(NCMM_WORLD_OPAQUE|NCMM_WORLD_UNKNOWN))continue;
                 const auto lit=here.get_bub(tripoint_abs_ms(adjacent.x,adjacent.y,adjacent.z));
-                possible_face=graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,&lit);
+                possible_face=graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,&lit,wanted);
             }
             if(!possible_face){++graphics_world_metrics.occlusion_rejected;continue;}
         }
@@ -393,7 +422,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
                 const auto adjacent=ncmm_world::facade_neighbor({ax,ay,z},face);
                 if(ncmm_world::structural_flags(base_flags(adjacent.x,adjacent.y,adjacent.z))&(NCMM_WORLD_OPAQUE|NCMM_WORLD_UNKNOWN))continue;
                 const auto lit=here.get_bub(tripoint_abs_ms(adjacent.x,adjacent.y,adjacent.z));
-                if(!graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,&lit))continue;
+                if(!graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,&lit,wanted))continue;
                 facade_in_range=true;const auto rgb=graphics_world_rgb(lit);
                 for(size_t channel=0;channel<3;++channel)facade_light[channel]=std::max(facade_light[channel],rgb[channel]);
             }
@@ -419,9 +448,12 @@ bool graphics_draw_world(int x,int y,int width,int height)
             if(perceived)permission|=NCMM_WORLD_BODY_VISIBLE;
         }
         if(p==you.pos_bub())permission|=NCMM_WORLD_BODY_VISIBLE;
+        const auto terrain_stair=ncmm_world::unperceived_terrain_stair(ax,ay,z,semantic,permission,structure_range,terrain_stair_flags);
+        if(terrain_stair.navigation&&!(permission&NCMM_WORLD_STRUCTURE_VISIBLE))facade_light=graphics_world_rgb(p);
+        permission|=terrain_stair.permission();
         if(!permission){++graphics_world_metrics.occlusion_rejected;continue;}
         if(atmosphere||(permission&NCMM_WORLD_BODY_VISIBLE)){
-            const uint32_t column=graphics_world_roofs.get(ax,ay,0,graphics_world_revision,[&]{
+            const uint32_t column=graphics_world_roofs.get(ax,ay,0,graphics_world_geometry_revision,[&]{
                 return ncmm_world::roof_column(loaded.front(),loaded.back(),[&](int height){return base_flags(ax,ay,height);});
             });
             if(column&(uint32_t(1)<<(z-loaded.front())))semantic|=NCMM_WORLD_ROOFED;
@@ -432,16 +464,24 @@ bool graphics_draw_world(int x,int y,int width,int height)
             semantic&=NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_WATER|NCMM_WORLD_UNKNOWN|
                 ((permission&NCMM_WORLD_STRUCTURE_VISIBLE)?uint32_t(NCMM_WORLD_OPAQUE):0u);
             if(landing)semantic|=NCMM_WORLD_DOWN;
-            if(local_air){if(graphics_world_roofs.get(ax,ay,0,graphics_world_revision,[&]{return ncmm_world::roof_column(loaded.front(),loaded.back(),[&](int h){return base_flags(ax,ay,h);});})&(uint32_t(1)<<(z-loaded.front())))semantic|=NCMM_WORLD_ROOFED;}
+            if(local_air){if(graphics_world_roofs.get(ax,ay,0,graphics_world_geometry_revision,[&]{return ncmm_world::roof_column(loaded.front(),loaded.back(),[&](int h){return base_flags(ax,ay,h);});})&(uint32_t(1)<<(z-loaded.front())))semantic|=NCMM_WORLD_ROOFED;}
             else semantic|=NCMM_WORLD_ROOFED; // No hidden room navigation facts.
+            semantic=ncmm_world::restore_terrain_stair_facts(semantic,terrain_stair);
         }
         graphics_world_candidate c{};c.world={ax,ay,z,semantic|permission,0,0,graphics_world_level_revisions[size_t(z+128)]+1,{0,0,0}};
         c.pos=p;c.permission=permission;c.distance=dx*dx+dy*dy+dz*dz;c.facade_light=facade_light;
         if(permission&NCMM_WORLD_FLOOR_BOTTOM){const auto rgb=graphics_world_rgb(below);std::copy(rgb.begin(),rgb.end(),c.world.lower_light);}
-        if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&(NCMM_WORLD_UP|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER)))for(uint32_t direction=0;direction<4;++direction){const int nx=direction==0?1:direction==2?-1:0,ny=direction==1?1:direction==3?-1:0;
-            const uint32_t next=flags(ax+nx,ay+ny,z);
-            if((semantic&NCMM_WORLD_RAMP)&&(next&NCMM_WORLD_RAMP_END)){c.world.direction=direction;break;}
-            if(!(semantic&NCMM_WORLD_RAMP)&&!(next&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_OPAQUE))){c.world.direction=direction;break;}}
+        if(terrain_stair.navigation)c.world.direction=terrain_stair.direction;
+        else if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&NCMM_WORLD_RAMP)) {
+            for(uint32_t direction=0;direction<4;++direction){const int nx=direction==0?1:direction==2?-1:0,ny=direction==1?1:direction==3?-1:0;
+                if(flags(ax+nx,ay+ny,z)&NCMM_WORLD_RAMP_END){c.world.direction=direction;break;}}
+        } else if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&NCMM_WORLD_LADDER)) {
+            for(uint32_t direction=0;direction<4;++direction){const int nx=direction==0?1:direction==2?-1:0,ny=direction==1?1:direction==3?-1:0;
+                if(flags(ax+nx,ay+ny,z)&NCMM_WORLD_OPAQUE){c.world.direction=(direction+2u)%4u;break;}}
+        } else if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&(NCMM_WORLD_UP|NCMM_WORLD_DOWN))) {
+            const int lower=(semantic&NCMM_WORLD_DOWN)&&!(semantic&NCMM_WORLD_UP)?z-1:z;
+            c.world.direction=ncmm_world::stair_direction(ax,ay,lower,flags);
+        }
         candidate_loan.push_back(c);
         rejected.remember=false;
         if(!entity&&!observed_death&&!here.veh_at(p)){
@@ -453,6 +493,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     }
     graphics_world_metrics.visibility_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-visibility_started).count();
     visibility_zone.stop();
+    ncmm_graphics_turn_diagnostics::mark(ncmm_graphics_turn_diagnostics::callback_boundary::visibility_end);
     graphics_world_range_evaluations=visual_ranges.evaluations;graphics_world_range_hits=visual_ranges.hits;
     graphics_world_material_evaluations=material_definitions.evaluations+elevated_material_definitions.evaluations;
     graphics_world_material_hits=material_definitions.hits+elevated_material_definitions.hits;
@@ -518,7 +559,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
     graphics_world_metrics.source_cache_hits=graphics_world_sources.hits;graphics_world_metrics.source_cache_misses=graphics_world_sources.misses;
     // Count every owned snapshot array, including the candidate and facade
     // arrays omitted from the previous estimate. This is capacity, not VRAM.
-    graphics_world_metrics.snapshot_bytes=candidate_loan.bytes()+cell_loan.bytes()+position_loan.bytes()+coordinate_loan.bytes()+slice_loan.bytes()+facade_loan.bytes()+graphics_world_snapshot_storage_bytes()+graphics_camera_cache.bytes();
+    // Hybrid adds its active+retained details capacity when that loan exists;
+    // do not also count its previous retained capacity before acquisition.
+    graphics_world_metrics.snapshot_bytes=candidate_loan.bytes()+cell_loan.bytes()+position_loan.bytes()+coordinate_loan.bytes()+slice_loan.bytes()+facade_loan.bytes()+graphics_world_snapshot_storage_bytes(false)+graphics_camera_cache.bytes();
     graphics_world_snapshot_growths=candidate_loan.growths()+cell_loan.growths()+position_loan.growths()+coordinate_loan.growths()+slice_loan.growths()+facade_loan.growths();
     graphics_world_snapshot_reuses=uint64_t(candidate_loan.reused())+cell_loan.reused()+position_loan.reused()+coordinate_loan.reused()+slice_loan.reused()+facade_loan.reused();
     graphics_world_metrics.extraction_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
@@ -540,11 +583,12 @@ bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_
 #else
 void graphics_world_region_changed_impl(const map *,int32_t,int32_t,int,int,int){}
 int graphics_get_lod(ncmm_graphics_lod_scene_v1 *){return 0;}
-void graphics_clear_world(){graphics_multilevel_frame=nullptr;}
+int graphics_get_skyline(ncmm_graphics_skyline_scene_v1 *){return 0;}
+void graphics_clear_world(){graphics_hybrid_detail_storage.clear();graphics_multilevel_frame=nullptr;}
 #endif
 bool graphics_world_needs_redraw(){
 #if defined(TILES)
-    return graphics_world_transition_active;
+    return graphics_world_transition_active||graphics_locomotion_moving();
 #else
     return false;
 #endif
@@ -554,15 +598,22 @@ int graphics_register_world(const char *id,ncmm_graphics_render_multilevel_v1 re
     if(graphics_render_active||!active_module_matches(id)||!module_ids.count(id)||!render||(!graphics_view.owner.empty()&&graphics_view.owner!=id))return 0;
     graphics_clear_world();graphics_view={id,nullptr,input,data,false,nullptr,render};return 1;
 }
-void graphics_world_extracted(double total){
+void graphics_world_extracted(double total,size_t active_detail_bytes,size_t detail_growths,bool detail_reused){
     graphics_world_metrics.extraction_ms=std::max(0.0,total-graphics_world_metrics.visibility_ms);
-    graphics_world_metrics.snapshot_bytes+=graphics_presentation_cells.capacity()*sizeof(graphics_presentation_cells[0])+graphics_creature_snapshots.capacity()*sizeof(graphics_creature_snapshots[0]);
+    graphics_world_metrics.snapshot_bytes+=active_detail_bytes+graphics_hybrid_detail_storage.bytes()+
+        graphics_presentation_cells.capacity()*sizeof(graphics_presentation_cells[0])+graphics_creature_snapshots.capacity()*sizeof(graphics_creature_snapshots[0]);
+#if defined(TILES)
+    graphics_world_snapshot_growths+=detail_growths;graphics_world_snapshot_reuses+=uint64_t(detail_reused);
+    graphics_world_metrics.snapshot_bytes+=graphics_lod_owned_bytes();
+#else
+    (void)detail_growths;(void)detail_reused;
+#endif
 }
 int graphics_get_world_metrics(ncmm_multilevel_metrics_v1 *out)
 {
     if(!graphics_multilevel_frame||active_module_id!=graphics_view.owner||!out||out->struct_size<sizeof(*out))return 0;
     *out=graphics_world_metrics;return 1;
 }
-const ncmm_host_graphics_multilevel_v1 graphics_world_api={1,sizeof(ncmm_host_graphics_multilevel_v1),1,1,
-    graphics_register_world,graphics_enable,graphics_enabled,graphics_get_sprite,graphics_submit_frame,graphics_gpu_submit_world,graphics_get_world_metrics,graphics_get_lod};
+const ncmm_host_graphics_multilevel_v1 graphics_world_api={1,sizeof(ncmm_host_graphics_multilevel_v1),1,2,
+    graphics_register_world,graphics_enable,graphics_enabled,graphics_get_sprite,graphics_submit_frame,graphics_gpu_submit_world,graphics_get_world_metrics,graphics_get_lod,graphics_get_skyline};
 

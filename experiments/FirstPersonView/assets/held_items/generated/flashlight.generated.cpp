@@ -367,9 +367,9 @@ static const material materials[]={
 {{0.897484145f,0.906449907f,0.519248759f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"flashlight",7838059375411801497ull,family::flashlight,
+1,"flashlight",6702580829728782218ull,family::flashlight,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.5680194f,0.0f}},{0,{0.0f,0.14474859f,0.0f}},{0,{0.0f,-0.5680194f,0.0f}},{0,{0.0f,1.159903f,0.0f}},{0,{0.0f,1.159903f,0.0f}},{0,{0.0f,-0.5680194f,0.0f}},{0.0f,-2.22044605e-16f,1.0f},{0.0f,-2.22044605e-16f,1.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.5680194f,0.0f}},{0,{0.0f,0.14474859f,0.0f}},{0,{0.0f,-0.5680194f,0.0f}},{0,{0.0f,1.159903f,0.0f}},{0,{0.0f,1.159903f,0.0f}},{0,{0.0f,-0.5680194f,0.0f}},{0.0f,-2.22044605e-16f,1.0f},{0.0f,-2.22044605e-16f,1.0f},0.018f,0.018f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.136f,false
 };
 const model &asset_flashlight() noexcept {return value;}

@@ -191,9 +191,9 @@ static const material materials[]={
 {{0.32147896f,0.32147896f,0.32147896f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"spear",8961889635243886872ull,family::spear,
+1,"spear",4474467806653627200ull,family::spear,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,1.642441f,3.2363825f}},{0,{0.0f,2.71048233f,3.2363825f}},{0,{0.0f,1.642441f,3.2363825f}},{0,{0.0f,8.050689f,3.2363825f}},{0,{0.0f,8.050689f,3.2363825f}},{0,{0.0f,1.642441f,3.2363825f}},{0.0f,0.696706709f,0.717356091f},{0.0f,0.696706709f,0.717356091f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,1.642441f,3.2363825f}},{0,{0.0f,2.71048233f,3.2363825f}},{0,{0.0f,1.642441f,3.2363825f}},{0,{0.0f,8.050689f,3.2363825f}},{0,{0.0f,8.050689f,3.2363825f}},{0,{0.0f,1.642441f,3.2363825f}},{0.0f,0.696706709f,0.717356091f},{0.0f,0.696706709f,0.717356091f},0.016f,0.016f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},1.8f,true
 };
 const model &asset_spear() noexcept {return value;}

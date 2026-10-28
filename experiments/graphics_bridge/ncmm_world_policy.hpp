@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <tuple>
 #include <vector>
 #include <climits>
@@ -12,6 +13,60 @@
 namespace ncmm_world {
 struct point {float x=0,y=0,z=0;};
 struct voxel {int x=0,y=0,z=0;};
+inline int omt_axis(int value){return value>=0?value/24:int((int64_t(value)-23)/24);}
+template<class Sample> uint32_t stair_sample(int64_t x,int64_t y,int64_t z,Sample sample){
+    if(x<INT_MIN||x>INT_MAX||y<INT_MIN||y>INT_MAX||z<INT_MIN||z>INT_MAX)return NCMM_WORLD_UNKNOWN;
+    return sample(int(x),int(y),int(z));
+}
+// Native first accepts a connector at the same XY. A single neighbouring
+// connector inside the same overmap tile is also unambiguous (rural church).
+// Do not invent a long staircase or join two competing exits through rooms.
+template<class Sample> std::optional<voxel> stair_partner(int x,int y,int z,int dz,Sample sample){
+    const uint32_t needed=dz>0?NCMM_WORLD_DOWN:NCMM_WORLD_UP;
+    const int64_t target_z=int64_t(z)+dz;
+    auto match=[&](int64_t a,int64_t b){const auto f=stair_sample(a,b,target_z,sample);return !(f&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER))&&(f&needed);};
+    if(match(x,y))return voxel{x,y,int(target_z)};
+    std::optional<voxel> result;
+    for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){if(!dx&&!dy)continue;
+        const int64_t a=int64_t(x)+dx,b=int64_t(y)+dy;
+        if(!match(a,b)||omt_axis(int(a))!=omt_axis(x)||omt_axis(int(b))!=omt_axis(y))continue;
+        if(result)return std::nullopt;
+        result=voxel{int(a),int(b),int(target_z)};
+    }
+    return result&&std::abs(int64_t(result->x)-x)+std::abs(int64_t(result->y)-y)==1?result:std::nullopt;
+}
+template<class Sample> std::optional<voxel> stair_wall_root(int x,int y,int z,Sample sample){
+    if(!(stair_sample(x,y,int64_t(z)+1,sample)&NCMM_WORLD_DOWN))return std::nullopt;
+    std::optional<voxel> result;
+    for(unsigned d=0;d<4;++d){const int64_t a=int64_t(x)+(d==0?1:d==2?-1:0),b=int64_t(y)+(d==1?1:d==3?-1:0);const auto f=stair_sample(a,b,z,sample);
+        if(!(f&NCMM_WORLD_UP)||!(f&NCMM_WORLD_CONNECTED_UP)||(f&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER)))continue;
+        const auto target=stair_partner(int(a),int(b),z,1,sample);
+        if(target&&target->x==x&&target->y==y){if(result)return std::nullopt;result=voxel{int(a),int(b),z};}
+    }
+    return result;
+}
+template<class Sample> uint32_t stair_geometry_key(int x,int y,int z,Sample sample){
+    const auto f=sample(x,y,z);std::optional<voxel> link;
+    if((f&NCMM_WORLD_UP)&&!(f&(NCMM_WORLD_RAMP|NCMM_WORLD_LADDER)))link=stair_partner(x,y,z,1,sample);
+    else if(f&NCMM_WORLD_OPAQUE)link=stair_wall_root(x,y,z,sample);
+    return link?uint32_t((link->x-x+1)*3+link->y-y+2):0;
+}
+// A direction points uphill. The approach is at the opposite end of a
+// flight; choosing the first open neighbour as uphill puts its foot in a wall.
+// Native terrain has no authored facing, so rank both actual landings, with
+// a stable tie break. The same lower/upper pair supplies both endpoints.
+template<class Sample> uint32_t stair_direction(int x,int y,int z,Sample sample) {
+    auto walk=[](uint32_t f){return !(f&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_OPAQUE|NCMM_WORLD_WATER))&&
+        bool(f&(NCMM_WORLD_FLOOR|NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP));};
+    int best=-1;uint32_t chosen=0;
+    for(uint32_t d=0;d<4;++d){const int dx=d==0?1:d==2?-1:0,dy=d==1?1:d==3?-1:0;
+        const bool entry=walk(stair_sample(int64_t(x)-dx,int64_t(y)-dy,z,sample)),exit=walk(stair_sample(int64_t(x)+dx,int64_t(y)+dy,int64_t(z)+1,sample));
+        const int score=(entry?16:0)+(exit?12:0)+(entry&&exit?16:0)+
+            (entry&&walk(stair_sample(int64_t(x)-2*dx,int64_t(y)-2*dy,z,sample))?2:0)+(exit&&walk(stair_sample(int64_t(x)+2*dx,int64_t(y)+2*dy,int64_t(z)+1,sample))?1:0);
+        if(score>best){best=score;chosen=d;}
+    }
+    return chosen;
+}
 inline bool candidate_level_in_range(int z,int eye_z,int range){
     const int64_t dz=int64_t(z)-eye_z;
     // A slab may expose its underside from the in-range level immediately below.
@@ -57,6 +112,51 @@ inline uint32_t semantics(const traits &t){
     // preserve the physical slab unless TRANSPARENT_FLOOR/NO_FLOOR also applies.
     return out;
 }
+constexpr uint32_t terrain_stair_navigation_mask=NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER|
+    NCMM_WORLD_CONNECTED_UP|NCMM_WORLD_CONNECTED_DOWN|NCMM_WORLD_RAMP_END;
+struct terrain_stair_proof {
+    uint32_t navigation=0,direction=0,terrain_opaque=0;
+    uint32_t permission()const{return navigation?uint32_t(NCMM_WORLD_STRUCTURE_VISIBLE):0u;}
+};
+// A dark ordinary terrain stair is still a static surface. The combined
+// terrain/furniture facts are only a conservative prefilter: neither its
+// connector nor its facing may reveal an unperceived furniture definition.
+// The sampler must read bounded, loaded terrain alone, including its physical
+// floor/opacity/water flags. No result or Native reference is retained here.
+template<class Sample> terrain_stair_proof unperceived_terrain_stair(int x,int y,int z,uint32_t combined,uint32_t permission,bool structure_range,Sample terrain){
+    terrain_stair_proof out;
+    if((permission&NCMM_WORLD_BODY_VISIBLE)||!structure_range||(combined&NCMM_WORLD_UNKNOWN)||!(combined&(NCMM_WORLD_UP|NCMM_WORLD_DOWN)))return out;
+    const auto own=terrain(x,y,z);
+    constexpr uint32_t excluded=NCMM_WORLD_UNKNOWN|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER|NCMM_WORLD_RAMP_END;
+    if(own&excluded)return out;
+    out.navigation=own&(NCMM_WORLD_UP|NCMM_WORLD_DOWN);
+    if(!out.navigation)return out;
+    out.terrain_opaque=own&NCMM_WORLD_OPAQUE;
+    auto connector=[&](int a,int b,int c){const auto f=terrain(a,b,c);return f&NCMM_WORLD_RAMP_END?f|NCMM_WORLD_UNKNOWN:f;};
+    std::optional<voxel> lower;
+    if(out.navigation&NCMM_WORLD_UP){
+        const auto above=stair_sample(x,y,int64_t(z)+1,terrain);
+        // Match the ordinary terrain branch's open shaft/full-flight rule;
+        // ramps and ladders remain outside this static permission exception.
+        if((!(above&excluded)&&(above&NCMM_WORLD_OPEN_DOWN))||stair_partner(x,y,z,1,connector))out.navigation|=NCMM_WORLD_CONNECTED_UP;
+    }
+    if(out.navigation&NCMM_WORLD_DOWN){
+        lower=stair_partner(x,y,z,-1,connector);
+        if(lower)out.navigation|=NCMM_WORLD_CONNECTED_DOWN;
+    }
+    if(out.navigation&NCMM_WORLD_UP)out.direction=stair_direction(x,y,z,terrain);
+    else if(lower)out.direction=stair_direction(lower->x,lower->y,lower->z,terrain);
+    else if(z>INT_MIN)out.direction=stair_direction(x,y,z-1,terrain);
+    return out;
+}
+inline uint32_t restore_terrain_stair_facts(uint32_t masked,const terrain_stair_proof &proof){
+    // Leave the old non-BODY mask (including its legacy DOWN landing) exact
+    // when terrain did not prove an ordinary stair. An eligible mixed tile
+    // replaces every combined navigation bit with terrain's own facts. The
+    // new STRUCTURE permission also lets the legacy mask retain OPAQUE, so
+    // replace that presentation fact instead of publishing furniture/gas.
+    return proof.navigation?(masked&~(terrain_stair_navigation_mask|NCMM_WORLD_OPAQUE))|proof.navigation|proof.terrain_opaque:masked;
+}
 inline bool supported_item(uint32_t flags,bool platform=false){return platform||(flags&(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR))!=0;}
 inline auto order(const ncmm_world_cell_v1 &c){return std::make_tuple(c.z,c.y,c.x);}
 inline bool finite(point p){return std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z);}
@@ -86,9 +186,57 @@ inline bool valid(const ncmm_graphics_multilevel_scene_v1 &s){
     }
     return count==s.cell_count;
 }
+// Persistent lookup data owns positions and integer indices only. Scene and
+// Native coordinate pointers remain in the short-lived coordinates adapter.
+class coordinate_index_storage {
+    using position=std::array<int32_t,3>;
+    std::array<int64_t,7> layout{};
+    uint64_t epoch=0;
+    bool ready=false;
+    std::vector<int32_t> dense;
+    std::vector<position> positions;
+public:
+    void clear()noexcept{
+        std::vector<int32_t>().swap(dense);std::vector<position>().swap(positions);
+        layout={};epoch=0;ready=false;
+    }
+    size_t bytes()const noexcept{return dense.capacity()*sizeof(int32_t)+positions.capacity()*sizeof(position);}
+    const std::vector<int32_t> &values()const noexcept{return dense;}
+    bool prepare(const ncmm_graphics_multilevel_scene_v1 *s){
+        if(!s){clear();return false;}
+        const auto &b=s->appearance.base;const int64_t levels=int64_t(s->loaded_max_z)-s->loaded_min_z+1;
+        if(s->cell_count>NCMM_WORLD_MAX_CELLS||(s->cell_count&&!s->coordinates)||
+           b.grid_width<1||b.grid_height<1||b.grid_width>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||b.grid_height>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||
+           s->loaded_min_z < -128||s->loaded_max_z>128||levels<1||levels>NCMM_WORLD_MAX_SLICES){clear();return false;}
+        const std::array<int64_t,7> wanted{{b.grid_width,b.grid_height,s->origin_x,s->origin_y,s->loaded_min_z,s->loaded_max_z,s->cell_count}};
+        bool same=ready&&epoch==s->world_epoch&&layout==wanted&&positions.size()==s->cell_count;
+        for(uint32_t i=0;i<s->cell_count;++i){const auto &c=s->coordinates[i];
+            const int64_t x=int64_t(c.x)-s->origin_x,y=int64_t(c.y)-s->origin_y;
+            if(x<0||y<0||x>=b.grid_width||y>=b.grid_height||c.z<s->loaded_min_z||c.z>s->loaded_max_z||
+               (i&&!(order(s->coordinates[i-1])<order(c)))){clear();return false;}
+            if(same&&positions[i]!=position{{c.z,c.y,c.x}})same=false;
+        }
+        if(same)return true;
+        ready=false;
+        const size_t count=size_t(levels)*b.grid_width*b.grid_height;
+        // Exact growth keeps retained capacities within the existing bounded
+        // XYZ volume and sparse-cell limits, including an expanding Z window.
+        if(count>dense.capacity())std::vector<int32_t>(count,-1).swap(dense);
+        else dense.assign(count,-1);
+        if(s->cell_count>positions.capacity())std::vector<position>(s->cell_count).swap(positions);
+        else positions.resize(s->cell_count);
+        for(uint32_t i=0;i<s->cell_count;++i){const auto &c=s->coordinates[i];
+            positions[i]={{c.z,c.y,c.x}};
+            const size_t at=(size_t(c.z-s->loaded_min_z)*b.grid_height+size_t(int64_t(c.y)-s->origin_y))*b.grid_width+size_t(int64_t(c.x)-s->origin_x);
+            dense[at]=int32_t(i);
+        }
+        layout=wanted;epoch=s->world_epoch;ready=true;return true;
+    }
+};
 class coordinates {
     const ncmm_graphics_multilevel_scene_v1 *scene=nullptr;
     std::vector<int32_t> dense;
+    const std::vector<int32_t> *retained_dense=nullptr;
     int width=0,height=0;
     int slot(int64_t x,int64_t y,int64_t z)const{
         if(!scene||x<0||y<0||x>=width||y>=height||z<scene->loaded_min_z||z>scene->loaded_max_z)return -1;
@@ -105,11 +253,16 @@ public:
         for(uint32_t i=0;i<s->cell_count;++i){const auto &c=s->coordinates[i];const int at=slot(int64_t(c.x)-s->origin_x,int64_t(c.y)-s->origin_y,c.z);
             if(at>=0&&dense[size_t(at)]<0)dense[size_t(at)]=int32_t(i);}
     }
+    coordinates(const ncmm_graphics_multilevel_scene_v1 *s,coordinate_index_storage &storage):scene(s){
+        if(!storage.prepare(s)){scene=nullptr;return;}
+        width=s->appearance.base.grid_width;height=s->appearance.base.grid_height;retained_dense=&storage.values();
+    }
     int find(int x,int y,int z)const{
         if(!scene||(scene->cell_count&&!scene->coordinates))return -1;
         const int64_t ax=int64_t(scene->origin_x)+x,ay=int64_t(scene->origin_y)+y;
         if(ax<INT32_MIN||ax>INT32_MAX||ay<INT32_MIN||ay>INT32_MAX)return -1;
-        if(!dense.empty()){const int at=slot(x,y,z);return at<0?-1:dense[size_t(at)];}
+        const auto &lookup=retained_dense?*retained_dense:dense;
+        if(!lookup.empty()){const int at=slot(x,y,z);return at<0?-1:lookup[size_t(at)];}
         const auto wanted=std::make_tuple(z,int32_t(ay),int32_t(ax));
         uint32_t lo=0,hi=scene->cell_count;
         while(lo<hi){uint32_t mid=lo+(hi-lo)/2;if(order(scene->coordinates[mid])<wanted)lo=mid+1;else hi=mid;}
@@ -135,7 +288,7 @@ inline bool floor_blocks(uint32_t flags,float x,float y){
     if(flags&NCMM_WORLD_FLOOR)return true;
     // Stair landing surrounds the actual opening. Ladders/shafts keep air open.
     if((flags&NCMM_WORLD_DOWN)&&!(flags&(NCMM_WORLD_LADDER|NCMM_WORLD_RAMP)))
-        return x<.14f||x>.86f||y<.08f||y>.92f;
+        return x<.08f||x>.92f||y<.08f||y>.92f;
     return false;
 }
 // Only a full opaque horizontal slab can prove an entire plane closed.

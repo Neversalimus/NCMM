@@ -83,6 +83,28 @@ $heldRuntime=$heldRuntimePrefix.Substring(0,$heldRuntimePrefix.Length-1)+',"sele
 [IO.File]::WriteAllText((Join-Path $fp 'held-assets-licenses.txt'),($heldLicenseParts -join "`n"),(New-Object Text.UTF8Encoding($false)))
 $hostDest=Join-Path $payload 'host'
 New-Item -ItemType Directory -Force $hostDest | Out-Null
+$worldRoot=Join-Path $PSScriptRoot 'assets/world_props'
+$worldSelectionPath=Join-Path $worldRoot 'selection.json'
+$worldSelectionText=Get-Content -LiteralPath $worldSelectionPath -Raw -Encoding UTF8
+$worldImportText=Get-Content -LiteralPath (Join-Path $worldRoot 'generated/manifest.json') -Raw -Encoding UTF8
+$worldSourceText=Get-Content -LiteralPath (Join-Path $worldRoot 'SOURCE.json') -Raw -Encoding UTF8
+$worldSelection=$worldSelectionText | ConvertFrom-Json
+$worldImport=$worldImportText | ConvertFrom-Json
+if($worldSelection.schema -ne 1 -or $worldSelection.license -ne 'CC0-1.0' -or $worldImport.schema -ne 1 -or
+    $worldSelection.models.Count -ne 44 -or $worldImport.models.Count -ne 44 -or
+    $worldImport.source_selection_sha256 -ne (Get-FileHash -LiteralPath $worldSelectionPath -Algorithm SHA256).Hash.ToLowerInvariant()){
+    throw 'World resource provenance differs from the validated inventory.'
+}
+foreach($entry in $worldSelection.files.PSObject.Properties){
+    if($entry.Name -notmatch '^source/(kenney|3td)/[A-Za-z0-9_. /-]+$' -or $entry.Name.Contains('..')){throw 'Unsafe world source path.'}
+    if((Get-FileHash -LiteralPath (Join-Path $worldRoot $entry.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.Value){throw 'Pinned world source changed.'}
+}
+$worldRuntime='{"schema":1,"runtime_importer":false,"selection":'+$worldSelectionText.Trim()+',"imported":'+$worldImportText.Trim()+',"source":'+$worldSourceText.Trim()+'}'
+[IO.File]::WriteAllText((Join-Path $fp 'world-assets.manifest.json'),$worldRuntime,(New-Object Text.UTF8Encoding($false)))
+$worldLicenses=[IO.File]::ReadAllText((Join-Path $worldRoot 'source/kenney/License.txt'))+"`n`n"+[IO.File]::ReadAllText((Join-Path $worldRoot 'source/3td/License.txt'))
+[IO.File]::WriteAllText((Join-Path $fp 'world-assets-license.txt'),$worldLicenses,(New-Object Text.UTF8Encoding($false)))
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'assets/fire_effects/references.json') -Destination (Join-Path $fp 'weapon-effects.references.json')
+# End offline world resource packaging.
 Copy-Item (Join-Path $HostRoot 'cataclysm-tiles.exe') (Join-Path $hostDest 'cataclysm-tiles.ncmm.exe')
 Copy-Item (Join-Path $HostRoot 'first-person-source.json') $hostDest
 Copy-Item (Join-Path $HostRoot 'LICENSE.txt') (Join-Path $stage 'CDDA-LICENSE.txt')
@@ -99,7 +121,7 @@ Copy-Item (Join-Path $PSScriptRoot 'tests/multilevel_fixture.json') $stage
 Copy-Item (Join-Path $PSScriptRoot 'DIAGNOSTICS.md') $stage
 $diagnosticTools=Join-Path $stage 'tests'
 New-Item -ItemType Directory -Force $diagnosticTools | Out-Null
-foreach($tool in @('compare_movement_runs.py','verify_horizon_release.py','Test-BenchmarkEnvironment.ps1','Test-BenchmarkEvidence.ps1','Test-BenchmarkPaths.ps1','Test-BenchmarkCapture.ps1','Test-BenchmarkDataCopy.ps1')){
+foreach($tool in @('compare_movement_runs.py','verify_horizon_release.py','verify_static_stair_audit.py','Test-BenchmarkEnvironment.ps1','Test-BenchmarkEvidence.ps1','Test-BenchmarkPaths.ps1','Test-BenchmarkCapture.ps1','Test-BenchmarkDataCopy.ps1')){
     Copy-Item (Join-Path $PSScriptRoot ('tests/'+$tool)) $diagnosticTools
 }
 
@@ -164,8 +186,8 @@ NCMM First Person View installer $releaseVersion TEST / CDDA $build / Windows x6
    F12 cycles Auto -> CPU -> GPU -> Auto. Auto uses hardware acceleration and
    selects CPU when SDL exposes a software adapter.
    NCMM module settings also offer the First Person renderer selector.
-   Hold the right mouse button over the viewport to look around.
-   In first person, arrows move forward/backward and strafe relative to the gaze.
+   The captured mouse continuously looks around. WASD and arrows move relative
+   to the gaze. Tab returns the original Native command bindings and cursor.
 
 Version $releaseVersion uses Drillimpact's authored PSX First Person Arms 1.1.0
 (CC0), including source textures, all skin weights and skeleton animation.
@@ -177,6 +199,19 @@ See THIRD_PARTY_NOTICES.txt for the original archive hash and author's license.
 This preview includes 30 licensed held models for supported guns, tools,
 containers and accessories, using the original PSX hands. Items outside the
 supported authored families keep the established fallback.
+This preview adds 43 original CC0 Kenney Furniture Kit meshes, compiled offline,
+round connected pipes and volume fallbacks for unmapped furniture. Native floor
+positions, visibility and collisions remain authoritative. Natural ground edges
+use narrow shared alpha feathers and shorter grass at the boundary. All fallback
+gun sights, including M27, align with the centre reticle; optic bores stay open.
+Confirmed combustion shots emit brief muzzle flash and world-anchored smoke.
+Suppressors reduce the flash; bows and energy/pneumatic rounds do not emit it.
+See world-assets.manifest.json and weapon-effects.references.json for provenance.
+FPS controls: continuous mouse look, WASD walking, LMB attack, hold RMB to aim,
+E interact, R reload, G pickup, I inventory, U use wielded item, Shift/Ctrl run/
+crouch, Space wait. Tab restores Native commands; Esc releases the cursor;
+F5 opens control settings and F6 returns to the map. Vehicle controls remain
+Native, with independent mouse look. The first viewport click only captures.
 Native visibility, map memory and sprite/animation processing retain the complete
 established tile draw before perspective rendering.
 Use the qualification report for measured gains; this text makes no FPS claim.
@@ -261,8 +296,8 @@ the first successful presentation; native movement remains turn-based.
 Manual gameplay comfort remains unqualified. The qualification report records
 measured hardware rendering results and the controlled fixture limits.
 Unusual anatomy and hidden surfaces are conservative reconstructions.
-Non-arrow movement bindings keep their world
-directions. Mouse capture releases when menus open, focus is lost, or F6 disables
+Original Native movement bindings keep their world directions in command mode.
+Mouse capture releases when menus open, focus is lost, or F6 disables
 the view. Camera rotation does not spend a turn. Saves are unchanged.
 Aim at a visible hostile to see its name and Native health bar. Unknown health
 is marked as unknown. Disable target health in the first-person settings to

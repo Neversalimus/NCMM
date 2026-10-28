@@ -1,0 +1,158 @@
+{
+  "schema": 1,
+  "baseline_source": "56766eaef12a3d39691280c546e1d4340d3284b0",
+  "scope": "Owned 41x41 field with one dirt path, 640x480, fixed camera/pitch/wind, 8 warmup + 80 measured GPU frames and 2 warmup + 6 measured CPU frames per run",
+  "backend": "Direct3D 12",
+  "device": "NVIDIA GeForce RTX 4090",
+  "background_games_running": true,
+  "ordinary_gameplay_performance_qualified": false,
+  "gpu_execution_timestamps": false,
+  "timing_scope": "CPU packet preparation and backend submission/recording; explicit GPU idle outside the timed loop; backend CPU profiling enabled identically in both revisions",
+  "baseline_binary_sha256": "70ecebb5c6951faefae4e69fd55917a9e15cad1d6107efe3cf4d3eecc630711d",
+  "optimized_binary_sha256": "ee5a5691a3690cda7c29869d78194c3340a5524c694db42e4e372b7edda5c612",
+  "runs": [
+    {
+      "stage": "baseline",
+      "pair": 3,
+      "receipt_sha256": "147ce99d296fff6fed603d05a2fcc472e9b7da6fab2d90c01d27ff0176426cac",
+      "metrics": {
+        "samples": 80,
+        "width": 640,
+        "height": 480,
+        "field_tiles": 1681,
+        "prepare_median_ms": 0.5791,
+        "submit_median_ms": 11.0678,
+        "world_record_median_ms": 8.3809,
+        "draw_calls_max": 5802,
+        "triangles_max": 14314,
+        "warm_meshes_max": 0,
+        "warm_static_upload_max": 0,
+        "warm_generated_cells_sum": 0,
+        "cpu_cached_median_ms": 7.4502,
+        "cpu_submitted_triangles": 11016,
+        "background_games_running": true,
+        "gpu_duration_measured": false
+      }
+    },
+    {
+      "stage": "optimized",
+      "pair": 3,
+      "receipt_sha256": "9622a87f500edaff50423ef812abcd8a9a33ad886ec66fc336e6523d7350ec96",
+      "metrics": {
+        "samples": 80,
+        "width": 640,
+        "height": 480,
+        "field_tiles": 1681,
+        "prepare_median_ms": 0.3502,
+        "submit_median_ms": 1.0747,
+        "world_record_median_ms": 0.0767,
+        "draw_calls_max": 45,
+        "triangles_max": 8370,
+        "warm_meshes_max": 0,
+        "warm_static_upload_max": 0,
+        "warm_generated_cells_sum": 0,
+        "cpu_cached_median_ms": 4.6279,
+        "cpu_submitted_triangles": 7352,
+        "background_games_running": true,
+        "gpu_duration_measured": false
+      }
+    },
+    {
+      "stage": "baseline",
+      "pair": 4,
+      "receipt_sha256": "d38316be4db861f2807f2fefec689314541a3f09caa9363ea1163f7a28c46045",
+      "metrics": {
+        "samples": 80,
+        "width": 640,
+        "height": 480,
+        "field_tiles": 1681,
+        "prepare_median_ms": 0.7403,
+        "submit_median_ms": 12.347,
+        "world_record_median_ms": 9.1064,
+        "draw_calls_max": 5802,
+        "triangles_max": 14314,
+        "warm_meshes_max": 0,
+        "warm_static_upload_max": 0,
+        "warm_generated_cells_sum": 0,
+        "cpu_cached_median_ms": 7,
+        "cpu_submitted_triangles": 11016,
+        "background_games_running": true,
+        "gpu_duration_measured": false
+      }
+    },
+    {
+      "stage": "optimized",
+      "pair": 4,
+      "receipt_sha256": "2b4978e4dd0e4bc641d3161a68e0313352234a0d4a1dfb8ef699295f6e131f2c",
+      "metrics": {
+        "samples": 80,
+        "width": 640,
+        "height": 480,
+        "field_tiles": 1681,
+        "prepare_median_ms": 0.3633,
+        "submit_median_ms": 1.1322,
+        "world_record_median_ms": 0.078,
+        "draw_calls_max": 45,
+        "triangles_max": 8370,
+        "warm_meshes_max": 0,
+        "warm_static_upload_max": 0,
+        "warm_generated_cells_sum": 0,
+        "cpu_cached_median_ms": 4.6058,
+        "cpu_submitted_triangles": 7352,
+        "background_games_running": true,
+        "gpu_duration_measured": false
+      }
+    }
+  ],
+  "captures": [
+    {
+      "name": "baseline-pair3-field-rest.bmp",
+      "sha256": "fe87838d0f7973a678b83a29e0c82523206ca6286e24c363aa562eb1ec9b6f1c",
+      "width": 640,
+      "height": 480
+    },
+    {
+      "name": "optimized-pair3-field-rest.bmp",
+      "sha256": "0747e60640242738979aee6fa98df12e9fbaafe93ae9003b4166f11e36da79ff",
+      "width": 640,
+      "height": 480
+    }
+  ],
+  "source_proof": {
+    "experiments/FirstPersonView/CMakeLists.txt": "144be87ece70d7523619d42c9c540a1a3d2f5403e1014cd259ff7d9e4c2df2a0",
+    "experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp": "d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597",
+    "experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp": "f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b",
+    "experiments/graphics_bridge/ncmm_gpu_resources.hpp": "967056405be15fc7dbf7e707bac9374346bc209a4630406fd40542bf2954f2e9",
+    "experiments/graphics_bridge/ncmm_gpu_geometry.hpp": "0b4908e30c9855d78466fad31f9c194a057268d4d2a82d1397fb57c504618e9d",
+    "experiments/graphics_bridge/ncmm_gpu_backend.hpp": "2c6a31754b82c6b1bec8b03efaffc97603132107d16b604b0ad60265bcc4f6d4",
+    "experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc": "bb4099d9eb5802d0e173ce9d7b21d5756643ca3ef9e7927c6cf223f23244a8ba",
+    "experiments/FirstPersonView/tests/compare_scratch_reuse.py": "c170dd70d01dfd4c5b9858aedb5bc558d013a2d768b3b1cc4b044241d74448ba",
+    "experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp": "0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d",
+    "experiments/FirstPersonView/src/gpu_scene.hpp": "13107ec14c6bf824552c4d78a22b4fa90a88a36d32491acbc56a8976a99d38f0",
+    "experiments/FirstPersonView/src/hybrid_renderer.hpp": "03cae8956b3af95eb424eb79a29953a36e0673953e1cda90e68b415c4cae1fa2",
+    "experiments/FirstPersonView/tests/viewmodel_gpu_test.cpp": "4297305f7cc2f99026373322b42b6bcc07ec97c01da8af706a564296608bd3ef",
+    "experiments/FirstPersonView/src/multilevel_geometry.inc": "badc2fb12ea7ca877949cafce6ad453d5c5faeb9096af447937225a82c75a26a",
+    "experiments/FirstPersonView/src/grass.inc": "2adf955130f9e16d40ab965a98c5d4ce4e28ff6472982a577f17f75fa27889e3",
+    "experiments/FirstPersonView/tests/gpu_scene_test.cpp": "cd4c2db9572c6ca4968f2e6c68fa00555079891a3d3affc6bac5b948c0f7a725",
+    "experiments/graphics_bridge/ncmm_graphics_grass.hpp": "aaa78c29550b06ab1ff24bf8c8eddc5d5572d9a4fbbf269ee40a15e4b4f3a825",
+    "experiments/graphics_bridge/ncmm_world_policy.hpp": "ffb3e6f3ce066293593dd7520048f2305291d6d524b0dc39affc529c91e342cb"
+  },
+  "functional": {
+    "local_cpp_tests": 46,
+    "local_python_tests": 168,
+    "gpu_leaf_coverage_pixels": 69218,
+    "coverage_region_pixels": 108800,
+    "gpu_wind_changed_pixels": 54372,
+    "grass_triangles_per_near_tile": 128,
+    "blades_per_near_tile": 128,
+    "cpu_threads_max": 4,
+    "gpu_palette_matrices_per_tile": 2,
+    "grass_lod_rebuilds": 0
+  },
+  "limitations": [
+    "Synthetic field, not an ordinary Native frame-time guarantee",
+    "Other games stayed running by user instruction",
+    "No 15 ms certification or GPU duration claim",
+    "Installer and exact-package Native evidence are recorded separately"
+  ]
+}

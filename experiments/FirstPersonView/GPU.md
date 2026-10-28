@@ -188,3 +188,47 @@ cases is not a valid hardware-raster visibility criterion. Larger and smaller
 bird fixtures additionally exercise skeletal/impostor/silhouette transitions.
 The real Windows/game gate must be repeated; no erased creature or CPU fallback
 is accepted by this adjustment.
+
+Dense grass uses four immutable tile-local patterns, three distance bands and
+three shared colour shades. Each Native grass tile submits an instance with its
+own cell ID, lighting, height and world-coordinate wind phase. The backend can
+batch those instances instead of recording a separate material command for
+each randomly coloured blade. LOD selection does not enter the static world
+signature, so crossing 5/12/22 m never rebuilds floors or their neighbours.
+There are 128/32/8 broad, tapered blades per tile, with one non-degenerate
+triangle per blade and fixed roots/two-bone wind. Native dry, white, alien and
+short/grazed variants retain their height/colour distinction. Distant coverage
+returns to the Native floor. No external asset, shader or public ABI changed.
+
+The CPU renderer reuses the same patterns, culls whole patches, visits opaque
+patches near first and uses a flat opaque blade path. Dense grass uses at most
+four existing row workers, including in compact windows. Each pixel still has
+one writer, and the ordinary lighting, depth, fog and centre picking are kept.
+
+The [paired RTX 4090 measurements](reports/grass-instancing-4090.json) compare
+the old `56766ea` grass with this implementation on an identical 41x41 field at
+640x480. Two alternating pairs, each with 80 measured warm GPU frames, produced:
+
+| Measurement | Old grass | Dense instanced grass |
+| --- | ---: | ---: |
+| Maximum actual GPU draw calls | 5,802 | 45 |
+| Maximum submitted triangles | 14,314 | 8,370 |
+| Median CPU packet preparation | 0.58–0.74 ms | 0.35–0.36 ms |
+| Median CPU backend submission | 11.07–12.35 ms | 1.07–1.13 ms |
+| Median cached software frame | 7.00–7.45 ms | 4.61–4.63 ms |
+| Warm static uploads / generated cells | 0 / 0 | 0 / 0 |
+
+The ordinary GPU test also checks actual blade coverage above the hands
+(69,218 of 108,800 pixels), visible wind, at most 48 field draw calls, and zero
+warm mesh/texture regeneration. Unit tests reject non-grass/furniture/hidden
+tiles, verify fixed roots and non-degenerate broad blades, retain per-instance
+Native cell IDs and bound hundreds of tiles to twelve shared models. All 46
+local C++ and 168 Python checks passed. The frozen source gate binds all 17
+reviewed inputs; the protected backend/resource implementation and shader
+sources remain unchanged.
+
+These are controlled field measurements of CPU work, with identical backend
+profiling enabled in both revisions. GPU waits/readbacks are outside the timed
+loop. Other games stayed running; no GPU execution timestamps, ordinary Native
+frame-time qualification or stable 15 ms guarantee are claimed. Installer and
+exact-package Native results belong to the corresponding artifact receipts.

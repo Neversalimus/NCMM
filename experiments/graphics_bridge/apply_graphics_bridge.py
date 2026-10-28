@@ -8,16 +8,322 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 from native_library_bridge import prepare as prepare_native_library
 from native_options_bridge import prepare as prepare_deferred_options
 from native_compiler_bridge import prepare as prepare_native_compiler
 from native_atlas_bridge import prepare as prepare_native_atlas
+from fps_input_bridge import prepare as prepare_fps_input
 
 SOURCES = {
     "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": "cdda-experimental-2026-10-01-1040",
     "074aa98bd5be3de4c35f154082db32a0e63bb0f1": "cdda-experimental-2026-10-06-1807",
 }
+
+# The two Native function bodies are byte-identical at these exact pins. Keep
+# the original block digest independent of the extracted implementation, so a
+# later internal change cannot silently broaden the upstream patch anchor.
+APPARENT_LIGHT_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (5280, "7e570456c43c6dcf6b02d29bd4ef8a25a63a0889006855f28483870dd6a70a14"),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (5280, "7e570456c43c6dcf6b02d29bd4ef8a25a63a0889006855f28483870dd6a70a14"),
+}
+
+
+def patch_native_apparent_light(text, identity):
+    signature = "map::apparent_light_info map::apparent_light_helper("
+    outer = "lit_level map::apparent_light_at("
+    if identity not in APPARENT_LIGHT_ORIGINALS or text.count(signature) != 1 or text.count(outer) != 1:
+        raise ValueError("Experimental bridge Native apparent-light source differs")
+    length, digest = APPARENT_LIGHT_ORIGINALS[identity]
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native apparent-light source differs")
+    return text[:begin] + '#include "ncmm_graphics_apparent_light.inc"\n' + text[begin + length:]
+
+
+NATIVE_UPDATE_MAP_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (3205, "bfb01cf4e07c99f1b41ebd460c81531fb8ff33e0c9800e58cf13e30201253a4b"),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (3205, "bfb01cf4e07c99f1b41ebd460c81531fb8ff33e0c9800e58cf13e30201253a4b"),
+}
+NATIVE_UPDATE_MAP_RESET_SCOPE = "        const ncmm::graphics_native_cache_reset ncmm_source_reset( &here, zlev );\n"
+
+
+def patch_native_update_map(text, identity):
+    # Stage14 has already wrapped the Native flag writes. Remove only its one
+    # known line when verifying the complete primary function, then retain that
+    # scope verbatim in the diagnostic include. No other upstream edit is accepted.
+    signature = "point_rel_sm game::update_map( int &x, int &y, bool z_level_changed )\n"
+    if identity not in NATIVE_UPDATE_MAP_ORIGINALS or text.count(signature) != 1:
+        raise ValueError("Experimental bridge Native update_map source differs")
+    length, digest = NATIVE_UPDATE_MAP_ORIGINALS[identity]
+    begin = text.index(signature)
+    patched_length = length + len(NATIVE_UPDATE_MAP_RESET_SCOPE)
+    original = text[begin:begin + patched_length]
+    if original.count(NATIVE_UPDATE_MAP_RESET_SCOPE) != 1:
+        raise ValueError("Experimental bridge Native update_map reset scope differs")
+    primary = original.replace(NATIVE_UPDATE_MAP_RESET_SCOPE, "", 1)
+    if hashlib.sha256(primary.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native update_map source differs")
+    return text[:begin] + '#include "ncmm_graphics_update_map.inc"\n' + text[begin + patched_length:]
+
+
+NATIVE_MAP_SHIFT_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (4916, "2e4d5b1e9f2e40ba13479de1905f9a60eeb541a6cdbe9758e8b20684fa83c56c", ""),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (4968, "67194a60c86ed8bce2ac67b009eb97b252ad682b513abe2ad1e4cad5816fcfee", "c->map_memory_sweep_pending = true;"),
+}
+NATIVE_MAP_SHIFT_MEMORY = "NCMM_GRAPHICS_SHIFT_MEMORY_SWEEP"
+
+
+def patch_native_map_shift(text, identity):
+    signature = "void map::shift( const point_rel_sm &sp )\n"
+    if (identity not in NATIVE_MAP_SHIFT_ORIGINALS or text.count(signature) != 1
+            or NATIVE_MAP_SHIFT_MEMORY in text):
+        raise ValueError("Experimental bridge Native map-shift source differs")
+    length, digest, sweep = NATIVE_MAP_SHIFT_ORIGINALS[identity]
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native map-shift source differs")
+    # This is the sole difference between the complete pinned Native bodies.
+    # Bind it locally and immediately undefine it after the extracted function.
+    definition = f"#define {NATIVE_MAP_SHIFT_MEMORY}(c)" + (" " + sweep if sweep else "")
+    extracted = (definition + "\n"
+                 '#include "ncmm_graphics_map_shift.inc"\n'
+                 f"#undef {NATIVE_MAP_SHIFT_MEMORY}\n")
+    return text[:begin] + extracted + text[begin + length:]
+
+
+NATIVE_SHADOWCAST_CPP = (32649, "fbf4e65de6c85af60267e5b73a0d2d4d933a0dd24fe4752a9685281d32fa59c9")
+NATIVE_SHADOWCAST_HEADER = (5106, "9f5eea643f64c436fcbb202e8b966d53bc54a9ce45392447ceebf17cc1ad0af8")
+NATIVE_SHADOWCAST_RADIUS = "    const int radius = MAX_VIEW_DISTANCE - offset_distance;\n"
+NATIVE_SHADOWCAST_CALC = "                    last_intensity = calc( numerator, this_span->cumulative_value, dist );\n"
+
+
+def patch_native_shadowcasting(text, header, identity):
+    # Both complete files are identical at the supported pins. The pure sight
+    # formula in the header is part of the contract, not just the two call sites.
+    if identity not in SOURCES:
+        raise ValueError("Experimental bridge Native shadowcasting identity differs")
+    for value, (length, digest) in ((text, NATIVE_SHADOWCAST_CPP), (header, NATIVE_SHADOWCAST_HEADER)):
+        if len(value.encode()) != length or hashlib.sha256(value.encode()).hexdigest() != digest:
+            raise ValueError("Experimental bridge Native shadowcasting source differs")
+    if text.count(NATIVE_SHADOWCAST_RADIUS) != 2 or text.count(NATIVE_SHADOWCAST_CALC) != 2:
+        raise ValueError("Experimental bridge Native shadowcasting call sites differ")
+    # The complete pinned bodies bound both non-row deltas by the positive
+    # row distance. Native square_dist is their maximum; bounded circular
+    # distances use an exact immutable integer table. Select once per standard
+    # sight cast, never reload the metric inside the hot cell loop.
+    # Unknown callbacks retain live rl_dist calls, including their side effects.
+    outer = 'template<typename T, T( *calc )( const T &, const T &, const int & ),'
+    explicit = "// I can't figure out how to make implicit instantiation work"
+    if (text.count('template<int ') != 2 or text.count(outer) != 1
+            or text.count('void cast_zlight(\n') != 1 or text.count(explicit) != 1
+            or text.count('rl_dist( tripoint_rel_ms::zero, delta )') != 2):
+        raise ValueError("Experimental bridge Native distance dispatch anchors differ")
+    text = text.replace('#include "shadowcasting.h"\n',
+        '#include "shadowcasting.h"\n#include <type_traits>\n', 1)
+    # The Native constant must be declared by the complete original include
+    # prefix before the table's compile-time domain assertion is parsed.
+    text = text.replace('#include "point.h"\n',
+        '#include "point.h"\n#include "ncmm_graphics_sight_distance.hpp"\n', 1)
+    text = text.replace('template<int ', 'template<int NCMM_DISTANCE_MODE, int ')
+    text = text.replace(outer,
+        'template<int NCMM_DISTANCE_MODE, typename T, T( *calc )( const T &, const T &, const int & ),', 1)
+    text = text.replace('void cast_zlight(\n', 'void ncmm_cast_zlight_implementation(\n', 1)
+    text, calls = re.subn(r'(cast_(?:horizontal|vertical)_zlight_segment\s*<) ',
+                         r'\1 NCMM_DISTANCE_MODE, ', text)
+    if calls != 24:
+        raise ValueError("Experimental bridge Native distance dispatch calls differ")
+    text = text.replace('rl_dist( tripoint_rel_ms::zero, delta )',
+        '( NCMM_DISTANCE_MODE == 1 ? distance :\n'
+        '                      ( NCMM_DISTANCE_MODE == 2 ? ncmm_graphics_shadowcasting::bounded_circular_distance( delta.x(), delta.y(), delta.z() ) :\n'
+        '                        rl_dist( tripoint_rel_ms::zero, delta ) ) )')
+    text = text.replace(explicit, '#include "ncmm_graphics_sight_dispatch.inc"\n\n'+explicit, 1)
+    return text + '\n#include "ncmm_graphics_sight_reference.inc"\n'
+
+
+NATIVE_MAP_CACHE_ORIGINAL = (4288, "1f8d5580024513cbd0f684eb32957832ba194ba41ba7e3c4d3ccc5919c1fda21")
+
+
+def patch_native_map_cache(text, identity):
+    signature = "void map::build_map_cache( const int zlev, bool skip_lightmap )\n"
+    if identity not in SOURCES or text.count(signature) != 1:
+        raise ValueError("Experimental bridge Native map-cache source differs")
+    length, digest = NATIVE_MAP_CACHE_ORIGINAL
+    begin = text.index(signature)
+    if hashlib.sha256(text[begin:begin + length].encode()).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native map-cache source differs")
+    return text[:begin] + '#include "ncmm_graphics_map_cache.inc"\n' + text[begin + length:]
+
+
+NATIVE_PHASE_LOADN_ORIGINAL = (5042, "0b240eebc4b1a768a97339cc8411f99e96d7d56628298dfbeca222fcd3313ec6")
+NATIVE_TEMPERATURE_PHASE_ORIGINAL = (3269, "6c1daaf2e505f465dba85fbf3ccf58c0d1154b988675fe9e29ee0088d2f19ebe")
+NATIVE_SUBMAP_ORIGINAL_QUERY = (129, "f86c6db768528e9dafc442f8de205afaa478f3c903a4bd626e6f64bec3e43998")
+NATIVE_PHASE_LOOP = """        for( int sx = 0; sx < SEEX; ++sx ) {
+            for( int sy = 0; sy < SEEX; ++sy ) {
+                temp_based_phase_change_at( sm_origin + point( sx, sy ), wgen );
+            }
+        }
+"""
+NATIVE_SUBMAP_PHASE_ANCHOR = """        // Tracks original terrain for tiles transformed by phase logic
+        std::map<point_sm_ms, ter_id> original_terrain;
+
+    public:
+        bool has_original_ter( const point_sm_ms &p ) const;
+        ter_id get_original_ter( const point_sm_ms &p ) const;
+        void set_original_ter( const point_sm_ms &p, const ter_id &t );
+        void clear_original_ter( const point_sm_ms &p );
+"""
+
+
+def patch_native_phase_scan(text, mapgen, identity):
+    signature = "void map::loadn( const point_bub_sm &grid, bool update_vehicles )\n"
+    helper = "void map::temp_based_phase_change_at("
+    if identity not in SOURCES or text.count(signature) != 1 or mapgen.count(helper) != 1:
+        raise ValueError("Experimental bridge Native phase-scan source differs")
+    if text.count(SUBMAP_CACHE_RESET) != 1:
+        raise ValueError("Experimental bridge requires one exact anchor: Native source cache reset")
+    length, digest = NATIVE_TEMPERATURE_PHASE_ORIGINAL
+    begin = mapgen.index(helper)
+    if hashlib.sha256(mapgen[begin:begin + length].encode()).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native phase-scan helper differs")
+    length, digest = NATIVE_PHASE_LOADN_ORIGINAL
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode()).hexdigest() != digest or original.count(NATIVE_PHASE_LOOP) != 1:
+        raise ValueError("Experimental bridge Native phase-scan loadn differs")
+    # Keep the complete Native load/vehicle/tree/weather/origin prefix and the
+    # enclosing Z loop. Its later pure cache-flag scope is applied unchanged.
+    updated = original.replace(NATIVE_PHASE_LOOP, '#include "ncmm_graphics_phase_loop.inc"\n', 1)
+    return text[:begin] + updated + text[begin + length:]
+
+
+def patch_native_submap_phase(header, implementation, identity):
+    signature = "bool submap::has_original_ter("
+    if (identity not in SOURCES or header.count(NATIVE_SUBMAP_PHASE_ANCHOR) != 1
+            or implementation.count(signature) != 1 or "ncmm_graphics_has_original_terrain" in header):
+        raise ValueError("Experimental bridge Native phase-scan metadata differs")
+    length, digest = NATIVE_SUBMAP_ORIGINAL_QUERY
+    begin = implementation.index(signature)
+    if hashlib.sha256(implementation[begin:begin + length].encode()).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native phase-scan metadata query differs")
+    anchor = NATIVE_SUBMAP_PHASE_ANCHOR.replace('    public:\n',
+        '    public:\n#include "ncmm_graphics_submap_phase.inc"\n', 1)
+    return header.replace(NATIVE_SUBMAP_PHASE_ANCHOR, anchor, 1)
+
+
+NATIVE_ACTUALIZE_ORIGINAL = (2401, "469b917a6c8b6cc465780354731c07c5fbd8b2eda0645c80f643a58cb3d40502")
+NATIVE_ACTUALIZE_PREFIXES = {
+    "grow_plant": (178, "b835e619848d3763a32312296a69d4d1f8038705648edfcd7c5c4761a6d02c1b"),
+    "restock_fruits": (266, "6ca5e7094f1f48740d8e32209c79a1b527977b25592a0abb20b86847090058a8"),
+    "produce_sap": (248, "611df3d23f8a5a3713b37581a24fd02bff03f4bf8a89c9004a231fa8e8766d59"),
+    "rad_scorch": (185, "2791f017113c739d9480fb10441612d8b06b81bcd0c08dea4c160f5103207dfc"),
+    "decay_cosmetic_fields": (181, "cc1cbcf0fba6ccc46542764e4fae886c1fcee778dd3ecc106d43bc58cd975db4"),
+}
+
+
+def patch_native_actualize(text, identity):
+    signature = "void map::actualize( const tripoint_rel_sm &grid )\n"
+    if identity not in SOURCES or text.count(signature) != 1:
+        raise ValueError("Experimental bridge Native actualize source differs")
+    # Only skip paths proven to return before gameplay effects. Independently
+    # guard those exact Native early-return prefixes, including the empty-field
+    # loop entry; changes to an active path do not broaden this proof.
+    for name, (length, digest) in NATIVE_ACTUALIZE_PREFIXES.items():
+        helper = f"void map::{name}("
+        if text.count(helper) != 1:
+            raise ValueError("Experimental bridge Native actualize helper differs: " + name)
+        begin = text.index(helper)
+        if hashlib.sha256(text[begin:begin + length].encode("utf-8")).hexdigest() != digest:
+            raise ValueError("Experimental bridge Native actualize helper differs: " + name)
+    length, digest = NATIVE_ACTUALIZE_ORIGINAL
+    begin = text.index(signature)
+    if hashlib.sha256(text[begin:begin + length].encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native actualize source differs")
+    return text[:begin] + '#include "ncmm_graphics_actualize.inc"\n' + text[begin + length:]
+
+
+NATIVE_FLOOR_CACHE_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (2349, "80c7cfd987d5550275fd2eabf182d2027591c99d22fa8ca58024da46c2495eb6"),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (2349, "80c7cfd987d5550275fd2eabf182d2027591c99d22fa8ca58024da46c2495eb6"),
+}
+
+
+def patch_native_floor_cache(text, identity):
+    signature = "bool map::build_floor_cache( const int zlev )\n"
+    if identity not in NATIVE_FLOOR_CACHE_ORIGINALS or text.count(signature) != 1:
+        raise ValueError("Experimental bridge Native floor-cache source differs")
+    length, digest = NATIVE_FLOOR_CACHE_ORIGINALS[identity]
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native floor-cache source differs")
+    return text[:begin] + '#include "ncmm_graphics_floor_cache.inc"\n' + text[begin + length:]
+
+
+NATIVE_OUTSIDE_CACHE_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (2217, "99181cb92ff370313fa5870684f513ee0dad010dcc0798f6aa9587b085a66abc"),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (2217, "99181cb92ff370313fa5870684f513ee0dad010dcc0798f6aa9587b085a66abc"),
+}
+
+
+def patch_native_outside_cache(text, identity):
+    signature = "void map::build_outside_cache( const int zlev )\n"
+    if identity not in NATIVE_OUTSIDE_CACHE_ORIGINALS or text.count(signature) != 1:
+        raise ValueError("Experimental bridge Native outside-cache source differs")
+    length, digest = NATIVE_OUTSIDE_CACHE_ORIGINALS[identity]
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native outside-cache source differs")
+    return text[:begin] + '#include "ncmm_graphics_outside_cache.inc"\n' + text[begin + length:]
+
+
+NATIVE_VISION_TRANSPARENCY_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (3826, "5dec4f06915166dad4638e9656dbd9f672acb20bc82a8b74ebe84a8bea229d5d"),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (3826, "5dec4f06915166dad4638e9656dbd9f672acb20bc82a8b74ebe84a8bea229d5d"),
+}
+
+
+def patch_native_vision_transparency(text, identity):
+    signature = "bool map::build_vision_transparency_cache( int zlev )\n"
+    if identity not in NATIVE_VISION_TRANSPARENCY_ORIGINALS or text.count(signature) != 1:
+        raise ValueError("Experimental bridge Native vision-transparency source differs")
+    length, digest = NATIVE_VISION_TRANSPARENCY_ORIGINALS[identity]
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native vision-transparency source differs")
+    return text[:begin] + '#include "ncmm_graphics_vision_transparency.inc"\n' + text[begin + length:]
+
+
+NATIVE_RECONCILE_ORIGINALS = {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": (4665, "43e9d5dff43780bc726edd5ce0798ecd7161dc6a8978072349f3d4b4088c2f82", "map_cursor( get_abs( p ) )"),
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": (4660, "ac9217d4344b3f4363009e3549e542a37fff80e894e0eb3df910b910cc6cc4d9", "map_cursor( this, p )"),
+}
+NATIVE_RECONCILE_CURSOR = "NCMM_GRAPHICS_RECONCILE_MAP_CURSOR"
+
+
+def patch_native_item_reconciliation(text, identity):
+    signature = "void map::reconcile_loaded_items( const reconcile_scope scope )\n"
+    if (identity not in NATIVE_RECONCILE_ORIGINALS or text.count(signature) != 1
+            or NATIVE_RECONCILE_CURSOR in text):
+        raise ValueError("Experimental bridge Native item-reconciliation source differs")
+    length, digest, cursor = NATIVE_RECONCILE_ORIGINALS[identity]
+    begin = text.index(signature)
+    original = text[begin:begin + length]
+    if hashlib.sha256(original.encode("utf-8")).hexdigest() != digest:
+        raise ValueError("Experimental bridge Native item-reconciliation source differs")
+    # Only the cursor constructor differs between these exact Native bodies.
+    # Its original expression is restored at this one expansion site, and the
+    # private macro cannot escape the extracted function's include.
+    extracted = (f"#define {NATIVE_RECONCILE_CURSOR}(p) {cursor}\n"
+                 '#include "ncmm_graphics_reconcile_items.inc"\n'
+                 f"#undef {NATIVE_RECONCILE_CURSOR}\n")
+    return text[:begin] + extracted + text[begin + length:]
+
 
 SUBMAP_CACHE_RESET = """        // New submap changes the content of the map and all caches must be recalculated
         set_transparency_cache_dirty( z );
@@ -84,7 +390,7 @@ def apply(root: Path):
     loader = replace(loader, '#include "mapdata.h"\n', '#include "mapdata.h"\n#include "magic_enchantment.h"\n')
     loader = replace(loader, '        const size_t suspension = find_perk_index( "mom_telekinetic_suspension" );\n        const auto suspension_fail = [&]() {\n            write_gameplay_smoke_result( false, "telekinetic_suspension_encumbrance",\n                                         aws_setting_count, aws_hook_count, survivor_perk_count );\n            return 153;\n        };\n        if( suspension >= survivor_perk_count || perk_max_rank( suspension ) != 3 ) {\n            return suspension_fail();\n        }\n        npc encumbrance_npc;\n        const auto body_parts = get_avatar().get_all_body_parts();\n        if( body_parts.empty() ) return suspension_fail();\n        for( int rank : { 0, 1, 2, 3, 0 } ) {\n            if( !perk_set_rank( suspension, rank ) || !perk_recalc() ||\n                std::abs( gameplay_modifier( "encumbrance_pct" ) + 5.0 * rank ) > 0.000001 ) {\n                return suspension_fail();\n            }\n            for( int base : { 0, 1, 7, 20, 40, 100 } ) {\n                encumbrance_data fixture;\n                fixture.encumbrance = base;\n                for( const bodypart_id &bp : body_parts ) {\n                    get_avatar().set_part_encumbrance_data( bp, fixture );\n                    const int expected = ( base * ( 100 - 5 * rank ) + 50 ) / 100;\n                    // Both action accessor and direct limb-score consumer, twice:\n                    // no stale equipment cache or repeated multiplicative reduction.\n                    for( int repeat = 0; repeat < 2; ++repeat ) {\n                        if( get_avatar().encumb( bp ) != expected ||\n                            get_avatar().get_part( bp )->get_final_encumbrance( get_avatar() ) != expected ) {\n                            return suspension_fail();\n                        }\n                    }\n                    if( encumbrance_npc.has_part( bp ) ) {\n                        encumbrance_npc.set_part_encumbrance_data( bp, fixture );\n                        if( encumbrance_npc.encumb( bp ) != base ) return suspension_fail();\n                    }\n                }\n            }\n        }\n        get_avatar().calc_encumbrance();\n        if( !perk_reset() || !perk_recalc() ) return suspension_fail();\n        log_line( NCMM_LOG_INFO, "Telekinetic Suspension: all body parts, ranks 0/1/2/3/reset, rounding and NPC isolation PASS." );\n\n',
         '        const size_t suspension = find_perk_index( "mom_telekinetic_suspension" );\n        const auto suspension_fail = [&]() {\n            write_gameplay_smoke_result( false, "telekinetic_suspension_encumbrance",\n                                         aws_setting_count, aws_hook_count, survivor_perk_count );\n            return 153;\n        };\n        if( suspension >= survivor_perk_count || perk_max_rank( suspension ) != 3 ) {\n            return suspension_fail();\n        }\n        npc encumbrance_npc;\n        const auto body_parts = get_avatar().get_all_body_parts();\n        if( body_parts.empty() ) return suspension_fail();\n        for( int rank : { 0, 1, 2, 3, 0 } ) {\n            if( !perk_set_rank( suspension, rank ) || !perk_recalc() ||\n                std::abs( gameplay_modifier( "encumbrance_pct" ) + 5.0 * rank ) > 0.000001 ) {\n                return suspension_fail();\n            }\n            for( int base : { 0, 1, 7, 20, 40, 100 } ) {\n                encumbrance_data fixture;\n                fixture.encumbrance = base;\n                for( const bodypart_id &bp : body_parts ) {\n                    get_avatar().set_part_encumbrance_data( bp, fixture );\n                    // Quickstart generates a random avatar, whose mutations or\n                    // equipment can modify vanilla encumbrance before our perk.\n                    const int vanilla = static_cast<int>( std::max( 0.0,\n                                        get_avatar().enchantment_cache->modify_encumbrance( bp.id(), base ) ) );\n                    const int expected = ( vanilla * ( 100 - 5 * rank ) + 50 ) / 100;\n                    // Both action accessor and direct limb-score consumer, twice:\n                    // no stale equipment cache or repeated multiplicative reduction.\n                    for( int repeat = 0; repeat < 2; ++repeat ) {\n                        if( get_avatar().encumb( bp ) != expected ||\n                            get_avatar().get_part( bp )->get_final_encumbrance( get_avatar() ) != expected ) {\n                            log_line( NCMM_LOG_ERROR, ( "Suspension fixture mismatch: " + bp.id().str() +\n                                      " rank=" + std::to_string( rank ) + " vanilla=" + std::to_string( vanilla ) +\n                                      " expected=" + std::to_string( expected ) +\n                                      " actual=" + std::to_string( get_avatar().encumb( bp ) ) ).c_str() );\n                            return suspension_fail();\n                        }\n                    }\n                    if( encumbrance_npc.has_part( bp ) ) {\n                        encumbrance_npc.set_part_encumbrance_data( bp, fixture );\n                        const int npc_vanilla = static_cast<int>( std::max( 0.0,\n                                                encumbrance_npc.enchantment_cache->modify_encumbrance( bp.id(), base ) ) );\n                        if( encumbrance_npc.encumb( bp ) != npc_vanilla ) return suspension_fail();\n                    }\n                }\n            }\n        }\n        get_avatar().calc_encumbrance();\n        if( !perk_reset() || !perk_recalc() ) return suspension_fail();\n        log_line( NCMM_LOG_INFO, "Telekinetic Suspension: all body parts, ranks 0/1/2/3/reset, rounding and NPC isolation PASS." );\n\n')
-    loader = replace(loader, '#include "ncmm_loader.h"', '#include "ncmm_loader.h"\n#include "ncmm_graphics.h"\n#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_shapes.hpp"\n#include "ncmm_graphics_policy.hpp"\n#if defined(TILES)\n#include "cata_tiles.h"\n#include "sdltiles.h"\n#include "monster.h"\n#include "mtype.h"\n#include "creature_tracker.h"\n#include "lightmap.h"\n#include "level_cache.h"\n#include "map_memory.h"\n#include "mapdata.h"\n#include "weather.h"\n#include "weather_type.h"\n#include "field.h"\n#include "item.h"\n#include "item_location.h"\n#include "vehicle.h"\n#include "veh_type.h"\n#include "vpart_position.h"\n#include "messages.h"\n#endif')
+    loader = replace(loader, '#include "ncmm_loader.h"', '#include "ncmm_loader.h"\n#include "ncmm_graphics_move_diagnostics.hpp"\n#include "ncmm_graphics_turn_diagnostics.hpp"\n#include "ncmm_graphics.h"\n#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_shapes.hpp"\n#include "ncmm_graphics_policy.hpp"\n#if defined(TILES)\n#include "cata_tiles.h"\n#include "sdltiles.h"\n#include "monster.h"\n#include "mtype.h"\n#include "creature_tracker.h"\n#include "lightmap.h"\n#include "level_cache.h"\n#include "map_memory.h"\n#include "mapdata.h"\n#include "weather.h"\n#include "weather_type.h"\n#include "field.h"\n#include "item.h"\n#include "item_location.h"\n#include "vehicle.h"\n#include "veh_type.h"\n#include "vpart_position.h"\n#include "messages.h"\n#endif')
     loader = replace(loader, '#include "ncmm_graphics_v2.h"', '#include "ncmm_graphics_v2.h"\n#include "generic_factory.h"\n#if defined(TILES)\n#include "ncmm_native_atlas_pixels.hpp"\n#endif')
     loader = replace(loader, "struct loaded_mod {", "void graphics_erase( const std::string &id );\nstruct loaded_mod {")
     loader = replace(loader, '    "core.v1",', '#if defined(TILES)\n    "graphics.viewport.v1",\n    "graphics.viewport.v2",\n#endif\n    "core.v1",')
@@ -126,7 +432,7 @@ def apply(root: Path):
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CREATURES_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_creatures_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {')
     loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "void graphics_note_creature( Creature *who, uint32_t event, float heading )\n{\n#if defined(TILES)\n    graphics_notify_creature( who, event, heading );\n#else\n    (void)who; (void)event; (void)heading;\n#endif\n}\nbool graphics_requires_terrain_pass()\n{")
     loader = replace(loader, '#include "ncmm_graphics_camera.hpp"',
-                     '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_context.hpp"\n#include "ncmm_graphics_snapshot_cache.hpp"\n#include "ncmm_graphics_trace.hpp"\n#if defined(TILES)\n#include <SDL3_image/SDL_image.h>\n#endif')
+                     '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_context.hpp"\n#include "ncmm_graphics_snapshot_cache.hpp"\n#include "ncmm_graphics_trace.hpp"\n#include "ncmm_graphics_sight_reference.hpp"\n#if defined(TILES)\n#include <SDL3_image/SDL_image.h>\n#endif')
     loader = replace(loader, '    const bool gameplay = ncmm_graphics_shapes::stays_perspective( category );\n    if( gameplay != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();\n    graphics_gameplay_context = gameplay;\n    graphics_control_context = category == "DEFAULTMODE";',
                      '    const bool previous = graphics_gameplay_context;\n    graphics_context.note( category );\n    if( previous != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();')
     loader = replace(loader, '    graphics_gameplay_context = false;',
@@ -314,7 +620,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     if (root/"src/ncmm_native_atlas_pixels.hpp").exists():
         raise ValueError("Experimental source already exists: ncmm_native_atlas_pixels.hpp")
     updates["ncmm_native_atlas_pixels.hpp"] = (bridge/"ncmm_native_atlas_pixels.hpp").read_text(encoding="utf-8")
-    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creature_policy.hpp", "ncmm_graphics_performance.hpp", "ncmm_graphics_creatures.inc", "ncmm_graphics_creature_smoke.inc", "ncmm_graphics_appearance_smoke.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_gpu.h", "ncmm_gpu_validation.hpp", "ncmm_gpu_device.hpp", "ncmm_gpu_shader_bytes.hpp", "ncmm_gpu_probe.hpp", "ncmm_gpu_probe_smoke.inc", "ncmm_gpu_game_smoke.inc", "ncmm_gpu_benchmark.inc", "ncmm_gpu_backend.hpp", "ncmm_gpu_geometry.hpp", "ncmm_gpu_programs.hpp", "ncmm_gpu_resources.hpp", "ncmm_graphics_gpu.inc", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
+    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creature_policy.hpp", "ncmm_graphics_performance.hpp", "ncmm_graphics_creatures.inc", "ncmm_graphics_creature_smoke.inc", "ncmm_graphics_appearance_smoke.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_gpu.h", "ncmm_gpu_validation.hpp", "ncmm_gpu_device.hpp", "ncmm_gpu_shader_bytes.hpp", "ncmm_gpu_probe.hpp", "ncmm_gpu_probe_smoke.inc", "ncmm_gpu_game_smoke.inc", "ncmm_gpu_benchmark.inc", "ncmm_gpu_backend.hpp", "ncmm_gpu_geometry.hpp", "ncmm_gpu_programs.hpp", "ncmm_gpu_resources.hpp", "ncmm_graphics_gpu.inc", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_static_detail.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")
@@ -343,7 +649,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {',
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_MULTILEVEL_ID ) {\n'
-        '        return min_major <= 1 && min_minor <= 1 ? &graphics_world_api : nullptr;\n'
+        '        return min_major <= 1 && min_minor <= 2 ? &graphics_world_api : nullptr;\n'
         '    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
         "bool graphics_requires_terrain_pass()\n{",
@@ -445,6 +751,8 @@ void initialize();''')
         "            return inbounds( p ) && unsafe_get_submap_at( p ) != nullptr;\n"
         "        }\n        int supports_zlevels() const {")
     map_cpp=replace(read("map.cpp"), '#include "map.h"', '#include "map.h"\n#include "ncmm_loader.h"')
+    map_cpp=patch_native_phase_scan(map_cpp,read("mapgen.cpp"),identity)
+    updates["submap.h"]=patch_native_submap_phase(read("submap.h"),read("submap.cpp"),identity)
     for signature,level in (
         ("void map::set_transparency_cache_dirty( const int zlev )", "zlev"),
         ("void map::set_transparency_cache_dirty( const tripoint_bub_ms &p, bool field )", "p.z()"),
@@ -453,9 +761,20 @@ void initialize();''')
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
     game_cpp=updates["game.cpp"] if "game.cpp" in updates else read("game.cpp")
+    # Both translation units include the shared external inline TLS pointer at
+    # global scope, never from the loader's anonymous namespace or benchmark body.
+    game_cpp=replace(game_cpp,'#include "game.h"','#include "game.h"\n#include "ncmm_graphics_move_diagnostics.hpp"')
     if '#include "ncmm_loader.h"' not in game_cpp:
         game_cpp=replace(game_cpp,'#include "game.h"','#include "game.h"\n#include "ncmm_loader.h"')
+    map_cpp=replace(map_cpp,'#include "map.h"','#include "map.h"\n#include "ncmm_graphics_move_diagnostics.hpp"\n#include "ncmm_graphics_support_rebase.hpp"')
+    map_cpp=patch_native_item_reconciliation(map_cpp,identity)
+    map_cpp=patch_native_map_shift(map_cpp,identity)
+    map_cpp=patch_native_actualize(map_cpp,identity)
+    map_cpp=patch_native_map_cache(map_cpp,identity)
+    map_cpp=patch_native_outside_cache(map_cpp,identity)
+    map_cpp=patch_native_floor_cache(map_cpp,identity)
     map_cpp,game_cpp=patch_native_cache_resets(map_cpp,game_cpp)
+    game_cpp=patch_native_update_map(game_cpp,identity)
     # Identifier-based graphics semantics can change even when Native lighting
     # flags stay equal. These calls follow the actual changed-definition stores;
     # the Native equal-ID early returns still perform no graphics invalidation.
@@ -472,7 +791,15 @@ void initialize();''')
         '\n    ncmm::graphics_world_region_changed( this, ncmm_changed_field.x(), ncmm_changed_field.y(), p.z(), 1, 1 );')
     updates["map.cpp"]=map_cpp
     updates["game.cpp"]=game_cpp
-    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
+    lightmap_cpp=patch_native_apparent_light(read("lightmap.cpp"),identity)
+    updates["lightmap.cpp"]=patch_native_vision_transparency(lightmap_cpp,identity)
+    updates["shadowcasting.cpp"]=patch_native_shadowcasting(read("shadowcasting.cpp"),read("shadowcasting.h"),identity)
+    for name in ("ncmm_graphics_sight_dispatch.inc", "ncmm_graphics_sight_distance.hpp", "ncmm_graphics_sight_reference.hpp",
+                 "ncmm_graphics_sight_reference.inc", "ncmm_graphics_sight_comparison.inc"):
+        if (root / "src" / name).exists():
+            raise ValueError("Experimental source already exists: " + name)
+        updates[name]=(bridge/name).read_text(encoding="utf-8")
+    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_move_diagnostics.hpp","ncmm_graphics_turn_diagnostics.hpp","ncmm_graphics_update_map.inc","ncmm_graphics_map_shift.inc","ncmm_graphics_support_rebase.hpp","ncmm_graphics_actualize.inc","ncmm_graphics_map_cache.inc","ncmm_graphics_phase_loop.inc","ncmm_graphics_submap_phase.inc","ncmm_graphics_floor_cache.inc","ncmm_graphics_outside_cache.inc","ncmm_graphics_vision_transparency.inc","ncmm_graphics_reconcile_items.inc","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_range.inc","ncmm_graphics_candidate_range.inc","ncmm_graphics_apparent_light.inc","ncmm_graphics_world.inc","ncmm_graphics_terrain_stair.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_observer.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_static_stair_audit.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")
@@ -496,6 +823,7 @@ void initialize();''')
     if (root / "src/ncmm_graphics_target_smoke.inc").exists():
         raise ValueError("Experimental source already exists: ncmm_graphics_target_smoke.inc")
     updates["ncmm_graphics_target_smoke.inc"]=(bridge/"ncmm_graphics_target_smoke.inc").read_text(encoding="utf-8")
+    prepare_fps_input(root,updates,bridge)
     # No writes above this line. No save/installation/feed/catalog changes.
     for name, content in updates.items():
         (root / "src" / name).parent.mkdir(parents=True,exist_ok=True)

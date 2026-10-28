@@ -719,9 +719,9 @@ static const material materials[]={
 {{0.906331753f,0.906331753f,0.906331753f,1.0f},0,texture_9443df615ff59f272d37d90c,4,4,10683628350367702823ull},
 };
 static const model value={
-1,"wrench",13008749699309814206ull,family::wrench,
+1,"wrench",470628396021007833ull,family::wrench,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
-vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.0290126f,0.0f}},{0,{0.0f,0.03411706f,0.0f}},{0,{0.0f,-0.0290126f,0.0f}},{0,{0.0025885f,0.124029f,0.0002285f}},{0,{0.0025885f,0.124029f,0.0002285f}},{0,{0.0f,-0.0290126f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
+vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.0290126f,0.0f}},{0,{0.0f,0.03411706f,0.0f}},{0,{0.0f,-0.0290126f,0.0f}},{0,{0.0025885f,0.124029f,0.0002285f}},{0,{0.0025885f,0.124029f,0.0002285f}},{0,{0.0f,-0.0290126f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f},0.01f,0.01f},
 -1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.25f,false
 };
 const model &asset_wrench() noexcept {return value;}

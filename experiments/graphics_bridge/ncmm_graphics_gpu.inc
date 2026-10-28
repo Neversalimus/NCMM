@@ -6,7 +6,10 @@ int graphics_gpu_cpu_metrics( const ncmm_gpu_cpu_metrics_v1 *data )
 {
     if( !graphics_hybrid_frame || active_module_id != graphics_view.owner || !data || data->struct_size < sizeof( *data ) ) return 0;
     for( double value : { data->frame_ms, data->geometry_ms, data->raster_ms, data->effects_ms } ) if( !std::isfinite( value ) || value < 0 ) return 0;
-    graphics_cpu_metrics = *data; return 1;
+    graphics_cpu_metrics = *data;
+    ncmm_graphics_turn_diagnostics::observe_cpu({data->width,data->height,data->raster_calls,data->triangles,data->cache_bytes,
+        data->frame_ms,data->geometry_ms,data->raster_ms,data->effects_ms});
+    return 1;
 }
 #if defined(TILES)
 std::unique_ptr<ncmm_gpu::backend> graphics_gpu_engine;
@@ -91,7 +94,8 @@ int graphics_gpu_submit_impl( const ncmm_gpu_scene_v1 *scene,const ncmm_gpu_mult
         graphics_gpu_last_reason = metrics.reason;
         log_line( NCMM_LOG_WARN, ( "First Person GPU fallback: " + graphics_gpu_last_reason ).c_str() );
     }
-    if( graphics_gpu_frame ) { graphics_hybrid_width = scene->width; graphics_hybrid_height = scene->height; graphics_gpu_last_reason.clear(); }
+    if( graphics_gpu_frame ) { graphics_hybrid_width = scene->width; graphics_hybrid_height = scene->height; graphics_gpu_last_reason.clear();
+        graphics_set_focus(graphics_gpu_engine->focus_cell()); }
     return graphics_gpu_frame;
 #else
     (void)scene; (void)world; return 0;

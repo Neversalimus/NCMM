@@ -1,6 +1,7 @@
 #include "ncmm_graphics_performance.hpp"
 #include "ncmm_gpu_backend.hpp"
 #include "gpu_scene.hpp"
+#include "world_visual_fixture.hpp"
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -353,6 +354,56 @@ int main(int argc,char **argv){
                 "CPU and GPU do not conceal a hole with invented world geometry; hands keep their independent pass");
     }
     {
+        // A render-only controlled terrain stair: static geometry permission
+        // never supplies Native BODY permission or reveals cell contents.
+        namespace fp=first_person;
+        constexpr int side=7,area=side*side,root=2*side+3,upper=area+root;
+        std::vector<ncmm_graphics_cell_v1> cells(area*2);std::vector<ncmm_graphics_cell_v2> details(cells.size());
+        std::vector<ncmm_world_cell_v1> xyz;xyz.reserve(cells.size());
+        for(int z=0;z<2;++z)for(int y=0;y<side;++y)for(int x=0;x<side;++x){const int i=z*area+y*side+x;
+            cells[i].flags=NCMM_GFX_VISIBLE|(z?NCMM_GFX_NO_FLOOR:0);std::strcpy(cells[i].terrain,z?"t_open_air":"t_floor");
+            std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=.365478f;
+            xyz.push_back({x,y,z,z?0u:uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP),0,0,1,{.365478f,.365478f,.365478f}});
+        }
+        xyz[root].flags|=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;xyz[root].direction=3;
+        xyz[upper].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_DOWN|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+        std::strcpy(cells[root].terrain,"t_stairs_up");std::strcpy(cells[upper].terrain,"t_stairs_down");
+        ncmm_world_slice_v1 slices[]={{0,0,area,0,1,1},{1,area,area,0,2,1}};
+        ncmm_graphics_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.world_epoch=2083;world.revision=1;
+        world.loaded_max_z=1;world.level_height=2.5f;world.coordinates=xyz.data();world.cell_count=uint32_t(xyz.size());world.slices=slices;world.slice_count=2;
+        auto &source=world.appearance;source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,side,side,3.5f,5.5f,cells.data(),cells.size()};
+        source.details=details.data();source.detail_count=details.size();
+        fp::gpu::scene_cache cache;
+        auto submit=[&](const char *name){++world.revision;fp::gpu::packet packet;fp::hybrid::frame stats;
+            require(cache.build(source,-fp::hybrid::pi*.5f,-.1f,{},packet,stats,engine.metrics(),{},nullptr,nullptr,640,480,NCMM_GPU_FORCE,&world),cache.last_reason.c_str());
+            ncmm_gpu_multilevel_scene_v1 sent{};sent.struct_size=sizeof(sent);sent.version=1;sent.base=packet.finish(nullptr);
+            sent.coordinates=xyz.data();sent.cell_count=uint32_t(xyz.size());sent.level_height=2.5f;
+            require(engine.submit(sent.base,&sent),engine.metrics().reason);capture(name);
+            require(engine.metrics().cpu_raster_calls==0&&engine.metrics().visible_creature_pixels==0&&engine.metrics().target_cell<0,
+                "static stairs use GPU geometry without exposing creatures or invoking a CPU world raster");
+            auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *image=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;
+            SDL_DestroySurface(raw);require(image!=nullptr,"static stair GPU readback");std::vector<uint32_t> pixels;pixels.reserve(640*480);
+            for(int y=0;y<480;++y){const auto *row=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+y*image->pitch);
+                pixels.insert(pixels.end(),row,row+640);}
+            SDL_DestroySurface(image);return pixels;
+        };
+        const auto normal=submit("-stairs-static");
+        xyz[root].flags&=~(NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP);xyz[root].direction=0;
+        const auto missing=submit("-stairs-removed");size_t changed=0;
+        for(size_t i=640*20;i<normal.size();++i){const auto a=normal[i],b=missing[i];
+            const auto contrast=[&](int shift){return std::abs(int((a>>shift)&255)-int((b>>shift)&255));};
+            changed+=std::max({contrast(24),contrast(16),contrast(8)})>=4;
+        }
+        require(changed>=24,"terrain stairs have actual GPU pixel coverage with BODY withheld");
+        xyz[root].flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;xyz[root].direction=3;
+        const auto restored=submit("-stairs-restored");require(restored==normal,"restoring static navigation restores exact GPU pixels");
+        std::strcpy(cells[root].furniture,"f_bookcase");details[root].furniture_shape=NCMM_SHAPE_STORAGE;
+        std::strcpy(cells[root].item,"rock");std::strcpy(cells[root].creature,"mon_zombie");
+        std::strcpy(details[root].field,"fd_fire");details[root].field_shape=NCMM_SHAPE_BILLBOARD;
+        require(submit("-stairs-hidden-contents")==normal,"static stair permission cannot reveal stale supplied room contents on GPU");
+        std::printf("Static-only terrain stairs GPU coverage: %zu pixels; BODY remains absent\n",changed);
+    }
+    {
         // Run the actual weighted PSX packets through the shared device, rather
         // than inferring GPU skinning from the producer's matrix unit test.
         namespace fp=first_person;
@@ -392,6 +443,178 @@ int main(int argc,char **argv){
     }
     if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"psx_weighted_viewmodel\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"dynamic_upload_over_2mib_checked\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
+    {
+        namespace fp=first_person;
+        std::array<ncmm_graphics_cell_v1,17*17> cells{};std::array<ncmm_graphics_cell_v2,17*17> details{};
+        for(int y=0;y<17;++y)for(int x=0;x<17;++x){const int i=y*17+x;cells[i].flags=NCMM_GFX_VISIBLE;
+            const char *id=x==8?"t_pavement":y==8?"t_dirt":"t_grass";std::strcpy(cells[i].terrain,id);std::strcpy(details[i].ground,id);
+            details[i].light_r=details[i].light_g=details[i].light_b=1;}
+        ncmm_graphics_scene_v2 source{};source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,17,17,8.5f,13.5f,cells.data(),cells.size()};
+        source.details=details.data();source.detail_count=details.size();source.environment.daylight=1;source.environment.sun_z=.8f;source.environment.sun_x=.4f;source.environment.wind_x=20;source.environment.wind_y=7;
+        uint32_t green=0x3e5a23ff,brown=0x6b543aff,asphalt=0x494b4cff;
+        auto provider=[&](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){
+            if(layer!=NCMM_GFX_GROUND)return false;
+            const auto *art=std::strcmp(details[i].ground,"t_grass")==0?&green:std::strcmp(details[i].ground,"t_dirt")==0?&brown:&asphalt;
+            sprite={sizeof(sprite),1,1,1,art};return true;};
+        fp::gpu::scene_cache cache;fp::hybrid::frame statistics;
+        static ncmm_gpu::backend *lawn_backend=nullptr;lawn_backend=&engine;
+        ncmm_host_graphics_gpu_v1 api{};api.has_resource=[](uint64_t key,uint32_t kind){return lawn_backend->has(key,kind)?1:0;};
+        std::vector<uint32_t> previous;
+        for(int n=0;n<2;++n){source.environment.animation_seconds=n?1.6:1;
+            fp::gpu::packet packet;require(cache.build(source,-fp::hybrid::pi*.5f,-.45f,provider,packet,statistics,engine.metrics(),{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),cache.last_reason.c_str());
+            const auto &submission=packet.finish(&api);
+            if(n)require(!submission.generated_cells&&!submission.mesh_count&&!submission.texture_count,"wind reuses every GPU lawn mesh and texture");
+            require(engine.submit(submission),engine.metrics().reason);
+            std::printf("GPU grass field draws: %llu\n",(unsigned long long)engine.metrics().draw_calls);
+            require(engine.metrics().draw_calls<=48,"grass field uses instanced three-shade models, not thousands of material draws");
+            if(n)require(engine.resources().static_upload_bytes()==0&&engine.metrics().generated_meshes==0&&engine.metrics().cpu_raster_calls==0,"real GPU lawn animation uploads only dynamic transforms");
+            capture(n?"-grass-wind":"-grass-rest");
+            auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"lawn pixels");
+            auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"lawn pixel format");
+            std::vector<uint32_t> pixels(640*480);for(int y=0;y<480;++y)std::memcpy(pixels.data()+y*640,static_cast<const char *>(image->pixels)+y*image->pitch,640*sizeof(uint32_t));SDL_DestroySurface(image);
+            if(n){size_t changed=0;for(size_t i=640*160;i<pixels.size();++i)changed+=pixels[i]!=previous[i];require(changed>100,"wind moves actual GPU grass pixels");std::printf("GPU lawn: %zu changed pixels, %llu triangles, no static upload\n",changed,(unsigned long long)engine.metrics().triangles);}
+            previous=std::move(pixels);
+        }
+        // Keep the exact floor atlas and lighting while removing only blades.
+        // Count real covered pixels above the hands, not generated vertices.
+        for(auto &c:cells)if(std::strcmp(c.terrain,"t_grass")==0)std::strcpy(c.terrain,"t_dirt");
+        fp::gpu::packet flat;require(cache.build(source,-fp::hybrid::pi*.5f,-.45f,provider,flat,statistics,engine.metrics(),{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),cache.last_reason.c_str());
+        require(engine.submit(flat.finish(&api)),engine.metrics().reason);capture("-grass-flat-reference");
+        auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *image=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;SDL_DestroySurface(raw);require(image!=nullptr,"grass coverage reference");
+        size_t covered=0;for(int y=160;y<330;++y){const auto *row=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+y*image->pitch);
+            for(int x=0;x<640;++x)covered+=row[x]!=previous[y*640+x];}SDL_DestroySurface(image);
+        require(covered>30000,"dense GPU grass covers at least thirty thousand pixels above the held hands");
+        std::printf("GPU grass coverage: %zu / 108800 pixels above hands\n",covered);
+        lawn_backend=nullptr;
+    }
+    {
+        // Real GPU pixels for the additive radio horizon, with exactly the
+        // same map, camera, time and light in the ground/lattice/V1 controls.
+        namespace fp=first_person;
+        world_visual::fixture f(9);auto &source=f.scene;source.base.camera_x=2.5f;source.base.camera_y=1.5f;
+        std::vector<ncmm_world_cell_v1> xyz(f.cells.size());
+        for(int y=0;y<f.size;++y)for(int x=0;x<f.size;++x){const int i=y*f.size+x;f.cells[i].flags=NCMM_GFX_VISIBLE|NCMM_GFX_NO_FLOOR;
+            f.terrain(i,"t_open_air");xyz[i]={x,y,0,NCMM_WORLD_BODY_VISIBLE,0,0,1};}
+        ncmm_world_slice_v1 slice{0,0,uint32_t(xyz.size()),0,1,1};ncmm_graphics_multilevel_scene_v1 world{};
+        world.struct_size=sizeof(world);world.version=1;world.world_epoch=1817;world.revision=1;world.level_height=2.5f;
+        world.coordinates=xyz.data();world.cell_count=uint32_t(xyz.size());world.slices=&slice;world.slice_count=1;world.appearance=source;
+        auto &data=f.appearance;data.horizon_enabled=true;data.horizon_revision=81;
+        data.horizon={{80,-4.5f,0,24,24,0,{.43f,.42f,.39f},NCMM_LOD_BUILDING}};
+        ncmm_skyline_feature_v1 radio{};require(ncmm_world::standard_radio_feature("radio_tower",true,0,data.horizon[0],9,0,radio),"GPU fixture uses the real authored profile");
+        fp::gpu::scene_cache cache;std::array<std::vector<uint32_t>,3> gpu_pixels;std::array<fp::hybrid::frame,3> cpu;
+        const auto read=[&](){auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"radio GPU readback");
+            auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"radio pixel format");
+            std::vector<uint32_t> pixels(640*480);for(int y=0;y<480;++y)std::memcpy(pixels.data()+y*640,static_cast<const char *>(image->pixels)+y*image->pitch,640*sizeof(uint32_t));
+            SDL_DestroySurface(image);return pixels;};
+        const auto submit=[&](float yaw){fp::gpu::packet packet;fp::hybrid::frame stats;
+            const bool built=cache.build(world.appearance,yaw,0,{},packet,stats,engine.metrics(),{},&data,nullptr,640,480,NCMM_GPU_FORCE,&world);
+            require(built,cache.last_reason.c_str());
+            ncmm_gpu_multilevel_scene_v1 submitted{};submitted.struct_size=sizeof(submitted);submitted.version=1;submitted.base=packet.finish(nullptr);
+            submitted.coordinates=xyz.data();submitted.cell_count=uint32_t(xyz.size());submitted.level_height=2.5f;
+            require(engine.submit(submitted.base,&submitted),engine.metrics().reason);
+            require(engine.metrics().cpu_raster_calls==0,"radio qualification executes the real GPU rasterizer");};
+        for(int mode=0;mode<3;++mode){data.skyline=mode==1?std::vector<ncmm_skyline_feature_v1>{radio}:std::vector<ncmm_skyline_feature_v1>{};
+            data.horizon[0].height=mode==2?5.f:0.f;++data.horizon_revision;
+            require(fp::hybrid::build_frame(world.appearance,0,0,{},cpu[mode],640,480,{},nullptr,nullptr,&data,{},nullptr,&world),"CPU radio reference uses the same frozen scene");
+            submit(0);capture(mode==0?"-radio-ground":mode==1?"-radio-lattice":"-radio-legacy-box");gpu_pixels[mode]=read();
+            require(engine.metrics().target_cell==-1,"distant radio has no actor/interaction target");
+        }
+        size_t gpu_coverage=0,cpu_coverage=0,gpu_high=0,cpu_high=0;
+        for(int y=25;y<240;++y)for(int x=0;x<640;++x){const size_t i=size_t(y)*640+x;
+            const bool g=gpu_pixels[1][i]!=gpu_pixels[0][i],c=cpu[1].pixels[i]!=cpu[0].pixels[i];
+            gpu_coverage+=g;cpu_coverage+=c;gpu_high+=g&&y<210;cpu_high+=c&&y<210;}
+        require(gpu_coverage>10&&gpu_coverage<3000&&gpu_high>2&&cpu_coverage>10&&cpu_coverage<3000&&cpu_high>2,
+                "CPU and GPU pixels both retain the real tall open radio profile");
+        require(gpu_pixels[1][200*640+320]==gpu_pixels[0][200*640+320]&&cpu[1].depth[200*640+320]==cpu[0].depth[200*640+320],
+                "both rasterizers see through the actual empty centre of the radio lattice");
+        require(gpu_pixels[1][230*640+320]==gpu_pixels[0][230*640+320]&&gpu_pixels[2][230*640+320]!=gpu_pixels[0][230*640+320],
+                "typed radio removes the opaque five-metre V1 box instead of drawing over it");
+        data.horizon[0].height=0;data.skyline={radio};++data.horizon_revision;submit(0);capture("-radio-restored");
+        submit(.15f);require(engine.resources().static_upload_bytes()==0&&engine.metrics().generated_meshes==0,"camera turn reuses radio masks and mesh without static upload");capture("-radio-turned");
+        for(int y=0;y<f.size;++y){const int i=y*f.size+5;f.terrain(i,"t_wall");f.details[i].terrain_shape=NCMM_SHAPE_WALL;
+            xyz[i].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE;xyz[i].revision=2;}
+        ++world.revision;submit(0);capture("-radio-near-wall");
+        require(engine.focus_cell()==f.size+5,"exact near wall still owns GPU depth and focus in front of typed skyline");
+        std::printf("GPU radio lattice: %zu pixels (%zu above V1 height); CPU: %zu (%zu high)\n",gpu_coverage,gpu_high,cpu_coverage,cpu_high);
+    }
+    {
+        namespace fp=first_person;
+        constexpr int side=9,area=side*side;
+        std::vector<ncmm_graphics_cell_v1> cells(area*2);std::vector<ncmm_graphics_cell_v2> details(cells.size());std::vector<ncmm_world_cell_v1> xyz(cells.size());
+        for(int z=-1;z<=0;++z)for(int y=0;y<side;++y)for(int x=0;x<side;++x){const int i=(z+1)*area+y*side+x;
+            auto &a=cells[i];a.flags=NCMM_GFX_VISIBLE|NCMM_GFX_CEILING;std::strcpy(a.terrain,z==0?"t_floor":x==2||x==6?"t_railroad_track_on_tie_v":"t_railroad_rubble");
+            std::strcpy(details[i].ground,a.terrain);xyz[i]={x,y,z,NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_ROOFED|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM,0,0,1};
+            if(z==-1&&(x==0||x==8||y==0)){a.flags|=NCMM_GFX_WALL;details[i].terrain_shape=NCMM_SHAPE_WALL;std::strcpy(a.terrain,"t_concrete_wall");}}
+        ncmm_world_slice_v1 slices[]={{-1,0,area,0,1,1},{0,area,area,0,2,1}};
+        ncmm_graphics_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.world_epoch=1997;world.revision=1;
+        world.origin_z=world.loaded_min_z=-1;world.loaded_max_z=0;world.level_height=2.5f;world.coordinates=xyz.data();world.cell_count=uint32_t(xyz.size());world.slices=slices;world.slice_count=2;
+        auto &source=world.appearance;source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,side,side,4.5f,7.5f,cells.data(),cells.size()};source.details=details.data();source.detail_count=details.size();
+        source.environment.daylight=1;source.environment.sun_z=.8f;source.environment.fog_density=.6f; // Surface weather must not fill a closed tunnel.
+        fp::gpu::scene_cache cache;double brightness[3]{};
+        for(int light=0;light<3;++light){
+            source.environment.lightning=light==1; // A surface storm cannot light a sealed tunnel.
+            for(int i=0;i<int(cells.size());++i){const float value=light==0?.85f:light==1?0.f:std::max(0.f,1.f-std::hypot(float(xyz[i].x-4),float(xyz[i].y-5))/4.f);
+                details[i].light_r=value;details[i].light_g=value*.91f;details[i].light_b=value*.76f;
+                std::copy_n(&details[i].light_r,3,xyz[i].lower_light);}
+            ++world.revision;fp::gpu::packet packet;fp::hybrid::frame stats,reference,opaque;
+            require(cache.build(source,-fp::hybrid::pi*.5f,-.2f,{},packet,stats,engine.metrics(),{},nullptr,nullptr,640,480,NCMM_GPU_FORCE,&world),cache.last_reason.c_str());
+            require(packet.scene.camera.time[2]==NCMM_SKY_VOID&&packet.scene.camera.sky_top[3]==1&&packet.scene.camera.sky_bottom[0]==0,"closed underground uses black sky on both hemispheres");
+            ncmm_gpu_multilevel_scene_v1 submitted{};submitted.struct_size=sizeof(submitted);submitted.version=1;submitted.base=packet.finish(nullptr);submitted.coordinates=xyz.data();submitted.cell_count=uint32_t(xyz.size());submitted.origin_z=-1;submitted.level_height=2.5f;
+            require(engine.submit(submitted.base,&submitted),engine.metrics().reason);capture(light==0?"-subway-lit":light==1?"-subway-dark":"-subway-local-light");
+            auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *image=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;SDL_DestroySurface(raw);require(image!=nullptr,"subway lighting capture");
+            // Compare the visible track bed, above the hands; the distant
+            // unlit wall deliberately remains black in the local-light case.
+            for(int y=250;y<355;++y){const auto *row=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+y*image->pitch);for(int x=10;x<630;++x)brightness[light]+=(row[x]>>24)+((row[x]>>16)&255)+((row[x]>>8)&255);}
+            brightness[light]/=105*620*3;SDL_DestroySurface(image);
+            require(fp::hybrid::build_frame(source,-fp::hybrid::pi*.5f,-.2f,{},reference,640,480,{},nullptr,&opaque,nullptr,{},nullptr,&world),"subway CPU lighting reference");
+            if(light==1){for(size_t i=0;i<opaque.pixels.size();++i)require((opaque.pixels[i]>>24)<4&&((opaque.pixels[i]>>16)&255)<4&&((opaque.pixels[i]>>8)&255)<4,"CPU dark tunnel has no ambient floor or outdoor fog");}
+        }
+        std::printf("Subway actual GPU brightness: lit %.2f / dark %.2f / local %.2f\n",brightness[0],brightness[1],brightness[2]);
+        require(brightness[0]>35&&brightness[1]<2&&brightness[2]>brightness[1]+8&&brightness[2]<brightness[0],"real GPU tunnel preserves darkness and localized Native RGB contrast");
+    }
+    if(argc>2&&std::strcmp(argv[2],"--grass-benchmark")==0){
+        // Identical owned field/camera for before/after measurements. Readback
+        // and screenshots are outside the timed loop; no Native simulation.
+        constexpr int side=41;
+        std::vector<ncmm_graphics_cell_v1> cells(side*side);std::vector<ncmm_graphics_cell_v2> details(cells.size());
+        for(int y=0;y<side;++y)for(int x=0;x<side;++x){const int i=y*side+x;cells[i].flags=NCMM_GFX_VISIBLE;
+            const char *id=x==20?"t_dirt":"t_grass";std::strcpy(cells[i].terrain,id);std::strcpy(details[i].ground,id);
+            details[i].light_r=details[i].light_g=details[i].light_b=1;}
+        ncmm_graphics_scene_v2 source{};source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,side,side,20.5f,32.5f,cells.data(),cells.size()};
+        source.details=details.data();source.detail_count=details.size();source.environment.daylight=1;source.environment.sun_z=.8f;source.environment.sun_x=.4f;source.environment.wind_x=20;source.environment.wind_y=7;
+        uint32_t green=0x3e5a23ff,brown=0x6b543aff;
+        auto provider=[&](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){if(layer!=NCMM_GFX_GROUND)return false;
+            sprite={sizeof(sprite),1,1,1,std::strcmp(cells[i].terrain,"t_grass")==0?&green:&brown};return true;};
+        first_person::gpu::scene_cache cache;first_person::hybrid::frame statistics;
+        static ncmm_gpu::backend *field_backend=nullptr;field_backend=&engine;
+        ncmm_host_graphics_gpu_v1 api{};api.has_resource=[](uint64_t key,uint32_t kind){return field_backend->has(key,kind)?1:0;};
+        std::vector<double> prepare,submit,record;uint64_t calls=0,triangles=0,meshes=0,upload=0,regenerated=0;engine.profile();
+        for(int n=0;n<88;++n){source.environment.animation_seconds=1+n/30.;
+            first_person::gpu::packet packet;const auto begun=std::chrono::steady_clock::now();
+            require(cache.build(source,-first_person::hybrid::pi*.5f,-.18f,provider,packet,statistics,engine.metrics(),{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),cache.last_reason.c_str());
+            const auto &submission=packet.finish(&api);const auto prepared=std::chrono::steady_clock::now();
+            require(engine.submit(submission),engine.metrics().reason);const auto submitted=std::chrono::steady_clock::now();
+            if(n>=8){prepare.push_back(std::chrono::duration<double,std::milli>(prepared-begun).count());submit.push_back(std::chrono::duration<double,std::milli>(submitted-prepared).count());
+                record.push_back(engine.recording().world_ms);calls=std::max(calls,uint64_t(engine.metrics().draw_calls));triangles=std::max(triangles,uint64_t(engine.metrics().triangles));
+                meshes=std::max(meshes,uint64_t(submission.mesh_count));upload=std::max(upload,engine.resources().static_upload_bytes());regenerated+=submission.generated_cells;}
+            // Bound queued work equally in both revisions, outside CPU timings.
+            require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr)&&SDL_FlushRenderer(renderer)&&SDL_WaitForGPUIdle(device),"bounded benchmark frame");
+            if(n==8||n==87)capture(n==8?"-field-rest":"-field-wind");
+        }
+        auto median=[](std::vector<double> v){std::sort(v.begin(),v.end());return v[v.size()/2];};
+        require(calls<=60&&regenerated==0&&upload==0&&meshes==0,"large warm grass field remains instanced with no geometry regeneration or static uploads");
+        first_person::hybrid::frame cpu_static,cpu_first,cpu;std::vector<double> cpu_times;
+        require(first_person::hybrid::build_frame(source,-first_person::hybrid::pi*.5f,-.18f,provider,cpu_first,640,480,{},nullptr,&cpu_static),"CPU benchmark world");
+        for(int n=0;n<8;++n){source.environment.animation_seconds=1+n/30.;const auto begun=std::chrono::steady_clock::now();
+            require(first_person::hybrid::build_frame(source,-first_person::hybrid::pi*.5f,-.18f,provider,cpu,640,480,{},&cpu_static),"CPU cached grass benchmark");
+            if(n>=2)cpu_times.push_back(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count());}
+        std::ofstream report(std::string(argv[1])+"-grass-benchmark.json");
+        report<<"{\"samples\":80,\"width\":640,\"height\":480,\"field_tiles\":1681,\"prepare_median_ms\":"<<median(prepare)<<",\"submit_median_ms\":"<<median(submit)
+            <<",\"world_record_median_ms\":"<<median(record)<<",\"draw_calls_max\":"<<calls<<",\"triangles_max\":"<<triangles<<",\"warm_meshes_max\":"<<meshes
+            <<",\"warm_static_upload_max\":"<<upload<<",\"warm_generated_cells_sum\":"<<regenerated<<",\"cpu_cached_median_ms\":"<<median(cpu_times)<<",\"cpu_submitted_triangles\":"<<cpu.submitted_triangles
+            <<",\"background_games_running\":true,\"gpu_duration_measured\":false}\n";
+        require(bool(report),"grass benchmark receipt");field_backend=nullptr;engine.profile(false);
+    }
     // The imported red-dot lens uses alpha, rather than an opaque stand-in.
     // Two front lens surfaces precede an opaque held surface in material order:
     // they must blend after it and must not reject one another by writing depth.
@@ -413,6 +636,39 @@ int main(int argc,char **argv){
         const auto red=pixel>>24,green=(pixel>>16)&255,blue=(pixel>>8)&255;
         require(red>8&&blue>8&&green>red&&green>blue,"held glass blends both source layers over the visible opaque surface without writing depth");
     }
+    // The same retained-mesh ray has two contracts: Native combat can see a
+    // creature through glass; E must select the nearer interactive surface.
+    {
+        ncmm_gpu_scene_v1 focus_scene{};focus_scene.struct_size=sizeof(focus_scene);
+        focus_scene.width=640;focus_scene.height=480;focus_scene.mode=NCMM_GPU_FORCE;focus_scene.frame_serial=1950;
+        focus_scene.camera=camera;focus_scene.camera.projection[0]=640;focus_scene.camera.projection[1]=480;focus_scene.camera.projection[2]=457;
+        std::array<ncmm_gpu_cell_v1,2> focus_cells{};
+        for(auto &value:focus_cells){value.flags=1;value.light[0]=value.light[1]=value.light[2]=1;}
+        focus_scene.cells=focus_cells.data();focus_scene.cell_count=2;focus_scene.camera.grid[0]=focus_scene.camera.grid[2]=2;
+        auto near_vertices=vertices;for(auto &vertex:near_vertices){vertex.joint=0;vertex.material=0;vertex.position[1]=2;}
+        auto far_vertices=near_vertices;for(auto &vertex:far_vertices)vertex.position[1]=4;
+        ncmm_gpu_material_v1 glass{};glass.color[3]=.25f;
+        ncmm_gpu_material_v1 actor{};actor.color[3]=1;actor.flags=NCMM_GPU_CREATURE;
+        const ncmm_gpu_mesh_v1 focus_meshes[]={{0x46505301,near_vertices.data(),indices,&glass,3,3,1,0},
+            {0x46505302,far_vertices.data(),indices,&actor,3,3,1,0}};
+        focus_scene.meshes=focus_meshes;focus_scene.mesh_count=2;
+        const auto identity=first_person::gpu::identity();focus_scene.bones=&identity;focus_scene.bone_count=1;
+        ncmm_gpu_draw_v1 focus_draws[2]{};
+        for(int i=0;i<2;++i){focus_draws[i].mesh_key=focus_meshes[i].key;focus_draws[i].cell=i;
+            focus_draws[i].transform=identity;focus_draws[i].bone_count=1;}
+        focus_scene.draws=focus_draws;focus_scene.draw_count=2;
+        auto submit_focus=[&](){const bool accepted=engine.submit(focus_scene);require(accepted,engine.metrics().reason);};
+        submit_focus();
+        require(engine.focus_cell()==0&&engine.metrics().target_cell==1,"glass owns interaction focus without replacing the creature target");
+        glass.color[3]=1;focus_scene.frame_serial++;focus_scene.mesh_count=1;focus_scene.meshes=focus_meshes;
+        // A new immutable key is required when the material changes.
+        auto wall_mesh=focus_meshes[0];wall_mesh.key=0x46505303;focus_scene.meshes=&wall_mesh;focus_draws[0].mesh_key=wall_mesh.key;
+        submit_focus();
+        require(engine.focus_cell()==0&&engine.metrics().target_cell==-1,"opaque wall blocks both Native combat picking and interaction picking");
+        focus_draws[0].pass=NCMM_GPU_HELD;focus_scene.mesh_count=0;focus_scene.meshes=nullptr;focus_scene.frame_serial++;
+        submit_focus();
+        require(engine.focus_cell()==1&&engine.metrics().target_cell==1,"held overlays never steal the world interaction target");
+    }
     // Leave work and an SDL composition queued while replacing the backend.
     // No read-pixels or explicit fence wait may accidentally serialize this path.
     scene.meshes=&mesh;scene.mesh_count=1;scene.draws=&draw;scene.draw_count=1;scene.textures=nullptr;scene.texture_count=0;
@@ -423,6 +679,7 @@ int main(int argc,char **argv){
             require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"queue SDL sampling before teardown");}
         engine.clear();require(!engine.metrics().active&&engine.resources().bytes()==0&&engine.recording().frame_upload_capacity_bytes==0&&engine.recording().cell_cache_bytes==0,"in-flight teardown drains and clears resources including staging and source cells");
     }
+    #include "world_visual_gpu_test.inc"
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();
     SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();

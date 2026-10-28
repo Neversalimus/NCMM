@@ -7,6 +7,59 @@ Scope: gameplay audit, measured performance, camera/interaction stability,
 visual polish, depth-driven surface submission and cached horizon LOD.
 No gameplay rules are changed.
 
+## 0.13.1 FPS playtest corrections
+
+Primary reach attacks now hand the validated reticle target to the existing
+Native reach attack after Native's ordinary fire-entry checks. A stale primary
+request is consumed without opening a new selector; RMB still opens Native
+aiming. The FPS matrix includes real LMB attacks with a naginata and a steel
+spear in both keyboard modes and both renderers, plus an actual Native offset
+stair destination/render-snapshot check and Native grass presentation checks,
+bringing it to 136 cases.
+The cursor test redraws the actual interface with `HIDE_CURSOR=show` while
+captured, then checks that releasing capture restores Native cursor handling.
+Captured button ownership ignores the hidden absolute cursor position; one
+reach fixture sends its click outside the viewport after capture. Only the
+initial capture click checks viewport bounds.
+The same SDL owner and existing module interfaces are retained.
+
+Door identifiers match whole components, so `f_indoor_plant` and its yellow
+variant remain plants. Stair facing ranks the lower approach and upper landing
+together; a free lower neighbour is the foot of a flight, not its uphill end.
+Renderer slabs and visibility use the same aperture, which fits the top tread
+at all four facings. The first rural-church basement stair is one tile away
+from its upper exit. Unambiguous adjacent pairs inside the same Native
+overmap tile extend the flight to the real exit and retain a solid lower
+wall support with an open upper stairwell lane. Native collision/visibility
+and the actual vertical-move destination remain authoritative. Competing
+or distant exits are not joined through rooms. Neighbour topology also
+invalidates the corresponding cached GPU meshes. Ladders use an adjacent
+wall rather than the stair rule.
+
+Grass uses original procedural blade geometry on visible, unoccupied Native
+`t_grass` variants. Pavement, bare soil, indoor plants and grass curtains are
+excluded by terrain identity. Patches keep stable world-coordinate seeds and
+fixed roots. Near/middle/far bands use 16/4/1 tufts within 5/12/22 metres and
+retain the Native ground beyond that. White, dead, grazed, long and tall grass
+retain distinct height/colour treatments. GPU wind updates three existing
+skeletal transforms per patch and reuses immutable meshes/textures; CPU wind
+is drawn over the cached static world. Visible grass requests 30 Hz idle
+presentation without advancing Native time. No external asset licence or
+new shader/ABI is required.
+
+Local checks cover tile filtering, CPU animation over the world cache, fixed
+roots, GPU mesh reuse, LOD changes, real GPU pixel changes and all four stair
+facings. Native integration and exact installer qualification must be rerun
+for these bytes. The Native grass fixture checks real terrain variants,
+additional GPU blade geometry and unchanged Native position/moves/time, and
+captures both presentation-clock wind phases.
+Diagnostic scene reset also synchronizes Native's current map Z after a
+fixture teleport; Native vertical movement uses that value independently of
+the avatar Z. Unexpected Native prompts in the offset-stair check are cancelled
+by the existing bounded diagnostic guard and cannot silently qualify a failed move.
+Background games remain active by the user's instruction;
+local timings cannot certify a 15 ms frame budget or non-regression.
+
 ## 0.12.8 teardown diagnosis and first-frame preparation
 
 Runtime source: `1582a9785c846258f30241f8e8ba13d80299d22a`, packaged test merge
