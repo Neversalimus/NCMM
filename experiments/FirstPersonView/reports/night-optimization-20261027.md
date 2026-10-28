@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage93. Baseline `1284537`; working branch
-`codex/fpv-cpu-world-queue-reserve-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
+Updated28 October2026, through stage94. Baseline `1284537`; working branch
+`codex/fpv-gpu-chunk-links-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -749,6 +749,67 @@ e0e8052bbd14e07209d71080f731d9320804019d. Summary SHA
 `0c2a90c928a9da142b44d6a023d01f3aa721912b2eb64d9f880e56aa1875946e`.
 It is separate WARP evidence, not a paired revision speedup or full-tier result.
 
+## Stage94 — reuse owned GPU chunk lookups inside one callback
+
+The GPU collector looked up every visible static cell during both the dirty
+scan and final packet construction. Reuse callback-local pointers to owned
+map entries in scenes with at least1024 source cells; inserts may rehash the
+map but preserve element references. A fully hidden world and smaller scenes
+allocate no pointer array. No Host address or pointer is retained after the
+call. Geometry, order, source signatures, resources, visibility, camera, LOD,
+ABI and persistent cache accounting are unchanged. Extra x64 scratch is at
+most512KiB of pointer elements plus allocator overhead, bounded by the existing
+65536-cell validation; this is not a whole-game RAM reduction.
+
+The first measured variant is rejected: hidden/small paired ratios1.03822 and
+1.06934 exceed its3% guard. The refined variant passes270 complete packet
+comparisons/201648 assertions,24,584,487 vertex/index/material values and
+70,779,510 texture pixels. Draws, transforms, bones, cell light/gas data, source
+signatures, template counts and owned-cache bytes agree, including later
+callbacks with replaced input allocations and packets retained by a caller.
+
+Predetermined9 alternating pairs of the full CPU GPU-scene producer plus
+packet.finish(), with longer small-scene lanes and no concurrent benchmark:
+
+| Owned input model | Before → after ms | Median paired ratio |
+| --- | ---: | ---: |
+| Warm dense97 |1.69414 →1.59376|.95001|
+| Warm city97 |1.96184 →1.81272|.93183|
+| Warm grass97 |1.74627 →1.64395|.94758|
+| Warm sparse49x3 |1.30486 →1.24021|.95223|
+| Hidden97 |.86624 →.85870|1.00489|
+| Visible air97 |1.43644 →1.36486|.94325|
+| Shifting city97 |4.51216 →4.36713|.97701|
+| Cold-cache city49 |10.54105 →9.99340|.95064|
+| Small17 |.06737 →.06709|.99689|
+| One visible cell in97 |.85605 →.84916|.99196|
+| Small30 |.16112 →.15681|.97325|
+| Threshold32 |.17483 →.18182|.99399|
+
+Independent medians and paired ratios are distinct; the last row has about4%
+higher independent median despite a slightly better paired ratio. All108
+raw lanes and both variants remain preserved. This is about0.10–0.15ms saved
+in substantial warm producer models, not5–7% total game FPS. Shift-city paired
+gain is2.3%; no universal frame-tail or ordinary Native stutter fix is claimed.
+
+The complete local Release build,51 inventoried non-device CTests(22.51s),
+and the inventoried hidden RTX4090 render-only scene(3.50s) pass. It retains
+45 grass draws, zero CPU world raster and warm static uploads, multi-Z/stairs,
+subway brightness and21 fallbackADS/12 authoredADS/34 object checks. No local
+Native game, foreground/input test, mouse/focus or system-setting change,
+subagent or new checkout/game copy is used. The171 frozen source bindings
+change only this header. Public numeric proof:
+`night-gpu-chunk-links-20261028.json`. This source needs independent remote
+qualification and is not in the publishedA9 installers. Active PR225/226/227
+heads and meaningful captures remain unchanged.
+
+Previous CPU queue93 now has both module suites and all three independent GPU
+jobs passing, including the Vulkan sanitizer lane. Full Native checks continue.
+Both actual Linux Hosts of diagnostic91 pass. Its optional1040 strict terrain
+pair step now completes successfully; allowlisted numerical evidence is being
+independently checked without fetching images, logs or entire artifacts.
+No Native upstream source body is fetched; the ledger still has161994 bytes.
+
 ## Remote qualification and next steps
 
 - Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
@@ -782,11 +843,10 @@ It is separate WARP evidence, not a paired revision speedup or full-tier result.
   setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
   protected PR223 full48 remains unchanged until its final logs are retained.
 
-Next: qualify the CPU queue candidate separately without advancing PR225 or
-PR226 during meaningful captures. Preserve publishedA9 bytes and source/tree
-proof. Continue targeting measured preparation/raster costs; do not substitute
-model wins for ordinary-game latency qualification. CI diagnostics exclusively
-CodeReview at the selected current PR head; metadata and bounded program JSON
-are not log fallbacks. The upstream Native ledger still has161994 bytes left;
-no upstream source body is fetched during stages92–93. Continue solo, with no
-local Native/input or mouse capture and no new checkout/full game copy.
+Next: qualify the GPU chunk candidate separately while preserving the exact
+active PR225/226/227 sources and publishedA9 bytes. Verify the completed
+same-Host terrain pair reports before any Native performance claim. Continue
+measured preparation and turn-latency work; model gains are not ordinary-game
+or15ms qualification. CI logs remain CodeReview-only at the current PR head;
+selected program JSON uses its own strict shared8MiB ledger. Continue solo,
+with no local Native/input test, mouse capture or new full game copy.
