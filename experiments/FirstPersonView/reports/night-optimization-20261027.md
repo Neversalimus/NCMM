@@ -277,6 +277,42 @@ it does not yet fix the Native comparison's internal timeout cause.
 Evidence: `night-stage75-pair1807-final-review.json`,
 `night-terrain-48d8c23/12797852135/`, `night-stage75-child-receipt-tests-r2.txt`.
 
+## Stage76 — callback-local ground blend templates (local; Native pending)
+
+Identical mixed-ground textures were baked and analysed again for each cell.
+The renderer now reuses an owned bake within one callback, keyed by the edge
+mask, five immutable image identities and exact fallbackRGB bits. All neighbor
+and Native provider reads still occur before lookup. The profile, source pixels,
+material finishing, cell IDs, range, lighting and geometry remain unchanged.
+The104-byte key can add at most about6.25MiB of key payload for65536 distinct
+blends; repeated inputs reduce the pixel/mip owners. No state crosses callbacks.
+
+Exact models preserve96 frames/7,372,800 pixels/1,765,276 complete sampled floor
+values, plus60 frames/4,608,000 pixels and255,928,400 complete emitted GPU values
+(positions, materials and texture bytes). Masks0–15, source widths1/32/33/64/
+128/512, padded pitch, mixed alpha, legacy and three-level layouts are covered.
+
+Seven alternating pairs×24 fresh builds/lane: mixed32 coldCPU8.81921→5.03863ms
+(paired.56912), CPU GPU-geometry collection8.80458→.93930ms (.10118).
+Straight road collection.91191→.27377ms (.31090), checker6.74171→.67403ms
+(.09840), odd33mixed8.47138→.98475ms (.11294). No-edge controls remain
+approximately unchanged (.98948/.99329); no speedup is claimed for them.
+
+The initial168-byte key and short16-build unique-source guards showed variable
+3–7% regressions. A compact key keeps every exact identity field; a predetermined
+longer128-build/lane guard gives unique32 CPU/collection ratios.98432/.98380
+and unique64.99691/1.00296. All short and long raw results are retained; no
+reliable unique-source gain is claimed. These are same-process CPU models under
+background load, not cold-process, Native, GPU execution, Present or15ms proof.
+
+Release and7 affected CTests pass (3.10s). The newly built render-only hidden
+RTX4090 suite passes: fullGPU path, zero warm static uploads,34 objects, ADS,
+stairs, multiZ, grass, radio and subway lighting. It uses no Native game/input;
+it verifies images/behavior and does not supply ordinary hardware FPS timing.
+Evidence: `night-ground-template-model76-r2/`, `night-ground-template-timing76-r2/`,
+`night-ground-unique-confirm76-r2/`, `night-stage76-{release-build,affected-tests,hidden-render}.txt`.
+Keep local while protected48d8c23 full/82b diagnostic source logs are retained.
+
 ## Stage77 — coarse-clock mock guard (local)
 
 A mocked child may start and finish within one UTC clock tick. A local fixed-clock

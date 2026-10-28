@@ -12,7 +12,18 @@
         return mask;
     }
     struct blended_ground {std::vector<uint32_t> pixels;image view;};
-    std::map<int,blended_ground> ground_blends;
+    // Callback-local sources and fallback RGB plus the shared edge profile
+    // determine the baked pixels. Resolve every neighbor/provider before reuse.
+    struct ground_blend_key {
+        std::array<uintptr_t,5> textures{};
+        std::array<std::array<uint32_t,3>,5> colors{};
+        unsigned mask=0;
+        bool operator<(const ground_blend_key &other)const{
+            return std::tie(mask,textures,colors)<std::tie(other.mask,other.textures,other.colors);
+        }
+    };
+    static_assert(sizeof(ground_blend_key)<=104,"Bounded ground blend key");
+    std::map<ground_blend_key,blended_ground> ground_blends;
     material ground_edges(int i,material ground){
         const auto &cell=base.cells[i];const int priority=terrain_priority(cell.terrain);
         if(priority<2||cell.flags&NCMM_GFX_NO_FLOOR||s.details[i].terrain_shape!=NCMM_SHAPE_FLAT)return ground;
@@ -25,7 +36,13 @@
             adjacent[side]=mat(n,NCMM_GFX_GROUND,{.28f,.27f,.23f});mask|=1u<<side;
         }
         if(!mask)return ground;
-        auto &blend=ground_blends[i];if(blend.pixels.empty()){
+        ground_blend_key key;key.mask=mask;
+        const auto record=[&](size_t slot,const material &m){key.textures[slot]=reinterpret_cast<uintptr_t>(m.texture);
+            const float values[]={m.color.x,m.color.y,m.color.z};
+            std::memcpy(key.colors[slot].data(),values,sizeof(values));};
+        record(0,ground);
+        for(unsigned side=0;side<4;++side)if(mask&(1u<<side))record(side+1,adjacent[side]);
+        auto &blend=ground_blends[key];if(blend.pixels.empty()){
             // Bake the feather into the one existing opaque floor. Transparent
             // strips require globally sorted, uninstanced GPU draws per tile.
             // This keeps two floor triangles and no extra pass or depth layer.
