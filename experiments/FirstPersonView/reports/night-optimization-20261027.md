@@ -1293,6 +1293,34 @@ tests are not rerun unchanged merely to accumulate passes. New Native Host
 bytes still need isolated CI; preserve both full runs and the pending turn
 attribution run instead of cancelling them for this small following change.
 
+**53. Full1040 qualification for the older PR tree; keep timing scope exact.**
+Run40580475214's Windows1040 job122458321347 completes successfully at
+2026-10-28T00:41:47Z; both actual Linux jobs also pass. Windows1807's final
+paired baseline comparison is still active at this checkpoint. Code Review
+confirms the completed1040 job and two final multilevel PASS rows(21 scenes,
+224 load records each). Its120000-character log is truncated; earlier
+individual process exit rows are not visible in that response, and no CLI or
+artifact log fallback is used.
+
+Only seven selected program JSON files are read from artifact12783225198
+(170725795-byte ZIP); shared transfer410535/8388608 bytes. Their hashes,
+Native engine pin, Host/module identities and eight clean focused exits match.
+Package/runtime source `9e8a85a` has the exact `eae8d02` tree
+`e866c81e3a2acea6cbc30377b6f253c8b4305899`; the runtime commit is not locally
+present, so only its GitHub commit-tree metadata is read. Baseline source
+`9e3d623` differs from recorded main `5258e53` only in the two feed JSON files.
+Independent summary SHA256
+`84bb0c401068c3190f73cb02c490bbcc5a7d7e0782ac7ffa3f1e0eb9c2e70d35`.
+
+All112 before/after scene/mode/size keys and adjacent frame partitions match.
+Descriptive frame medians improve in70 and worsen in42; median ratio.9903,
+with29 changed triangle counts. This is software D3D12/WARP and independently
+run whole-feature snapshots, not a causal whole-game speedup. It predates the
+12a7 integer-distance optimization and current floor/turn-diagnostic changes.
+No current-source, hardware, first-correct-frame or15ms qualification follows.
+The source-matched reader/verifier for new26-turn attribution is prepared;
+its actual Native program reports remain pending, as does floor52's CI.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
