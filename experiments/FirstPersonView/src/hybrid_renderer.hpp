@@ -460,39 +460,43 @@ class renderer {
         material m;vec normal,flat_light,flat_color;
         int xmin,xmax,ymin,ymax;float inv,dw0,dw1;bool coarse,detailed;
     };
+    void project_piece(const triangle &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<projected_triangle> &output){
+        std::array<vec,3> p{};
+        std::array<float,3> iz{},uu{},vv{};
+        for(int i=0;i<3;++i){auto q=viewed?(*viewed)[i]:view(v[i].p);iz[i]=1/q.z;p[i]={f.width*0.5f+projection*q.x*iz[i],f.height*0.5f-projection*q.y*iz[i],q.z};uu[i]=v[i].u*iz[i];vv[i]=v[i].v*iz[i];}
+        auto edge=[](vec a,vec b,float x,float y){return(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
+        float area=edge(p[0],p[1],p[2].x,p[2].y);if(!std::isfinite(area)||std::abs(area)<0.00001f)return;
+        int xmin=std::max(0,int(std::floor(std::clamp(std::min({p[0].x,p[1].x,p[2].x}),-1.0f,float(f.width)))));
+        int xmax=std::min(f.width-1,int(std::ceil(std::clamp(std::max({p[0].x,p[1].x,p[2].x}),-1.0f,float(f.width)))));
+        int ymin=std::max(0,int(std::floor(std::clamp(std::min({p[0].y,p[1].y,p[2].y}),-1.0f,float(f.height)))));
+        int ymax=std::min(f.height-1,int(std::ceil(std::clamp(std::max({p[0].y,p[1].y,p[2].y}),-1.0f,float(f.height)))));
+        if(xmax<xmin||ymax<ymin)return;
+        float inv=1/area;
+        bool coarse=t.m.texture&&t.m.opaque_texture&&float(t.m.texture->data.width*t.m.texture->data.height)>std::abs(area)*3;
+        // Walk covered scanline spans. Thin/near-clipped triangles must not scan
+        // a full viewport bounding rectangle for a handful of covered pixels.
+        const float dw0=(p[1].y-p[2].y)*inv,dw1=(p[2].y-p[0].y)*inv;
+        const vec flat_light=t.v[0].light;
+        const bool reflective=t.m.finish==surface::paint||t.m.finish==surface::metal;
+        const vec flat_color=reflective?surface_color(t.m.color,t.m,(v[0].p+v[1].p+v[2].p)*(1.0f/3),t.normal,(p[0].z+p[1].z+p[2].z)/3):t.m.color;
+        std::array<float,3> fine{},medium{};
+        for(int n=0;!t.m.grass&&n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
+            fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
+        const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&t.m.finish!=surface::contact&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
+        output.push_back({v,p,iz,uu,vv,fine,medium,t.m,t.normal,flat_light,flat_color,xmin,xmax,ymin,ymax,inv,dw0,dw1,coarse,detailed});
+    }
     void project(const triangle &t,std::vector<projected_triangle> &output){
         // Keep world-space clipping exact; reuse the input view transforms.
         const std::array<vec,3> viewed={view(t.v[0].p),view(t.v[1].p),view(t.v[2].p)};
         const bool uncut=viewed[0].z>=.08f&&viewed[1].z>=.08f&&viewed[2].z>=.08f;
+        if(uncut){project_piece(t,t.v,&viewed,output);return;}
         std::array<vertex,5> poly{};int count=0;
         for(int i=0;i<3;++i){const auto &a=t.v[i],&b=t.v[(i+1)%3];float za=viewed[i].z,zb=viewed[(i+1)%3].z;
             if(za>=0.08f)poly[count++]=a;
             if((za>=0.08f)!=(zb>=0.08f))poly[count++]=interpolate(a,b,(0.08f-za)/(zb-za));}
         if(count<3)return;
-        for(int piece=1;piece<count-1;++piece){std::array<vertex,3> v{poly[0],poly[piece],poly[piece+1]};std::array<vec,3> p{};
-            std::array<float,3> iz{},uu{},vv{};
-            for(int i=0;i<3;++i){auto q=uncut?viewed[i]:view(v[i].p);iz[i]=1/q.z;p[i]={f.width*0.5f+projection*q.x*iz[i],f.height*0.5f-projection*q.y*iz[i],q.z};uu[i]=v[i].u*iz[i];vv[i]=v[i].v*iz[i];}
-            auto edge=[](vec a,vec b,float x,float y){return(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
-            float area=edge(p[0],p[1],p[2].x,p[2].y);if(!std::isfinite(area)||std::abs(area)<0.00001f)continue;
-            int xmin=std::max(0,int(std::floor(std::clamp(std::min({p[0].x,p[1].x,p[2].x}),-1.0f,float(f.width)))));
-            int xmax=std::min(f.width-1,int(std::ceil(std::clamp(std::max({p[0].x,p[1].x,p[2].x}),-1.0f,float(f.width)))));
-            int ymin=std::max(0,int(std::floor(std::clamp(std::min({p[0].y,p[1].y,p[2].y}),-1.0f,float(f.height)))));
-            int ymax=std::min(f.height-1,int(std::ceil(std::clamp(std::max({p[0].y,p[1].y,p[2].y}),-1.0f,float(f.height)))));
-            if(xmax<xmin||ymax<ymin)continue;
-            float inv=1/area;
-            bool coarse=t.m.texture&&t.m.opaque_texture&&float(t.m.texture->data.width*t.m.texture->data.height)>std::abs(area)*3;
-            // Walk covered scanline spans. Thin/near-clipped triangles must not scan
-            // a full viewport bounding rectangle for a handful of covered pixels.
-            const float dw0=(p[1].y-p[2].y)*inv,dw1=(p[2].y-p[0].y)*inv;
-            const vec flat_light=t.v[0].light;
-            const bool reflective=t.m.finish==surface::paint||t.m.finish==surface::metal;
-            const vec flat_color=reflective?surface_color(t.m.color,t.m,(v[0].p+v[1].p+v[2].p)*(1.0f/3),t.normal,(p[0].z+p[1].z+p[2].z)/3):t.m.color;
-            std::array<float,3> fine{},medium{};
-            for(int n=0;!t.m.grass&&n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
-                fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
-            const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&t.m.finish!=surface::contact&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
-            output.push_back({v,p,iz,uu,vv,fine,medium,t.m,t.normal,flat_light,flat_color,xmin,xmax,ymin,ymax,inv,dw0,dw1,coarse,detailed});
-        }
+        for(int piece=1;piece<count-1;++piece)
+            project_piece(t,{poly[0],poly[piece],poly[piece+1]},nullptr,output);
     }
     void raster(const projected_triangle &t,int worker,int workers,uint32_t &triangles){
         const auto &v=t.v;const auto &p=t.p;const auto &iz=t.iz;const auto &uu=t.uu;const auto &vv=t.vv;

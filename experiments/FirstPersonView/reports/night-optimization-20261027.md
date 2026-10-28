@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage99. Baseline `1284537`; working branch
-`codex/fpv-substrate-forward-search-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
+Updated29 October2026, through stage103. Baseline `1284537`; working branch
+`codex/fpv-cpu-projection-fastpath-20261029`; latest delivered release [PR227](https://github.com/Neversalimus/NCMM/pull/227).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -34,6 +34,17 @@ Detailed stages1–63, failures, provenance and raw measurement references remai
 Full stage65 detail is also retained in local Git revision `1c5ce96`.
 Private evidence/checkpoints are in `../fpv-0131-work/`; do not overwrite
 measured summaries or derive new data from old truncated reports.
+
+## Stage101 delivery checkpoint
+
+B9F/CPU93 passed all8jobs of full40718418978, all3GPU jobs and source audit.
+PR227 merged as main2fb1169 while preserving the independently updated two
+feed JSONs; every other path equals qualified B9F. The two exact TEST packages
+and qualification/checksums are [published](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-b9f4ee984746).
+All38payloads/106copied Native inputs/171frozen sources/104resource files and
+licenses agree. This delivery does not include later PR228-232 or stage103.
+Those exact heads remain fixed. At this source capture PR228 full8has passed;
+its separate package qualification is in progress. No ordinary15ms claim.
 
 ## Retained changes
 
@@ -1029,56 +1040,60 @@ frames, ordinary movement/shooting latency, GPU time, cold-process startup or
 published installers are unchanged. Numeric proof:
 `night-substrate-forward-search-20261028.json`.
 
+## Stages100/102 — rejected allocation experiments
+
+Stage100 tested four borrowed-string variants with identical output and no
+temporary allocations. They failed the unchanged3%control guard (+3.58–6.55%)
+and none was promoted. Stage102 reused a projected-triangle scratch vector
+inside a renderer. All271complete frames matched, but city572/constructed21/
+small-multilevel paired costs regressed3.06/3.51/3.82%; only1of17workloads met
+the2%gain criterion. Its retained buffer also raised peak requested bytes by
+up to2476040. Allocation savings did not override the failed timing guard.
+Original per-paint vectors remain in production.
+
+## Stage103 — bypass unnecessary near-plane polygon construction
+
+Most visible triangles lie wholly in front of the near plane. After the
+existing three transforms they now enter the original shared projection body
+directly. Only intersecting triangles build/interpolate the original clipping
+polygon. Vertex ordering, floating-point operation order, the original first
+vertex flat light, per-paint vectors and synchronous worker joins are retained.
+All source outside these two CPU projection methods is unchanged. GPU collect
+does not call this CPU projection path; renderer fields and sizeof14080 agree.
+
+Complete source-bound comparison matches271frames/50360800RGBA pixels,
+19711886volume samples and3319896callback provider calls, including9cached
+replays and9multiple-paint frames. A separate near-plane guard matches102816
+cases/40290projected pieces with3890078field/bit checks: all8visibility masks,
+exact.08/nextafter boundaries,7yaw/pitch/multi-Z poses,17materials, both
+windings, ordinary/offscreen/degenerate/sliver/giant geometry. Two deliberately
+wrong view/interpolation variants fail. No raw comparison of struct padding.
+
+Seven fixed alternating pairs x17complete-frame workloads retain the original
+3%regression/2gains-of2%guard. Small multilevel11.8768→11.65584ms has paired
+ratio.97505; cached grass11.50328→11.61141ms has paired ratio.95629. The latter
+independent median regresses despite its paired gain. Sparse-floor+2.79%,
+city-small+2.32%, hidden+2.14%and fog-city+2.08%paired regressions are retained,
+as are every raw lane/first frame/p95/p99/max. This is a modest CPU candidate,
+not a broad or guaranteed tail improvement. All17allocation counts, requested
+bytes, peaks and ending live bytes agree in a separate ordinary-new probe;
+this is not RSS/VRAM/allocator-overhead evidence. The timers are uninstrumented
+and include full build_frame, prior cleanup, renderer destruction and joins.
+
+Release build,51non-device CTests and96atomic source-transform tests pass.
+No local Native/input/device run, mouse capture, background-game interruption
+or subagent. Full current-head Native qualification is pending. Ordinary
+shooting/movement freeze reduction, RTX FPS and15ms first-correct-present are
+unqualified. Numeric output/timings/memory and rejected102evidence:
+`night-cpu-projection-fastpath-20261029.json`.
+
 ## Remote qualification and next steps
 
-- CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
-  all8 jobs pass; required122987662168 confirms required/selected `full`.
-  Both final Windows CodeReview excerpts are retained, explicitly truncated.
-  Source/package and all3 GPU jobs pass. PR225 merged without bypass; exact
-  checked source is in main and the new TEST release. The independent Runtime
-  workflow did not run for this CPU-only source difference; its runtime source
-  remains unchanged from qualified A9. No current-head Runtime pass is claimed.
-
-- Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
-- Full `12a7abcd`, [run40600292716](https://github.com/Neversalimus/NCMM/actions/runs/40600292716):
-  all8 jobs pass, including required122619592124.
-- Previously qualified PR source `cdf6f79`, [full40615847078](https://github.com/Neversalimus/NCMM/actions/runs/40615847078):
-  all8 jobs now pass, including Windows1040/1807, both actual Linux jobs and
-  required122663447792 (`REQUIRED_TIER=full`, `SELECTED_TIER=full`). Windows
-  CodeReview excerpts show both21-scene/224-load paired gates passing.
-  Independent GPU40615847005/source40615847050/runtime40615846995 also pass.
-  This qualifies CDF, not later volume/terrain sources or ordinary15ms frames.
-- `616d718`, integration40629160097, and volume65 `fdbba45`,
-  integration40633375838: all7 planning/module/actual Native jobs pass; their
-  required gates fail because the selected integration tier is insufficient
-  for full qualification. The schema3 baseline CPU profiles are independently
-  verified above. Cross-run timings are not a paired causal comparison.
-- Terrain71 `1407dd4`, integration40637761432: all7 planning/module/actual
-  Native jobs pass; required122673470673 fails at the integration tier.
-- `48d8c23`, [full40643681993](https://github.com/Neversalimus/NCMM/actions/runs/40643681993):
-  all8 jobs pass, including both Windows Native jobs and required122760580661.
-  Final1040/1807 CodeReview excerpts each show21-scene/224-load paired gates
-  passing; excerpts are120000 characters and explicitly truncated. Final logs
-  and source identities are retained before advancing PR223. Independent GPU
-  40643681893/runtime40643681914/source40643681897 also pass. This qualifies
-  functional full48, not later CPU changes, causal A/B gains or ordinary15ms.
-- Failed optional pair40643770328: both Windows first reference children hit
-  600s; both Linux/module jobs pass. No Native A/B measurements qualify.
-- Repair82b integration40653873199 completed: both Linux/module-Linux jobs pass;
-  Windows module mock-clock tests and both optional Native pairs fail. Exact
-  CodeReview logs are retained through draft224; stage82 describes the confirmed
-  setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
-  protected PR223 full48 remains unchanged until its final logs are retained.
-
-Next: qualify the forward-search candidate separately while preserving the
-exact active PR226/227/228/229/230/231 heads and both published A9/CDB installer
-bytes. At6da17a3(PR231), both module suites/all3GPU jobs and the audit check
-pass; full current-source Native gates remain pending. Audit job log requests
-returned provider502; its exact-head CodeReview check-run status is retained,
-with no CLI log fallback. PR226 full1040 now passes; its optional integration
-required-gate failure is distinct from the still-running full1807 capture. All
-prior meaningful Native captures keep running. Continue measured transfer and
-turn-latency work after the new functional gates; helper/model wins are not
-ordinary-game or15ms proof. CI logs remain CodeReview-only at the current PR
-head; program JSON keeps its strict8MiB ledger. Continue solo with no local
-Native/input test, mouse capture or new full game copy.
+Qualify stage103 on a separate exact source head while preserving PR228-232
+and their existing captures. PR228 full40725731505 now passes all8jobs; the
+other later full captures continue. Main and published B9F remain unchanged
+at this source capture. CI logs are read only through CodeReview at exact PR
+heads; provider502 errors are retained without CLI/log-artifact fallback.
+Primary numerical JSON readers retain exact allowlists/shared8MiB limits.
+Do not rerun unchanged rejected sources or use model/WARP timings as ordinary
+Native RTX input-latency or15ms evidence.
