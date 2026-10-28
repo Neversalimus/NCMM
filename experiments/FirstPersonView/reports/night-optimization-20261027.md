@@ -1504,6 +1504,41 @@ Next examine lazy reuse of uniform lower furniture beneath mixed upper terrain;
 preserve every upper predicate/read and invalid-ID diagnostic. No local Native,
 mouse, subagent, main merge or release was used.
 
+**60. Reject three lazy lower-furniture reuse designs after broader timings.**
+Mixed upper terrain over a uniform lower submap can reuse its valid shared
+f_null roof predicate. All three private designs pass940 frozen-oracle cases /
+24723071 checks, preserving every upper getter/flag, invalid/null diagnostic,
+floor bit, dirty/return value and guard. Their new last work assertion fails
+on current production: upper reads remain17424; lower reads17424 ->121.
+Four compiled wrong controls for the first design are rejected (invalid IDs
+cached, missing f_null cached, mixed lower cached, eager no-gap furniture read).
+This work reduction alone is insufficient to retain the optimization.
+
+Seven alternating timing pairs per seven scenes,128 builds per lane, cover
+both inlined and forced out-of-line owned getters; counters/observer logging
+are disabled and complete floor checksums match. None is a Native timing.
+The first cloned-loop design slows mixed solid floors9.24% /4.94% and lowest
+levels4.94% /7.67%(inline/out-of-line paired median ratios). Moving the NULL-ID
+guard to the first actual gap and testing cheap lower guards first still slows
+mixed solid inline7.33% and mixed lower out-of-line3.06%. A third design keeps
+one original upper loop with a lazy lower predicate; mixed lower inline slows
+41.11% and no-Z alias inline34.44%. Its target mixed-gap cases improve5-28%
+in these models, which does not offset those regressions. All three are rejected;
+production floor and source guards remain unchanged from54. No rerun is used
+to select favourable data. The first timing executable failed to link because
+two unused fixture entrypoints shared a name; the failed build is preserved,
+and the renamed timing driver is measured only once per actual design/style.
+
+Private evidence: `night-lazy-lower-floor-model60{,-r3,-r4}`, controls60 and
+`night-lazy-lower-floor-timing60-{r2,r3,r4}`. The improved model assertion and
+all failed variants are retained without changing the independent Native oracle.
+No production edit, repeated unrelated suite, local game, GPU/input operation
+or new upstream body transfer is made. Next read the pending actual2d9401b
+callback partitions; investigate their dominant phase rather than extend this
+unsuccessful component direction. Currentcdf Linux1040 completes successfully;
+Windows1040 completes actual full gameplay and proceeds to focused checks,
+while Windows1807 and Linux1807 remain active. Full qualification is pending.
+
 ## Actual remote evidence and next priorities
 
 **Actual cache children at exact `043fb4d`, diagnostic run40547452414.** Both
