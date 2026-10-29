@@ -43,6 +43,9 @@ def stair_metrics(report):
             'Native gameplay recorder did not complete')
     require(report.get('retirement_pair_only') is True and report.get('full_gameplay_coverage') is False,
             'Focused pair scope missing or relabelled')
+    require(type(report.get('retirement_pair_settle_delay_ms')) is int
+            and report['retirement_pair_settle_delay_ms'] == 200,
+            'Pair must retain the declared endpoint settle outside captured first frames')
     actions = report.get('actions')
     require(type(actions) is list and len(actions) == len(PAIR_ACTIONS)
             and {row.get('name') for row in actions} == PAIR_ACTIONS
@@ -93,7 +96,7 @@ def verify(root):
             'Seven complete alternating pairs required')
     require(pair.get('diagnostic_only') is True and pair.get('ordinary_game_performance') is False
             and pair.get('whole_historical_parent_measured') is False
-            and pair.get('fixture_mode') == 'focused_turns_stairs',
+            and pair.get('fixture_mode') == 'focused_turns_stairs_endpoint_settle',
             'Backend ablation scope was relabelled')
     require(pair.get('reference_backend_source') == REFERENCE_SOURCE
             and pair.get('candidate_backend_source') == CANDIDATE_SOURCE

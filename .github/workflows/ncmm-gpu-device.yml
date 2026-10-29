@@ -298,17 +298,19 @@ jobs:
             'experiments/FirstPersonView/tests/test_verify_turn_attribution.py':'5749a823f08793a968e864983216d3a734e10b8df90f248dba0f4a60c6fe9007',
             'experiments/FirstPersonView/tests/verify_gameplay_audit.py':'bd0ae342470228163494509ee6075d073869412989f4e9d83e866a78658f9d07',
             'experiments/FirstPersonView/tests/verify_turn_attribution.py':'6e70d6e921b2edac5bda144d875673011cebf158221a03f23c2fa20f1e9ca5db',
-            'experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc':'a2617e5b581ab5c77bd71aa941c2a902ac4fa74e6ce1f87a6138094d4fb53fb9',
+            'experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc':'e174be06a339011567a33ba43b1da4a091e90151f434ec949939b87e0c342fe3',
             'experiments/graphics_bridge/ncmm_graphics_turn_diagnostics.hpp':'d051001d07ca0f96ff237311b6023c760ded327fcd7e6f19b44c537d1a76cbb0',
             'experiments/graphics_bridge/ncmm_graphics_gpu.inc':'5d0a87a08ca73fa48b64cfa26f7a1b059bbc807fc6cd9c71878bf5b5cdbe7e4e',
             'experiments/FirstPersonView/src/volumes.inc':'928984f0bbaf7d2fb386a388a21c7d5eb0e884fdb5b3b5c55890e74c419bfdb6',
             'experiments/graphics_bridge/ncmm_gpu_resource_diagnostics.hpp':'a7f09e36af2d0bcd11da6ee055099ef7940ba37c69368bfaf688a079701a8d36',
             'experiments/FirstPersonView/tests/resource_diagnostics_test.cpp':'c2fa38a2f8561dcee4095f779e3c8b54b80bd451dc289c6342702219eeab7f75',
             '.github/workflows/ncmm-first-person-prototype.yml':'a065bc6b96d7981812cd3c8b4636920a8ef79eb186b87117759ce361aa20f327',
-            'experiments/FirstPersonView/tests/run_retirement_pair.py':'5e436e234290dff25590a137fdcedef30b627274d31a04a059f6694cc64d493b',
-            'experiments/FirstPersonView/tests/verify_retirement_pair.py':'84912ec17a927068588759a5563583647f7f43863dd21b20bc5ad1e038228c90',
-            'experiments/FirstPersonView/tests/test_verify_retirement_pair.py':'4084e585b0640eedeae6f1084643516859c2007745beefb8a2f7e90bdccb6763',
+            'experiments/FirstPersonView/tests/run_retirement_pair.py':'3adf6b328253d1ede29526c121600ef016956d822967a5d1c07a9a52e560c096',
+            'experiments/FirstPersonView/tests/verify_retirement_pair.py':'1014fd1e1c1911b3ad55d144d3e0880768517216ab45fb1cbc0dd5509fc9e2c8',
+            'experiments/FirstPersonView/tests/test_verify_retirement_pair.py':'4ad054898186cfe7de71b1c9c2d4b8d780d30bcbd9fa5e5915c5123060643b93',
             'experiments/FirstPersonView/tests/run_terrain_pair.py':'5651b69758cab636ef724d06bcbe0db5001772b0b60b0fbe1991881eb8a4d7a2',
+            'experiments/FirstPersonView/tests/camera_motion_test.cpp':'1e2336e9a06ee035963567bad1bf08e570de9ff82f56fac4dce8fe0f0732eb56',
+            'experiments/graphics_bridge/ncmm_graphics_camera.hpp':'51e45f6ee7002f08c7b2511b0e975fb34ad03a4bdbd79672ac3c090efcdde827',
           }
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name

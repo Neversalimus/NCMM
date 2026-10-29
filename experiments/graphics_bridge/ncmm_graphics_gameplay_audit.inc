@@ -59,6 +59,7 @@
     std::ofstream stream(game_root()/"ncmm"/"first-person-gameplay-audit.json");JsonOut report(stream);
     report.start_object();report.member("schema",1);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);report.member("gpu_execution_timestamps_available",false);
     report.member("retirement_pair_only",retirement_pair_only);report.member("full_gameplay_coverage",!retirement_pair_only);
+    report.member("retirement_pair_settle_delay_ms",retirement_pair_only?200:0);
     report.member("fixture","controlled native actions in an isolated generated smoke world");report.member("width",audit_viewport.x);report.member("height",audit_viewport.y);
     auto write_stages=[&](const std::map<std::string,std::vector<double>> &measurements){report.start_object();for(const auto &[name,samples]:measurements){if(samples.empty())continue;report.member(name);report.start_object();report.member("samples",samples.size());report.member("median",percentile(samples,.5));report.member("p95",percentile(samples,.95));report.member("p99",percentile(samples,.99));report.member("max",*std::max_element(samples.begin(),samples.end()));report.end_object();}report.end_object();};
     std::map<std::string,std::vector<double>> stages;bool audit_measurements=true;
@@ -104,7 +105,13 @@
         for(int n=0;n<180;++n){render();ready=std::string(mode)=="cpu"||graphics_gpu_frame;if(ready&&!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback)break;SDL_Delay(2);}
         require(ready&&!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback,"audit_models_or_gpu_never_ready");return milliseconds(begin);};
     auto capture=[&](const std::string &name){capture_name="first-person-audit-"+name+".bmp";render();};
-    auto settle=[&](){for(int n=0;n<100&&graphics_world_transition_active;++n){SDL_Delay(5);render();}require(!graphics_world_transition_active,"audit_camera_never_settled");};
+    auto settle=[&](){
+        // The paired fixture controls unmeasured cache history, not the first
+        // Native frame. Its eager/late retirement variants can finish earlier
+        // frames at different camera-easing positions despite equal draw counts.
+        // Use the real clock and retain the original loop and all its guards.
+        if(retirement_pair_only&&graphics_world_transition_active)SDL_Delay(200);
+        for(int n=0;n<100&&graphics_world_transition_active;++n){SDL_Delay(5);render();}require(!graphics_world_transition_active,"audit_camera_never_settled");};
     // The scope covers only the real turn. Setup, reporting and the explicit
     // render after an empty turn stay outside it. Callback wall time is an
     // inclusive outermost union; the remainder is not a pure AI measurement.

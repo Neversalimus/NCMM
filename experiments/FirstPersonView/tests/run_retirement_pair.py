@@ -50,6 +50,31 @@ def run_build(command, upstream):
         raise
 
 
+def finish_pair(out, receipt):
+    # verify() retains its original complete-phase and all Native quality gates.
+    # A distinct status prevents an unverified final receipt looking accepted.
+    receipt.update(phase='complete', active_trial=None, verification_status='validating')
+    save(out / 'pair.json', receipt)
+    try:
+        verified = verify(out)
+    except Exception as error:
+        receipt.update(phase='verification_failed', verification_status='failed',
+                       failure_type=type(error).__name__, failure_stage='final_verifier',
+                       failure_reason=''.join(c for c in str(error) if c.isprintable())[:512])
+        save(out / 'pair.json', receipt)
+        raise
+    try:
+        save(out / 'verified.json', verified)
+    except Exception as error:
+        receipt.update(phase='evidence_write_failed', verification_status='failed',
+                       failure_type=type(error).__name__, failure_stage='write_verified',
+                       failure_reason=''.join(c for c in str(error) if c.isprintable())[:512])
+        save(out / 'pair.json', receipt)
+        raise
+    receipt['verification_status'] = 'passed'
+    save(out / 'pair.json', receipt)
+
+
 def run(args):
     require_ci(os.environ)  # Before any path access, mutation, build or launch.
     repo = below(args.repository, os.environ['GITHUB_WORKSPACE']).resolve(strict=True)
@@ -103,7 +128,7 @@ def run(args):
                '-p:UseMultiToolTask=true', '-p:_CDDA_USE_CCACHE=true', '-target:Cataclysm-vcpkg-static',
                'msvc-full-features/Cataclysm-vcpkg-static.sln']
     receipt = dict(schema=1, diagnostic_only=True, ordinary_game_performance=False,
-                   fixture_mode='focused_turns_stairs',
+                   fixture_mode='focused_turns_stairs_endpoint_settle',
                    whole_historical_parent_measured=False, source_commit=head, source_tree=tree,
                    engine_commit=bundle['source_commit'], workflow_run=os.environ['GITHUB_RUN_ID'],
                    reference_backend_source=REFERENCE_SOURCE, candidate_backend_source=CANDIDATE_SOURCE,
@@ -215,9 +240,7 @@ def run(args):
         if 'immutable' in locals():
             receipt['fixture_restored'] = all(sha(game / name) == value for name, value in immutable.items())
         save(out / 'pair.json', receipt)
-    receipt.update(phase='complete', active_trial=None)
-    save(out / 'pair.json', receipt)
-    save(out / 'verified.json', verify(out))
+    finish_pair(out, receipt)
     print('Native retirement backend ablation complete; original full qualification and performance admission remain separate.')
 
 

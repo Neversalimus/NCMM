@@ -29,6 +29,7 @@ def fixture(root):
     report = turn_fixture.StairAttributionTests.report()
     report.update(schema=1, success=True, width=640, height=480,
                   retirement_pair_only=True, full_gameplay_coverage=False,
+                  retirement_pair_settle_delay_ms=200,
                   actions=[dict(name=name, success=True) for name in sorted(PAIR_ACTIONS)],
                   soak=dict(automated=True, requested_seconds=60, actual_wall_seconds=60.1, frames=5),
                   tilesets=[dict(id='UltimateCataclysm', actual_loaded_id='UltimateCataclysm', cases=[
@@ -36,7 +37,7 @@ def fixture(root):
                   native_action_stages={'native_stair_first_ready_wall_ms':
                   dict(samples=8, median=4., p95=5., p99=6., max=7.)})
     pair = dict(schema=1, pairs=7, phase='complete', diagnostic_only=True, ordinary_game_performance=False,
-                fixture_mode='focused_turns_stairs',
+                fixture_mode='focused_turns_stairs_endpoint_settle',
                 whole_historical_parent_measured=False, source_commit='1' * 40, source_tree='2' * 40,
                 reference_backend_source=REFERENCE_SOURCE, candidate_backend_source=CANDIDATE_SOURCE,
                 reference_backend_sha256=REFERENCE_SHA, candidate_backend_sha256=CANDIDATE_SHA,
@@ -170,6 +171,51 @@ class RetirementPairTests(unittest.TestCase):
         save(self.root / 'pair.json', self.pair); result = verify(self.root)
         self.assertEqual(result['per_pair_gpu_first_frame_median_ratio'], [2.] * 7)
         self.assertFalse(result['performance_accepted'])
+
+
+    def test_endpoint_settle_scope_is_explicit_and_legacy_pair_rejected(self):
+        changed = copy.deepcopy(self.pair); changed['fixture_mode'] = 'focused_turns_stairs'
+        save(self.root / 'pair.json', changed)
+        with self.assertRaises(ValueError): verify(self.root)
+
+    def test_endpoint_settle_delay_cannot_be_removed_or_shortened(self):
+        for delay in (0, 199, True, None):
+            self.pair = fixture(self.root); row = self.pair['trials'][0]
+            path = self.root / row['directory'] / 'gameplay.json'; report = json.loads(path.read_text())
+            report['retirement_pair_settle_delay_ms'] = delay
+            save(path, report); row['report_sha256'] = sha(path); save(self.root / 'pair.json', self.pair)
+            with self.subTest(delay=delay), self.assertRaises(ValueError): verify(self.root)
+
+    def test_final_verification_success_retains_original_result(self):
+        expected = verify(self.root)
+        runner.finish_pair(self.root, self.pair)
+        self.assertEqual(json.loads((self.root / 'verified.json').read_text()), expected)
+        receipt = json.loads((self.root / 'pair.json').read_text())
+        self.assertEqual(receipt['phase'], 'complete')
+        self.assertEqual(receipt['verification_status'], 'passed')
+
+    def test_final_verification_failure_is_recorded_and_reraised(self):
+        self.pair['turn_parser_sha256'] = '0' * 64
+        with self.assertRaisesRegex(ValueError, 'Original stair/turn parser changed'):
+            runner.finish_pair(self.root, self.pair)
+        receipt = json.loads((self.root / 'pair.json').read_text())
+        self.assertEqual(receipt['phase'], 'verification_failed')
+        self.assertEqual(receipt['failure_stage'], 'final_verifier')
+        self.assertEqual(receipt['failure_type'], 'ValueError')
+        self.assertFalse((self.root / 'verified.json').exists())
+
+    def test_final_result_write_failure_is_distinct_and_reraised(self):
+        original_save = runner.save
+        def failing_save(path, data):
+            if Path(path).name == 'verified.json': raise OSError('Synthetic result write failure')
+            original_save(path, data)
+        with mock.patch.object(runner, 'save', side_effect=failing_save):
+            with self.assertRaises(OSError): runner.finish_pair(self.root, self.pair)
+        receipt = json.loads((self.root / 'pair.json').read_text())
+        self.assertEqual(receipt['phase'], 'evidence_write_failed')
+        self.assertEqual(receipt['failure_stage'], 'write_verified')
+        self.assertEqual(receipt['failure_type'], 'OSError')
+
 
 
 class ProgressReaderTests(unittest.TestCase):
