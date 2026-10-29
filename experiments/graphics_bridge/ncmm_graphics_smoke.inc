@@ -7,6 +7,15 @@ bool graphics_scene_smoke()
     int distance_radius = 0;
     size_t distance_cells = 0, distance_light_queries = 0;
     float distance_fog = 0;
+    // Numeric evidence survives the original hard failure. The worker reads
+    // only atomic wait/counter state; all Native observations stay on main.
+    struct mouse_delivery_state {
+        bool reached=false,enqueue_attempted=false,wake_matched=false;
+        bool captured=false,dragging=false,focused=false,ui_claimed=false,render_active=false,relative_mode=false;
+        uint32_t input_returns=0,last_wait=0,motion_push_attempts=0,motion_push_successes=0,owner=0;
+        float before_yaw=0,after_input_yaw=0,final_yaw=0,deferred_dx=0,deferred_dy=0;
+        double sensitivity=0;
+    } mouse_delivery;
     std::string reason = "ok";
     auto require = [&]( bool ok, const char *failure ) {
         ++checks;
@@ -223,10 +232,21 @@ bool graphics_scene_smoke()
         SDL_WarpMouseInWindow(get_sdl_window(), pointer_x, pointer_y);
         inp_mngr.pump_events();
         const float before_mouse_yaw = graphics_camera_yaw;
+        mouse_delivery.reached=true;mouse_delivery.before_yaw=before_mouse_yaw;
+        const auto observe_mouse_delivery=[&](){
+            mouse_delivery.final_yaw=graphics_camera_yaw;
+            mouse_delivery.deferred_dx=graphics_deferred_dx;mouse_delivery.deferred_dy=graphics_deferred_dy;
+            mouse_delivery.owner=uint32_t(graphics_input_router.owner());mouse_delivery.captured=graphics_input_router.captured();
+            mouse_delivery.dragging=graphics_mouse_drag;mouse_delivery.focused=graphics_fps_focused;
+            mouse_delivery.ui_claimed=graphics_fps_ui_claimed;mouse_delivery.render_active=graphics_render_active;
+            mouse_delivery.relative_mode=SDL_GetWindowRelativeMouseMode(get_sdl_window());
+            mouse_delivery.sensitivity=graphics_fps_sensitivity;
+        };
         {
             struct mouse_script {
                 std::atomic<bool> stop{false}, sent{false};
                 std::atomic<uint32_t> last_wait{0};
+                std::atomic<uint32_t> motion_push_attempts{0},motion_push_successes{0};
                 bool previous;
                 std::thread worker;
                 mouse_script(SDL_WindowID window, float x, float y)
@@ -265,7 +285,8 @@ bool graphics_scene_smoke()
                                   motion.motion.x = x;
                                   motion.motion.y = y;
                                   motion.motion.xrel = 100;
-                                  SDL_PushEvent(&motion);
+                                  motion_push_attempts.fetch_add(1);
+                                  if(SDL_PushEvent(&motion))motion_push_successes.fetch_add(1);
                               }
                               // The real hotkey acknowledges this diagnostic wait.
                               // Only the wake key repeats; the relative delta does not.
@@ -296,9 +317,16 @@ bool graphics_scene_smoke()
             std::string look_action;
             for (int attempt = 0; attempt < 52; ++attempt) {
                 look_action = gameplay.handle_input(250);
+                ++mouse_delivery.input_returns;
                 if (look_action == "ncmm.view.look_up")
                     break;
             }
+            mouse_delivery.enqueue_attempted=feed.sent.load();
+            mouse_delivery.wake_matched=look_action=="ncmm.view.look_up";
+            mouse_delivery.last_wait=feed.last_wait.load();
+            mouse_delivery.motion_push_attempts=feed.motion_push_attempts.load();
+            mouse_delivery.motion_push_successes=feed.motion_push_successes.load();
+            mouse_delivery.after_input_yaw=graphics_camera_yaw;observe_mouse_delivery();
             if (!feed.sent.load() || look_action != "ncmm.view.look_up")
                 log_line(NCMM_LOG_ERROR,
                          ("Mouse wait diagnostic bits=" + std::to_string(feed.last_wait.load()) +
@@ -309,6 +337,7 @@ bool graphics_scene_smoke()
             require(feed.sent.load() && look_action == "ncmm.view.look_up",
                     "mouse_event_consumed_gameplay_key");
         }
+        observe_mouse_delivery();
         require(std::abs(graphics_camera_yaw - before_mouse_yaw - .3f) < .001f,
                 "sdl_mouse_motion_did_not_rotate_camera");
         require(ncmm::graphics_mouse_event(3, 320, 240, -100, 0, true),
@@ -750,7 +779,28 @@ bool graphics_scene_smoke()
         << ",\"f12_discarded_key_regressions\":" << std::to_string(view_key_discarded[1]) << ",\"f12_requeued_attempts\":" << std::to_string(view_key_requeued[1])
         << ",\"draw_radius\":" << std::to_string( distance_radius ) << ",\"distant_cells\":" << std::to_string( distance_cells )
         << ",\"light_queries\":" << std::to_string( distance_light_queries )
-        << ",\"clear_weather_fog\":" << distance_fog << "}\n";
+        << ",\"clear_weather_fog\":" << distance_fog;
+    // Explicit finite flag keeps even a corrupted camera state valid JSON.
+    // Counter snapshots precede worker join; they are observations, not a
+    // replacement for the exact existing .3-radian acceptance requirement.
+    const bool mouse_numbers_finite=std::isfinite(mouse_delivery.before_yaw)&&std::isfinite(mouse_delivery.after_input_yaw)&&
+        std::isfinite(mouse_delivery.final_yaw)&&std::isfinite(mouse_delivery.final_yaw-mouse_delivery.before_yaw)&&
+        std::isfinite(mouse_delivery.deferred_dx)&&std::isfinite(mouse_delivery.deferred_dy)&&std::isfinite(mouse_delivery.sensitivity);
+    const auto mouse_number=[](double value){return std::isfinite(value)?value:0.;};
+    out.precision(17);
+    out << ",\"mouse_delivery\":{\"schema\":1,\"reached\":" << (mouse_delivery.reached?"true":"false")
+        << ",\"enqueue_attempted\":" << (mouse_delivery.enqueue_attempted?"true":"false")
+        << ",\"wake_matched\":" << (mouse_delivery.wake_matched?"true":"false")
+        << ",\"input_returns\":" << mouse_delivery.input_returns << ",\"last_wait_bits\":" << mouse_delivery.last_wait
+        << ",\"motion_push_attempts\":" << mouse_delivery.motion_push_attempts << ",\"motion_push_successes\":" << mouse_delivery.motion_push_successes
+        << ",\"owner\":" << mouse_delivery.owner << ",\"captured\":" << (mouse_delivery.captured?"true":"false")
+        << ",\"dragging\":" << (mouse_delivery.dragging?"true":"false") << ",\"focused\":" << (mouse_delivery.focused?"true":"false")
+        << ",\"ui_claimed\":" << (mouse_delivery.ui_claimed?"true":"false") << ",\"render_active\":" << (mouse_delivery.render_active?"true":"false")
+        << ",\"relative_mode\":" << (mouse_delivery.relative_mode?"true":"false") << ",\"finite_numeric_state\":" << (mouse_numbers_finite?"true":"false")
+        << ",\"before_yaw\":" << mouse_number(mouse_delivery.before_yaw) << ",\"after_input_yaw\":" << mouse_number(mouse_delivery.after_input_yaw)
+        << ",\"final_yaw\":" << mouse_number(mouse_delivery.final_yaw) << ",\"observed_delta_yaw\":" << mouse_number(mouse_delivery.final_yaw-mouse_delivery.before_yaw)
+        << ",\"expected_delta_yaw\":0.3,\"deferred_dx\":" << mouse_number(mouse_delivery.deferred_dx)
+        << ",\"deferred_dy\":" << mouse_number(mouse_delivery.deferred_dy) << ",\"sensitivity\":" << mouse_number(mouse_delivery.sensitivity) << "}}\n";
     log_line( success ? NCMM_LOG_INFO : NCMM_LOG_ERROR,
               ( "First Person View actual engine smoke: " + reason ).c_str() );
     return success;

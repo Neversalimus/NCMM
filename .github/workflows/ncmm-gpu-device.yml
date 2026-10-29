@@ -179,7 +179,7 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_effects.inc':'b12053892afece39efdd33f7856d0dcc6ecab059eb78b410e367d025f1bf2f15',
             'experiments/graphics_bridge/ncmm_graphics_hybrid.inc':'a3e4827726e80ce717ac922935ebb01e053242eb79c4260f3b95837f7cfa0641',
             'experiments/graphics_bridge/ncmm_graphics_fps_audit.inc':'b12ccc3315de947c0adfc0f4301e1fa403dabbb99aaedc3cc288b87ac01316a5',
-            'experiments/graphics_bridge/ncmm_graphics_smoke.inc':'99462b628215ce187ddef21086403ba8feaf53dace3b7e2a1c35f2abf98b38f2',
+            'experiments/graphics_bridge/ncmm_graphics_smoke.inc':'c87d57d5c5394e0d13386c994660b7376f41362c6f94a739d28ee7b7628bb2b4',
             'experiments/FirstPersonView/Build-FirstPersonInstaller.ps1':'0570b635fec861e9de985ca53015c69d5960ff1bcce3be7a0506f01e78094483',
             'experiments/FirstPersonView/FirstPersonInstallerBridge.cs':'c4bdedf2ba160d65801b0553d244b9a176042863cf4765aae61b9b05bfb9d420',
             'experiments/FirstPersonView/src/viewmodel.cpp':'efe9160712cfc81e77b9e75a8b4d858254316d59407ced72e960612d1f602862',

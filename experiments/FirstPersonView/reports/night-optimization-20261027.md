@@ -2,9 +2,9 @@
 
 ## Current checkpoint
 
-Updated29 October2026, through stage123. Baseline `1284537`; working branch
-`codex/fpv-snapshot-entry-construction-20261029`; latest qualified source
-[PR235](https://github.com/Neversalimus/NCMM/pull/235), TEST `2f10c0320183`.
+Updated29 October2026, through stage129. Baseline `1284537`; working branch
+`codex/fpv-mouse-atomic-diagnostics-20261029`; latest qualified source
+[PR238](https://github.com/Neversalimus/NCMM/pull/238), TEST `d5ece2b66558`.
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -14,8 +14,8 @@ are separate evidence. Warm results do not erase first-use regressions.
 
 No local Native/game/input harness, mouse capture/warp/focus, elevated profiler,
 NVIDIA/power/priority changes or subagents. Background games remain running.
-Use the existing checkout/build, read-only synced sources, pure/shared-module
-tests and the inventoried hidden render-only suite. The user has now requested
+Use the existing checkout/build, read-only synced sources and inspected pure
+CPU/source tests locally. All real device qualification remains in remote CI. The user has now requested
 finalization, main integration and installer delivery, followed by continued work.
 ReleaseA9 passed all8 jobs of full40674207425 and merged into main as
 `cd9ba08d47583482f67374d59f5bf0cc871416a9`. Both exact0.13.1TEST installers
@@ -1358,6 +1358,33 @@ symmetric fixture still failed3warm controls. No timing retry, threshold change
 or partial acceptance.123changes retained Native snapshot entries, not the held
 geometry slab cache. Source heads232-239 remain fixed for comparison.
 
+## Stages127–129 — fresh cache attribution and Native diagnostic compile repair
+
+Exact238movement reports retain288Native actions and144cache-child records
+across both pins. In controlled GPU640cases, the seen-cache child is5.68/7.80/
+10.74ms for1040street/horde/city and18.04/7.83/10.71ms for1807. Structure costs
+4.7–5.7ms; lightmap1.9–4.3ms. These are submap-crossing software-CI scopes,
+not staircase or ordinary RTX measurements. Independent medians cannot be
+added to their inclusive parents. The original shared8MiB numeric ledger now
+reserves905947B; public installer-primary receipts remain unchanged.
+
+A private per-cast PLF workspace preserves525grid pairs,693961checks and
+226981exhaustive numerical deltas. Negative output/traversal controls reject
+corruptions. Its only fixed timing series reached the original300second limit
+after40of112rows. The candidate is held; no timing retry, second variant,
+threshold override or production application follows from partial results.
+
+CodeReview Windows1040annotations at239identify enum_traits<atomic<unsigned>>
+errors. Native's unconstrained global prefix operator++is selected for the
+new diagnostic atomic counters. The exact1807header reproduces that failure
+under bothMSVC/Clang; the corrected exact worker/main block compiles under
+both with realSDL/router headers. No linking or execution was performed.
+Use explicit fetch_add(1) at exactly two counter sites, preserving default
+sequential ordering, the original one event, deadline and all136hard tests.
+The earlier isolated compile omitted that Native header. Actual Native builds
+and the original camera-yaw runtime failure remain for remote qualification.
+Report: `night-mouse-atomic-context-20261029.json`.
+
 ## Earlier qualification receipts retained from stage99
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
@@ -1402,26 +1429,15 @@ geometry slab cache. Source heads232-239 remain fixed for comparison.
 
 ## Remote qualification and next steps
 
-Qualified source235 `2f10c03201830cc9925267b53333e2e14bb04a5e` passed all8full
-jobs and12checks, complete exact-head CodeReview plan/required gates, both exact
-installer/source/resource/license proofs and strict primary stair reports.
-Main `fc46254aa2cc79b6fe987fce7f8b4566c238b3a5` differs only by the independent
-feed/index.json and feed/rejected.json paths. Exact TEST installers1040/1807 are
-[published](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-2f10c0320183)
-with source/checksum assets and verified anonymous HEAD200 download links.
-They do not include236-239or123. Earlier releases and every live PR head remain.
-
-236all8full/all12checks pass, but its own complete raw plan/required/Windows
-CodeReview endpoints502still prevent final qualification; no CLI/log-artifact
-fallback.238both Windows jobs now benchmark48; bothLinux/modules/independentGPU
-and audit pass.237Linux1040controls failed before stairs;239four Native compile
-jobs failed, and the available annotations do not establish the compiler error.
-Do not guess causes, weaken controls or repeat unchanged failed runs.
-
-123gets a separate source/PR and full current-head CI. Continue independent work
-while it runs. Primary numeric JSON stays inventory-first, exact allowlist,
-sequential per shared8MiB label. Upstream body ledger stays10,323,766of10,485,760
-bytes,161,994remaining; no new Native body transfer. Future release asset bodies
-use capped HTTPS upload, CLI metadata/auth only. Held105/107/110/116-119/121-122
-remain held. No local Native/device/SDL/input/mouse/focus/UAC or subagents;
-disable the existing overnight heartbeat only on explicit user stop.
+Qualified238source d5ece2b is merged as main047368d5b9ff3ba5e2f829cf12178acce640a385.
+Both exact TEST installers are published under ncmm-fpv-v0.13.1-test-d5ece2b66558;
+all8full/12checks,171frozen sources,38payloads,106Native inputs,104resource
+sources/licenses, strict8stairs per pin and anonymousHEAD200 pass. Main differs
+from the qualified source only in the two preserved independent feedJSONs.
+240keeps exact30c8926; bothLinuxNative/module,3GPU and audit pass, Windows
+qualification continues.239keeps its failed309a22c for comparison. The new
+diagnostic repair receives a distinct branch and full current-source CI.
+No held124–128variant enters production or an installer. Raw logs remain
+CodeReview-only, numeric JSON inventory/exactlist/shared8MiB, Native body ledger
+unchanged161994Bremaining. Continue solo without localgame/device/input/mouse/
+focus/UAC/systemchanges; disable the existing heartbeat on explicit stop.
