@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage98. Baseline `1284537`; working branch
-`codex/fpv-visible-substrate-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
+Updated29 October2026, through stage106. Baseline `1284537`; working branch
+`codex/fpv-stair-cpu-gpu-attribution-20261029`; latest delivered release [PR229](https://github.com/Neversalimus/NCMM/pull/229).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -25,7 +25,7 @@ as main `b3b6e24297be9fedad4816ec56f3970fe06858cb`, exact tree `e0e8052bbd14e072
 Its two checked TEST installers are [published separately](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-cdb929b3453a).
 All38 payloads/106 copied Native inputs/171 frozen sources and104 resource
 sources match. Anonymous installerHEAD200/length checks pass. The prior A9
-release remains available. Drafts226–230 retain exact source heads and their
+release remains available. Drafts226–231 retain exact source heads and their
 ongoing full captures. Neither the new growth candidate nor those drafts is
 included in the CDB archives.
 
@@ -34,6 +34,37 @@ Detailed stages1–63, failures, provenance and raw measurement references remai
 Full stage65 detail is also retained in local Git revision `1c5ce96`.
 Private evidence/checkpoints are in `../fpv-0131-work/`; do not overwrite
 measured summaries or derive new data from old truncated reports.
+
+## Stage101 delivery checkpoint
+
+B9F/CPU93 passed all8jobs of full40718418978, all3GPU jobs and source audit.
+PR227 merged as main2fb1169 while preserving the independently updated two
+feed JSONs; every other path equals qualified B9F. The two exact TEST packages
+and qualification/checksums are [published](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-b9f4ee984746).
+All38payloads/106copied Native inputs/171frozen sources/104resource files and
+licenses agree. This delivery does not include later PR228-232 or stage103.
+Those exact heads remain fixed. At this source capture PR228 full8has passed;
+its separate package qualification is in progress. No ordinary15ms claim.
+
+## Stage104 delivery status
+
+B81/GPU94 passed all8jobs of full40725731505, all3GPU jobs and source audit.
+PR228 merged as main69a121e while retaining the independently updated feed
+JSONs; every other Git path and byte matches qualified B81. Both exact checked
+TEST installers, source proof and checksums are [published](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-b81e22d6ab8b).
+This delivered version does not include later229-233 or stage104. Their heads
+and earlier qualification receipts remain fixed. PR229 full8has now passed;
+its exact primary package/resource qualification is still pending.
+
+## F102 delivery checkpoint
+
+PR229/F102 snapshot-entry reuse passed all8jobs of full40731702421, all3GPU
+jobs and source audit. Both primary release JSONs match the exact packages;
+all38payloads/106Native inputs/171frozen sources/104resources and licenses
+were verified. Main0e59906preserves the2feedJSONs and every other path equals
+qualified F102. The [two TEST installers](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-f102c628188f), source proof and checksums are published;
+anonymous HEAD200and exact lengths pass without body downloads. Prior A9/CDB/
+B9F/B81 remain available. Later230-234and stages104-106are not in this release.
 
 ## Retained changes
 
@@ -985,7 +1016,179 @@ published A9/CDB installers remain unchanged.
 
 Numeric proof: `night-visible-substrate-20261028.json`.
 
-## Remote qualification and next steps
+## Stage99 — resume same-direction sparse neighbour searches
+
+Stage98 restored a real substrate pass. Its existing binary search still starts
+from the full sparse list for every neighbour. Canonical Z/Y/X producer order
+is unchanged, including the explicit re-sort after distance capping. A fixed
+cardinal offset preserves that order, so four independent insertion cursors
+can resume forward. Initial queries use full lower_bound; exponential
+bracketing handles large gaps without a linear scan of unrelated cells.
+Legacy/small frames retain their original lookup. A pure prefix scan skips
+cells needing no work; search code remains outside the common traversal.
+
+The source-bound complete-pass model uses9alternating pairs x18workloads,
+with fourfold iterations prescribed before the final run. City9409
+.32990→.22317ms, trees9409 .42329→.27702ms, city28227 1.37722→.74855ms and
+trees65536 6.66355→3.14606ms; paired ratios.66658/.65683/.55229/.47213.
+All complete detail bytes, temporary allocations and allocated-byte counts
+agree. The new object has sizeof24bytes onx64(16integer bytes); it is callback
+local and introduces no persistent heap cache, Native pointer ownership or
+extra Native read. sizeof is not measured stack reservation/RSS/VRAM.
+
+All substantial controls meet the original3%paired guard. Empty37.35%,
+small494.78% and single-cell7.79%paired regressions stay under the prescribed
+50ns absolute allowance; raw paired deltas are retained. Small49 independent
+medians improve while its paired ratio regresses. Long-gap independent
+medians regress .074us while paired timing improves3.54%. No tail guarantee.
+Three prior variants are rejected: first legacy+8.74%; separate fallback
+all-flat/legacy/lone-first+14.21/21.58/18.75%; isolated search hidden+19.46%
+and long-gap+4.20%. A private duplicate include marker stopped an intermediate
+preparation before compilation/timing; its source is retained separately.
+
+Real helper/class guards pass1099623checks: prior163623independent surface
+checks,935972every-query comparisons against full binary lookup and28owned
+range/immutability/size checks. Cover12sparse layouts,32levels,65536cells,
+missing neighbours, skipped-query subsequences, end positions and coordinate
+overflow. Four deliberately broken variants fail. Release build,51non-device
+CTests and96atomic two-pin source-transform tests pass. Device/renderer code
+is unchanged; no local Native/input/device test, mouse capture or subagent.
+
+These are CPU helper costs against the corrected6da17a3 source, not full Native
+frames, ordinary movement/shooting latency, GPU time, cold-process startup or
+15ms evidence. Full exact-source Native CI remains required. Main/CDB and
+published installers are unchanged. Numeric proof:
+`night-substrate-forward-search-20261028.json`.
+
+## Stages100/102 — rejected allocation experiments
+
+Stage100 tested four borrowed-string variants with identical output and no
+temporary allocations. They failed the unchanged3%control guard (+3.58–6.55%)
+and none was promoted. Stage102 reused a projected-triangle scratch vector
+inside a renderer. All271complete frames matched, but city572/constructed21/
+small-multilevel paired costs regressed3.06/3.51/3.82%; only1of17workloads met
+the2%gain criterion. Its retained buffer also raised peak requested bytes by
+up to2476040. Allocation savings did not override the failed timing guard.
+Original per-paint vectors remain in production.
+
+## Stage103 — bypass unnecessary near-plane polygon construction
+
+Most visible triangles lie wholly in front of the near plane. After the
+existing three transforms they now enter the original shared projection body
+directly. Only intersecting triangles build/interpolate the original clipping
+polygon. Vertex ordering, floating-point operation order, the original first
+vertex flat light, per-paint vectors and synchronous worker joins are retained.
+All source outside these two CPU projection methods is unchanged. GPU collect
+does not call this CPU projection path; renderer fields and sizeof14080 agree.
+
+Complete source-bound comparison matches271frames/50360800RGBA pixels,
+19711886volume samples and3319896callback provider calls, including9cached
+replays and9multiple-paint frames. A separate near-plane guard matches102816
+cases/40290projected pieces with3890078field/bit checks: all8visibility masks,
+exact.08/nextafter boundaries,7yaw/pitch/multi-Z poses,17materials, both
+windings, ordinary/offscreen/degenerate/sliver/giant geometry. Two deliberately
+wrong view/interpolation variants fail. No raw comparison of struct padding.
+
+Seven fixed alternating pairs x17complete-frame workloads retain the original
+3%regression/2gains-of2%guard. Small multilevel11.8768→11.65584ms has paired
+ratio.97505; cached grass11.50328→11.61141ms has paired ratio.95629. The latter
+independent median regresses despite its paired gain. Sparse-floor+2.79%,
+city-small+2.32%, hidden+2.14%and fog-city+2.08%paired regressions are retained,
+as are every raw lane/first frame/p95/p99/max. This is a modest CPU candidate,
+not a broad or guaranteed tail improvement. All17allocation counts, requested
+bytes, peaks and ending live bytes agree in a separate ordinary-new probe;
+this is not RSS/VRAM/allocator-overhead evidence. The timers are uninstrumented
+and include full build_frame, prior cleanup, renderer destruction and joins.
+
+Release build,51non-device CTests and96atomic source-transform tests pass.
+No local Native/input/device run, mouse capture, background-game interruption
+or subagent. Full current-head Native qualification is pending. Ordinary
+shooting/movement freeze reduction, RTX FPS and15ms first-correct-present are
+unqualified. Numeric output/timings/memory and rejected102evidence:
+`night-cpu-projection-fastpath-20261029.json`.
+
+## Stage104 — storey rays and stair-delay attribution
+
+The reported ascent freeze is not yet proven fixed. Existing B9F Native CI
+has four combined vertical_move+first-render samples per pin:1040median
+142.3187ms and1807median152.5411ms, both software-GPU controlled fixtures.
+They do not separate the engine move from Native2D tiles, perspective work
+and SDL present, and are not ordinary RTX4090 gameplay measurements.
+
+The new opt-in audit captures each of the four real vertical_move calls and
+its first successful explicit render/present separately, with fresh frame
+cache/tile/callback/present stages. Setup and later easing settle are excluded.
+Existing camera continuity, displayed-eye visibility and Native cost/state
+guards remain. The existing26turn schema3 output is retained. The validator
+requires ordered adjacent floors, complete callback partitions and fresh
+finite contained stages.18Python tests include12negative stair cases. No
+extra diagnostic clocks or captures run during ordinary play.
+
+General multi-storey visibility now uses scalar state for the three fixed
+axes. All arithmetic/query/corner/slab ordering and horizontal fast path
+agree:327680initial rays and1376256expanded rays/42layouts, with13466276
+identical ordered geometry reads in the expanded guard. Two deliberately
+missing slab/corner guards fail. Seven fixed alternating pairs x10helper
+workloads retain the predeclared3%regression/two2%gains guard. Downstairs
+paired cost improves9.30%, but upstairs regresses0.86%; XYZ-tie independent
+medians also regress. These are ray-helper costs, not stair/whole-frame gains.
+Both fewer-query alternatives failed the unchanged timing guard and were
+rejected. Every raw lane and control is retained in the numeric report.
+
+Release build,51non-device CTests,96atomic source-transform and18attribution
+tests pass. Native-only audit compilation/capture requires current-source CI.
+No repeated local device run is justified for this CPU/opt-in audit change.
+
+Parent233compiled but its1040full job stopped at410expired original0.13
+baseline Actions artifact. With explicit user authorization, the two original
+35payload0.13ZIPs were [archived](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-ci-baseline-v0.13-9e3d6230f7ad).
+Their exact old installer SHA256s/source/engine pins are unchanged. The new
+workflow downloads those immutable bytes, validates the original hashes and
+all payloads, and retains old outer Actions hashes as historical metadata.
+No release binary was rebuilt and this archive is not a new game version.
+Existing full qualification gates are unchanged. Numeric/source evidence:
+`night-stair-ray-attribution-20261029.json`.
+
+## Stage105 — integer geometry-slot experiment held
+
+The bounded dense slot fits32*97*97=301088, so a private variant kept the
+intermediates as int before converting the final index to size_t. All8550973
+checks,327680rays/8480344queries, query order, cache counters/bytes and104byte
+sizeof agree. Seven fixed alternating pairs x12cache/ray cases pass the
+original3%control/two2%gains helper guard. Upstairs/downstairs paired costs
+improve2.53/8.01%, but cold grid regresses2.60%paired and5.9681→6.6265ms
+(11.03%)independent medians. XYZ-tie paired and up-glass independent medians
+also regress. For the first-updated-frame objective this candidate is held,
+not promoted. This is a conservative decision after a passing helper gate,
+not a claim that its declared gate failed. No rerun-until-pass, module build,
+CTest or new Native CI for unchanged production. Raw168lanes are retained.
+
+## Stage106 — real stairs in both CPU and GPU modes
+
+Source inspection confirms that the earlier four stairs, including104split
+captures, run after warm(cpu). Newly verified F102 primary reports contain
+CPU-only combined stair medians142.24455ms(1040)and90.5162ms(1807), four
+samples each. Later combat callbacks use GPU, but those are not stair frames.
+The two runs are software-CI context, not a causal before/after or RTX result.
+
+The opt-in audit now resets the same fixture and warms each backend outside
+measurement. Four actual Native moves plus first frames run on CPU, then four
+on GPU. Schema2requires both groups in order, correct adjacent floors, true
+requested first-frame backend (GPU fallback cannot qualify), complete wall
+partitions and five fresh contained host stages. Native movement cost/state,
+camera continuity and displayed-eye visibility guards remain. The existing
+26turn schema3is unchanged. After the probe CPU is restored for later fixtures.
+
+19attribution tests with18negative stair cases and96atomic transform tests
+pass. The ordinary module/renderer/ray/cache/asset source and ABI are unchanged;
+the existing104Release build/51non-device CTests are not repeated. Native-only
+audit compilation and actual8transition capture require full current-source
+CI on a separate head;230-234heads remain fixed. No local game/input/device,
+mouse/focus or subagent. Stair-freeze elimination and ordinary15ms are still
+unqualified. Numeric/source evidence including held105:
+`night-stair-cpu-gpu-attribution-20261029.json`.
+
+## Earlier qualification receipts retained from stage99
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
   all8 jobs pass; required122987662168 confirms required/selected `full`.
@@ -1026,12 +1229,17 @@ Numeric proof: `night-visible-substrate-20261028.json`.
   setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
   protected PR223 full48 remains unchanged until its final logs are retained.
 
-Next: qualify the visible-substrate correction separately while preserving
-the exact active PR226/227/228/229/230 heads and both published A9/CDB installer
-bytes. At59f2b5e(PR230), both module suites and all3 GPU jobs pass; complete
-current-source Native gates remain pending. All
-prior meaningful Native captures keep running. Continue measured transfer and
-turn-latency work after the new functional gates; helper/model wins are not
-ordinary-game or15ms proof. CI logs remain CodeReview-only at the current PR
-head; program JSON keeps its strict8MiB ledger. Continue solo with no local
-Native/input test, mouse capture or new full game copy.
+
+## Remote qualification and next steps
+
+Keep230-234exact capture heads.234has the original four CPU-only split stair
+captures and restored original0.13baseline transport.106extends diagnosis to
+both backends on a separate full Native source. Read the exact current-source
+action/first-frame partitions before selecting a fix for the dominating phase;
+do not substitute warm helper gains for an ordinary ascent-latency result.
+Main and published installers remain fully qualified F102.
+
+CI logs use CodeReview only.234plan raw-log requests returned provider502;
+there is no CLI/log-artifact fallback. Primary numerical JSON remains exact
+allowlist/inventory-first/shared8MiB. F102early profiles used284844bytes; no
+full report ZIP or log members.105timings are immutable and not rerun.
