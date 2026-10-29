@@ -4,6 +4,7 @@
 #include <type_traits>
 #include <cstdlib>
 #include <iostream>
+#include <utility>
 namespace {
 int checks=0;
 void require(bool value,const char *message){++checks;if(!value){std::cerr<<message<<'\n';std::exit(1);}}
@@ -46,10 +47,73 @@ void snapshot_payload_readiness(){
     }
     data.clear();require(data.bytes()==0&&data.size()==0,"clear releases recycled payload storage");
 }
+
+void relocated_snapshot_payloads(){
+    using namespace ncmm_graphics_snapshot;
+    static_assert(std::is_standard_layout<entry>::value,"Owned entries retain their C payload layout");
+    static_assert(std::is_trivially_default_constructible<ncmm_graphics_cell_v1>::value&&
+                  std::is_trivially_copy_assignable<ncmm_graphics_cell_v1>::value&&
+                  std::is_trivially_default_constructible<ncmm_graphics_cell_v2>::value&&
+                  std::is_trivially_copy_assignable<ncmm_graphics_cell_v2>::value&&
+                  std::is_trivially_default_constructible<ncmm_graphics_detail_v1>::value&&
+                  std::is_trivially_copy_assignable<ncmm_graphics_detail_v1>::value,
+                  "Complete trivial assignments may publish the owned union payloads");
+    struct payloads {
+        ncmm_graphics_cell_v1 base{};
+        ncmm_graphics_cell_v2 detail{};
+        ncmm_graphics_detail_v1 presentation{};
+    };
+    const auto facts=[](int i){
+        payloads p;
+        p.base.flags=NCMM_GFX_VISIBLE;p.base.light=.75f;
+        std::strcpy(p.base.terrain,"t_floor");std::strcpy(p.base.item,"owned_item");p.base.item[0]=char('a'+i%26);
+        std::strcpy(p.detail.ground,"t_floor");p.detail.light_r=float(i%17)/16;p.detail.light_g=.25f;p.detail.light_b=.5f;
+        p.presentation.terrain_material=NCMM_MAT_STONE;p.presentation.source_light=float(i%31);
+        return p;
+    };
+    const auto publish=[&](entry &out,int i,unsigned mask){
+        const auto p=facts(i);
+        if(mask&1){out.cell=p.base;out.base_ready=true;}
+        if(mask&2){out.detail=p.detail;out.detail_ready=true;}
+        if(mask&4){out.presentation=p.presentation;out.presentation_ready=true;out.has_source_light=bool(i%2);}
+    };
+    const auto verify=[&](const entry &out,int i,unsigned mask){
+        const auto p=facts(i);
+        require(out.base_ready==bool(mask&1)&&out.detail_ready==bool(mask&2)&&out.presentation_ready==bool(mask&4),
+                "relocation and owned copies retain all eight payload readiness combinations");
+        require(out.has_source_light==bool((mask&4)&&(i%2)),"light readiness remains independent of inactive payloads");
+        if(mask&1)require(!std::memcmp(&out.cell,&p.base,sizeof(p.base)),"published base bytes survive growth and owned copies");
+        if(mask&2)require(!std::memcmp(&out.detail,&p.detail,sizeof(p.detail)),"published detail bytes survive growth and owned copies");
+        if(mask&4)require(!std::memcmp(&out.presentation,&p.presentation,sizeof(p.presentation)),"published presentation bytes survive growth and owned copies");
+    };
+    for(unsigned mask=0;mask<8;++mask)for(bool deferred:{false,true}){
+        std::vector<entry> entries;
+        // Growth must handle both unpublished entries and arbitrary active payloads.
+        for(int i=0;i<513;++i){
+            entries.emplace_back();
+            require(!entries.back().base_ready&&!entries.back().detail_ready&&!entries.back().presentation_ready&&
+                    !entries.back().has_source_light,"new entry starts with no published payload");
+            require(entries.back().world.flags==0&&entries.back().facade_light==std::array<float,3>{},
+                    "new entry initializes permission and light facts");
+            if(!deferred)publish(entries.back(),i,mask);
+        }
+        for(int i=0;i<513;++i){
+            if(deferred)publish(entries[i],i,mask);
+            verify(entries[i],i,mask);
+            auto copied=entries[i];auto moved=std::move(copied);verify(moved,i,mask);
+            entry assigned;assigned=moved;verify(assigned,i,mask);
+            assigned=std::move(moved);verify(assigned,i,mask);
+        }
+        auto copied=entries;auto moved=std::move(copied);
+        for(int i=0;i<513;++i)verify(moved[i],i,mask);
+    }
+}
+
 }
 
 int main(){
     snapshot_payload_readiness();
+    relocated_snapshot_payloads();
     using namespace ncmm_graphics_snapshot;
     input_lease lease;
     require(!lease.active(),"no lease outside native input");
