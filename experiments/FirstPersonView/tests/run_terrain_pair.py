@@ -52,6 +52,44 @@ def below(path, parent):
     return path
 
 
+def read_progress_phase(game, started_ns):
+    """Return the latest complete Native phase from a fresh, bounded tail."""
+    try:
+        progress = below(game / 'ncmm/first-person-audit-progress.txt', game)
+        with progress.open('rb') as stream:
+            if os.fstat(stream.fileno()).st_mtime_ns < started_ns:
+                return 'unavailable'
+            size = stream.seek(0, os.SEEK_END)
+            start = max(0, size - 4096)
+            stream.seek(start)
+            tail = stream.read(size - start)
+        if start:
+            # The first line can start outside the bounded read.
+            tail = tail.partition(b'\n')[2]
+        for line in reversed(tail.split(b'\n')[:-1]):
+            line = line.removesuffix(b'\r')
+            match = re.fullmatch(
+                rb'([0-9][0-9,. \x80-\xff]{0,39}) ([A-Za-z0-9_+.-]{1,128}(?: PASS)?) frames=([0-9][0-9,. \x80-\xff]{0,39})',
+                line)
+            if not match or len(match[2]) > 128:
+                continue
+            # Legacy Native iostreams inherit locale integer grouping. These
+            # fields identify records; they are never timing measurements.
+            valid = True
+            for value in (match[1], match[3]):
+                for separator in (b'\xc2\xa0', b'\xe2\x80\xaf', b'\xa0', b'.', b' '):
+                    value = value.replace(separator, b',')
+                if (not re.fullmatch(rb'(?:[0-9]{1,20}|[1-9][0-9]{0,2}(?:,[0-9]{3}){1,6})', value)
+                        or len(value.replace(b',', b'')) > 20):
+                    valid = False
+                    break
+            if valid:
+                return match[2].replace(b' ', b'_').decode('ascii')
+    except (OSError, ValueError):
+        pass
+    return 'unavailable'
+
+
 def run_child(command, game, env, directory, identity, timeout=600):
     require_ci(os.environ)
     result = dict(identity, exit_code=None, pid=None, started_ns=time.time_ns(),
@@ -65,16 +103,7 @@ def run_child(command, game, env, directory, identity, timeout=600):
         # CI diagnostics stay in the CI log, consumed through Code Review.
         # Do not repackage progress text or child stdout as program JSON evidence.
         while not stopped.wait(30):
-            phase = 'startup'
-            progress = game / 'ncmm/first-person-audit-progress.txt'
-            try:
-                if progress.stat().st_mtime_ns >= result['started_ns']:
-                    with progress.open('rb') as stream:
-                        value = stream.read(256).decode('ascii', errors='replace').strip()
-                    if re.fullmatch(r'[a-z0-9_-]{1,128}', value):
-                        phase = value
-            except OSError:
-                pass
+            phase = read_progress_phase(game, result['started_ns'])
             elapsed = max(0, (time.time_ns() - result['started_ns']) / 1e9)
             print(f"Terrain owned child pid={result['pid']} elapsed_s={elapsed:.1f} phase={phase}", flush=True)
     try:

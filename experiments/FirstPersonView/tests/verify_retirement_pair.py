@@ -14,6 +14,13 @@ CANDIDATE_SOURCE = '099101a259eb9af90c64caff214c0083de7af21b'
 REFERENCE_SHA = '2c6a31754b82c6b1bec8b03efaffc97603132107d16b604b0ad60265bcc4f6d4'
 CANDIDATE_SHA = 'd8d349dd27588bdc3e1d0f0d466ac8777fd74d925dfc49d7a991025a49c97489'
 PARSER_SHA = '6e70d6e921b2edac5bda144d875673011cebf158221a03f23c2fa20f1e9ca5db'
+PAIR_ACTIONS = {'native_walk_and_visual_continuity', 'native_door_open_close_and_furniture',
+                'native_pickup_inventory_cancel_and_item_use', 'native_melee_aim_fire_and_reload_completion',
+                'native_stairs_and_basement', 'native_vehicle_board_controls_displacement_and_exit',
+                'rapid_tall_avatar_stairs_respect_scene_bounds', 'native_combat_1_5_20_ai_and_render_state_guards',
+                'native_turn_processing', 'native_f6_and_f12_dispatch'}
+PAIR_SCENES = {'city', 'dense_smoke', 'multi_level', 'creatures_1', 'creatures_5', 'creatures_20',
+               'creatures_50', 'creatures_100', 'large_and_flying', 'lod_distances', 'unknown_mod_objects', 'rotation'}
 
 
 def sha(path):
@@ -34,12 +41,25 @@ def relative(root, name):
 def stair_metrics(report):
     require(report.get('success') is True and report.get('schema') == 1,
             'Native gameplay recorder did not complete')
+    require(report.get('retirement_pair_only') is True and report.get('full_gameplay_coverage') is False,
+            'Focused pair scope missing or relabelled')
+    actions = report.get('actions')
+    require(type(actions) is list and len(actions) == len(PAIR_ACTIONS)
+            and {row.get('name') for row in actions} == PAIR_ACTIONS
+            and all(row.get('success') is True for row in actions), 'Focused Native action coverage incomplete')
     require(report.get('width') == 640 and report.get('height') == 480, 'Stair viewport changed')
     tilesets = report.get('tilesets')
     require(type(tilesets) is list and len(tilesets) == 1 and tilesets[0].get('id') == 'UltimateCataclysm'
             and tilesets[0].get('actual_loaded_id') == 'UltimateCataclysm', 'Official pair tileset differs')
     cases = [case for case in tilesets[0]['cases'] if case['renderer'] == 'gpu']
-    require(len(cases) == 12, 'Incomplete GPU scene descriptors')
+    require(len(cases) == 12 and {case.get('name') for case in cases} == PAIR_SCENES,
+            'Incomplete GPU scene descriptors')
+    soak = report.get('soak', {})
+    require(soak.get('automated') is True and type(soak.get('requested_seconds')) is int
+            and soak['requested_seconds'] == 60 and type(soak.get('actual_wall_seconds')) in (int, float)
+            and math.isfinite(soak['actual_wall_seconds']) and soak['actual_wall_seconds'] >= 60
+            and type(soak.get('frames')) is int and soak['frames'] > 0,
+            'Focused pair must retain its original sixty-second soak')
     descriptors = []
     for case in cases:
         require(all(type(case.get(key)) is str and case[key] for key in ('device', 'backend'))
@@ -72,7 +92,8 @@ def verify(root):
     require(pair.get('schema') == 1 and pair.get('pairs') == 7 and pair.get('phase') == 'complete',
             'Seven complete alternating pairs required')
     require(pair.get('diagnostic_only') is True and pair.get('ordinary_game_performance') is False
-            and pair.get('whole_historical_parent_measured') is False,
+            and pair.get('whole_historical_parent_measured') is False
+            and pair.get('fixture_mode') == 'focused_turns_stairs',
             'Backend ablation scope was relabelled')
     require(pair.get('reference_backend_source') == REFERENCE_SOURCE
             and pair.get('candidate_backend_source') == CANDIDATE_SOURCE

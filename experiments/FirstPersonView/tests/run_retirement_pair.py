@@ -103,6 +103,7 @@ def run(args):
                '-p:UseMultiToolTask=true', '-p:_CDDA_USE_CCACHE=true', '-target:Cataclysm-vcpkg-static',
                'msvc-full-features/Cataclysm-vcpkg-static.sln']
     receipt = dict(schema=1, diagnostic_only=True, ordinary_game_performance=False,
+                   fixture_mode='focused_turns_stairs',
                    whole_historical_parent_measured=False, source_commit=head, source_tree=tree,
                    engine_commit=bundle['source_commit'], workflow_run=os.environ['GITHUB_RUN_ID'],
                    reference_backend_source=REFERENCE_SOURCE, candidate_backend_source=CANDIDATE_SOURCE,
@@ -169,7 +170,8 @@ def run(args):
         # This is a bounded stair comparison, separate from the unchanged full
         # qualification's 60/1800-second soak. Both variants use the same 60 s.
         env = {k: v for k, v in os.environ.items() if not k.startswith('NCMM_FP_')}
-        env.update(NCMM_FP_GAMEPLAY_AUDIT='1', NCMM_FP_APPEARANCE_SMOKE='1', NCMM_FP_SOAK_SECONDS='60', SDL_ASSERT='abort')
+        env.update(NCMM_FP_GAMEPLAY_AUDIT='1', NCMM_FP_APPEARANCE_SMOKE='1', NCMM_FP_SOAK_SECONDS='60',
+                   NCMM_FP_RETIREMENT_PAIR_ONLY='1', SDL_ASSERT='abort')
         for pair in range(7):
             for order in range(2):
                 kind = ('reference', 'candidate')[(pair + order) % 2]

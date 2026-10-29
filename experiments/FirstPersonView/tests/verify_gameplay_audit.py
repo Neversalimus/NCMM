@@ -14,6 +14,7 @@ p.add_argument('--minimum-soak-seconds',type=int,required=True)
 p.add_argument('--output',type=Path,required=True)
 a=p.parse_args()
 r=json.loads((a.root/'first-person-gameplay-audit.json').read_text(encoding='utf-8-sig'))
+assert r.get('retirement_pair_only',False) is False and r.get('full_gameplay_coverage',True) is True, 'Focused pair report cannot qualify as full gameplay'
 assert r['success'] and r['actual_cdda_sdl'] and not r['manual_playthrough']
 assert not r['gpu_execution_timestamps_available']
 actions={'native_held_assets_and_shared_psx_contacts','native_target_health_identity_visibility_and_font','native_firing_ui_context_and_presented_frames','native_fps_input_and_actions','native_walk_and_visual_continuity','native_door_open_close_and_furniture',
