@@ -3,12 +3,78 @@
 This is a GPU unit fixture. It does not measure Native game performance.
 """
 from pathlib import Path
-import argparse,hashlib,json,os,shutil,subprocess,sys
+import argparse,hashlib,json,os,shutil,struct,subprocess,sys
 
 REFERENCE_SHA256='a0dd1aa83c05e1a51ac33854dedb54696e85616857d9da1f68bb30ee7fe9662a'
 
 
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def image_difference(left, right):
+    result = dict(reference_bytes=len(left), candidate_bytes=len(right))
+    shapes = [list(struct.unpack('<III', data[:12])) if len(data) >= 12 else None
+              for data in (left, right)]
+    result['reference_shape'], result['candidate_shape'] = shapes
+    if shapes[0] is None or shapes[0] != shapes[1]:
+        result['comparable_pixels'] = False
+        return result
+    width, height, _ = shapes[0]
+    expected = 12 + width * height * 4
+    if not width or not height or len(left) != expected or len(right) != expected:
+        result['comparable_pixels'] = False
+        return result
+    result['comparable_pixels'] = True
+    changed = alpha = maximum = 0
+    minimum_x, minimum_y, maximum_x, maximum_y = width, height, -1, -1
+    for offset in range(12, expected, 4):
+        a, b = left[offset:offset+4], right[offset:offset+4]
+        if a == b:
+            continue
+        changed += 1
+        alpha += a[3] != b[3]
+        maximum = max(maximum, *(abs(x-y) for x, y in zip(a, b)))
+        pixel = (offset-12)//4
+        x, y = pixel % width, pixel // width
+        minimum_x, minimum_y = min(minimum_x, x), min(minimum_y, y)
+        maximum_x, maximum_y = max(maximum_x, x), max(maximum_y, y)
+    result.update(different_pixels=changed, different_alpha_pixels=alpha,
+                  max_channel_delta=maximum,
+                  changed_bounds=[minimum_x, minimum_y, maximum_x, maximum_y] if changed else None)
+    return result
+
+
+def write_comparison(out, runs, metadata):
+    reference, candidate = runs['reference']['images'], runs['candidate']['images']
+    equal = reference == candidate
+    same_device = all(runs['reference']['report'][key] == runs['candidate']['report'][key]
+                      for key in ('backend', 'device', 'software_device'))
+    differences = []
+    for name in sorted(reference.keys() | candidate.keys()):
+        a, b = reference.get(name), candidate.get(name)
+        if a == b:
+            continue
+        difference = dict(file=name, reference=a, candidate=b)
+        if a is not None and b is not None:
+            # Only files already captured by the existing fixture. No extra
+            # GPU readback or transfer is needed to retain numeric diagnostics.
+            left = (out/'reference/run'/name).read_bytes()
+            right = (out/'candidate/run'/name).read_bytes()
+            difference.update(image_difference(left, right))
+        differences.append(difference)
+    result = dict(metadata)
+    result.update(success=equal and same_device, unit_gpu_fixture=True,
+                  native_game_qualified=False, performance_accepted=False,
+                  compared_images=len(reference),
+                  compared_bytes=sum(row['bytes'] for row in reference.values()),
+                  full_normalized_readbacks_equal=equal, no_extra_gpu_readbacks=True,
+                  device_descriptors_equal=same_device,
+                  reference_images=len(reference), candidate_images=len(candidate),
+                  image_differences=differences, runs=runs)
+    # Preserve hashes and numeric mismatch details even when the exact gate
+    # below fails. A diagnostic manifest is never an acceptance override.
+    (out/'comparison.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
+    return result
 
 
 def main():
@@ -109,14 +175,13 @@ endforeach()
         images={p.name:dict(bytes=p.stat().st_size,sha256=sha(p)) for p in directory.glob('readback-*.rgba')}
         assert images,'No complete existing readbacks captured'
         runs[variant]=dict(images=images,report=report,log_sha256=sha(directory/'run.log'),executable_sha256=sha(executable))
+    metadata=dict(reference_backend_sha256=REFERENCE_SHA256,
+                  candidate_backend_sha256=hashlib.sha256(candidate.encode()).hexdigest(),
+                  compiled_with_sanitizers=args.sanitize,
+                  existing_scene_test_sha256=sha(parent/'tests/gpu_scene_test.cpp'))
+    result=write_comparison(out,runs,metadata)
     assert runs['reference']['images']==runs['candidate']['images'],'Complete pixel mismatch; outputs retained'
     assert all(runs['reference']['report'][k]==runs['candidate']['report'][k] for k in ('backend','device','software_device'))
-    result=dict(success=True,unit_gpu_fixture=True,native_game_qualified=False,performance_accepted=False,
-                reference_backend_sha256=REFERENCE_SHA256,candidate_backend_sha256=hashlib.sha256(candidate.encode()).hexdigest(),
-                compiled_with_sanitizers=args.sanitize,existing_scene_test_sha256=sha(parent/'tests/gpu_scene_test.cpp'),
-                compared_images=len(runs['reference']['images']),compared_bytes=sum(r['bytes'] for r in runs['reference']['images'].values()),
-                full_normalized_readbacks_equal=True,no_extra_gpu_readbacks=True,runs=runs)
-    (out/'comparison.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps({k:result[k] for k in ('success','unit_gpu_fixture','compared_images','compared_bytes','full_normalized_readbacks_equal','performance_accepted')}))
 
 

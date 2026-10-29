@@ -1441,3 +1441,35 @@ No held124–128variant enters production or an installer. Raw logs remain
 CodeReview-only, numeric JSON inventory/exactlist/shared8MiB, Native body ledger
 unchanged161994Bremaining. Continue solo without localgame/device/input/mouse/
 focus/UAC/systemchanges; disable the existing heartbeat on explicit stop.
+
+
+## 130–133 — collection attribution, rejected material shortcut, image failure evidence
+
+The exact331e1a4 CPU producer emitted144 fully compared samples:3090checks and
+234014040packet bytes. Cold9409cells spent12.0577ms in the floor/field pass out
+of19.6561ms total producer time. These are source-model phase measurements,
+not Native game frames or an improvement. Nested scopes are nonadditive.
+
+The separate last-material shortcut preserved8116checks/1061753328packet bytes,
+160direct sequences and allocation histories. Two deliberate wrong-material
+controls were rejected; initial reader expectation errors and both original
+outputs are retained. Its single7pair/16case series completed224rows but failed
+five3percent controls and found zero required5percent cold gains. It is HELD,
+unapplied, with no second variant, retime or threshold override.
+
+241GPU run40839635166 failed job123332606098 at complete pixel comparison.
+The four preceding sanitizer GPU tests passed, and the three primary GPUscene
+JSON reports are identical. The exact artifact12881739146 lacks comparison.json
+because the script wrote it only after acceptance. The complete rawCodeReview
+response is explicitly truncated at120000characters; the failure and preceding
+test summary are present. Five inventoried numericJSON members cost337539B of
+the shared8MiB diagnostic label; no pixel or log artifact bodies were read.
+
+133writes the failure manifest before all12unchanged assertions. It retains
+both complete image digest maps and numeric pixel bounds/counts using existing
+readback files, with zero added GPU readbacks, tolerance or suppressions.
+Thirteen CPU-only synthetic tests check persistence before strict rejection,
+single-channel/alpha differences, malformed shapes, missing files and devices.
+The underlying unequal-pixel cause remains unproven.241head331e1a4 and240head
+30c8926 stay preserved. A separate branch receives fullCI; no localdevice,
+game,input,mouse,focus,UAC or subagents are used. Published238 stays unchanged.
