@@ -169,15 +169,17 @@ class TurnAttributionTests(unittest.TestCase):
 class StairAttributionTests(unittest.TestCase):
     @staticmethod
     def report():
-        from verify_turn_attribution import STAIR_SCOPE, STAIR_COMPONENT_SCOPE, STAIR_COMMON_STAGES, STAIR_CPU_STAGES, STAIR_GPU_STAGES
+        from verify_turn_attribution import STAIR_SCOPE, STAIR_COMPONENT_SCOPE, STAIR_COMMON_STAGES, STAIR_CPU_STAGES, STAIR_GPU_STAGES, STAIR_GPU_RESOURCE_KEYS, STAIR_RESOURCE_SCOPE
         report=fixture();base=copy.deepcopy(report['native_turn_diagnostics']['samples'][0]);rows=[];z=0
         for mode in ('cpu','gpu'):
             for delta in (1,-1,-1,1):
                 frame=copy.deepcopy(base);frame.update(cpu_draws=2 if mode=='cpu' else 0,gpu_draws=2 if mode=='gpu' else 0)
                 frame['callbacks'][0]['backend']=mode
                 rows.append(dict(from_z=z,to_z=z+delta,delta=delta,requested_renderer=mode,successful_present=True,
-                    action=copy.deepcopy(base),first_frame=frame,frame_stages={k:0 for k in STAIR_COMMON_STAGES+(STAIR_GPU_STAGES if mode=='gpu' else STAIR_CPU_STAGES)}));z+=delta
-        report['stair_transition_diagnostics']=dict(schema=3,scope=STAIR_SCOPE,component_scope=STAIR_COMPONENT_SCOPE,ordinary_performance_measurement=False,gpu_execution_measured=False,samples=rows)
+                    action=copy.deepcopy(base),first_frame=frame,frame_stages={k:0 for k in STAIR_COMMON_STAGES+(STAIR_GPU_STAGES if mode=='gpu' else STAIR_CPU_STAGES)},
+                    gpu_resources_available=mode=='gpu',gpu_reports_before=12,gpu_reports_after=13 if mode=='gpu' else 12,
+                    gpu_resource_counts={key:1 for key in STAIR_GPU_RESOURCE_KEYS} if mode=='gpu' else {}));z+=delta
+        report['stair_transition_diagnostics']=dict(schema=4,scope=STAIR_SCOPE,component_scope=STAIR_COMPONENT_SCOPE,resource_counter_scope=STAIR_RESOURCE_SCOPE,ordinary_performance_measurement=False,gpu_execution_measured=False,samples=rows)
         return report
 
     def test_exact_four_cpu_and_four_gpu_transitions(self):
@@ -186,17 +188,53 @@ class StairAttributionTests(unittest.TestCase):
 
     def test_missing_mode_order_fallback_and_old_schema_rejected(self):
         from verify_turn_attribution import verify_stair_transitions
-        for kind in ('cpu_only','gpu_first','auto','cpu_fallback','gpu_fallback','schema1','schema2'):
+        for kind in ('cpu_only','gpu_first','auto','cpu_fallback','gpu_fallback','schema1','schema2','schema3'):
             report=self.report();data=report['stair_transition_diagnostics'];rows=data['samples']
             if kind=='cpu_only': data['samples']=rows[:4]
             elif kind=='gpu_first': data['samples']=rows[4:]+rows[:4]
             elif kind=='auto': rows[4]['requested_renderer']='auto'
-            elif kind in ('schema1','schema2'): data['schema']=int(kind[-1])
+            elif kind in ('schema1','schema2','schema3'): data['schema']=int(kind[-1])
             else:
                 row=rows[0 if kind=='gpu_fallback' else 4];mode='gpu' if kind=='gpu_fallback' else 'cpu'
                 row['first_frame'].update(cpu_draws=2 if mode=='cpu' else 0,gpu_draws=2 if mode=='gpu' else 0)
                 row['first_frame']['callbacks'][0]['backend']=mode
             with self.subTest(kind=kind),self.assertRaises(ValueError):verify_stair_transitions(report)
+
+    def test_every_gpu_resource_counter_is_required_and_an_integer(self):
+        from verify_turn_attribution import STAIR_GPU_RESOURCE_KEYS,verify_stair_transitions
+        for key in STAIR_GPU_RESOURCE_KEYS:
+            for value in (None, True, -1, 1.5, float('nan'), float('inf'), 2**64):
+                report=self.report();counts=report['stair_transition_diagnostics']['samples'][4]['gpu_resource_counts']
+                if value is None: del counts[key]
+                else: counts[key]=value
+                with self.subTest(key=key,value=value),self.assertRaises(ValueError):verify_stair_transitions(report)
+
+    def test_resource_packet_cannot_be_stale_or_from_the_other_backend(self):
+        from verify_turn_attribution import verify_stair_transitions
+        for mutation in ('missing_scope','wrong_scope','missing_packet','extra_key','cpu_packet','cpu_report','gpu_no_report','two_reports','negative_before','bool_after','availability','empty_triangles','empty_resources','empty_capacity'):
+            report=self.report();data=report['stair_transition_diagnostics'];cpu,gpu=data['samples'][0],data['samples'][4]
+            if mutation=='missing_scope': del data['resource_counter_scope']
+            elif mutation=='wrong_scope': data['resource_counter_scope']='measured GPU execution or VRAM'
+            elif mutation=='missing_packet': del gpu['gpu_resource_counts']
+            elif mutation=='extra_key': gpu['gpu_resource_counts']['invented_counter']=1
+            elif mutation=='cpu_packet': cpu['gpu_resource_counts']=gpu['gpu_resource_counts'].copy()
+            elif mutation=='cpu_report': cpu['gpu_reports_after']+=1
+            elif mutation=='gpu_no_report': gpu['gpu_reports_after']-=1
+            elif mutation=='two_reports': gpu['gpu_reports_after']+=1
+            elif mutation=='negative_before': gpu['gpu_reports_before']=-1
+            elif mutation=='bool_after': gpu['gpu_reports_after']=True
+            elif mutation=='availability': gpu['gpu_resources_available']=False
+            else: gpu['gpu_resource_counts'][{'empty_triangles':'mesh_triangles','empty_resources':'gpu_resource_bytes','empty_capacity':'frame_upload_capacity_bytes'}[mutation]]=0
+            with self.subTest(mutation=mutation),self.assertRaises(ValueError):verify_stair_transitions(report)
+
+    def test_zero_new_buffers_and_large_cumulative_count_are_valid(self):
+        from verify_turn_attribution import verify_stair_transitions
+        report=self.report();gpu=report['stair_transition_diagnostics']['samples'][4]
+        for key in ('static_vertex_buffer_creations','static_index_buffer_creations','static_upload_bytes'):gpu['gpu_resource_counts'][key]=0
+        gpu['gpu_resource_counts']['frame_upload_creations_total']=2**63+7
+        result=verify_stair_transitions(report)
+        self.assertEqual(result['samples'][4]['gpu_resource_counts'],gpu['gpu_resource_counts'])
+        self.assertFalse(result['gpu_execution_measured'])
 
     def test_each_fresh_backend_component_is_required_and_bounded(self):
         from verify_turn_attribution import verify_stair_transitions

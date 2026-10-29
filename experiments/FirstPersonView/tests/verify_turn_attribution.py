@@ -159,14 +159,18 @@ STAIR_COMMON_STAGES = ('full_frame_wall_ms', 'native_cache_cpu_ms', 'native_tile
 STAIR_CPU_STAGES = ('cpu_geometry_ms', 'cpu_raster_ms', 'cpu_effects_ms')
 STAIR_GPU_STAGES = ('gpu_geometry_prepare_cpu_ms', 'gpu_resource_update_cpu_ms', 'gpu_upload_record_cpu_ms', 'gpu_commands_record_cpu_ms', 'gpu_submit_cpu_ms', 'gpu_batching_pick_cpu_ms', 'gpu_shadow_commands_cpu_ms', 'gpu_world_draw_commands_cpu_ms', 'gpu_creature_draw_commands_cpu_ms', 'gpu_held_draw_commands_cpu_ms', 'gpu_volume_commands_cpu_ms', 'gpu_compose_commands_cpu_ms')
 
+STAIR_GPU_RESOURCE_KEYS = ('static_vertex_buffer_creations', 'static_vertex_buffer_reuses', 'static_vertex_pool_bytes', 'static_index_buffer_creations', 'static_index_buffer_reuses', 'static_index_pool_bytes', 'static_upload_bytes', 'frame_upload_bytes', 'gpu_resource_bytes', 'host_cpu_cache_bytes', 'frame_upload_capacity_bytes', 'frame_upload_creations_total', 'cell_upload_bytes', 'cell_cache_bytes', 'dynamic_geometry_bytes', 'mesh_triangles')
+STAIR_RESOURCE_SCOPE = 'fresh counters from this first successful GPU frame; buffer creations/reuses/uploads are per submit, memory/pool bytes are current, frame_upload_creations_total is cumulative within backend lifetime; logical counts, not GPU execution or VRAM'
+
 def verify_stair_transitions(report):
     require(report.get('actual_cdda_sdl') is True and report.get('manual_playthrough') is False,
             'controlled real Native stair report required')
     data = report.get('stair_transition_diagnostics')
-    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 3 and
+    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 4 and
             data.get('scope') == STAIR_SCOPE and data.get('ordinary_performance_measurement') is False and
             data.get('gpu_execution_measured') is False, 'stair timing scope differs')
     require(data.get('component_scope') == STAIR_COMPONENT_SCOPE, 'stair component timing scope differs')
+    require(data.get('resource_counter_scope') == STAIR_RESOURCE_SCOPE, 'stair resource counter scope differs')
     rows = data.get('samples')
     require(type(rows) is list and len(rows) == 8, 'four CPU and four GPU stair transitions required')
     totals = []
@@ -207,7 +211,18 @@ def verify_stair_transitions(report):
         for key, value in stages.items():
             require(type(value) in (int,float) and math.isfinite(value) and 0 <= value <= frame['wall_ns']/1e6 + .003,
                     'invalid stair '+key)
-        detail.update(from_z=row['from_z'],to_z=row['to_z'],delta=row['delta'],frame_stages=stages)
+        available = row.get('gpu_resources_available')
+        require(type(available) is bool and available == (expected_mode == 'gpu'), 'stair GPU resource availability differs')
+        before = integer(row.get('gpu_reports_before'), 2**64-1, 'GPU reports before')
+        after = integer(row.get('gpu_reports_after'), 2**64-1, 'GPU reports after')
+        require(after == before + (1 if available else 0), 'stale or duplicate stair GPU resource report')
+        counts = row.get('gpu_resource_counts')
+        require(type(counts) is dict and counts.keys() == (set(STAIR_GPU_RESOURCE_KEYS) if available else set()), 'stair GPU resource counters missing or unexpected')
+        for key,value in counts.items():
+            integer(value, 2**64-1, key)
+        if available:
+            require(counts['mesh_triangles'] > 0 and counts['gpu_resource_bytes'] > 0 and counts['frame_upload_capacity_bytes'] > 0, 'empty first-frame GPU resource snapshot')
+        detail.update(from_z=row['from_z'],to_z=row['to_z'],delta=row['delta'],frame_stages=stages,gpu_resources_available=available,gpu_resource_counts=counts,gpu_reports_before=before,gpu_reports_after=after)
         totals.append(detail)
     require(rows[-1]['to_z'] == rows[0]['from_z'], 'stair sequence does not return to its source')
-    return dict(success=True,transitions=8,renderers=['cpu','gpu'],ordinary_performance_measurement=False,gpu_execution_measured=False,component_scope=STAIR_COMPONENT_SCOPE,stage_components_adjacent=False,samples=totals)
+    return dict(success=True,transitions=8,renderers=['cpu','gpu'],ordinary_performance_measurement=False,gpu_execution_measured=False,component_scope=STAIR_COMPONENT_SCOPE,resource_counter_scope=STAIR_RESOURCE_SCOPE,stage_components_adjacent=False,samples=totals)
