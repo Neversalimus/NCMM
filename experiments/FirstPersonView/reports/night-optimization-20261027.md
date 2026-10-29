@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated29 October2026, through stage108. Baseline `1284537`; working branch
-`codex/fpv-world-budget-selection-20261029`; latest delivered release [PR229](https://github.com/Neversalimus/NCMM/pull/229).
+Updated29 October2026, through stage111. Baseline `1284537`; working branch
+`codex/fpv-stair-frame-stages-20261029`; latest delivered release [PR231](https://github.com/Neversalimus/NCMM/pull/231).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -34,6 +34,18 @@ Detailed stages1–63, failures, provenance and raw measurement references remai
 Full stage65 detail is also retained in local Git revision `1c5ce96`.
 Private evidence/checkpoints are in `../fpv-0131-work/`; do not overwrite
 measured summaries or derive new data from old truncated reports.
+
+## Delivery through stage109
+
+PR230/59f snapshot capacity and PR231/6da visible-substrate repair have each
+passed8full jobs,3GPU jobs and source audit. Exact package/report/resource
+proofs match38payloads,106Native inputs,171frozen sources and104resource
+source/license files. Latest mainbf622288 retains the independent2feedJSONs;
+every other byte equals qualified6da. Both [6daTEST installers](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-6da17a35142a)
+are public, with anonymous HEAD200/length verification. Prior releases remain.
+Later232-236and stages110/111are not in that release. User explicitly requests
+continued overnight work until stopped; same-chat heartbeat repeats20min.
+No subagents or local game/input/device/mouse/focus use is authorized.
 
 ## Stage101 delivery checkpoint
 
@@ -1228,6 +1240,57 @@ that ordinary staircase freezes are fixed. Report/source/raw proofs:
 `night-world-budget-selection-20261029.json`. Full exact-source CI and Native
 stair samples remain necessary; keep234/235capture heads untouched.
 
+## Stage109 — verified first-stair action/frame attribution
+
+Read only5exact primary numerical JSONs from2341040and2351040, after source/run
+artifact inventory and under separate shared8MiB labels. Reconstruct106copied
+inputs, privateSDL identity, source/runtime equal Git trees, clean process exit,
+26turn partitions and each source's exact stair verifier. FourCPU234records and
+eightCPU/GPU235records pass. Reserved bytes106595and108420; no log members or
+whole report archives. Existing exact capture heads remain unchanged.
+
+On2351040Microsoft software GPU, the four first GPU stair frames take204.55-
+354.47ms. Their module callback takes84.48-168.23ms; one Present219.51ms and
+one post-visibility90.25ms. CPU first frames59.20-117.27ms. These are controlled
+CI samples, not a causal comparison or RTX FPS. In particular the fixture's
+render refresh() invalidates Native caches deliberately; these costs do not
+establish ordinary-play cache misses. Split already available backend phases
+before selecting another ascent fix. See `night-stair-primary-phases-20261029.json`.
+
+## Stage110 — equal-Z volume neighbour batching held
+
+Both private variants preserve73,361checks,204fullCPUframes/17,020,800pixels,
+8,012,878integration samples and all effect/depth/identity/geometry/targeting
+outputs. Binary/owned/retained lookup also agrees with an independent map near
+signed coordinate limits. A new21level fixture initially had zero slice ID at
+z=-2; its fixture-only identity was repaired before any timing, preserving the
+initial evidence. Production candidate code did not change for that repair.
+
+R1improves3/21level volume effects but regresses legacy controls. FinalR2keeps
+the legacy scalar lookup and improves21level smoke/fire effects; however the
+portrait-fire total paired1.03868violates the original1.03control. Both7pair x
+12case x32frames/lane series are held. No unchanged repeat, third variant or
+threshold relaxation. Production volume/coordinate source remains unchanged.
+See `night-volume-quad-held-20261029.json` for all raw/source hash references.
+
+## Stage111 — fresh backend stages for each first stair frame
+
+The opt-in fixture already appends CPU geometry/raster/effects and GPU geometry,
+resource/update/upload/command/submit and recording subcomponent diagnostics.
+Copy these existing fresh values into each stair row:11stages forCPU,20forGPU.
+Every selected vector must grow exactly1inside that first-frame render.
+Schema3requires the exact backend set, finite contained values and honest
+overlap scope. Recording subcomponents can overlap their containers; they
+are not additive or GPU execution timestamps. No new stage timer, renderer,
+ordinary action, geometry/cache policy, asset or ABI change.
+
+21attribution tests, including190new malformed component/scope checks and an
+explicit overlapping-positive fixture, plus96atomic source transform tests
+pass. Existing108Release+51non-device tests are unchanged and not repeated.
+Actual Native compilation and eight real transition captures need full exact
+source CI. No claim of fixed stair freeze or ordinary15ms. Evidence:
+`night-stair-backend-stages-20261029.json`.
+
 ## Earlier qualification receipts retained from stage99
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
@@ -1272,13 +1335,15 @@ stair samples remain necessary; keep234/235capture heads untouched.
 
 ## Remote qualification and next steps
 
-Preserve230-235exact capture heads.234has four CPU-only split stair records;
-235has eight CPU/GPUrecords and both module suites/all3GPUjobs pass. Actual
-Native jobs/captures remain in progress.108changes only over-budget selection,
-so it receives separate full exact-source CI. Main/installers remain F102.
-Read action/first-frame phase evidence before claiming a staircase fix.
+Preserve232-236exact capture heads. Latest main/installers are qualified6da.
+2351040eight stairs are strict;1807still captures.236both module suites,
+3GPU jobs and source audit pass; four actual Native jobs run. Raw236plan logs
+returned CodeReview502four times; annotations contain only provider notices,
+so no numerical plan is claimed. No CLI/log-artifact fallback.
 
-CI logs use CodeReview only.234plan raw-log requests previously returned502;
-no CLI/log-artifact fallback. Primary numerical JSON remains inventory-first,
-exact allowlist and shared8MiB. No new Native source body was transferred.
-Stages105/107are held; their fixed timings are immutable and not rerun.
+111diagnostics use a new head and full exact-source CI. Read fresh backend
+stages to select an actual ascent bottleneck. Primary numerical JSON remains
+inventory-first, exact allowlist/shared8MiB and sequential per label. Native
+body budget remains161994bytes, with0new source-body transfers.105/107/110are
+held; no unchanged timing repeats. Continue solo overnight until user stops;
+disable same-chat heartbeat ncmm-first-person-view on an explicit stop.

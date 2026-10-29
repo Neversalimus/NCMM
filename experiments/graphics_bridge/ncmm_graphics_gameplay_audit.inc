@@ -198,8 +198,13 @@
                     g->vertical_move(delta,false);capture.complete();}
                 require(you.posz()==z+delta&&you.get_moves()<moves,"audit_native_stair_move_failed");
                 sample.to_z=you.posz();const auto pos=you.pos_abs();const int spent=moves-you.get_moves();
-                const std::array<const char *,5> frame_stage_names={"full_frame_wall_ms","native_cache_cpu_ms","native_tiles_cpu_ms","perspective_callback_wall_ms","actual_present_wall_ms"};
-                std::array<size_t,5> previous_counts{};for(size_t i=0;i<frame_stage_names.size();++i)previous_counts[i]=stages[frame_stage_names[i]].size();
+                // Copy existing diagnostics only after this exact render appends
+                // every requested component. GPU subcomponents overlap their
+                // containing stages; none is a GPU execution timestamp.
+                std::vector<const char *> frame_stage_names={"full_frame_wall_ms","native_cache_cpu_ms","native_tiles_cpu_ms","perspective_callback_wall_ms","actual_present_wall_ms","world_extract_cpu_ms","world_visibility_cpu_ms","ui_composition_record_cpu_ms"};
+                if(std::string(mode)=="gpu")frame_stage_names.insert(frame_stage_names.end(),{"gpu_geometry_prepare_cpu_ms","gpu_resource_update_cpu_ms","gpu_upload_record_cpu_ms","gpu_commands_record_cpu_ms","gpu_submit_cpu_ms","gpu_batching_pick_cpu_ms","gpu_shadow_commands_cpu_ms","gpu_world_draw_commands_cpu_ms","gpu_creature_draw_commands_cpu_ms","gpu_held_draw_commands_cpu_ms","gpu_volume_commands_cpu_ms","gpu_compose_commands_cpu_ms"});
+                else frame_stage_names.insert(frame_stage_names.end(),{"cpu_geometry_ms","cpu_raster_ms","cpu_effects_ms"});
+                std::vector<size_t> previous_counts(frame_stage_names.size());for(size_t i=0;i<frame_stage_names.size();++i)previous_counts[i]=stages[frame_stage_names[i]].size();
                 {ncmm_graphics_turn_diagnostics::turn_capture capture(sample.first_frame,ncmm_graphics_turn_diagnostics::steady_now,true);
                     render();capture.complete();}
                 require(ncmm_graphics_turn_diagnostics::valid(sample.action)&&ncmm_graphics_turn_diagnostics::valid(sample.first_frame),"audit_stair_partition_invalid");
@@ -311,9 +316,10 @@
         write_timing(t);report.end_object();
     }report.end_array();report.end_object();
     require(stair_samples.size()==8,"audit_stair_samples_missing");
-    report.member("stair_transition_diagnostics");report.start_object();report.member("schema",2);
+    report.member("stair_transition_diagnostics");report.start_object();report.member("schema",3);
     report.member("scope","CPU then GPU real vertical_move and first successful render/present in adjacent separate captures; fixture reset, warm-up and easing settle excluded");
     report.member("ordinary_performance_measurement",false);report.member("gpu_execution_measured",false);
+    report.member("component_scope","fresh stages appended by this first-frame render; components can overlap and are not additive; CPU recording/submission, not GPU execution");
     report.member("samples");report.start_array();for(const auto &s:stair_samples){report.start_object();
         report.member("from_z",s.from_z);report.member("to_z",s.to_z);report.member("delta",s.delta);report.member("requested_renderer",s.requested_renderer);
         report.member("successful_present",true);
