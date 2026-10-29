@@ -154,13 +154,19 @@ def verify(report):
 STAIR_SCOPE = 'CPU then GPU real vertical_move and first successful render/present in adjacent separate captures; fixture reset, warm-up and easing settle excluded'
 
 
+STAIR_COMPONENT_SCOPE = 'fresh stages appended by this first-frame render; components can overlap and are not additive; CPU recording/submission, not GPU execution'
+STAIR_COMMON_STAGES = ('full_frame_wall_ms', 'native_cache_cpu_ms', 'native_tiles_cpu_ms', 'perspective_callback_wall_ms', 'actual_present_wall_ms', 'world_extract_cpu_ms', 'world_visibility_cpu_ms', 'ui_composition_record_cpu_ms')
+STAIR_CPU_STAGES = ('cpu_geometry_ms', 'cpu_raster_ms', 'cpu_effects_ms')
+STAIR_GPU_STAGES = ('gpu_geometry_prepare_cpu_ms', 'gpu_resource_update_cpu_ms', 'gpu_upload_record_cpu_ms', 'gpu_commands_record_cpu_ms', 'gpu_submit_cpu_ms', 'gpu_batching_pick_cpu_ms', 'gpu_shadow_commands_cpu_ms', 'gpu_world_draw_commands_cpu_ms', 'gpu_creature_draw_commands_cpu_ms', 'gpu_held_draw_commands_cpu_ms', 'gpu_volume_commands_cpu_ms', 'gpu_compose_commands_cpu_ms')
+
 def verify_stair_transitions(report):
     require(report.get('actual_cdda_sdl') is True and report.get('manual_playthrough') is False,
             'controlled real Native stair report required')
     data = report.get('stair_transition_diagnostics')
-    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 2 and
+    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 3 and
             data.get('scope') == STAIR_SCOPE and data.get('ordinary_performance_measurement') is False and
             data.get('gpu_execution_measured') is False, 'stair timing scope differs')
+    require(data.get('component_scope') == STAIR_COMPONENT_SCOPE, 'stair component timing scope differs')
     rows = data.get('samples')
     require(type(rows) is list and len(rows) == 8, 'four CPU and four GPU stair transitions required')
     totals = []
@@ -196,7 +202,7 @@ def verify_stair_transitions(report):
         require(frame[expected_mode+'_draws'] > 0 and frame[('gpu' if expected_mode == 'cpu' else 'cpu')+'_draws'] == 0,
                 'first stair frame did not use the requested backend')
         stages = row.get('frame_stages')
-        expected = {'full_frame_wall_ms','native_cache_cpu_ms','native_tiles_cpu_ms','perspective_callback_wall_ms','actual_present_wall_ms'}
+        expected = set(STAIR_COMMON_STAGES + (STAIR_GPU_STAGES if expected_mode == 'gpu' else STAIR_CPU_STAGES))
         require(type(stages) is dict and stages.keys() == expected, 'fresh stair frame stages missing')
         for key, value in stages.items():
             require(type(value) in (int,float) and math.isfinite(value) and 0 <= value <= frame['wall_ns']/1e6 + .003,
@@ -204,4 +210,4 @@ def verify_stair_transitions(report):
         detail.update(from_z=row['from_z'],to_z=row['to_z'],delta=row['delta'],frame_stages=stages)
         totals.append(detail)
     require(rows[-1]['to_z'] == rows[0]['from_z'], 'stair sequence does not return to its source')
-    return dict(success=True,transitions=8,renderers=['cpu','gpu'],ordinary_performance_measurement=False,gpu_execution_measured=False,samples=totals)
+    return dict(success=True,transitions=8,renderers=['cpu','gpu'],ordinary_performance_measurement=False,gpu_execution_measured=False,component_scope=STAIR_COMPONENT_SCOPE,stage_components_adjacent=False,samples=totals)

@@ -1,0 +1,364 @@
+{
+  "schema": 1,
+  "stage": 109,
+  "source_parent": "42b860a939f583e874c145ade47c476bcf8fee4e",
+  "early_primary_context": [
+    {
+      "source": "542a927508c56a5de78a3ab908eaa0dc8d0f337c",
+      "runtime": "324e3d06e1204a10436af02747948e6afd5a5b98",
+      "run": 40779590460,
+      "artifact": 12861423560,
+      "pin": "1040",
+      "primary_sha256": "30d2d18fca06bf8760e5bc45689eb05f994b52aca311bf80c94644e5ffae0a9f",
+      "strict_summary_sha256": "2e77e2ab555acc1bac28208a8ce517b4f22aff48e4aec47002258fdbb88429e8",
+      "shared_inputs_verified": 106,
+      "private_sdl_identity_verified": true,
+      "clean_exit_verified": true,
+      "requested_first_frame_backend_verified": true,
+      "all_gpu_devices_software": true,
+      "gpu_devices": [
+        "Microsoft Basic Render Driver"
+      ],
+      "transitions": 4,
+      "samples": [
+        {
+          "renderer": "cpu",
+          "from_z": 0,
+          "to_z": 1,
+          "delta": 1,
+          "action_wall_ms": 37.0282,
+          "first_frame_wall_ms": 112.2268,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 0.5765,
+            "full_frame_wall_ms": 112.205,
+            "native_cache_cpu_ms": 26.0864,
+            "native_tiles_cpu_ms": 6.5929,
+            "perspective_callback_wall_ms": 78.9485
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.0036,
+            "native_cache_ns": 0.0335,
+            "pre_visibility_ns": 0.0712,
+            "visibility_ns": 11.8678,
+            "post_visibility_ns": 5.0433,
+            "module_ns": 61.3521,
+            "presentation_tail_ns": 0.5756
+          }
+        },
+        {
+          "renderer": "cpu",
+          "from_z": 1,
+          "to_z": 0,
+          "delta": -1,
+          "action_wall_ms": 32.6732,
+          "first_frame_wall_ms": 178.3966,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 0.5781,
+            "full_frame_wall_ms": 178.3799,
+            "native_cache_cpu_ms": 24.5948,
+            "native_tiles_cpu_ms": 6.1897,
+            "perspective_callback_wall_ms": 147.0173
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.004,
+            "native_cache_ns": 0.028,
+            "pre_visibility_ns": 0.0678,
+            "visibility_ns": 16.178,
+            "post_visibility_ns": 12.9963,
+            "module_ns": 117.1397,
+            "presentation_tail_ns": 0.602
+          }
+        },
+        {
+          "renderer": "cpu",
+          "from_z": 0,
+          "to_z": -1,
+          "delta": -1,
+          "action_wall_ms": 16.0404,
+          "first_frame_wall_ms": 147.3248,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 0.6341,
+            "full_frame_wall_ms": 147.3079,
+            "native_cache_cpu_ms": 13.9283,
+            "native_tiles_cpu_ms": 3.265,
+            "perspective_callback_wall_ms": 129.4687
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.004,
+            "native_cache_ns": 0.0342,
+            "pre_visibility_ns": 0.0667,
+            "visibility_ns": 13.5176,
+            "post_visibility_ns": 10.4119,
+            "module_ns": 104.837,
+            "presentation_tail_ns": 0.5955
+          }
+        },
+        {
+          "renderer": "cpu",
+          "from_z": -1,
+          "to_z": 0,
+          "delta": 1,
+          "action_wall_ms": 31.9267,
+          "first_frame_wall_ms": 75.9536,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 0.5641,
+            "full_frame_wall_ms": 75.9376,
+            "native_cache_cpu_ms": 23.8882,
+            "native_tiles_cpu_ms": 5.7988,
+            "perspective_callback_wall_ms": 45.6869
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.0034,
+            "native_cache_ns": 0.0602,
+            "pre_visibility_ns": 0.0761,
+            "visibility_ns": 8.9822,
+            "post_visibility_ns": 2.8584,
+            "module_ns": 33.1243,
+            "presentation_tail_ns": 0.5811
+          }
+        }
+      ],
+      "scope": "Controlled real Native vertical_move followed by explicit render/present; setup and easing excluded. The render fixture refresh() explicitly invalidates Native caches. These are not ordinary-play cache-miss costs, GPU execution, causal cross-run improvements, RTX FPS or first-correct visual frame qualification."
+    },
+    {
+      "source": "2f10c03201830cc9925267b53333e2e14bb04a5e",
+      "runtime": "431530f08c6eeb5e13ad517a2d505bb6e0be851c",
+      "run": 40784341527,
+      "artifact": 12862647575,
+      "pin": "1040",
+      "primary_sha256": "5fb722c55efdf70e4d9e238e38d9c565a06722ea25229b28f4d263e63f66f231",
+      "strict_summary_sha256": "5c310fd51f13251aab1abc8b530c5ec11f99697df47807c529d5927fea444b49",
+      "shared_inputs_verified": 106,
+      "private_sdl_identity_verified": true,
+      "clean_exit_verified": true,
+      "requested_first_frame_backend_verified": true,
+      "all_gpu_devices_software": true,
+      "gpu_devices": [
+        "Microsoft Basic Render Driver"
+      ],
+      "transitions": 8,
+      "samples": [
+        {
+          "renderer": "cpu",
+          "from_z": 0,
+          "to_z": 1,
+          "delta": 1,
+          "action_wall_ms": 28.6226,
+          "first_frame_wall_ms": 85.3855,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 0.4689,
+            "full_frame_wall_ms": 85.371,
+            "native_cache_cpu_ms": 21.9789,
+            "native_tiles_cpu_ms": 5.902,
+            "perspective_callback_wall_ms": 57.0218
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.0012,
+            "native_cache_ns": 0.02,
+            "pre_visibility_ns": 0.0601,
+            "visibility_ns": 9.5721,
+            "post_visibility_ns": 3.0105,
+            "module_ns": 44.0432,
+            "presentation_tail_ns": 0.3132
+          }
+        },
+        {
+          "renderer": "cpu",
+          "from_z": 1,
+          "to_z": 0,
+          "delta": -1,
+          "action_wall_ms": 27.0886,
+          "first_frame_wall_ms": 117.2656,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 0.4426,
+            "full_frame_wall_ms": 117.2499,
+            "native_cache_cpu_ms": 19.9841,
+            "native_tiles_cpu_ms": 4.9517,
+            "perspective_callback_wall_ms": 91.8725
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.0008,
+            "native_cache_ns": 0.0156,
+            "pre_visibility_ns": 0.0611,
+            "visibility_ns": 11.3603,
+            "post_visibility_ns": 7.6026,
+            "module_ns": 72.5136,
+            "presentation_tail_ns": 0.317
+          }
+        },
+        {
+          "renderer": "cpu",
+          "from_z": 0,
+          "to_z": -1,
+          "delta": -1,
+          "action_wall_ms": 7.1068,
+          "first_frame_wall_ms": 97.5562,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 0.5009,
+            "full_frame_wall_ms": 97.5413,
+            "native_cache_cpu_ms": 13.5491,
+            "native_tiles_cpu_ms": 2.4843,
+            "perspective_callback_wall_ms": 81.0078
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.0012,
+            "native_cache_ns": 0.0143,
+            "pre_visibility_ns": 0.0588,
+            "visibility_ns": 10.7975,
+            "post_visibility_ns": 5.1458,
+            "module_ns": 64.6781,
+            "presentation_tail_ns": 0.3109
+          }
+        },
+        {
+          "renderer": "cpu",
+          "from_z": -1,
+          "to_z": 0,
+          "delta": 1,
+          "action_wall_ms": 24.7247,
+          "first_frame_wall_ms": 59.1955,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 0.448,
+            "full_frame_wall_ms": 59.1827,
+            "native_cache_cpu_ms": 20.2451,
+            "native_tiles_cpu_ms": 4.9943,
+            "perspective_callback_wall_ms": 33.4952
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.0012,
+            "native_cache_ns": 0.0193,
+            "pre_visibility_ns": 0.0646,
+            "visibility_ns": 7.27,
+            "post_visibility_ns": 1.9055,
+            "module_ns": 23.9161,
+            "presentation_tail_ns": 0.317
+          }
+        },
+        {
+          "renderer": "gpu",
+          "from_z": 0,
+          "to_z": 1,
+          "delta": 1,
+          "action_wall_ms": 29.0281,
+          "first_frame_wall_ms": 234.2107,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 29.1421,
+            "full_frame_wall_ms": 234.1926,
+            "native_cache_cpu_ms": 31.4776,
+            "native_tiles_cpu_ms": 5.8333,
+            "perspective_callback_wall_ms": 167.7402
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.001,
+            "native_cache_ns": 0.0213,
+            "pre_visibility_ns": 0.0606,
+            "visibility_ns": 9.5584,
+            "post_visibility_ns": 3.0054,
+            "module_ns": 155.0742,
+            "presentation_tail_ns": 0.0179
+          }
+        },
+        {
+          "renderer": "gpu",
+          "from_z": 1,
+          "to_z": 0,
+          "delta": -1,
+          "action_wall_ms": 27.5112,
+          "first_frame_wall_ms": 314.0936,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 0.3048,
+            "full_frame_wall_ms": 314.0783,
+            "native_cache_cpu_ms": 29.2336,
+            "native_tiles_cpu_ms": 5.9951,
+            "perspective_callback_wall_ms": 278.5443
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.0014,
+            "native_cache_ns": 0.0246,
+            "pre_visibility_ns": 0.0792,
+            "visibility_ns": 19.9372,
+            "post_visibility_ns": 90.2517,
+            "module_ns": 168.2329,
+            "presentation_tail_ns": 0.0161
+          }
+        },
+        {
+          "renderer": "gpu",
+          "from_z": 0,
+          "to_z": -1,
+          "delta": -1,
+          "action_wall_ms": 27.4006,
+          "first_frame_wall_ms": 204.5477,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 26.3936,
+            "full_frame_wall_ms": 204.5287,
+            "native_cache_cpu_ms": 17.4976,
+            "native_tiles_cpu_ms": 2.8644,
+            "perspective_callback_wall_ms": 157.7742
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.0013,
+            "native_cache_ns": 0.0257,
+            "pre_visibility_ns": 0.0785,
+            "visibility_ns": 18.7446,
+            "post_visibility_ns": 31.4871,
+            "module_ns": 107.4183,
+            "presentation_tail_ns": 0.0175
+          }
+        },
+        {
+          "renderer": "gpu",
+          "from_z": -1,
+          "to_z": 0,
+          "delta": 1,
+          "action_wall_ms": 28.9449,
+          "first_frame_wall_ms": 354.4701,
+          "frame_stages_ms": {
+            "actual_present_wall_ms": 219.5104,
+            "full_frame_wall_ms": 354.4505,
+            "native_cache_cpu_ms": 29.2374,
+            "native_tiles_cpu_ms": 6.9999,
+            "perspective_callback_wall_ms": 98.7032
+          },
+          "callback_phases_ms": {
+            "other_callbacks_wall_ns": 0.0,
+            "dispatch_ns": 0.0013,
+            "native_cache_ns": 0.0234,
+            "pre_visibility_ns": 0.0809,
+            "visibility_ns": 11.2994,
+            "post_visibility_ns": 2.7993,
+            "module_ns": 84.4843,
+            "presentation_tail_ns": 0.0136
+          }
+        }
+      ],
+      "scope": "Controlled real Native vertical_move followed by explicit render/present; setup and easing excluded. The render fixture refresh() explicitly invalidates Native caches. These are not ordinary-play cache-miss costs, GPU execution, causal cross-run improvements, RTX FPS or first-correct visual frame qualification."
+    }
+  ],
+  "finding": "2351040GPU first stair frames204.55-354.47ms on Microsoft software GPU. Adjacent module callback84.48-168.23ms; one Present219.51ms and one post-visibility phase90.25ms. Preserve action/frame partitions; do not choose another visibility-only fix from combined wall time.",
+  "next": "Split the already recorded per-frame backend stages, especially geometry/resource/upload/command recording/submission; pending111capture does not change ordinary rendering.",
+  "full_installer_delivery": {
+    "source": "6da17a35142a02ebd3ea299f71a10eff59a50100",
+    "main": "bf622288ab43a0d90227037a95254077160d4be3",
+    "release_id": 427334774,
+    "release": "https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-6da17a35142a",
+    "full_jobs": 8,
+    "exact_packages_resources_and_anonymous_head_verified": true,
+    "qualified_source_sha256": "fd80d6f8238e77a770acee87770c7d1c7d2a25cbe9a5f5fa7d03dbc2acc3c170",
+    "later232_to111_not_included": true
+  },
+  "measurements_not_independent_additive": true,
+  "ordinary_latency_qualified": false,
+  "stair_freeze_fixed": false
+}

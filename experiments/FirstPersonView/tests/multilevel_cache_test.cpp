@@ -569,6 +569,58 @@ template<class Check> void native_apparent_light_checks(Check check){
     std::cout<<"Native apparent-light paired primary-source cases="<<sample<<"; ordered non-distance reads, float bits and caller signatures preserved\n";
 }
 
+
+template<class Check> void nearest_budget_checks(Check check){
+    auto require=[&](bool value,const char *why){if(!value)std::cerr<<"Nearest budget: "<<why<<'\n';check(value);};
+    struct candidate {ncmm_world_cell_v1 world{};std::array<uint32_t,7> payload{};float distance=0;};
+    auto same=[](const auto &a,const auto &b){
+        if(a.size()!=b.size())return false;
+        for(size_t i=0;i<a.size();++i){const auto &x=a[i],&y=b[i];
+            if(std::tie(x.world.x,x.world.y,x.world.z,x.world.flags,x.world.direction,x.world.reserved,x.world.revision,x.payload)!=
+               std::tie(y.world.x,y.world.y,y.world.z,y.world.flags,y.world.direction,y.world.reserved,y.world.revision,y.payload)||
+               std::memcmp(&x.distance,&y.distance,sizeof(float))||
+               std::memcmp(x.world.lower_light,y.world.lower_light,sizeof(x.world.lower_light)))return false;
+        }return true;
+    };
+    auto make=[](size_t count,int kind){std::vector<candidate> cells(count);
+        for(size_t i=0;i<count;++i){auto &c=cells[i];const uint32_t key=uint32_t(i)*1664525u+1013904223u;
+            c.world.x=int(i%97)-48;c.world.y=int((i/97)%97)-48;c.world.z=int(i/(97*97))-16;
+            c.world.flags=key;c.world.direction=key>>5;c.world.reserved=key>>7;c.world.revision=uint64_t(key)*193u;
+            for(size_t n=0;n<c.payload.size();++n)c.payload[n]=key+uint32_t(n)*719u;
+            for(size_t n=0;n<3;++n)c.world.lower_light[n]=float((key>>n)&255)/255.f;
+            const float x=float(c.world.x)+.5f,y=float(c.world.y)+.5f,z=float(c.world.z)*NCMM_WORLD_LEVEL_HEIGHT;
+            c.distance=kind==0?x*x+y*y+z*z:kind==1?1.f:kind==2?float(key%17):kind==3?float(i):kind==4?float(count-i):i%2?-0.f:0.f;
+        }return cells;
+    };
+    auto reference=[](auto &cells,size_t maximum){if(cells.size()<=maximum)return;
+        std::stable_sort(cells.begin(),cells.end(),[](const auto &a,const auto &b){return a.distance<b.distance;});
+        cells.resize(maximum);std::sort(cells.begin(),cells.end(),[](const auto &a,const auto &b){return ncmm_world::order(a.world)<ncmm_world::order(b.world);});
+    };
+    size_t payloads=0;
+    for(size_t count:{0u,1u,49u,1024u,65535u,65536u,65537u,94090u,301088u})for(int kind=0;kind<6;++kind){
+        const auto input=make(count,kind);
+        for(size_t maximum:{size_t(0),size_t(49),size_t(NCMM_WORLD_MAX_CELLS),count+1}){
+            auto old=input,current=input;reference(old,maximum);ncmm_world::retain_nearest_candidates(current,maximum);
+            if(!same(old,current))std::cerr<<"count="<<count<<" kind="<<kind<<" cap="<<maximum<<'\n';
+            require(same(old,current),"selected payloads differ");require(current.size()==std::min(count,maximum),"selected count differs");payloads+=current.size();
+        }
+    }
+    // A deliberately reversed tie order must fail at the budget boundary.
+    // Merely omitting the tie breaker is not a portable negative control:
+    // an implementation may happen to retain the original all-equal order.
+    auto expected=make(94090,2),wrong=expected;reference(expected,NCMM_WORLD_MAX_CELLS);
+    std::nth_element(wrong.begin(),wrong.begin()+NCMM_WORLD_MAX_CELLS,wrong.end(),[](const auto &a,const auto &b){
+        return a.distance!=b.distance?a.distance<b.distance:ncmm_world::order(a.world)>ncmm_world::order(b.world);});
+    wrong.resize(NCMM_WORLD_MAX_CELLS);std::sort(wrong.begin(),wrong.end(),[](const auto &a,const auto &b){return ncmm_world::order(a.world)<ncmm_world::order(b.world);});
+    require(!same(expected,wrong),"reversed tie negative control was not distinguished");
+    // A correct selected set must still be returned in canonical XYZ order.
+    expected=make(94090,0);wrong=expected;reference(expected,NCMM_WORLD_MAX_CELLS);
+    std::nth_element(wrong.begin(),wrong.begin()+NCMM_WORLD_MAX_CELLS,wrong.end(),[](const auto &a,const auto &b){
+        return a.distance!=b.distance?a.distance<b.distance:ncmm_world::order(a.world)<ncmm_world::order(b.world);});
+    wrong.resize(NCMM_WORLD_MAX_CELLS);require(!same(expected,wrong),"unordered negative control was not distinguished");
+    std::cout<<"Nearest world budget: selected payloads="<<payloads<<"; exact stable ties/XYZ/payload and2negative controls\n";
+}
+
 template<class Check> void sealed_ring_checks(Check check){
     using namespace ncmm_world;
     auto require=[&](bool value,const char *message){if(!value)std::cerr<<"Sealed plane: "<<message<<'\n';check(value);};
@@ -1298,6 +1350,7 @@ int main(){try{
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
     native_range_checks(check);
     native_apparent_light_checks(check);
+    nearest_budget_checks(check);
     sealed_ring_checks(check);
     geometry_border_checks(check);
     unperceived_terrain_stair_checks(check);

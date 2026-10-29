@@ -1,0 +1,299 @@
+{
+  "schema": 1,
+  "stage": 110,
+  "source_parent": "42b860a939f583e874c145ade47c476bcf8fee4e",
+  "retained_candidate": false,
+  "production_changed": false,
+  "hypothesis": "Share the repeated equal-Z lookup and height conversion for the four bilinear volume neighbours while preserving all samples and pixels.",
+  "variants": [
+    {
+      "name": "night-volume-quad110",
+      "correctness": "checks,73361\r\nframes,204\r\npixels,17020800\r\nvolume_samples,8012878",
+      "candidate_volume_sha256": "e1561a298463f2b9a579dd11983b6212a284e324fe46a13059229ca592833600",
+      "candidate_policy_sha256": "7d484964b54b8cfccfca580cd2126d37d8b3e812ab772fd001fcbea9ae18542a",
+      "source_parent": "42b860a939f583e874c145ade47c476bcf8fee4e",
+      "comparisons": [
+        {
+          "scene": "inactive",
+          "before_ms": 0.76410625,
+          "after_ms": 0.766184375,
+          "paired_ratio": 0.9721242955413596,
+          "before_effect_ms": 0.00078125,
+          "after_effect_ms": 0.000809375,
+          "effect_pair_ratio": 1.0735930735930737,
+          "control_passed": true
+        },
+        {
+          "scene": "fog",
+          "before_ms": 0.93301875,
+          "after_ms": 0.859671875,
+          "paired_ratio": 1.0081844697316822,
+          "before_effect_ms": 0.121459375,
+          "after_effect_ms": 0.103909375,
+          "effect_pair_ratio": 0.993289224952741,
+          "control_passed": true
+        },
+        {
+          "scene": "one_light",
+          "before_ms": 2.445746875,
+          "after_ms": 2.647228125,
+          "paired_ratio": 1.1071521490439615,
+          "before_effect_ms": 1.6398,
+          "after_effect_ms": 1.84623125,
+          "effect_pair_ratio": 1.144287764397579,
+          "control_passed": false
+        },
+        {
+          "scene": "smoke_four_lights",
+          "before_ms": 2.408803125,
+          "after_ms": 2.64375,
+          "paired_ratio": 1.065862022712516,
+          "before_effect_ms": 1.604278125,
+          "after_effect_ms": 1.833828125,
+          "effect_pair_ratio": 1.1086590281479474,
+          "control_passed": false
+        },
+        {
+          "scene": "fire_twelve_lights",
+          "before_ms": 2.734696875,
+          "after_ms": 3.0592875,
+          "paired_ratio": 1.1326224256398805,
+          "before_effect_ms": 1.932178125,
+          "after_effect_ms": 2.25740625,
+          "effect_pair_ratio": 1.1772691764637382,
+          "control_passed": false
+        },
+        {
+          "scene": "occluded_twelve_lights",
+          "before_ms": 1.73819375,
+          "after_ms": 2.0484125,
+          "paired_ratio": 1.1635156466303023,
+          "before_effect_ms": 0.9525625,
+          "after_effect_ms": 1.223071875,
+          "effect_pair_ratio": 1.2547682753608826,
+          "control_passed": false
+        },
+        {
+          "scene": "fire_640x480",
+          "before_ms": 5.44290625,
+          "after_ms": 5.75709375,
+          "paired_ratio": 1.0751628265284683,
+          "before_effect_ms": 3.84903125,
+          "after_effect_ms": 4.24546875,
+          "effect_pair_ratio": 1.1031458405732348,
+          "control_passed": false
+        },
+        {
+          "scene": "fire_572x600",
+          "before_ms": 5.902125,
+          "after_ms": 6.26221875,
+          "paired_ratio": 1.0733036732073886,
+          "before_effect_ms": 3.9855,
+          "after_effect_ms": 4.4284375,
+          "effect_pair_ratio": 1.0996737713809266,
+          "control_passed": false
+        },
+        {
+          "scene": "multilevel_smoke3",
+          "before_ms": 3.19875,
+          "after_ms": 2.744528125,
+          "paired_ratio": 0.8594299242834356,
+          "before_effect_ms": 2.3529375,
+          "after_effect_ms": 1.8957125,
+          "effect_pair_ratio": 0.8073632933691846,
+          "control_passed": true
+        },
+        {
+          "scene": "multilevel_fire3",
+          "before_ms": 3.3239375,
+          "after_ms": 3.02665,
+          "paired_ratio": 0.9299127540755505,
+          "before_effect_ms": 2.468953125,
+          "after_effect_ms": 2.20244375,
+          "effect_pair_ratio": 0.8939685281905325,
+          "control_passed": true
+        },
+        {
+          "scene": "multilevel_smoke21",
+          "before_ms": 3.40253125,
+          "after_ms": 2.974259375,
+          "paired_ratio": 0.8403939886271324,
+          "before_effect_ms": 2.43188125,
+          "after_effect_ms": 1.96195625,
+          "effect_pair_ratio": 0.778967400365155,
+          "control_passed": true
+        },
+        {
+          "scene": "multilevel_fire21",
+          "before_ms": 3.53309375,
+          "after_ms": 3.16196875,
+          "paired_ratio": 0.8810337965133249,
+          "before_effect_ms": 2.61130625,
+          "after_effect_ms": 2.189528125,
+          "effect_pair_ratio": 0.8358472412035164,
+          "control_passed": true
+        }
+      ],
+      "pairs": 7,
+      "workloads": 12,
+      "frames_per_lane": 32,
+      "decision": "Held: at least one original <=1.03 substantial total-frame control fails.",
+      "evidence_sha256": {
+        "summary.json": "9e72ce47799c8b7d1c38a5e31ada343e12b8cc2a080cf2816f68b801b9921c9d",
+        "measurements.csv": "f4149bcaeb9dc6d6885f2d5e5abea62d041709231e26f7f7dc3147c05f5cfc19",
+        "driver.cpp": "d514bad87c89d2ba807dc490a11d97b377d16dc046f0e4b7150b27866fa074d8"
+      },
+      "model_summary_sha256": "1a486f656b957c4f1f93e68ffdb3d0dc56ece69e48231c4b6aa483782fd293c7"
+    },
+    {
+      "name": "night-volume-quad110-r2",
+      "correctness": "checks,73361\r\nframes,204\r\npixels,17020800\r\nvolume_samples,8012878",
+      "candidate_volume_sha256": "f8ba3f617d179c63b77120f57d7e02e16fa80fe1033215fd2e072523d92e7306",
+      "candidate_policy_sha256": "7d484964b54b8cfccfca580cd2126d37d8b3e812ab772fd001fcbea9ae18542a",
+      "source_parent": "42b860a939f583e874c145ade47c476bcf8fee4e",
+      "comparisons": [
+        {
+          "scene": "inactive",
+          "before_ms": 0.8995125,
+          "after_ms": 0.780075,
+          "paired_ratio": 0.8980458133816487,
+          "before_effect_ms": 0.000890625,
+          "after_effect_ms": 0.00079375,
+          "effect_pair_ratio": 0.9029850746268656,
+          "control_passed": true
+        },
+        {
+          "scene": "fog",
+          "before_ms": 0.939521875,
+          "after_ms": 0.914715625,
+          "paired_ratio": 1.0142009180768967,
+          "before_effect_ms": 0.117115625,
+          "after_effect_ms": 0.111453125,
+          "effect_pair_ratio": 1.0306035704165486,
+          "control_passed": true
+        },
+        {
+          "scene": "one_light",
+          "before_ms": 2.4529,
+          "after_ms": 2.391371875,
+          "paired_ratio": 0.9708979677116882,
+          "before_effect_ms": 1.6502,
+          "after_effect_ms": 1.572825,
+          "effect_pair_ratio": 0.9390907162768151,
+          "control_passed": true
+        },
+        {
+          "scene": "smoke_four_lights",
+          "before_ms": 2.619103125,
+          "after_ms": 2.531709375,
+          "paired_ratio": 0.9374409951327826,
+          "before_effect_ms": 1.747096875,
+          "after_effect_ms": 1.644496875,
+          "effect_pair_ratio": 0.932682872678472,
+          "control_passed": true
+        },
+        {
+          "scene": "fire_twelve_lights",
+          "before_ms": 3.0012125,
+          "after_ms": 2.982759375,
+          "paired_ratio": 0.9711387480893139,
+          "before_effect_ms": 2.07365625,
+          "after_effect_ms": 2.107040625,
+          "effect_pair_ratio": 0.9623248500742179,
+          "control_passed": true
+        },
+        {
+          "scene": "occluded_twelve_lights",
+          "before_ms": 2.009584375,
+          "after_ms": 1.91999375,
+          "paired_ratio": 0.9353219359174757,
+          "before_effect_ms": 1.130371875,
+          "after_effect_ms": 1.056321875,
+          "effect_pair_ratio": 0.911351485428805,
+          "control_passed": true
+        },
+        {
+          "scene": "fire_640x480",
+          "before_ms": 5.9425,
+          "after_ms": 5.61425,
+          "paired_ratio": 0.9512251943156067,
+          "before_effect_ms": 4.1838125,
+          "after_effect_ms": 3.960625,
+          "effect_pair_ratio": 0.9582903284560743,
+          "control_passed": true
+        },
+        {
+          "scene": "fire_572x600",
+          "before_ms": 5.79503125,
+          "after_ms": 6.0254375,
+          "paired_ratio": 1.0386808621137367,
+          "before_effect_ms": 3.89784375,
+          "after_effect_ms": 4.00309375,
+          "effect_pair_ratio": 1.0121211140420436,
+          "control_passed": false
+        },
+        {
+          "scene": "multilevel_smoke3",
+          "before_ms": 3.076209375,
+          "after_ms": 2.9422375,
+          "paired_ratio": 0.9704339616223855,
+          "before_effect_ms": 2.212640625,
+          "after_effect_ms": 2.046421875,
+          "effect_pair_ratio": 0.9295025563431659,
+          "control_passed": true
+        },
+        {
+          "scene": "multilevel_fire3",
+          "before_ms": 3.68409375,
+          "after_ms": 3.16109375,
+          "paired_ratio": 0.8687177138203934,
+          "before_effect_ms": 2.787225,
+          "after_effect_ms": 2.307053125,
+          "effect_pair_ratio": 0.8317648344541725,
+          "control_passed": true
+        },
+        {
+          "scene": "multilevel_smoke21",
+          "before_ms": 3.51040625,
+          "after_ms": 3.08760625,
+          "paired_ratio": 0.841207038611204,
+          "before_effect_ms": 2.494590625,
+          "after_effect_ms": 2.05889375,
+          "effect_pair_ratio": 0.778785595436789,
+          "control_passed": true
+        },
+        {
+          "scene": "multilevel_fire21",
+          "before_ms": 3.79228125,
+          "after_ms": 3.2814375,
+          "paired_ratio": 0.8772065399543281,
+          "before_effect_ms": 2.756296875,
+          "after_effect_ms": 2.282890625,
+          "effect_pair_ratio": 0.8304505806169048,
+          "control_passed": true
+        }
+      ],
+      "pairs": 7,
+      "workloads": 12,
+      "frames_per_lane": 32,
+      "decision": "Held: at least one original <=1.03 substantial total-frame control fails.",
+      "evidence_sha256": {
+        "summary.json": "c0cb640028abb0fcaa8a7bec11d0ed4889f3e3f0b172651df03096efcbdffb4a",
+        "measurements.csv": "8f982b104dd1f16bf7715ee3c6aba377d544c5525992a9a07ee404255a716334",
+        "driver.cpp": "d514bad87c89d2ba807dc490a11d97b377d16dc046f0e4b7150b27866fa074d8"
+      },
+      "model_summary_sha256": "865c10b878e56468c7fef6f145907d4b624e76c6d7673230fc5fd2c993a5ecae"
+    }
+  ],
+  "correctness_per_variant": {
+    "checks": 73361,
+    "frames": 204,
+    "pixels": 17020800,
+    "volume_samples": 8012878,
+    "tests": "Owned dense, retained dense and binary lookup vs independent absolute-XYZ map near signed coordinate limits; full CPU pixels/effects/depth/IDs/geometry/targeting and volume counts,1/3/21levels, light/fog/smoke/fire and occlusion."
+  },
+  "original_gate": "Seven alternating same-process pairs; every substantial total-frame paired median <=1.03; at least2 volume-active cases effects ratio<=0.90. Inactive/small absolute regression <=0.02ms. Do not relax or repeat unchanged timings.",
+  "final_decision": "Both exact CPU models are held. R1legacy effects regress. FinalR2preserves legacy scalar lookup, improves21level smoke/fire effects, but portrait-fire total paired1.03868086 exceeds1.03. Do not promote, repeat unchanged timings or relax thresholds. Production volumes.inc and coordinate helper remain byte-identical.",
+  "fixture_repair": "Initial21level fixture reused z+2 slice identity, giving zero for z=-2. Changed fixture only to positive z-low+1. Candidate unchanged; all initial evidence preserved. No timing preceded this repair.",
+  "limits": "Full owned CPU renderer with warm cached static world. Background games untouched. No Native/device run, new persistent memory, ordinary FPS/first-frame/ascent claim. First21level fixture identity was repaired before timings; all initial evidence preserved."
+}

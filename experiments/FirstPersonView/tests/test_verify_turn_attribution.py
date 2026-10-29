@@ -169,15 +169,15 @@ class TurnAttributionTests(unittest.TestCase):
 class StairAttributionTests(unittest.TestCase):
     @staticmethod
     def report():
-        from verify_turn_attribution import STAIR_SCOPE
+        from verify_turn_attribution import STAIR_SCOPE, STAIR_COMPONENT_SCOPE, STAIR_COMMON_STAGES, STAIR_CPU_STAGES, STAIR_GPU_STAGES
         report=fixture();base=copy.deepcopy(report['native_turn_diagnostics']['samples'][0]);rows=[];z=0
         for mode in ('cpu','gpu'):
             for delta in (1,-1,-1,1):
                 frame=copy.deepcopy(base);frame.update(cpu_draws=2 if mode=='cpu' else 0,gpu_draws=2 if mode=='gpu' else 0)
                 frame['callbacks'][0]['backend']=mode
                 rows.append(dict(from_z=z,to_z=z+delta,delta=delta,requested_renderer=mode,successful_present=True,
-                    action=copy.deepcopy(base),first_frame=frame,frame_stages={k:0 for k in ('full_frame_wall_ms','native_cache_cpu_ms','native_tiles_cpu_ms','perspective_callback_wall_ms','actual_present_wall_ms')}));z+=delta
-        report['stair_transition_diagnostics']=dict(schema=2,scope=STAIR_SCOPE,ordinary_performance_measurement=False,gpu_execution_measured=False,samples=rows)
+                    action=copy.deepcopy(base),first_frame=frame,frame_stages={k:0 for k in STAIR_COMMON_STAGES+(STAIR_GPU_STAGES if mode=='gpu' else STAIR_CPU_STAGES)}));z+=delta
+        report['stair_transition_diagnostics']=dict(schema=3,scope=STAIR_SCOPE,component_scope=STAIR_COMPONENT_SCOPE,ordinary_performance_measurement=False,gpu_execution_measured=False,samples=rows)
         return report
 
     def test_exact_four_cpu_and_four_gpu_transitions(self):
@@ -186,17 +186,43 @@ class StairAttributionTests(unittest.TestCase):
 
     def test_missing_mode_order_fallback_and_old_schema_rejected(self):
         from verify_turn_attribution import verify_stair_transitions
-        for kind in ('cpu_only','gpu_first','auto','cpu_fallback','gpu_fallback','schema1'):
+        for kind in ('cpu_only','gpu_first','auto','cpu_fallback','gpu_fallback','schema1','schema2'):
             report=self.report();data=report['stair_transition_diagnostics'];rows=data['samples']
             if kind=='cpu_only': data['samples']=rows[:4]
             elif kind=='gpu_first': data['samples']=rows[4:]+rows[:4]
             elif kind=='auto': rows[4]['requested_renderer']='auto'
-            elif kind=='schema1': data['schema']=1
+            elif kind in ('schema1','schema2'): data['schema']=int(kind[-1])
             else:
                 row=rows[0 if kind=='gpu_fallback' else 4];mode='gpu' if kind=='gpu_fallback' else 'cpu'
                 row['first_frame'].update(cpu_draws=2 if mode=='cpu' else 0,gpu_draws=2 if mode=='gpu' else 0)
                 row['first_frame']['callbacks'][0]['backend']=mode
             with self.subTest(kind=kind),self.assertRaises(ValueError):verify_stair_transitions(report)
+
+    def test_each_fresh_backend_component_is_required_and_bounded(self):
+        from verify_turn_attribution import verify_stair_transitions
+        for index in (0,4):
+            for key in self.report()['stair_transition_diagnostics']['samples'][index]['frame_stages']:
+                for value in (None, True, -1, float('nan'), float('inf'), 99):
+                    report=self.report();stages=report['stair_transition_diagnostics']['samples'][index]['frame_stages']
+                    if value is None: del stages[key]
+                    else: stages[key]=value
+                    with self.subTest(index=index,key=key,value=value),self.assertRaises(ValueError):verify_stair_transitions(report)
+        for mutation in ('cpu_gpu_swapped','extra_component','missing_scope','false_adjacent_scope'):
+            report=self.report();data=report['stair_transition_diagnostics']
+            if mutation=='cpu_gpu_swapped': data['samples'][0]['frame_stages']=data['samples'][4]['frame_stages'].copy()
+            elif mutation=='extra_component': data['samples'][4]['frame_stages']['gpu_execution_ms']=.0001
+            elif mutation=='missing_scope': del data['component_scope']
+            else: data['component_scope']='independent additive GPU phases'
+            with self.subTest(mutation=mutation),self.assertRaises(ValueError):verify_stair_transitions(report)
+
+    def test_overlapping_components_are_not_summed_as_frame_work(self):
+        from verify_turn_attribution import verify_stair_transitions
+        report=self.report();stages=report['stair_transition_diagnostics']['samples'][4]['frame_stages']
+        for key in stages: stages[key]=.0008
+        self.assertGreater(sum(stages.values()),.001)
+        result=verify_stair_transitions(report)
+        self.assertFalse(result['stage_components_adjacent'])
+        self.assertFalse(result['gpu_execution_measured'])
 
     def test_partial_reordered_stale_or_nonfinite_stairs_rejected(self):
         from verify_turn_attribution import verify_stair_transitions

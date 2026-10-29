@@ -31,7 +31,40 @@ void verify_indices(SDL_GPUDevice *device,const ncmm_gpu::mesh_resource &mesh,co
 }
 }
 
-int main(){
+// This mode exercises only owned CPU arrays. It must return before SDL_Init
+// and every device/window/readback path in the normal GPU qualification below.
+int material_indices_cpu_test(){
+    uint64_t checked=0,payloads=0;
+    const auto check=[&](bool value,const char *message){++checked;if(!value){std::fprintf(stderr,"CPU material indices: %s\n",message);std::exit(2);}};
+    for(uint32_t triangles:{0u,1u,2u,17u,127u,1024u})for(uint32_t count:{1u,2u,7u,64u,256u})for(uint32_t pattern=0;pattern<4;++pattern){
+        std::vector<ncmm_gpu_vertex_v1> vertices(std::max(3u,triangles*3));std::vector<uint32_t> input(triangles*3);std::vector<ncmm_gpu_material_v1> materials(count);
+        for(uint32_t t=0;t<triangles;++t){const uint32_t material=pattern==0?0:pattern==1?t%count:pattern==2?(triangles-1-t)%count:((t*1664525u+1013904223u)>>8)%count;
+            for(uint32_t n=0;n<3;++n){vertices[t*3+n].material=material;input[t*3+n]=t*3+(pattern%2?2-n:n);}}
+        ncmm_gpu_mesh_v1 source{7,vertices.data(),input.data(),materials.data(),uint32_t(vertices.size()),uint32_t(input.size()),count,0};
+        std::vector<uint32_t> order(triangles);for(uint32_t t=0;t<triangles;++t)order[t]=t;
+        std::sort(order.begin(),order.end(),[&](uint32_t a,uint32_t b){return std::make_pair(vertices[input[a*3]].material,a)<std::make_pair(vertices[input[b*3]].material,b);});
+        std::vector<uint32_t> expected;std::vector<ncmm_gpu::mesh_range> expected_ranges;
+        for(auto t:order){const auto material=vertices[input[t*3]].material;
+            if(expected_ranges.empty()||expected_ranges.back().material!=material)expected_ranges.push_back({material,uint32_t(expected.size()),0});
+            for(uint32_t n=0;n<3;++n)expected.push_back(input[t*3+n]);expected_ranges.back().count+=3;}
+        std::vector<uint32_t> output{9,8,7};std::vector<ncmm_gpu::mesh_range> ranges{{99,88,77}};
+        const auto original_indices=input;const auto original_vertices=vertices;
+        check(ncmm_gpu::material_indices(source,output,ranges),"valid CPU source");check(output==expected,"exact stable material/triangle order");
+        check(ranges.size()==expected_ranges.size(),"exact material run count");
+        for(size_t j=0;j<ranges.size();++j)check(ranges[j].material==expected_ranges[j].material&&ranges[j].first==expected_ranges[j].first&&ranges[j].count==expected_ranges[j].count,"exact material/range/length");
+        check(input==original_indices&&!std::memcmp(vertices.data(),original_vertices.data(),vertices.size()*sizeof(vertices[0])),"input callback arrays unchanged");
+        payloads+=output.size()+vertices.size();
+        if(triangles&&count>1){for(uint32_t at:{0u,triangles-1}){auto &vertex=vertices[input[at*3+1]];const auto saved=vertex.material;vertex.material=(vertices[input[at*3]].material+1)%count;
+                output={9};ranges={{1,2,3}};check(!ncmm_gpu::material_indices(source,output,ranges),"mixed triangle rejected");check(output.empty()&&ranges.empty(),"rejected input publishes no partial groups");vertex.material=saved;}}
+        output=expected;ranges=expected_ranges;const auto retained=output;input.clear();input.shrink_to_fit();vertices.clear();vertices.shrink_to_fit();check(output==retained,"indices are owned beyond callback source");
+    }
+    std::printf("CPU material indices PASS: %llu checks; %llu payload values; stable triangle/material order, empty/sparse runs, mixed-material rejection and owned output. No SDL initialization or device.\n",static_cast<unsigned long long>(checked),static_cast<unsigned long long>(payloads));
+    return 0;
+}
+
+int main(int argc,char **argv){
+    if(argc!=1){if(argc==2&&std::strcmp(argv[1],"--cpu-only")==0)return material_indices_cpu_test();return 2;}
+
     require(SDL_Init(SDL_INIT_VIDEO),"SDL initialization");
     auto *device=SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL|SDL_GPU_SHADERFORMAT_SPIRV,true,nullptr);
     require(device!=nullptr,"real GPU device; no CPU fallback");

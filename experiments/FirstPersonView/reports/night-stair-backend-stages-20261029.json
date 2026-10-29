@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "stage": 111,
+  "source_parent": "42b860a939f583e874c145ade47c476bcf8fee4e",
+  "source_files": {
+    "experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc": "10665c86d3008e97b3ba89ab6c70e5870afbb8fd5751db7e9fcbb88a3ce87dbb",
+    "experiments/FirstPersonView/tests/verify_turn_attribution.py": "e1867602b5ac415f7bb02c0409c00406d0b58958dfc2134862196fb2a7c42fdd",
+    "experiments/FirstPersonView/tests/test_verify_turn_attribution.py": "a3b409e83047e739b16a83b3af52b215c125c1df901cef6c3574c9ea41ad9d39"
+  },
+  "problem": "Eight real CPU/GPU stair partitions locate a large module first-frame cost, but only five host stages are retained per transition; the existing backend phase vectors are aggregated across unrelated actions.",
+  "change": "Copy the existing freshly appended Native/render stage vectors for each of8stairs; split geometry/resource/upload/record/submit and recording subcomponents. No new stage timers or ordinary rendering changes.",
+  "protocol": {
+    "stair_schema": 3,
+    "transitions": 8,
+    "common_stages": [
+      "full_frame_wall_ms",
+      "native_cache_cpu_ms",
+      "native_tiles_cpu_ms",
+      "perspective_callback_wall_ms",
+      "actual_present_wall_ms",
+      "world_extract_cpu_ms",
+      "world_visibility_cpu_ms",
+      "ui_composition_record_cpu_ms"
+    ],
+    "cpu_stages": [
+      "cpu_geometry_ms",
+      "cpu_raster_ms",
+      "cpu_effects_ms"
+    ],
+    "gpu_stages": [
+      "gpu_geometry_prepare_cpu_ms",
+      "gpu_resource_update_cpu_ms",
+      "gpu_upload_record_cpu_ms",
+      "gpu_commands_record_cpu_ms",
+      "gpu_submit_cpu_ms",
+      "gpu_batching_pick_cpu_ms",
+      "gpu_shadow_commands_cpu_ms",
+      "gpu_world_draw_commands_cpu_ms",
+      "gpu_creature_draw_commands_cpu_ms",
+      "gpu_held_draw_commands_cpu_ms",
+      "gpu_volume_commands_cpu_ms",
+      "gpu_compose_commands_cpu_ms"
+    ],
+    "cpu_stage_count": 11,
+    "gpu_stage_count": 20,
+    "component_scope": "fresh stages appended by this first-frame render; components can overlap and are not additive; CPU recording/submission, not GPU execution",
+    "stage_freshness": "Each vector length must increase exactly1inside that first-frame render, then the new value is copied. Missing/mismatched backend components cannot qualify.",
+    "preserved": "Existing real vertical_move cost/destination, requested first-frame backend, complete callback wall partition, camera continuity and displayed-eye visibility, render position/moves/turn/HP guards; fixture/reset/warm/easing outside capture.",
+    "no_new_stage_timers": true,
+    "ordinary_runtime_unchanged": true,
+    "gpu_execution_measured": false
+  },
+  "tests": {
+    "success": true,
+    "source_parent": "42b860a939f583e874c145ade47c476bcf8fee4e",
+    "branch": "codex/fpv-stair-frame-stages-20261029",
+    "files": {
+      "experiments/graphics_bridge/ncmm_graphics_gameplay_audit.inc": "10665c86d3008e97b3ba89ab6c70e5870afbb8fd5751db7e9fcbb88a3ce87dbb",
+      "experiments/FirstPersonView/tests/verify_turn_attribution.py": "e1867602b5ac415f7bb02c0409c00406d0b58958dfc2134862196fb2a7c42fdd",
+      "experiments/FirstPersonView/tests/test_verify_turn_attribution.py": "a3b409e83047e739b16a83b3af52b215c125c1df901cef6c3574c9ea41ad9d39"
+    },
+    "attribution_tests": 21,
+    "atomic_source_transform_tests": 96,
+    "negative_backend_component_checks": 190,
+    "cpu_stages": 11,
+    "gpu_stages": 20,
+    "stair_schema": 3,
+    "stair_transitions": 8,
+    "turn_schema3_unchanged": true,
+    "extra_stage_timers": 0,
+    "ordinary_gameplay_unchanged": true,
+    "module_and_renderers_unchanged": true,
+    "abi_unchanged": true,
+    "existing_stage108_release_and51non_device_ctest_unchanged": true,
+    "unchanged_build_ctest_not_repeated": true,
+    "native_include_compilation_and_actual_stair_capture_require_ci": true,
+    "gpu_execution_measured": false,
+    "stair_freeze_fixed": false,
+    "local_native": false,
+    "local_device": false,
+    "mouse_or_focus": false,
+    "subagents": false
+  },
+  "evidence_sha256": {
+    "night-stage111-local-tests.json": "381b074a76195e867a13740be28b877817993b035d54d7a384eb9d81436cca65",
+    "night-stage111-stair-attribution-tests.txt": "039e5fd43fcab4c7726b751b273638ceddfd5230a53dfcbc59009442a395c388",
+    "night-stage111-atomic-transform-tests.txt": "59fbf1ae0a7d5b0fc720b5adf87f3c243c5077d63f44517fae443cf7d6c50822",
+    "night-stair-stages111/source-identity.json": "6c3ab3e8342956f8e52fb2f098c98a97035c3dfdca7ffa2c787925406132b48a"
+  },
+  "limits": [
+    "Native-only compilation and actual11/20stage stair capture require full exact-head CI. Existing unchanged module Release+51non-device CTests were not repeated.",
+    "CPU preparation/record/submission components may overlap, and cannot be summed as GPU execution or independent frame time.",
+    "No ordinary RTX FPS,15ms, first-correct present or stair-freeze elimination is claimed. No local Native/device/input/mouse/focus/UAC/subagent/fullcopy."
+  ]
+}

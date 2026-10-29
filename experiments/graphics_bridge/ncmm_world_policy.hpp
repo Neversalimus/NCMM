@@ -159,6 +159,19 @@ inline uint32_t restore_terrain_stair_facts(uint32_t masked,const terrain_stair_
 }
 inline bool supported_item(uint32_t flags,bool platform=false){return platform||(flags&(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR))!=0;}
 inline auto order(const ncmm_world_cell_v1 &c){return std::make_tuple(c.z,c.y,c.x);}
+// Input is the unique finite-distance canonical Z/Y/X world traversal.
+// Stable distance sorting selects the same set as ordering by distance then
+// original canonical position. Partition that total order before sorting only
+// the retained set back into canonical order; no temporary sort buffer.
+template<class Candidate> void retain_nearest_candidates(std::vector<Candidate> &candidates,size_t maximum){
+    if(candidates.size()<=maximum)return;
+    std::nth_element(candidates.begin(),candidates.begin()+maximum,candidates.end(),[](const auto &a,const auto &b){
+        if(a.distance!=b.distance)return a.distance<b.distance;
+        return order(a.world)<order(b.world);
+    });
+    candidates.resize(maximum);
+    std::sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return order(a.world)<order(b.world);});
+}
 inline bool finite(point p){return std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z);}
 inline bool valid(const ncmm_graphics_multilevel_scene_v1 &s){
     const auto &b=s.appearance.base;

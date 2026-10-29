@@ -16,6 +16,30 @@ struct bounds {
     bool valid()const{return lo[0]<=hi[0];}
 };
 struct mesh_range {uint32_t material=0,first=0,count=0;};
+// CPU preparation consumes the already validated scene index/material IDs.
+inline bool material_indices(const ncmm_gpu_mesh_v1 &source,std::vector<uint32_t> &indices,std::vector<mesh_range> &ranges){
+    indices.clear();ranges.clear();
+    if(!source.index_count)return true;
+    // A single material already has the required stable order. Validate every
+    // triangle before publishing output, then copy directly into its owner.
+    if(source.material_count==1){
+        for(uint32_t j=0;j<source.index_count;j+=3){const auto material=source.vertices[source.indices[j]].material;
+            if(source.vertices[source.indices[j+1]].material!=material||source.vertices[source.indices[j+2]].material!=material)return false;}
+        ranges.push_back({0,0,source.index_count});indices.assign(source.indices,source.indices+source.index_count);return true;
+    }
+    std::vector<uint32_t> offsets(source.material_count,0);
+    for(uint32_t j=0;j<source.index_count;j+=3){const auto material=source.vertices[source.indices[j]].material;
+        if(source.vertices[source.indices[j+1]].material!=material||source.vertices[source.indices[j+2]].material!=material)return false;
+        offsets[material]+=3;
+    }
+    uint32_t next=0;
+    for(uint32_t material=0;material<source.material_count;++material){const uint32_t count=offsets[material];
+        offsets[material]=next;if(count){ranges.push_back({material,next,count});next+=count;}}
+    indices.resize(source.index_count);
+    for(uint32_t j=0;j<source.index_count;j+=3){const auto material=source.vertices[source.indices[j]].material;
+        std::copy_n(source.indices+j,3,indices.data()+offsets[material]);offsets[material]+=3;}
+    return true;
+}
 using vertex_contents=std::vector<ncmm_gpu_vertex_v1>;
 struct vertex_contents_less {
     bool operator()(const vertex_contents &a,const vertex_contents &b)const{
@@ -65,12 +89,8 @@ class resource_cache {
     std::string reason_;
     bool mesh_data(const ncmm_gpu_mesh_v1 &source,mesh_resource &m){
         m.cpu_vertices.assign(source.vertices,source.vertices+source.vertex_count);m.materials.assign(source.materials,source.materials+source.material_count);
-        m.ranges.clear();m.cpu_indices.clear();m.joints.clear();m.joint_count=1;
-        std::vector<std::vector<uint32_t>> groups(source.material_count);
-        for(uint32_t j=0;j<source.index_count;j+=3){uint32_t material=source.vertices[source.indices[j]].material;
-            if(source.vertices[source.indices[j+1]].material!=material||source.vertices[source.indices[j+2]].material!=material){reason_="triangle references multiple materials";return false;}
-            groups[material].insert(groups[material].end(),source.indices+j,source.indices+j+3);}
-        for(uint32_t j=0;j<groups.size();++j)if(!groups[j].empty()){m.ranges.push_back({j,uint32_t(m.cpu_indices.size()),uint32_t(groups[j].size())});m.cpu_indices.insert(m.cpu_indices.end(),groups[j].begin(),groups[j].end());}
+        m.joints.clear();m.joint_count=1;
+        if(!material_indices(source,m.cpu_indices,m.ranges)){reason_="triangle references multiple materials";return false;}
         for(const auto &vertex:m.cpu_vertices){if(m.joints.size()<=vertex.joint)m.joints.resize(vertex.joint+1);m.joints[vertex.joint].include(vertex.position);m.joint_count=std::max(m.joint_count,vertex.joint+1);
             if(vertex.flags&NCMM_GPU_BILLBOARD){const float radius=std::abs(vertex.position[0]-vertex.pivot[0]);
                 const float lo[]={vertex.pivot[0]-radius,vertex.pivot[1]-radius,vertex.position[2]},hi[]={vertex.pivot[0]+radius,vertex.pivot[1]+radius,vertex.position[2]};m.joints[vertex.joint].include(lo);m.joints[vertex.joint].include(hi);}}
