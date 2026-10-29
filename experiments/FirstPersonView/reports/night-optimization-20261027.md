@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated29 October2026, through stage111. Baseline `1284537`; working branch
-`codex/fpv-stair-frame-stages-20261029`; latest delivered release [PR231](https://github.com/Neversalimus/NCMM/pull/231).
+Updated29 October2026, through stage112. Baseline `1284537`; working branch
+`codex/fpv-material-index-scatter-20261029`; latest delivered release [PR231](https://github.com/Neversalimus/NCMM/pull/231).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -1291,6 +1291,41 @@ Actual Native compilation and eight real transition captures need full exact
 source CI. No claim of fixed stair freeze or ordinary15ms. Evidence:
 `night-stair-backend-stages-20261029.json`.
 
+## Stage112 — direct owned CPU material-index preparation
+
+The Host builds temporary index vectors for every material, grows each by
+triangle insertion, then copies all groups into final owned indices. New
+static resources and dynamic updates pay this cost; ready immutable resources
+bypass mesh_data. Validate first, then copy single-material indices directly
+or count canonical material runs and stably scatter into their owned offsets.
+Vertex/material copies and joint/billboard bounds remain exact. Hashes, buffer
+ownership/lifetimes, uploads, device API, geometry and ABI stay unchanged.
+
+Exact original-function model:4,904checks/5,115,277payload values agree with an
+independent sorted-triangle-ordinal oracle. Includes empty/sparse material runs,
+malformed mixed triangles, owned data after source replacement and billboard/
+joint bounds.3wrong-helper builds(reverse triangle order, wrong ranges, missing
+mixed-material validation)all fail the oracle. Initial private batch LF caused
+cmd to parse c++17as a command before compile; CRLF-only batch repair preserves
+initial evidence and precedes all timing. Production algorithm unchanged.
+
+One fixed7pair x12case series passes every original3%control and allocation
+guard. Example full CPU function costs: cold authored64triangle prop.003484→
+.001523ms, cold1024triangle/64material.04390→.02083ms, cold8192triangle single
+material.43651→.35824ms. Reused CPU output for64materials goes513→1allocations
+and48,384→256allocated bytes per call. Reused-buffer models describe mesh_data
+work/dynamic updates, not immutable warm-cache rendering. These savings are
+not whole-frame, upload/driver/Present/RTX measurements or a staircase fix.
+
+Actual production helper test in the existing GPU resource executable adds
+an explicit --cpu-only branch before SDL_Init. It passes2,693checks/140,580
+payload values; only this exact registered mode ran locally. Default real-GPU
+qualification body is byte-identical, and all device/readback/lease/fault tests
+remain for CI. Actual resource target compiles and96atomic transformations
+pass. No local SDL initialization/device/input/mouse/focus or Native run.
+Full current-source CI, including real device cases, is still required.
+Report/source/raw lanes: `night-material-indices-20261029.json`.
+
 ## Earlier qualification receipts retained from stage99
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
@@ -1335,15 +1370,17 @@ source CI. No claim of fixed stair freeze or ordinary15ms. Evidence:
 
 ## Remote qualification and next steps
 
-Preserve232-236exact capture heads. Latest main/installers are qualified6da.
-2351040eight stairs are strict;1807still captures.236both module suites,
-3GPU jobs and source audit pass; four actual Native jobs run. Raw236plan logs
-returned CodeReview502four times; annotations contain only provider notices,
-so no numerical plan is claimed. No CLI/log-artifact fallback.
+Keep232-237exact heads.112resource CPU change receives a separate new source
+and full CI.237bothmodules/3GPU/source pass while4Native hosts compile; its
+complete raw plan confirms full/full/native. Await fresh11CPU/20GPUstair stages
+before selecting a claimed ascent bottleneck.2351040and234bothpins primary
+stairs are strict;2351807still captures. Controlled fixture cache refresh and
+software adapter costs are not ordinary gameplay/RTX causes or causal A/B.
 
-111diagnostics use a new head and full exact-source CI. Read fresh backend
-stages to select an actual ascent bottleneck. Primary numerical JSON remains
-inventory-first, exact allowlist/shared8MiB and sequential per label. Native
-body budget remains161994bytes, with0new source-body transfers.105/107/110are
-held; no unchanged timing repeats. Continue solo overnight until user stops;
-disable same-chat heartbeat ncmm-first-person-view on an explicit stop.
+232full8passes; raw plan/required CodeReview endpoints502still prevent final
+exact package qualification. No CLI/log-artifact fallback. Latest main/TEST
+installers are qualified6da. Primary numeric JSON stays inventory-first, exact
+allowlist/shared8MiB and sequential per label. No new Native body transfer;
+161994bytes remain.105/107/110stayheld without unchanged timing reruns. Local
+device tests stay deferred under the overnight instruction; continue solo,
+without mouse/focus/input. Disable heartbeat on explicit user stop.
