@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-29",
+  "change": "Opt-in seven-pair CI-only ablation of the exact parent/current retirement backend in the same existing prepared Native Host build and fixture game.",
+  "runtime_change_from_246": false,
+  "local_game_or_device_run": false,
+  "sources_read_only": true,
+  "source_parent": "099101a259eb9af90c64caff214c0083de7af21b",
+  "observed_244_Windows_resource_peaks": {
+    "1040": {
+      "resource_wall_ms": 71.3769,
+      "vertex_create_wall_ms": 69.7328
+    },
+    "1807": {
+      "resource_wall_ms": 79.2622,
+      "vertex_create_wall_ms": 77.6806
+    }
+  },
+  "measurements_scope": "Previous source244 Microsoft Basic Render Driver / software Direct3D12 CI; not ordinary RTX4090 FPS.",
+  "new_route": {
+    "CI_only": true,
+    "requires_full_workflow_dispatch": true,
+    "new_checkout": false,
+    "new_full_game_copy": false,
+    "pairs_per_pin": 7,
+    "children_per_pin": 14,
+    "stair_transitions_per_pin": 112,
+    "GPU_stair_transitions_per_pin": 56,
+    "controlled_turns_per_pin": 364,
+    "reference_kind": "Current prepared Native Host with only the exact source244 GPU backend reconstructed by its SHA256; same current shipping module, assets, SDL and other prepared Native source bytes.",
+    "historical_complete_parent_binary": false,
+    "source_restore": "Header bytes, including TU timestamp, upstream Host/PDBs and fixture Host/config are restored even on failure; prepared source and asset digests are rechecked.",
+    "comparison": "Complete first-frame wall samples plus existing all-eight Native first-ready summary, with CPU controls, seven alternating child orders and one device descriptor. Action/frame interval sums are not relabelled as ready.",
+    "qualification_scope": "Original26-turn and schema5 eight-stair/resource gates run for every child. This route is separate from the unchanged full60/1800-second Native/UDP/soak/package qualification.",
+    "performance_admission": "Never automatic from lower resource-child time or median ratio; full end-to-end paired evidence, unchanged full original gates and source/runtime/package identity are still required."
+  },
+  "frozen_sources": {
+    "original_frozen_sources": 173,
+    "new_frozen_sources": 177,
+    "existing_173_bindings_unchanged": true,
+    "added_exact_bindings": {
+      ".github/workflows/ncmm-first-person-prototype.yml": "a065bc6b96d7981812cd3c8b4636920a8ef79eb186b87117759ce361aa20f327",
+      "experiments/FirstPersonView/tests/run_retirement_pair.py": "ca2a7f98c7646059729f6b50ef4258e873908feac6058fcdbe4aba9c42596b21",
+      "experiments/FirstPersonView/tests/verify_retirement_pair.py": "89567b299f2376bd92d093d83b8dd776441532875f9c6092c84f93407ad3b790",
+      "experiments/FirstPersonView/tests/test_verify_retirement_pair.py": "67982a9561b714666343923a54c4bfc13aa22dafd8418d25d30157dabd665096"
+    },
+    "runtime_backend_unchanged_from_246": "d8d349dd27588bdc3e1d0f0d466ac8777fd74d925dfc49d7a991025a49c97489",
+    "GPU_scratch_reference_unchanged": "c1acd15efe6ab55a895c32867c88e653f5b70054d9e9fade2454da7b2d589b6a",
+    "Native_pair_reference_distinct_purpose": "2c6a31754b82c6b1bec8b03efaffc97603132107d16b604b0ad60265bcc4f6d4",
+    "Native_input_policy_changed": false,
+    "threshold_or_timecap_increase": false,
+    "new_Native_source_body_bytes": 0
+  },
+  "performance_gain_proven": false,
+  "player_freeze_fixed": false,
+  "main_merge": false,
+  "installer_publication": false
+}

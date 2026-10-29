@@ -304,6 +304,10 @@ jobs:
             'experiments/FirstPersonView/src/volumes.inc':'928984f0bbaf7d2fb386a388a21c7d5eb0e884fdb5b3b5c55890e74c419bfdb6',
             'experiments/graphics_bridge/ncmm_gpu_resource_diagnostics.hpp':'a7f09e36af2d0bcd11da6ee055099ef7940ba37c69368bfaf688a079701a8d36',
             'experiments/FirstPersonView/tests/resource_diagnostics_test.cpp':'c2fa38a2f8561dcee4095f779e3c8b54b80bd451dc289c6342702219eeab7f75',
+            '.github/workflows/ncmm-first-person-prototype.yml':'a065bc6b96d7981812cd3c8b4636920a8ef79eb186b87117759ce361aa20f327',
+            'experiments/FirstPersonView/tests/run_retirement_pair.py':'ca2a7f98c7646059729f6b50ef4258e873908feac6058fcdbe4aba9c42596b21',
+            'experiments/FirstPersonView/tests/verify_retirement_pair.py':'89567b299f2376bd92d093d83b8dd776441532875f9c6092c84f93407ad3b790',
+            'experiments/FirstPersonView/tests/test_verify_retirement_pair.py':'67982a9561b714666343923a54c4bfc13aa22dafd8418d25d30157dabd665096',
           }
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
