@@ -68,11 +68,15 @@ public:
 
 struct entry {
     ncmm_world_cell_v1 world{};
-    ncmm_graphics_cell_v1 cell{};
-    ncmm_graphics_cell_v2 detail{};
-    ncmm_graphics_detail_v1 presentation{};
+    // Payload lifetime starts with its complete trivial assignment, before
+    // the matching ready flag is set. Anonymous unions retain trivial owned
+    // representation copies when vector growth relocates unpublished entries.
+    union { ncmm_graphics_cell_v1 cell; };
+    union { ncmm_graphics_cell_v2 detail; };
+    union { ncmm_graphics_detail_v1 presentation; };
     std::array<float,3> facade_light{};
     bool base_ready=false,detail_ready=false,presentation_ready=false,has_source_light=false;
+    entry()noexcept{} // Only permissions/light/readiness exist before publication.
 };
 struct counters {
     uint64_t generations=0,hits=0,empty_hits=0,misses=0,stored=0,budget_misses=0;

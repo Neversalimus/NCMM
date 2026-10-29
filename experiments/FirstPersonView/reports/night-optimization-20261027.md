@@ -2,8 +2,9 @@
 
 ## Current checkpoint
 
-Updated29 October2026, through stage112. Baseline `1284537`; working branch
-`codex/fpv-material-index-scatter-20261029`; latest delivered release [PR231](https://github.com/Neversalimus/NCMM/pull/231).
+Updated29 October2026, through stage123. Baseline `1284537`; working branch
+`codex/fpv-snapshot-entry-construction-20261029`; latest qualified source
+[PR235](https://github.com/Neversalimus/NCMM/pull/235), TEST `2f10c0320183`.
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -1326,6 +1327,37 @@ pass. No local SDL initialization/device/input/mouse/focus or Native run.
 Full current-source CI, including real device cases, is still required.
 Report/source/raw lanes: `night-material-indices-20261029.json`.
 
+## Stage123 — initialize retained payloads when published
+
+Native cache entries previously zeroed three payloads before their existing
+complete assignments. Anonymous unions retain inactive payload storage until
+publication, while world/permission/light facts and readiness stay initialized.
+Implicit trivial representation copies preserve ownership during vector growth;
+entry size1120bytes, layout, budget, sparse index and lifetime counters stay exact.
+All payload reads were audited behind their matching readiness flag. The original
+trivial-copy/destruction contract and all previous test assertions remain.
+
+The exact full-cache model passes3,595,785checks over418,250,648published bytes,
+including all8readiness masks, unpublished relocation, independent cache copies,
+move/assignment, generation reuse, budget misses and clear. The unmodified old
+production test also passes5608checks. The actual extended production target
+passes165,664checks, plus96atomic source transformations. Only the inspected
+CPU test ran locally; device qualification remains enabled and required in CI.
+
+One fixed7pair x14case timing experiment passes original controls and allocation
+guards. Cold9409entries: independent medians3.15255→2.78335ms;28227entries:
+7.1521→6.3818ms. Paired ratios are0.88121and0.87840respectively. Empty regresses
+8.07%paired but5.08ns absolute, within the predeclared50ns tiny-case allowance.
+Allocation counts and bytes are identical in every pair. This removes eager
+initialization; it is not a memory-budget, whole-frame/RTX/GPU/Present gain or a
+proven staircase fix. Raw lanes, protocol and scope are in
+`night-snapshot-entry-construction-20261029.json`.
+
+Independent held121/122whole-slab recipe caching remains unapplied: its stronger
+symmetric fixture still failed3warm controls. No timing retry, threshold change
+or partial acceptance.123changes retained Native snapshot entries, not the held
+geometry slab cache. Source heads232-239 remain fixed for comparison.
+
 ## Earlier qualification receipts retained from stage99
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
@@ -1370,17 +1402,26 @@ Report/source/raw lanes: `night-material-indices-20261029.json`.
 
 ## Remote qualification and next steps
 
-Keep232-237exact heads.112resource CPU change receives a separate new source
-and full CI.237bothmodules/3GPU/source pass while4Native hosts compile; its
-complete raw plan confirms full/full/native. Await fresh11CPU/20GPUstair stages
-before selecting a claimed ascent bottleneck.2351040and234bothpins primary
-stairs are strict;2351807still captures. Controlled fixture cache refresh and
-software adapter costs are not ordinary gameplay/RTX causes or causal A/B.
+Qualified source235 `2f10c03201830cc9925267b53333e2e14bb04a5e` passed all8full
+jobs and12checks, complete exact-head CodeReview plan/required gates, both exact
+installer/source/resource/license proofs and strict primary stair reports.
+Main `fc46254aa2cc79b6fe987fce7f8b4566c238b3a5` differs only by the independent
+feed/index.json and feed/rejected.json paths. Exact TEST installers1040/1807 are
+[published](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-2f10c0320183)
+with source/checksum assets and verified anonymous HEAD200 download links.
+They do not include236-239or123. Earlier releases and every live PR head remain.
 
-232full8passes; raw plan/required CodeReview endpoints502still prevent final
-exact package qualification. No CLI/log-artifact fallback. Latest main/TEST
-installers are qualified6da. Primary numeric JSON stays inventory-first, exact
-allowlist/shared8MiB and sequential per label. No new Native body transfer;
-161994bytes remain.105/107/110stayheld without unchanged timing reruns. Local
-device tests stay deferred under the overnight instruction; continue solo,
-without mouse/focus/input. Disable heartbeat on explicit user stop.
+236all8full/all12checks pass, but its own complete raw plan/required/Windows
+CodeReview endpoints502still prevent final qualification; no CLI/log-artifact
+fallback.238both Windows jobs now benchmark48; bothLinux/modules/independentGPU
+and audit pass.237Linux1040controls failed before stairs;239four Native compile
+jobs failed, and the available annotations do not establish the compiler error.
+Do not guess causes, weaken controls or repeat unchanged failed runs.
+
+123gets a separate source/PR and full current-head CI. Continue independent work
+while it runs. Primary numeric JSON stays inventory-first, exact allowlist,
+sequential per shared8MiB label. Upstream body ledger stays10,323,766of10,485,760
+bytes,161,994remaining; no new Native body transfer. Future release asset bodies
+use capped HTTPS upload, CLI metadata/auth only. Held105/107/110/116-119/121-122
+remain held. No local Native/device/SDL/input/mouse/focus/UAC or subagents;
+disable the existing overnight heartbeat only on explicit user stop.
