@@ -1533,3 +1533,18 @@ compilation pass. Actual Native/device tests remain required in fullCI. All171
 old frozen source bindings are retained and the two new source files are added.
 No local game, device, focus, mouse, UAC, profiler or subagent was used. No held
 optimization is applied or retimed. QualifiedTEST30c8926 remains current.
+
+
+## Completed retirement before allocation — unqualified candidate, 2026-10-29
+
+Source244's own Windows1040/1807 schema5 primary reports place the large resource
+wall intervals inside vertex-buffer creation spans. Static transfer creation is
+small in those captures; a static transfer pool is not justified by this evidence.
+The next experiment moves only the existing signalled-fence cleanup block to
+after the existing successful Native SDL flush and before dynamic/static mesh
+buffer allocation. All102GPU call expressions/arguments and the original cleanup
+guard/failure paths remain. No buffer/geometry/cache policy or budget changes.
+MSVC and Clang syntax-check the actual candidate backend without running SDL.
+All original full CI gates and a same-run paired first-correct-frame/first-ready
+comparison are still required. Moving time out of a resource child is not a
+performance gain, and this does not establish a fixed player-reported freeze.
