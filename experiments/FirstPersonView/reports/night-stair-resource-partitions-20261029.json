@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "source_parent": "0d8b264d0f16fffe4ae66a9fb3aadb3945497e42",
+  "purpose": "Diagnose intermittent resource preparation spikes without changing GPU resource allocation or upload policy. This is instrumentation, not a freeze repair.",
+  "evidence": {
+    "source": "0d8b264d0f16fffe4ae66a9fb3aadb3945497e42",
+    "runtime": "9da60393516530effe3e7f4a0104ff7753000062",
+    "run": 40853188006,
+    "job": 123377592082,
+    "pin": "1040",
+    "device": "Microsoft Basic Render Driver",
+    "resource_parent_wall_ms": [
+      4.1923,
+      1.749,
+      40.3156,
+      84.0932
+    ],
+    "static_upload_bytes": [
+      995328,
+      14688,
+      2160,
+      9936
+    ],
+    "static_vertex_creations": [
+      24,
+      4,
+      5,
+      8
+    ],
+    "scope": "Same-source controlled Native software-device stair fixture. Parent times include CPU work, driver/scheduling/waits; counters alone do not apportion them. No causal A/B gain or ordinary RTX FPS."
+  },
+  "change": {
+    "stair_schema": 5,
+    "exclusive_resource_wall_partitions": [
+      "other_cpu",
+      "mesh_data_cpu",
+      "texture_create",
+      "vertex_create",
+      "index_create",
+      "transfer_create",
+      "transfer_map",
+      "transfer_copy_cpu",
+      "transfer_unmap",
+      "upload_acquire",
+      "upload_record",
+      "upload_submit_release"
+    ],
+    "optional_thread_accounting": "Current thread only; coarse Windows accounting may exceed a short wall interval. Unavailable or regressing thread clocks invalidate all thread values for the packet. Wall minus thread is not reported as a measured wait.",
+    "enabled": "Thread-local binding only around the exact first GPU stair frame in the automated qualification fixture. Ordinary rendering reads a null binding, performs no new diagnostic clock calls and retains no packet.",
+    "freshness": "The existing report ordinal must advance exactly once; exactly one complete valid resource prepare is additionally required. CPU stair frames must have empty packets.",
+    "storage": "Fixed twelve-phase stack packet; scoped binding restored on every exit; failed preparations cannot become completed diagnostics.",
+    "resource_policy": "Every original SDL call, argument and order preserved, including failure/cancel/release paths. No pool, extra upload/readback, GPU call, memory budget change or delay."
+  },
+  "local_checks": {
+    "success": true,
+    "source_parent": "0d8b264d0f16fffe4ae66a9fb3aadb3945497e42",
+    "original_Native_assertions_preserved": 90,
+    "original_parser_requires_preserved": 55,
+    "original_GPU_calls_arguments_and_order_preserved": 34,
+    "parser_tests": 26,
+    "partition_model_checks": {
+      "msvc": 2819,
+      "clang": 2819
+    },
+    "syntax_only_compilers": [
+      "MSVC",
+      "Clang"
+    ],
+    "resource_phases": [
+      "other_cpu",
+      "mesh_data_cpu",
+      "texture_create",
+      "vertex_create",
+      "index_create",
+      "transfer_create",
+      "transfer_map",
+      "transfer_copy_cpu",
+      "transfer_unmap",
+      "upload_acquire",
+      "upload_record",
+      "upload_submit_release"
+    ],
+    "ordinary_diagnostic_clocks": false,
+    "local_Native": false,
+    "local_device": false,
+    "SDL_Init": false,
+    "mouse_or_focus": false,
+    "Native_source_body_bytes": 0
+  },
+  "ordinary_performance_measurement": false,
+  "stair_freeze_fixed": false,
+  "full_CI_pending": true,
+  "held_experiments": "156 identifier and149quad prototypes and all earlier HELD experiments remain unapplied. No retiming, second variant, cap/threshold override.",
+  "Native_source_body_bytes": 0,
+  "local_game": false,
+  "local_device": false,
+  "mouse_or_focus": false,
+  "UAC": false,
+  "subagents": false,
+  "local_identity_diagnostic": {
+    "issue": "Private finalizer used working-tree bytes for all171 bindings; four unchanged text files have localCRLF but canonical GitLF. Detected in the precommit source-identity receipt. No candidate commit/push/CI/admission occurred.",
+    "fixed_unchanged_paths": [
+      "experiments/FirstPersonView/reports/night-gpu-preparation-20261027.json",
+      "experiments/FirstPersonView/reports/night-floor-preparation-20261027.json",
+      "experiments/FirstPersonView/reports/night-static-boundary-preparation-20261027.json",
+      "experiments/FirstPersonView/tests/native_map_shift_fixture.cpp"
+    ],
+    "correction": "Use preserved original Git hashes for all unchanged inputs; update only actual changed paths and add two new sources. Original171 keys retained, no runtime guard relaxed.",
+    "prior": "initial-finalization/source-identity.json"
+  }
+}

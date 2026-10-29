@@ -105,7 +105,8 @@
     struct stair_sample {int from_z=0,to_z=0,delta=0;std::string requested_renderer;
         ncmm_graphics_turn_diagnostics::turn_record action,first_frame;
         std::map<std::string,double> frame_stages;
-        std::array<uint64_t,16> gpu_resource_counts{};uint64_t gpu_reports_before=0,gpu_reports_after=0;bool gpu_resources_available=false;};
+        std::array<uint64_t,16> gpu_resource_counts{};uint64_t gpu_reports_before=0,gpu_reports_after=0;bool gpu_resources_available=false;
+        ncmm_gpu_resource_diagnostics::packet resource_preparation;};
     std::vector<stair_sample> stair_samples;stair_samples.reserve(8);
 
     auto measured_native_turn=[&](int initial_enemies,int round,const char *failure){
@@ -213,6 +214,8 @@
                 std::vector<size_t> previous_counts(frame_stage_names.size());for(size_t i=0;i<frame_stage_names.size();++i)previous_counts[i]=stages[frame_stage_names[i]].size();
                 sample.gpu_reports_before=gpu_resource_reports;
                 {ncmm_graphics_turn_diagnostics::turn_capture capture(sample.first_frame,ncmm_graphics_turn_diagnostics::steady_now,true);
+                    ncmm_gpu_resource_diagnostics::binding_guard resource_capture({std::string(mode)=="gpu"?&sample.resource_preparation:nullptr,[]()->int64_t{
+                        const double seconds=ncmm_graphics_performance::thread_cpu_seconds();return seconds>=0&&seconds<9e9?int64_t(seconds*1e9):-1;}});
                     render();capture.complete();}
                 require(ncmm_graphics_turn_diagnostics::valid(sample.action)&&ncmm_graphics_turn_diagnostics::valid(sample.first_frame),"audit_stair_partition_invalid");
                 require(sample.first_frame.outer_draws&&sample.first_frame.cpu_draws+sample.first_frame.gpu_draws,"audit_stair_first_frame_missing_perspective");
@@ -223,6 +226,7 @@
                 const bool gpu_resources=sample.requested_renderer=="gpu";
                 require(sample.gpu_reports_after==sample.gpu_reports_before+(gpu_resources?1:0),"audit_stair_gpu_resource_report_not_fresh");
                 if(gpu_resources){sample.gpu_resource_counts=last_gpu_resource_counts;sample.gpu_resources_available=true;}
+                require(!gpu_resources||(sample.resource_preparation.captures==1&&sample.resource_preparation.complete&&sample.resource_preparation.valid),"audit_stair_resource_preparation_not_fresh");
                 stages["native_stair_move_wall_ms"].push_back(sample.action.wall_ns/1000000.0);
                 stages["native_stair_first_frame_wall_ms"].push_back(sample.first_frame.wall_ns/1000000.0);
                 stair_samples.push_back(std::move(sample));
@@ -327,11 +331,12 @@
         write_timing(t);report.end_object();
     }report.end_array();report.end_object();
     require(stair_samples.size()==8,"audit_stair_samples_missing");
-    report.member("stair_transition_diagnostics");report.start_object();report.member("schema",4);
+    report.member("stair_transition_diagnostics");report.start_object();report.member("schema",5);
     report.member("scope","CPU then GPU real vertical_move and first successful render/present in adjacent separate captures; fixture reset, warm-up and easing settle excluded");
     report.member("ordinary_performance_measurement",false);report.member("gpu_execution_measured",false);
     report.member("component_scope","fresh stages appended by this first-frame render; components can overlap and are not additive; CPU recording/submission, not GPU execution");
     report.member("resource_counter_scope","fresh counters from this first successful GPU frame; buffer creations/reuses/uploads are per submit, memory/pool bytes are current, frame_upload_creations_total is cumulative within backend lifetime; logical counts, not GPU execution or VRAM");
+    report.member("resource_preparation_scope","one fresh successful resource prepare in this first GPU stair frame only; exclusive wall partitions include diagnostic clock overhead; thread accounting is optional, coarse on Windows, may exceed a short wall interval and is not GPU execution or a measured wait");
     report.member("samples");report.start_array();for(const auto &s:stair_samples){report.start_object();
         report.member("from_z",s.from_z);report.member("to_z",s.to_z);report.member("delta",s.delta);report.member("requested_renderer",s.requested_renderer);
         report.member("successful_present",true);
@@ -340,6 +345,9 @@
         report.member("frame_stages");report.start_object();for(const auto &[name,value]:s.frame_stages)report.member(name,value);report.end_object();
         report.member("gpu_resources_available",s.gpu_resources_available);report.member("gpu_reports_before",s.gpu_reports_before);report.member("gpu_reports_after",s.gpu_reports_after);
         report.member("gpu_resource_counts");report.start_object();if(s.gpu_resources_available)for(size_t i=0;i<gpu_resource_names.size();++i)report.member(gpu_resource_names[i],s.gpu_resource_counts[i]);report.end_object();
+        report.member("resource_preparation");report.start_object();if(s.gpu_resources_available){const auto &p=s.resource_preparation;
+            report.member("captures",p.captures);report.member("complete",p.complete);report.member("valid",p.valid);report.member("wall_ns",p.wall_ns);report.member("thread_available",p.thread_available);report.member("thread_ns",p.thread_ns);
+            report.member("phases");report.start_object();for(size_t i=0;i<p.phases.size();++i){const auto &v=p.phases[i];report.member(ncmm_gpu_resource_diagnostics::names[i]);report.start_object();report.member("wall_ns",v.wall_ns);report.member("thread_ns",v.thread_ns);report.member("segments",v.segments);report.end_object();}report.end_object();}report.end_object();
         report.end_object();}report.end_array();report.end_object();
     const std::string original_tileset=get_option<std::string>("TILES");std::vector<std::string> tilesets{original_tileset};if(std::getenv("NCMM_FP_UDP"))tilesets.push_back("UndeadPeople_0J_Hybrid_v3");
     report.member("tilesets");report.start_array();

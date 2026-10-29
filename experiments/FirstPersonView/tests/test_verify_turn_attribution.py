@@ -169,7 +169,7 @@ class TurnAttributionTests(unittest.TestCase):
 class StairAttributionTests(unittest.TestCase):
     @staticmethod
     def report():
-        from verify_turn_attribution import STAIR_SCOPE, STAIR_COMPONENT_SCOPE, STAIR_COMMON_STAGES, STAIR_CPU_STAGES, STAIR_GPU_STAGES, STAIR_GPU_RESOURCE_KEYS, STAIR_RESOURCE_SCOPE
+        from verify_turn_attribution import STAIR_SCOPE, STAIR_COMPONENT_SCOPE, STAIR_COMMON_STAGES, STAIR_CPU_STAGES, STAIR_GPU_STAGES, STAIR_GPU_RESOURCE_KEYS, STAIR_RESOURCE_SCOPE, STAIR_RESOURCE_PREPARATION_SCOPE, STAIR_RESOURCE_PHASES
         report=fixture();base=copy.deepcopy(report['native_turn_diagnostics']['samples'][0]);rows=[];z=0
         for mode in ('cpu','gpu'):
             for delta in (1,-1,-1,1):
@@ -178,9 +178,45 @@ class StairAttributionTests(unittest.TestCase):
                 rows.append(dict(from_z=z,to_z=z+delta,delta=delta,requested_renderer=mode,successful_present=True,
                     action=copy.deepcopy(base),first_frame=frame,frame_stages={k:0 for k in STAIR_COMMON_STAGES+(STAIR_GPU_STAGES if mode=='gpu' else STAIR_CPU_STAGES)},
                     gpu_resources_available=mode=='gpu',gpu_reports_before=12,gpu_reports_after=13 if mode=='gpu' else 12,
-                    gpu_resource_counts={key:1 for key in STAIR_GPU_RESOURCE_KEYS} if mode=='gpu' else {}));z+=delta
-        report['stair_transition_diagnostics']=dict(schema=4,scope=STAIR_SCOPE,component_scope=STAIR_COMPONENT_SCOPE,resource_counter_scope=STAIR_RESOURCE_SCOPE,ordinary_performance_measurement=False,gpu_execution_measured=False,samples=rows)
+                    gpu_resource_counts={key:1 for key in STAIR_GPU_RESOURCE_KEYS} if mode=='gpu' else {},
+                    resource_preparation=dict(captures=1,complete=True,valid=True,wall_ns=120,thread_available=True,thread_ns=12,phases={k:dict(wall_ns=10,thread_ns=1,segments=1) for k in STAIR_RESOURCE_PHASES}) if mode=='gpu' else {}));
+                if mode=='gpu':rows[-1]['frame_stages']['gpu_resource_update_cpu_ms']=.00012
+                z+=delta
+        report['stair_transition_diagnostics']=dict(schema=5,scope=STAIR_SCOPE,component_scope=STAIR_COMPONENT_SCOPE,resource_counter_scope=STAIR_RESOURCE_SCOPE,resource_preparation_scope=STAIR_RESOURCE_PREPARATION_SCOPE,ordinary_performance_measurement=False,gpu_execution_measured=False,samples=rows)
         return report
+
+    def test_resource_partition_corruption_rejected(self):
+        from verify_turn_attribution import verify_stair_transitions
+        for mutation in ('missing','extra','scope','cpu','captures','complete','valid','availability','total','thread_total','missing_phase','extra_phase','bool','negative','nonfinite','overflow','no_segments','no_other','no_transfer','duplicate_transfer','no_vertex','no_index','parent'):
+            report=self.report();data=report['stair_transition_diagnostics'];row=data['samples'][4];p=row['resource_preparation']
+            if mutation=='missing':del row['resource_preparation']
+            elif mutation=='extra':p['invented']=0
+            elif mutation=='scope':data['resource_preparation_scope']='GPU execution and exact wait time'
+            elif mutation=='cpu':data['samples'][0]['resource_preparation']=copy.deepcopy(p)
+            elif mutation=='captures':p['captures']=2
+            elif mutation in ('complete','valid','availability'):p[{'availability':'thread_available'}.get(mutation,mutation)]=False
+            elif mutation=='total':p['wall_ns']+=1
+            elif mutation=='thread_total':p['thread_ns']+=1
+            elif mutation=='missing_phase':del p['phases']['texture_create']
+            elif mutation=='extra_phase':p['phases']['invented']=dict(wall_ns=0,thread_ns=0,segments=0)
+            elif mutation in ('bool','negative','nonfinite','overflow'):p['phases']['texture_create']['wall_ns']={'bool':True,'negative':-1,'nonfinite':float('nan'),'overflow':2**64}[mutation]
+            elif mutation=='no_segments':p['phases']['texture_create']['segments']=0
+            elif mutation=='no_other':p['phases']['other_cpu']['segments']=0
+            elif mutation=='no_transfer':p['phases']['transfer_map']['segments']=0
+            elif mutation=='duplicate_transfer':p['phases']['transfer_create']['segments']=2
+            elif mutation in ('no_vertex','no_index'):row['gpu_resource_counts']['static_'+mutation[3:]+'_buffer_creations']=2
+            else:p['wall_ns']=4000;p['phases']['other_cpu']['wall_ns']+=3880
+            with self.subTest(mutation=mutation),self.assertRaises(ValueError):verify_stair_transitions(report)
+
+    def test_coarse_thread_time_is_not_subtracted_from_wall(self):
+        from verify_turn_attribution import verify_stair_transitions
+        report=self.report();p=report['stair_transition_diagnostics']['samples'][4]['resource_preparation']
+        p['thread_ns']=12000000
+        for part in p['phases'].values():part['thread_ns']=1000000
+        self.assertTrue(verify_stair_transitions(report)['success'])
+        p['thread_available']=False;p['thread_ns']=0
+        for part in p['phases'].values():part['thread_ns']=0
+        self.assertTrue(verify_stair_transitions(report)['success'])
 
     def test_exact_four_cpu_and_four_gpu_transitions(self):
         from verify_turn_attribution import verify_stair_transitions
@@ -188,12 +224,12 @@ class StairAttributionTests(unittest.TestCase):
 
     def test_missing_mode_order_fallback_and_old_schema_rejected(self):
         from verify_turn_attribution import verify_stair_transitions
-        for kind in ('cpu_only','gpu_first','auto','cpu_fallback','gpu_fallback','schema1','schema2','schema3'):
+        for kind in ('cpu_only','gpu_first','auto','cpu_fallback','gpu_fallback','schema1','schema2','schema3','schema4'):
             report=self.report();data=report['stair_transition_diagnostics'];rows=data['samples']
             if kind=='cpu_only': data['samples']=rows[:4]
             elif kind=='gpu_first': data['samples']=rows[4:]+rows[:4]
             elif kind=='auto': rows[4]['requested_renderer']='auto'
-            elif kind in ('schema1','schema2','schema3'): data['schema']=int(kind[-1])
+            elif kind in ('schema1','schema2','schema3','schema4'): data['schema']=int(kind[-1])
             else:
                 row=rows[0 if kind=='gpu_fallback' else 4];mode='gpu' if kind=='gpu_fallback' else 'cpu'
                 row['first_frame'].update(cpu_draws=2 if mode=='cpu' else 0,gpu_draws=2 if mode=='gpu' else 0)
