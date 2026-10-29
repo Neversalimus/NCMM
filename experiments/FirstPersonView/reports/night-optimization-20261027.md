@@ -1548,3 +1548,16 @@ MSVC and Clang syntax-check the actual candidate backend without running SDL.
 All original full CI gates and a same-run paired first-correct-frame/first-ready
 comparison are still required. Moving time out of a resource child is not a
 performance gain, and this does not establish a fixed player-reported freeze.
+
+
+## Reference checksum for the reordered backend — 2026-10-29
+
+The245Linux andClang sanitizer GPU units passed before the scratch comparison
+stopped at its exact reference checksum. Reconstructing the original reference
+from244still gives the previous checksum. The245reference differs only by the
+same reviewed cleanup-block movement and comment; its exact checksum is updated.
+All12assertions, reconstruction statements and image/device/sanitizer gates stay
+unchanged.13numeric manifest tests and3wrong/altered checksum controls pass.
+The runtime backend and shaders do not change in this follow-up. The original
+performance experiment still needs full qualification and paired end-to-end
+evidence; no pixel, player-freeze or speed improvement is inferred.
