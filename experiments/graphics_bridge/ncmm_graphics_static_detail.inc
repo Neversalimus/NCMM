@@ -29,3 +29,34 @@ bool graphics_populate_static_detail(map &here,const tripoint_bub_ms &p,ncmm_gra
     }
     return true;
 }
+
+// Appearance is published only after this pass. Use the canonical sparse XYZ
+// list directly; an indexed adapter would inspect the still-empty appearance.
+// Only already-visible snapshot cells may supply a substrate texture.
+template<class CopyId>
+void graphics_populate_substrates(const ncmm_graphics_scene_v1 &base,std::vector<ncmm_graphics_cell_v2> &details,
+    const ncmm_graphics_multilevel_scene_v1 *world,CopyId copy_id)
+{
+    const ncmm_world::coordinates world_coordinates(world);
+    for( size_t i = 0; i < base.cell_count; ++i ) {
+        if( !( base.cells[i].flags & NCMM_GFX_VISIBLE ) || !ncmm_graphics_shapes::vertical( details[i].terrain_shape ) ) continue;
+        const int gx=world?int(int64_t(world->coordinates[i].x)-world->origin_x):int(i)%base.grid_width,
+                  gy=world?int(int64_t(world->coordinates[i].y)-world->origin_y):int(i)/base.grid_width;
+        for( const auto delta : std::array<std::array<int,2>,4>{{{{0,1}},{{0,-1}},{{1,0}},{{-1,0}}}} ) {
+            const int nx = gx + delta[0], ny = gy + delta[1];
+            if( nx < 0 || ny < 0 || nx >= base.grid_width || ny >= base.grid_height ) continue;
+            const int other=world?world_coordinates.find(nx,ny,world->coordinates[i].z):ny*base.grid_width+nx;if(other<0)continue;
+            const size_t j=size_t(other);
+            if( !( base.cells[j].flags & NCMM_GFX_VISIBLE ) || ncmm_graphics_shapes::vertical( details[j].terrain_shape ) ||
+                ( base.cells[j].flags & NCMM_GFX_NO_FLOOR ) ) continue;
+            const uint32_t shape = details[i].terrain_shape;
+            const bool plant = shape == NCMM_SHAPE_TREE || shape == NCMM_SHAPE_SHRUB || shape == NCMM_SHAPE_PLANT;
+            const std::string ground = base.cells[j].terrain;
+            if( plant && !ncmm_graphics_shapes::contains( ground, "dirt" ) && !ncmm_graphics_shapes::contains( ground, "grass" ) &&
+                !ncmm_graphics_shapes::contains( ground, "sand" ) && !ncmm_graphics_shapes::contains( ground, "water" ) &&
+                !ncmm_graphics_shapes::contains( ground, "fungus" ) ) continue;
+            std::fill( std::begin( details[i].ground ), std::end( details[i].ground ), '\0' );
+            copy_id( details[i].ground, ground ); break;
+        }
+    }
+}

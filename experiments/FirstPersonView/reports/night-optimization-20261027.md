@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage97. Baseline `1284537`; working branch
-`codex/fpv-snapshot-growth-cap-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
+Updated28 October2026, through stage98. Baseline `1284537`; working branch
+`codex/fpv-visible-substrate-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -25,7 +25,7 @@ as main `b3b6e24297be9fedad4816ec56f3970fe06858cb`, exact tree `e0e8052bbd14e072
 Its two checked TEST installers are [published separately](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-cdb929b3453a).
 All38 payloads/106 copied Native inputs/171 frozen sources and104 resource
 sources match. Anonymous installerHEAD200/length checks pass. The prior A9
-release remains available. Drafts226–229 retain exact source heads and their
+release remains available. Drafts226–230 retain exact source heads and their
 ongoing full captures. Neither the new growth candidate nor those drafts is
 included in the CDB archives.
 
@@ -948,6 +948,43 @@ ordinary movement/shooting stalls or15ms evidence.
 
 Numeric proof: `night-snapshot-growth-cap-20261028.json`.
 
+## Stage98 — restore visible substrate neighbours and remove a duplicate copy
+
+The Host assembled sparse XYZ coordinates before attaching `world.appearance`.
+An indexed lookup created in that interval read a zero-width grid and rejected
+the scene. Consequently the vertical-terrain substrate pass could never select
+a visible neighbouring floor. Move that existing pass into the already copied
+static-detail include and use its canonical sparse coordinate list directly.
+Only snapshot-visible cells on the same Z supply a texture; no Native map
+query, FOV rule, candidate budget, world ordering or ABI changes.
+
+The helper regression independently builds its expected result from an
+absolute-XYZ map:163623 complete-detail/priority checks across384 sparse and
+legacy scenes plus8 explicit visibility/order cases. Appearance-unbound and
+bound results agree. Reintroducing the indexed lookup, accepting an invisible
+neighbour, using another Z or reversing priority each fails. The first private
+build omitted six unrelated test fixture translation units and failed at link;
+its output is retained. The focused helper runner and full linked target pass.
+
+Reuse the selected owned string for its final copy. Against the **already
+corrected pass**,9 alternating pairs x12 workloads show city9409 .41447→.31760ms,
+trees9409 .45554→.40649ms, city28227 1.67089→1.33079ms and trees65536
+7.06198→5.66968ms; median paired ratios.78841/.85645/.82274/.80285.
+Long-ID temporary allocations halve:4518→2259 for9409 city and41932→20966
+for65536 trees. Full detail bytes agree for every benchmark output.
+All-flat9409 regresses1.42% paired; all prescribed controls pass. These are
+transient allocations and a CPU helper model, not RSS/VRAM or game-frame gains.
+The prior broken pass skipped valid work and produced different output, so its
+lower skipped-work cost cannot be an equivalent optimization baseline.
+
+Release build,51 non-device CTests(23.94s),96 atomic two-pin source-transform
+tests and the final four negative controls pass. Renderer/assets/device code
+is unchanged. No local Native/input/device test, mouse capture, background-game
+change, subagent or new game copy. Full exact-source Native CI is pending;
+published A9/CDB installers remain unchanged.
+
+Numeric proof: `night-visible-substrate-20261028.json`.
+
 ## Remote qualification and next steps
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
@@ -989,8 +1026,10 @@ Numeric proof: `night-snapshot-growth-cap-20261028.json`.
   setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
   protected PR223 full48 remains unchanged until its final logs are retained.
 
-Next: qualify Native growth separately while preserving the exact active
-PR226/227/228/229 heads and both published A9/CDB installer bytes. All
+Next: qualify the visible-substrate correction separately while preserving
+the exact active PR226/227/228/229/230 heads and both published A9/CDB installer
+bytes. At59f2b5e(PR230), both module suites and all3 GPU jobs pass; complete
+current-source Native gates remain pending. All
 prior meaningful Native captures keep running. Continue measured transfer and
 turn-latency work after the new functional gates; helper/model wins are not
 ordinary-game or15ms proof. CI logs remain CodeReview-only at the current PR

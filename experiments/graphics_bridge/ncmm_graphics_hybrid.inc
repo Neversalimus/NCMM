@@ -386,7 +386,6 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     detail_loan.reserve(base.cell_count);detail_loan.resize(base.cell_count);
     std::map<const vehicle *, uint32_t> groups;
     std::map<const vehicle *, std::pair<float, float>> vehicle_anchors;
-    const ncmm_world::coordinates world_coordinates(world,true);
     ncmm_world::definition_cache terrain_shapes,furniture_shapes;
     auto terrain_shape=[&](const ter_t &definition){return terrain_shapes.get(reinterpret_cast<std::uintptr_t>(&definition),[&]{
         return uint32_t(ncmm_graphics_shapes::terrain(definition.id.str()+" "+definition.looks_like,graphics_traits(definition,!definition.close.is_null())));});};
@@ -496,29 +495,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
             }
         }
     }
-    // Separate the substrate from vertical terrain. Choose a matching visible
-    // neighboring floor, never querying an unseen tile's ID for this purpose.
-    for( size_t i = 0; i < base.cell_count; ++i ) {
-        if( !( base.cells[i].flags & NCMM_GFX_VISIBLE ) || !ncmm_graphics_shapes::vertical( details[i].terrain_shape ) ) continue;
-        const int gx=world?int(int64_t(world->coordinates[i].x)-world->origin_x):int(i)%base.grid_width,
-                  gy=world?int(int64_t(world->coordinates[i].y)-world->origin_y):int(i)/base.grid_width;
-        for( const point delta : { point( 0, 1 ), point( 0, -1 ), point( 1, 0 ), point( -1, 0 ) } ) {
-            const int nx = gx + delta.x, ny = gy + delta.y;
-            if( nx < 0 || ny < 0 || nx >= base.grid_width || ny >= base.grid_height ) continue;
-            const int other=world?world_coordinates.find(nx,ny,positions[i].z()):ny*base.grid_width+nx;if(other<0)continue;
-            const size_t j=size_t(other);
-            if( !( base.cells[j].flags & NCMM_GFX_VISIBLE ) || ncmm_graphics_shapes::vertical( details[j].terrain_shape ) ||
-                ( base.cells[j].flags & NCMM_GFX_NO_FLOOR ) ) continue;
-            const uint32_t shape = details[i].terrain_shape;
-            const bool plant = shape == NCMM_SHAPE_TREE || shape == NCMM_SHAPE_SHRUB || shape == NCMM_SHAPE_PLANT;
-            const std::string ground = base.cells[j].terrain;
-            if( plant && !ncmm_graphics_shapes::contains( ground, "dirt" ) && !ncmm_graphics_shapes::contains( ground, "grass" ) &&
-                !ncmm_graphics_shapes::contains( ground, "sand" ) && !ncmm_graphics_shapes::contains( ground, "water" ) &&
-                !ncmm_graphics_shapes::contains( ground, "fungus" ) ) continue;
-            std::fill( std::begin( details[i].ground ), std::end( details[i].ground ), '\0' );
-            copy_id( details[i].ground, base.cells[j].terrain ); break;
-        }
-    }
+    graphics_populate_substrates(base,details,world,copy_id);
     ncmm_graphics_environment_v2 env = {};
     const auto sun = sun_azimuth_altitude( calendar::turn );
     auto direction = []( const std::pair<units::angle, units::angle> &angles ) {
