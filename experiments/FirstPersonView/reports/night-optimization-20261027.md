@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated29 October2026, through stage112. Baseline `1284537`; working branch
-`codex/fpv-material-index-scatter-20261029`; latest delivered release [PR231](https://github.com/Neversalimus/NCMM/pull/231).
+Updated29 October2026, through stage113. Baseline `1284537`; working branch
+`codex/fpv-mouse-delivery-evidence-20261029`; latest delivered release [PR231](https://github.com/Neversalimus/NCMM/pull/231).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -1326,6 +1326,35 @@ pass. No local SDL initialization/device/input/mouse/focus or Native run.
 Full current-source CI, including real device cases, is still required.
 Report/source/raw lanes: `night-material-indices-20261029.json`.
 
+## Stage113 — retain primary numeric evidence for a failed input check
+
+PR237Linux1040compiled successfully, then exited191in the unchanged controls
+fixture at sdl_mouse_motion_did_not_rotate_camera after2frames. Exact primary
+failure JSON and106copiedNative inputs are verified. The fixture is identical
+to236, and the per-stair gameplay probe was never reached. Actual yaw was not
+retained. This does not establish an input root cause or implicate112.
+
+Retain24numeric/boolean fields in the existing primary smoke JSON: observed
+and expected yaw delta, deferred motion, sensitivity, SDL enqueue outcome,
+ownership/focus/UI/relative-capture state and wake outcome. Worker counters
+are atomic snapshots before join; all Native state reads remain on main.
+No extra events, motion retries, dispatches or deadlines. All136original hard
+requirements, including exact.3radian rotation with.001tolerance, survive.
+Ordinary gameplay, renderers, assets, ABI and copied input count stay intact.
+
+Exact extracted standard-C++formatter passes4cases(unreached, successful,
+deferred/missing rotation and nonfinite state), without SDL/device/input.
+Nonfinite values are explicitly marked; the original hard failure remains.
+Initial private validator miscounted26rather than24keys; preserved its source
+and4outputs, corrected only the expected set and reused those same outputs.
+96atomic transformations pass. Actual Native compilation/event delivery still
+requires full exact-source CI. No unchanged failed test rerun or weakened guard.
+
+Both235pins now strictly retain8CPU/GPUstairs and26Native turns each, including
+source/runtime identity and106copied inputs. Software-adapter first-frame and
+Present costs are diagnostic only; no ordinary RTX FPS/15ms/stairfix or causal
+cross-run speedup. Report: `night-mouse-delivery-evidence-20261029.json`.
+
 ## Earlier qualification receipts retained from stage99
 
 - CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
@@ -1370,17 +1399,17 @@ Report/source/raw lanes: `night-material-indices-20261029.json`.
 
 ## Remote qualification and next steps
 
-Keep232-237exact heads.112resource CPU change receives a separate new source
-and full CI.237bothmodules/3GPU/source pass while4Native hosts compile; its
-complete raw plan confirms full/full/native. Await fresh11CPU/20GPUstair stages
-before selecting a claimed ascent bottleneck.2351040and234bothpins primary
-stairs are strict;2351807still captures. Controlled fixture cache refresh and
-software adapter costs are not ordinary gameplay/RTX causes or causal A/B.
+Preserve232-238exact heads;113diagnostic receives a new branch and full CI.
+238LinuxGPU/ClangASANUBSAN/sourceaudit andWindowsmodule pass; full Native and
+remaining device/module checks continue. Complete raw plan requires full/
+full/native.237Windows Native compiles pass; Linux1040controls failure above
+remains unqualified. Await fresh11CPU/20GPUper-stair components before claiming
+an ascent bottleneck or fix.235bothpins and234bothpins early primary are strict.
 
-232full8passes; raw plan/required CodeReview endpoints502still prevent final
-exact package qualification. No CLI/log-artifact fallback. Latest main/TEST
-installers are qualified6da. Primary numeric JSON stays inventory-first, exact
-allowlist/shared8MiB and sequential per label. No new Native body transfer;
-161994bytes remain.105/107/110stayheld without unchanged timing reruns. Local
-device tests stay deferred under the overnight instruction; continue solo,
-without mouse/focus/input. Disable heartbeat on explicit user stop.
+232full8passes but its raw plan/required CodeReview502still block final source/
+package qualification;236Windows qualification continues. Latest main/TEST is
+qualified6da. No CLI CI logs or log-artifact fallback. Numerical JSON stays
+inventory-first/exactallowlist/shared8MiB/sequential per label. Native body
+ledger remains161994B,0newtransfer.105/107/110held without unchanged retries.
+Continue solo overnight without localgame/device/input/mouse/focus/UAC. Disable
+the existing heartbeat on explicit user stop.

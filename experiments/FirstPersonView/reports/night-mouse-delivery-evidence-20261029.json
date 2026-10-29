@@ -1,0 +1,220 @@
+{
+  "schema": 1,
+  "stage": 113,
+  "source_parent": "d5ece2b66558bcb5d27e2d44f8f8808d2cf4251e",
+  "source_files": {
+    "experiments/graphics_bridge/ncmm_graphics_smoke.inc": "e87c9a6fe0d7113893a8fb58fed0b58c44b167bd3e99304559b02c6159f924dd"
+  },
+  "trigger": {
+    "source": "a4985da025ae2e42aad328713eaa329c805274a0",
+    "run": 40796509939,
+    "job": 123194224099,
+    "artifact": 12864479826,
+    "exit_code": 191,
+    "reason": "sdl_mouse_motion_did_not_rotate_camera",
+    "checks": 56,
+    "frames": 2,
+    "code_review_log_truncated": true,
+    "shared_native_inputs_verified": 106,
+    "controls_fixture_byte_identical_to_parent": true,
+    "per_stair_probe_not_reached": true,
+    "selected_json_hashes": {
+      "linux-native-results/evidence/controls/first-person-smoke.json": "be9237c4dab90df0405f48a73aa58d55cbc864c1ca50396cf439cb0530709ad9",
+      "linux-native-results/evidence/controls/gameplay-smoke.json": "0271306c6b1e1b307aaf811b737df737223fe4546a287c9f7ebccca87cfb98e8",
+      "linux-native-results/evidence/controls/first-person-deferred-options.json": "f6022a32fe9d01c0810d01392e213fa113a3e96cea5a27cc4ea6f57c5934df65",
+      "linux-native-results/process-results.json": "d53fb5722df597c9d70f782c7041fb13d74c1ea9e72a84e6b2eaa449500a98f4",
+      "upstream/first-person-source.json": "3c04bde1ef91eff7a06bcb0e38991763ebaa9099f2a4517f3ec9396bb16af439"
+    },
+    "primary_failure_identity_sha256": "be7ffe64cb6a5c9cb92ff0548e978c0eed8a0d470756cfd76e2498a8926adb32"
+  },
+  "problem": "The unchanged Linux1040controls fixture reports only that the camera did not reach the required yaw. It does not retain actual yaw, deferred motion, capture state or whether SDL admitted the attempted motion, so the cause cannot be established from its primary JSON.",
+  "change": "Add24numeric/boolean fields under mouse_delivery in the same existing primary smoke JSON. Main-thread snapshots retain before/after/final yaw, deferred dx/dy, sensitivity, input ownership/focus/UI/relative capture state and wake outcome. The worker only increments atomic counters around the existing one SDL_PushEvent call. No new event, retry, callback, deadline, dispatch or acceptance behavior.",
+  "requirements": {
+    "all136original_requirements_unchanged": true,
+    "rotation_delta_radians": 0.3,
+    "rotation_tolerance_radians": 0.001,
+    "input_attempts": 52,
+    "worker_deadline_ms": 12000,
+    "one_motion_policy_unchanged": true,
+    "native_no_turn_checks_unchanged": true,
+    "ordinary_gameplay_and_renderers_unchanged": true,
+    "abi_and_native_input_count_unchanged": true,
+    "all_full_qualification_guards_preserved": true
+  },
+  "limits": [
+    "Diagnostic only. No causal rotation fix, gameplay performance gain or stair freeze fix is claimed.",
+    "The original failure precedes both the per-stair gameplay probe and material-index optimization. The unchanged fixture byte identity does not prove a root cause or prove unrelated gameplay correct.",
+    "Atomic counters/wait bits are snapshots before worker join, not an event processing trace. Native camera/capture observations remain on the main thread. Values are reported on failure too.",
+    "Nonfinite camera values serialize as zero with finite_numeric_state=false; the original finite/rotation failure is not hidden or accepted.",
+    "Local executable exercises only the exact extracted standard-C++ declaration/writer. Actual Native compilation and SDL event delivery remain for full exact-head remote CI. No local SDL initialization/device/game/input/mouse/focus/UAC/subagent."
+  ],
+  "local_validation": {
+    "success": true,
+    "source_parent": "d5ece2b66558bcb5d27e2d44f8f8808d2cf4251e",
+    "branch": "codex/fpv-mouse-delivery-evidence-20261029",
+    "files": {
+      "experiments/graphics_bridge/ncmm_graphics_smoke.inc": "e87c9a6fe0d7113893a8fb58fed0b58c44b167bd3e99304559b02c6159f924dd"
+    },
+    "diagnostic_json_cases": 4,
+    "diagnostic_fields": 24,
+    "atomic_transform_tests": 96,
+    "original_hard_requirements_unchanged": 136,
+    "exact_rotation_tolerance_unchanged": true,
+    "input_sequence_deadline_attempt_limits_unchanged": true,
+    "no_new_native_input": true,
+    "abi_unchanged": true,
+    "ordinary_gameplay_unchanged": true,
+    "root_cause_unproven": true,
+    "local_device": false,
+    "local_SDL_Init": false,
+    "local_game": false,
+    "mouse_or_focus": false,
+    "subagents": false,
+    "formatter_checks": {
+      "success": true,
+      "cases": 4,
+      "fields_per_case": 24,
+      "scenarios": [
+        "unreached",
+        "expected_rotation",
+        "missing_rotation_with_deferred_motion",
+        "nonfinite_state"
+      ],
+      "serializer_is_exact_candidate_block": true,
+      "requirements_unchanged": 136,
+      "device": false,
+      "SDL_Init": false,
+      "local_game": false,
+      "input_events": false,
+      "formatter_sha256": "7984879244bfc4b99ef1a723674ffa8fa74a53c50b1af9aedbc1168f8285805c",
+      "output_sha256": "5ed34662780cdbd16133b0f0a8334c794ca37d32eaebf25c709b8cf43e22c2e9",
+      "source_identity": {
+        "success": true,
+        "source_parent": "d5ece2b66558bcb5d27e2d44f8f8808d2cf4251e",
+        "path": "experiments/graphics_bridge/ncmm_graphics_smoke.inc",
+        "original_sha256": "99462b628215ce187ddef21086403ba8feaf53dace3b7e2a1c35f2abf98b38f2",
+        "candidate_sha256": "e87c9a6fe0d7113893a8fb58fed0b58c44b167bd3e99304559b02c6159f924dd",
+        "declaration_sha256": "bca5aec931dfcdd34abe7df42ada3862a5fe4a811a62f3540c014bb83fab60da",
+        "writer_sha256": "c69b74f7c3f2cffb4e7b5d8439ba342737f7750870f27608cbff09cdf18e334b",
+        "requirements_byte_identical": true,
+        "requirements": 136,
+        "deadlines_and_attempt_limits_unchanged": true,
+        "one_motion_retry_policy_unchanged": true,
+        "input_sequence_unchanged": true,
+        "ordinary_gameplay_unchanged": true,
+        "diagnostic_not_a_fix": true,
+        "local_device": false,
+        "subagents": false
+      }
+    },
+    "preparation": "Private formatter validator initially counted26fields, but the exact intended key set contains24. Preserved initial validator and all4outputs; corrected only the expected key set and reused the original output without re-executing the candidate."
+  },
+  "newly_verified_primary_stairs": {
+    "1040": {
+      "source": "2f10c03201830cc9925267b53333e2e14bb04a5e",
+      "runtime": "431530f08c6eeb5e13ad517a2d505bb6e0be851c",
+      "run": 40784341527,
+      "artifact": 12862647575,
+      "transitions": 8,
+      "shared_inputs": 106,
+      "software_ci_only": true,
+      "selected_json_sha256": {
+        "first-person-gameplay-audit.json": "5fb722c55efdf70e4d9e238e38d9c565a06722ea25229b28f4d263e63f66f231",
+        "first-person-gameplay-provenance.json": "6ee6dbeef3d1581ba37d1e6b5bb83e8dc15534554ecb049a48077ceefcd810c9",
+        "first-person-gameplay-verified.json": "15f4913f2931309d5ec205b73fb2f43f05b80934b1b61a7485a7e814d74c23a5",
+        "first-person-gameplay-process-result.json": "e34e7447ced8a36b09cb9249fc58dd94fc329cac3b39f19c9411ab9cd2bd1477",
+        "first-person-gameplay-source.json": "0f27a361fe83faba9fd585c1e76555e3a36707cd15d7b0dc9d0e900feee19026"
+      },
+      "first_frame_ms": [
+        85.371,
+        117.2499,
+        97.5413,
+        59.1827,
+        234.1926,
+        314.0783,
+        204.5287,
+        354.4505
+      ],
+      "module_wall_ms": [
+        44.0432,
+        72.5136,
+        64.6781,
+        23.9161,
+        155.0742,
+        168.2329,
+        107.4183,
+        84.4843
+      ],
+      "actual_present_ms": [
+        0.4689,
+        0.4426,
+        0.5009,
+        0.448,
+        29.1421,
+        0.3048,
+        26.3936,
+        219.5104
+      ]
+    },
+    "1807": {
+      "source": "2f10c03201830cc9925267b53333e2e14bb04a5e",
+      "runtime": "431530f08c6eeb5e13ad517a2d505bb6e0be851c",
+      "run": 40784341527,
+      "artifact": 12864419013,
+      "transitions": 8,
+      "shared_inputs": 106,
+      "software_ci_only": true,
+      "selected_json_sha256": {
+        "first-person-gameplay-audit.json": "667d033afd050eaddb362f7f63f2f665926380c56cce5b330f547f33f9a9a5ea",
+        "first-person-gameplay-provenance.json": "c07959ebbd160280e0bec1704897b9be75bc2bcedbada87517f8f75723c3a863",
+        "first-person-gameplay-verified.json": "ce5de4d0e82ec3b3dae4c3a7c36b7d999fc70a4913a07fdbdd442b986e191c11",
+        "first-person-gameplay-process-result.json": "5c0967c902506545ef8c2576c8e7f7b6a3c9601b683439a140baddfc539f425b",
+        "first-person-gameplay-source.json": "07a18e34ba7a8dff85b7052aa9e96f690729399d6dae0da2cea4bb0634b58039"
+      },
+      "first_frame_ms": [
+        125.3438,
+        158.1505,
+        134.0764,
+        77.1102,
+        272.8644,
+        342.1441,
+        324.4199,
+        155.7009
+      ],
+      "module_wall_ms": [
+        69.393,
+        93.8314,
+        93.9773,
+        30.7296,
+        158.2731,
+        147.8314,
+        115.6783,
+        69.1647
+      ],
+      "actual_present_ms": [
+        0.5213,
+        0.5117,
+        0.5199,
+        0.5518,
+        41.8395,
+        87.8132,
+        45.824,
+        19.9441
+      ]
+    }
+  },
+  "stair_limits": "Both235pins preserve eight CPU/GPU transitions and26turns. These controlled fixtures forcibly refresh map caches and use software GPU. No causal cross-pin/run A/B, ordinary-play cache-miss conclusion, RTX4090FPS or15ms claim. Await237/238fresh11CPU/20GPUbackend stages.",
+  "unchanged_main_test_source": "6da17a35142a02ebd3ea299f71a10eff59a50100",
+  "upstream_body_transfer": 0,
+  "upstream_body_bytes_remaining": 161994,
+  "evidence_sha256": {
+    "night-mouse-evidence113/source-identity.json": "2626efb561f928d192cd7254f79633d4e806a827328f7995c89af55b9c2e8bba",
+    "night-mouse-evidence113/formatter.cpp": "7984879244bfc4b99ef1a723674ffa8fa74a53c50b1af9aedbc1168f8285805c",
+    "night-mouse-evidence113/formatter-output.jsonl": "5ed34662780cdbd16133b0f0a8334c794ca37d32eaebf25c709b8cf43e22c2e9",
+    "night-mouse-evidence113/checks.json": "2865e4bff48bf6f7ddec162d941a5257c01036ab3f772c3db7fdf3a4e2c43597",
+    "night-mouse-evidence113/validator-repair.json": "71b240e2ec9c21db4a7d325c242d3f65c53b33f4e2ac1c502f400336af347e97",
+    "night-stage113-local-tests.json": "4108215a838080408b543ab8e30f98ddaed1b7aad1cbf8bae2fd1896d323ac16",
+    "night-stage113-atomic-transform-tests.txt": "bff0613170d9ac85aa8e301d5412c4dfe969687cbb4807226dae072e946cf39c",
+    "night-turn-2f10c03/strict-early-turn-1807.json": "7faea081024f8ee9db10312e53593fb336f2ca5defad619ac5e7e301a1efcba4"
+  }
+}
