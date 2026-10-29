@@ -1,0 +1,214 @@
+{
+  "schema": 1,
+  "stage": 129,
+  "source_parent": "30c89263fc572992ac4ec80fe765efda45575c03",
+  "failed_head": "309a22cd87f64bed12d0c9aa5bd111af02a38c70",
+  "failed_PR": 239,
+  "failed_run": 40802104220,
+  "failed_windows_job": 123212417348,
+  "problem": "Native enum_traits.h exposes an unconstrained global prefix operator++. The new std::atomic<uint32_t> prefix increments instantiate enum_traits<std::atomic<unsigned int>> in the real Native context; the earlier isolated compile omitted this header.",
+  "change": "Use explicit atomic.fetch_add(1) for exactly the two diagnostic enqueue counters; default sequentially-consistent ordering, event call, success condition, worker/wait/rotation guards and all other239bytes stay identical.",
+  "source_file": "experiments/graphics_bridge/ncmm_graphics_smoke.inc",
+  "source_file_sha256": "c87d57d5c5394e0d13386c994660b7376f41362c6f94a739d28ee7b7628bb2b4",
+  "source_proof": {
+    "recorded_utc": "2026-10-29T07:54:35.580183+00:00",
+    "source_parent": "30c89263fc572992ac4ec80fe765efda45575c03",
+    "failed_head": "309a22cd87f64bed12d0c9aa5bd111af02a38c70",
+    "failed_PR": 239,
+    "failed_run": 40802104220,
+    "failed_windows_job": 123212417348,
+    "code_review_annotations_sha256": "5790edd9b6bdf776d9e7a7299aef1e23503580ea31833fe99016ba5be1e4196d",
+    "native_headers": [
+      {
+        "pin": "074aa98bd5be3de4c35f154082db32a0e63bb0f1",
+        "blob": "816d52c5bc2186843cd5f6cd4c24cb8bc3dd943d",
+        "bytes": 3667,
+        "sha256": "b9ddf49c47c536b3884ef635a89f681d8cea66516feac861d6adaffd9098772f",
+        "source": "src/enum_traits.h",
+        "local_existing_Git_object_only": true
+      }
+    ],
+    "problem": "Native enum_traits.h exposes an unconstrained global prefix operator++. The new std::atomic<uint32_t> prefix increments instantiate enum_traits<std::atomic<unsigned int>> in the real Native context; the earlier isolated compile omitted this header.",
+    "correction": "Use explicit atomic.fetch_add(1) for exactly the two diagnostic enqueue counters; default sequentially-consistent ordering, event call, success condition, worker/wait/rotation guards and all other239bytes stay identical.",
+    "failed_source_sha256": "e87c9a6fe0d7113893a8fb58fed0b58c44b167bd3e99304559b02c6159f924dd",
+    "candidate_source_sha256": "c87d57d5c5394e0d13386c994660b7376f41362c6f94a739d28ee7b7628bb2b4",
+    "old_and_fixed_translation_units": {
+      "failed": "14fc9a98fe07505d430c089994cc9bd2d86d30755bd6a7283c7ce93f7c8b160d",
+      "corrected": "09217d951311dc04c00e7bc3ccc08d72b6201ce88b3397935e1ed417af53e731"
+    },
+    "real_SDL_headers": "SDL3-3.4.10",
+    "real_input_router_header": true,
+    "whole_Native_translation_unit": false,
+    "compiler_only": true,
+    "link": false,
+    "execution": false,
+    "SDL_Init": false,
+    "local_game": false,
+    "local_device": false,
+    "input": false,
+    "mouse_or_focus": false,
+    "UAC": false,
+    "subagents": false,
+    "new_upstream_source_body_bytes": 0,
+    "local_existing_primary_bytes": 3667,
+    "no_network_native_source_fetch": true,
+    "header_availability_note": "Existing readonly local Native Git has1807only;1040read stopped before compilation with GIT_NO_LAZY_FETCH=1. No network fallback/newbodytransfer. Private integration fixture uses exact1807enum_traits.h under MSVC/Clang;1040root diagnostics are exact-head Windows CodeReview annotations. Both complete Native builds remain for CI.",
+    "preparation_note": "First missing1040localobject and then a private wrapper variable-name collision occurred before compilation. Candidate bytes and failed source are independently resealed against canonical Git and the exact two substitutions; original scripts/receipts remain preserved."
+  },
+  "local_context_compile": {
+    "success": true,
+    "source_parent": "30c89263fc572992ac4ec80fe765efda45575c03",
+    "failed_head": "309a22cd87f64bed12d0c9aa5bd111af02a38c70",
+    "rows": [
+      {
+        "source": "failed",
+        "compiler": "msvc",
+        "exit_code": 2,
+        "diagnostic_sha256": "9702dabf084c57457327c812366c811293590449324f99c68c4aa2dfb7792d6b",
+        "object_created": false
+      },
+      {
+        "source": "failed",
+        "compiler": "clang",
+        "exit_code": 1,
+        "diagnostic_sha256": "316ba31430233eb1da7c38090899e6481719c093c573d2a24e9ff34145ff45d1",
+        "object_created": false
+      },
+      {
+        "source": "corrected",
+        "compiler": "msvc",
+        "exit_code": 0,
+        "diagnostic_sha256": "004ac8967f2c919113eaf00b6279d6e4478e18166681ef515ece1db680b2a45e",
+        "object_created": true
+      },
+      {
+        "source": "corrected",
+        "compiler": "clang",
+        "exit_code": 0,
+        "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "object_created": true
+      }
+    ],
+    "exact_native_header_present": true,
+    "real_SDL_headers": true,
+    "real_input_router_header": true,
+    "root_cause_reproduced_on_MSVC_and_Clang": true,
+    "corrected_block_compiles_on_both": true,
+    "whole_Native_translation_unit": false,
+    "link": false,
+    "execution": false,
+    "SDL_Init": false,
+    "local_game": false,
+    "device": false,
+    "input": false,
+    "mouse_or_focus": false,
+    "subagents": false
+  },
+  "unchanged_requirements": {
+    "hard_requirements": 136,
+    "all_original_requirement_calls_byte_identical": true,
+    "rotation_delta_radians": 0.3,
+    "rotation_tolerance_radians": 0.001,
+    "maximum_input_wait_attempts": 52,
+    "worker_deadline_ms": 12000,
+    "one_original_motion_enqueue": true,
+    "default_atomic_ordering": "sequentially consistent",
+    "finite_numeric_writer_unchanged": true,
+    "ordinary_gameplay_and_renderers_unchanged": true,
+    "ABI_unchanged": true,
+    "shared_copied_Native_inputs": 106
+  },
+  "limits": [
+    "This fixes the reproduced diagnostic compilation conflict. It does not establish the cause or fix of the earlier camera-yaw runtime failure.",
+    "The exact changed block was compiled, not linked or executed. The private fixture includes real SDL3/router headers and the exact1807Native enum header. Full actual Native translation units for both pins and event delivery still require fresh remote CI.",
+    "PR239failed head remains untouched. The earlier isolated compile missed the Native enum header; its old passing result did not qualify the full translation unit.",
+    "Inherited123snapshot-entry construction remains subject to full current-source Native qualification. No ordinary RTX FPS,15ms first correct frame or staircase freeze fix is claimed."
+  ],
+  "fresh_cache_attribution": {
+    "source": "d5ece2b66558bcb5d27e2d44f8f8808d2cf4251e",
+    "runtime": "6f22da3cebb8ee390f884861bc86df15a82c7eab",
+    "run": 40800076129,
+    "actions": 288,
+    "cache_children": 144,
+    "scope": "Exact current238 controlled CI movement fixture, with six submap crossings among12Native actions per scene/renderer/size/pin. Cache child phases partition their inclusive cache parent and are not additive to outer frame/native stages. This is not the staircase fixture or ordinary interactive RTX4090 timing; probes/cleanup are included. No A/B gain or causal stair-freeze fix.",
+    "summary_sha256": "dfd05d32dfe99103da6851289e41366a067e159aa26df6ebe03cf32f9ca7722f",
+    "records": [
+      {
+        "pin": "1040",
+        "scene": "street",
+        "cache_parent_median_ms": 12.90955,
+        "seen_child_median_ms": 5.681049999999998,
+        "structure_child_median_ms": 4.72575,
+        "lightmap_child_median_ms": 1.9174500000000005
+      },
+      {
+        "pin": "1040",
+        "scene": "multi_level_horde",
+        "cache_parent_median_ms": 17.488950000000003,
+        "seen_child_median_ms": 7.8018,
+        "structure_child_median_ms": 5.46265,
+        "lightmap_child_median_ms": 3.448399999999996
+      },
+      {
+        "pin": "1040",
+        "scene": "city_blocks",
+        "cache_parent_median_ms": 21.4255,
+        "seen_child_median_ms": 10.74405,
+        "structure_child_median_ms": 5.563300000000001,
+        "lightmap_child_median_ms": 4.28295
+      },
+      {
+        "pin": "1807",
+        "scene": "street",
+        "cache_parent_median_ms": 37.739149999999995,
+        "seen_child_median_ms": 18.04215,
+        "structure_child_median_ms": 5.540350000000001,
+        "lightmap_child_median_ms": 2.93055
+      },
+      {
+        "pin": "1807",
+        "scene": "multi_level_horde",
+        "cache_parent_median_ms": 17.651699999999998,
+        "seen_child_median_ms": 7.82685,
+        "structure_child_median_ms": 5.487399999999999,
+        "lightmap_child_median_ms": 3.5676500000000004
+      },
+      {
+        "pin": "1807",
+        "scene": "city_blocks",
+        "cache_parent_median_ms": 21.4254,
+        "seen_child_median_ms": 10.7123,
+        "structure_child_median_ms": 5.658099999999999,
+        "lightmap_child_median_ms": 4.3145500000000006
+      }
+    ],
+    "numeric_label": "night-installers-d5ece2b",
+    "shared_reserved_body_bytes": 905947,
+    "shared_limit": 8388608,
+    "public_primary_receipts_unchanged": true
+  },
+  "held128": {
+    "reason": "The only fixed full timing series hit its original300second subprocess limit after40of112rows. No complete seven-pair16case timing/allocation/peak qualification. Partial rows are retained and must not be used to accept gains.",
+    "semantic_pairs": 525,
+    "semantic_checks": 693961,
+    "exhaustive_numerical_deltas": 226981,
+    "completed_timing_rows": 40,
+    "required_timing_rows": 112,
+    "original_limit_seconds": 300,
+    "no_timing_retry": true,
+    "no_second_variant": true,
+    "no_threshold_override": true,
+    "production_not_applied": true,
+    "proof_sha256": "431fbf81418d9a49895e6eae44af1a7a77f430bc03e95299670f6f6090c08795"
+  },
+  "local_game": false,
+  "local_Native": false,
+  "SDL_Init": false,
+  "device": false,
+  "input": false,
+  "mouse_or_focus": false,
+  "UAC": false,
+  "subagents": false,
+  "new_upstream_body_bytes": 0,
+  "upstream_body_bytes_remaining": 161994
+}

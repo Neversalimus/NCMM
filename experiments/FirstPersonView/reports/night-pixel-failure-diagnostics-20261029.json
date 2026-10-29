@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "source_parent": "331e1a4be08f6bc9e2f825264e21dcc05fa2eea3",
+  "purpose": "Retain exact readback failure evidence before unchanged image and device gates. This is diagnostics, not a pixel-failure, stair-freeze or performance fix.",
+  "confirmed_failure": {
+    "source": "331e1a4be08f6bc9e2f825264e21dcc05fa2eea3",
+    "run": 40839635166,
+    "job": 123332606098,
+    "artifact": 12881739146,
+    "CodeReview_error": "AssertionError: Complete pixel mismatch; outputs retained",
+    "raw_log_truncated": true,
+    "four_prior_GPU_sanitizer_tests_pass": true,
+    "comparison_json_absent": true,
+    "three_primary_gpu_scene_reports_identical": true,
+    "adapter": "vulkan / llvmpipe (LLVM 20.1.2, 256 bits)",
+    "underlying_cause_unproven": true
+  },
+  "change": "Persist comparison.json with success=false, both complete image SHA/size maps, missing files, dimensions/format, differing pixel/alpha counts, maximum channel delta and changed bounds before the original strict assertions. Statistics consume only readbacks already captured by the existing fixture; no extra GPU readback.",
+  "guards": {
+    "all12_original_assertions_AST_identical": true,
+    "exact_image_equality_unchanged": true,
+    "device_identity_gate_unchanged": true,
+    "reference_backend_sha256": "a0dd1aa83c05e1a51ac33854dedb54696e85616857d9da1f68bb30ee7fe9662a",
+    "pixel_tolerance": 0,
+    "adapter_or_shader_change": false,
+    "sanitizer_suppression": false
+  },
+  "local_checks": {
+    "numeric_only_tests": 13,
+    "includes_equal_single_channel_alpha_dimensions_format_truncation_missing_file_device_and_failure_persistence": true,
+    "all_existing_assertions_preserved": true,
+    "fixture_device_or_game_execution": false
+  },
+  "independent_attribution": {
+    "source": "331e1a4be08f6bc9e2f825264e21dcc05fa2eea3",
+    "samples": 144,
+    "exact_packet_checks": 3090,
+    "packet_bytes": 234014040,
+    "large9409_floor_fields_median_ms": 12.0577,
+    "large9409_full_producer_median_ms": 19.6561,
+    "scope": "PureCPU source attribution with clock instrumentation only. Includes CPU generation of draw packets but no SDL init/device/window/raster/game/input or ordinaryRTX/FPS/causal A-B/stairfix claim. World phases nest in world_inclusive and are nonadditive to total."
+  },
+  "held_material_experiment": {
+    "candidate_sha256": "f80aaa4cbf692454ff4cd94c2a5564fdbeebe252b9483db70cae6d5602131343",
+    "direct_sequences": 160,
+    "checks": 8116,
+    "packet_bytes": 1061753328,
+    "negative_controls_rejected": 2,
+    "fixed_pairs": 7,
+    "cases": 16,
+    "rows": 224,
+    "failed_timing_controls": [
+      "floor_warm",
+      "floor_shift",
+      "props_warm",
+      "grass_warm",
+      "multilevel_stair"
+    ],
+    "cold_gains": 0,
+    "allocation_guards_all_pass": true,
+    "applied": false,
+    "no_second_variant": true,
+    "no_retime": true,
+    "no_threshold_override": true,
+    "earlier_reader_expectation_corrections_preserved": true
+  },
+  "transfer": {
+    "numeric_label": "night-sanitizer-331e1a4",
+    "reserved_bytes": 337539,
+    "limit_bytes": 8388608,
+    "exact_JSON_members": 5,
+    "no_image_or_log_artifact_body_download": true,
+    "Native_body_bytes": 0,
+    "Native_body_ledger_remaining_bytes": 161994
+  },
+  "qualification": "Full current-source CI required. Earlier241 failed source is preserved; no unchanged rerun. No causal pixel/stair correction, ordinaryRTX FPS or 15ms claim. All held candidates remain unshipped.",
+  "local_Native": false,
+  "SDL_Init": false,
+  "local_device": false,
+  "mouse_or_focus": false,
+  "UAC": false,
+  "subagents": false
+}
