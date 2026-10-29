@@ -141,7 +141,53 @@ void detail_storage_checks(){
 }
 }
 
+// A near-limit geometric growth must remain reusable. This exercises the
+// actual allocator, complete value initialization, shrinking and world reset.
+void bounded_resize_checks(){
+    using cell=ncmm_graphics_cell_v1;
+    using storage=ncmm_graphics_scratch::vector_storage<cell,NCMM_WORLD_MAX_CELLS>;
+    storage pool;cell zero{};
+    const std::size_t limit=NCMM_WORLD_MAX_CELLS;
+    const std::array<std::size_t,8> counts{{limit-1,limit,limit-1,limit,limit-1,limit,limit,1}};
+    for(std::size_t frame=0;frame<counts.size();++frame){
+        auto loan=pool.acquire();check(loan.get().empty());
+        allocations=allocation_bytes=0;count_allocations=true;
+        loan.resize_for_reuse(counts[frame]);count_allocations=false;
+        check(loan.get().size()==counts[frame]&&loan.bytes()<=limit*sizeof(cell));
+        check(loan.growths()==allocations);
+        check(allocations==(frame<2?1u:0u));
+        if(frame>=1)check(loan.bytes()==limit*sizeof(cell));
+        for(std::size_t i:std::array<std::size_t,3>{{0,counts[frame]/2,counts[frame]-1}}){
+            check(std::memcmp(&zero,&loan.get()[i],sizeof(zero))==0);
+        }
+        // A one-cell array has three identical probe indices. Check every
+        // probe before poisoning, rather than observing our own test write.
+        for(std::size_t i:std::array<std::size_t,3>{{0,counts[frame]/2,counts[frame]-1}})
+            std::memset(&loan.get()[i],0x5a,sizeof(cell));
+    }
+    check(pool.bytes()==limit*sizeof(cell));
+    {
+        auto outer=pool.acquire();outer.resize_for_reuse(8);outer.get()[0].flags=471;
+        const auto *address=outer.get().data();
+        {auto inner=pool.acquire();inner.resize_for_reuse(32);inner.get()[0].flags=812;}
+        check(outer.get().data()==address&&outer.get()[0].flags==471);
+        pool.clear();check(pool.bytes()==0&&outer.get()[0].flags==471);
+    }
+    check(pool.bytes()==0);
+    {
+        ncmm_graphics_scratch::vector_storage<int,32> small;
+        {auto loan=small.acquire();loan.resize_for_reuse(17);}
+        {auto loan=small.acquire();loan.resize_for_reuse(18);check(loan.bytes()==32*sizeof(int));}
+        {auto loan=small.acquire();allocations=0;count_allocations=true;loan.resize_for_reuse(19);count_allocations=false;
+            check(allocations==0&&loan.growths()==0);for(int value:loan.get())check(value==0);}
+        {auto loan=small.acquire();loan.resize_for_reuse(33);check(loan.get().size()==33);}
+        check(small.bytes()==0); // Oversized transient requests keep their prior semantics.
+    }
+    std::cout<<"Bounded snapshot resize, actual allocator and nested/reset lifetimes PASS\n";
+}
+
 int main(){try{
+    bounded_resize_checks();
     using ncmm_graphics_scratch::vector_storage;
     detail_storage_checks();
     vector_storage<ncmm_graphics_cell_v1,256> cells;

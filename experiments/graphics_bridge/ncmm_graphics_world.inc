@@ -502,7 +502,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         graphics_world_metrics.budget_rejected=uint32_t(candidates.size()-NCMM_WORLD_MAX_CELLS);candidates.resize(NCMM_WORLD_MAX_CELLS);
         std::sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return ncmm_world::order(a.world)<ncmm_world::order(b.world);});
     } // The uncapped z/y/x traversal is already in canonical order.
-    auto cell_loan=graphics_world_cell_storage.acquire();auto &cells=cell_loan.get();cell_loan.resize(candidates.size());
+    auto cell_loan=graphics_world_cell_storage.acquire();auto &cells=cell_loan.get();cell_loan.resize_for_reuse(candidates.size());
     auto position_loan=graphics_world_position_storage.acquire();auto &positions=position_loan.get();
     auto coordinate_loan=graphics_world_coordinate_storage.acquire();auto &coordinates=coordinate_loan.get();
     auto slice_loan=graphics_world_slice_storage.acquire();auto &slices=slice_loan.get();slice_loan.reserve(loaded.size());

@@ -2,8 +2,8 @@
 
 ## Current checkpoint
 
-Updated28 October2026, through stage95. Baseline `1284537`; working branch
-`codex/fpv-snapshot-entry-reuse-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
+Updated28 October2026, through stage97. Baseline `1284537`; working branch
+`codex/fpv-snapshot-growth-cap-20261028`; release [PR223](https://github.com/Neversalimus/NCMM/pull/223).
 Supported Native pins remain1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
 and1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 
@@ -20,10 +20,14 @@ ReleaseA9 passed all8 jobs of full40674207425 and merged into main as
 `cd9ba08d47583482f67374d59f5bf0cc871416a9`. Both exact0.13.1TEST installers
 are [published](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-a9f3ef7480f0),
 with checksums/source qualification and verified anonymousHEAD200 downloads.
-Stage90 remains in draft [PR225](https://github.com/Neversalimus/NCMM/pull/225);
-stage91 is in draft [PR226](https://github.com/Neversalimus/NCMM/pull/226).
-Their exact heads and ongoing full Native captures remain fixed. Stage93 is a
-separate CPU queue candidate; none of these follow-ups changes the A9 archives.
+Stage90/CDB passed all8 jobs of full40692590155 and merged [PR225](https://github.com/Neversalimus/NCMM/pull/225)
+as main `b3b6e24297be9fedad4816ec56f3970fe06858cb`, exact tree `e0e8052bbd14e07209d71080f731d9320804019d`.
+Its two checked TEST installers are [published separately](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-fpv-v0.13.1-test-cdb929b3453a).
+All38 payloads/106 copied Native inputs/171 frozen sources and104 resource
+sources match. Anonymous installerHEAD200/length checks pass. The prior A9
+release remains available. Drafts226–229 retain exact source heads and their
+ongoing full captures. Neither the new growth candidate nor those drafts is
+included in the CDB archives.
 
 Detailed stages1–63, failures, provenance and raw measurement references remain
 [in the immutable prior journal](https://github.com/Neversalimus/NCMM/blob/616d718810e665892b1e7eaba33030cf8a00c7b4/experiments/FirstPersonView/reports/night-optimization-20261027.md).
@@ -888,7 +892,71 @@ reads reserve605766 of8MiB; no logs, images or whole archives are read. A failed
 second-pin read resumes only13 missing JSONs; all selected hashes now verify.
 No upstream Native source body is fetched;161994 bytes remain in that ledger.
 
+## Stage96 — array append construction rejected
+
+The broad append variant changed base-vector capacity growth and stopped at
+the accounting guard despite identical output bytes. The narrower detail-only
+variant passes18,385,440 assertions and3,103,192,192 compared bytes, but its
+9409-cell cache-miss and verification controls regress6.25% and4.44% by paired
+median. Do not retain either initialization shortcut. Raw private evidence and
+the initial capacity diagnosis remain intact; no Native source body is fetched.
+
+## Stage97 — keep final base-snapshot growth within its retention allowance
+
+A base snapshot near the65536-cell limit can grow geometrically beyond that
+existing retention allowance. Its loan then discards the allocation, making
+nearby alternating large counts allocate repeatedly. Preserve value-initializing
+resize, but reserve the existing65536-element bound for a final qualifying
+growth. The first count guard keeps smaller arrays on their original path.
+The sole Native call-site change selects this helper; all source reads,
+candidate order, permissions, cache readiness, fields, ABI and reset rules stay.
+
+The pure complete-array comparison passes18,385,600 assertions over160 changing
+frames and3,103,192,192 output bytes. Actual allocator/lifetime tests pass5291
+checks; deliberately removing the final-growth bound fails after9. Nine
+predetermined alternating pairs for each of14 cases retain final byte hashes:
+
+| Complete owned-array construction | Before → after, independent medians(ms) | Paired ratio |
+| --- | --- | --- |
+|65535/65536 alternating cells|7.63921→4.79740|.63141|
+|45000/45001 alternating cells|5.15930→2.53197|.48921|
+|Unchanged9409-cell warm control|.36739→.37955|1.01831|
+|Unchanged28227-cell warm control|1.32283→1.32738|1.02039|
+|Growing9409-cell control|.35145→.35924|1.01448|
+
+All substantial controls meet the predeclared3% paired guard. The warm9409
+independent medians regress3.31%; individual pairs vary. The empty control is
+20.19ns,4.49% paired slower, below its predeclared50ns absolute ceiling. The
+first growth variant was rejected for its23.45%49-cell paired regression;
+the refined run uses an early count guard and longer small controls. Raw lanes
+and both outcomes remain. A test-only duplicate-probe self-write was repaired;
+the original failed test is retained and no production assertion was removed.
+
+Sequence peak output-array payload capacity is72,350,704→55,312,384bytes,
+excluding allocator overhead. This is not a universal RAM reduction. Actual
+MSVC32769→32770 base capacity rises25,559,560→34,078,720bytes under the same
+existing allowance; shrinking to one cell after the largest growth keeps that
+reusable capacity. Oversized transient requests retain their previous behavior.
+No new persistent pool, GPU memory or Native pointer is introduced.
+
+The full local Release build,51 non-device CTests(24.12s) and96 atomic two-pin
+source-transform tests(37.706s) pass. Renderer code is unchanged; no repeat
+device run or local Native/input test is needed. Full current-source Native
+qualification is pending. Model cache-miss controls use reused array storage;
+they are not cold processes, whole extraction/game frames, GPU execution,
+ordinary movement/shooting stalls or15ms evidence.
+
+Numeric proof: `night-snapshot-growth-cap-20261028.json`.
+
 ## Remote qualification and next steps
+
+- CDB `cdb929b`, [full40692590155](https://github.com/Neversalimus/NCMM/actions/runs/40692590155):
+  all8 jobs pass; required122987662168 confirms required/selected `full`.
+  Both final Windows CodeReview excerpts are retained, explicitly truncated.
+  Source/package and all3 GPU jobs pass. PR225 merged without bypass; exact
+  checked source is in main and the new TEST release. The independent Runtime
+  workflow did not run for this CPU-only source difference; its runtime source
+  remains unchanged from qualified A9. No current-head Runtime pass is claimed.
 
 - Full `eae8d02`, run40580475214: all8 jobs pass; exact earlier receipts retained.
 - Full `12a7abcd`, [run40600292716](https://github.com/Neversalimus/NCMM/actions/runs/40600292716):
@@ -921,8 +989,8 @@ No upstream Native source body is fetched;161994 bytes remain in that ledger.
   setup phase and local77 test fix. New diagnostics/CPU changes use that draft;
   protected PR223 full48 remains unchanged until its final logs are retained.
 
-Next: qualify the Native snapshot candidate separately while preserving the
-exact active PR225/226/227/228 sources and publishedA9 installer bytes. All
+Next: qualify Native growth separately while preserving the exact active
+PR226/227/228/229 heads and both published A9/CDB installer bytes. All
 prior meaningful Native captures keep running. Continue measured transfer and
 turn-latency work after the new functional gates; helper/model wins are not
 ordinary-game or15ms proof. CI logs remain CodeReview-only at the current PR

@@ -57,6 +57,16 @@ public:
             values_.push_back(value);
             note_growth(before);
         }
+        // A final geometric growth can exceed the retention limit and make
+        // the next callback allocate again. Cap that growth before resizing;
+        // preserve ordinary small growth, value initialization and oversized
+        // transient requests. Reserve once for later nearby cell counts too.
+        void resize_for_reuse(std::size_t count) {
+            if(count > MaximumRetainedElements / 2 && count <= MaximumRetainedElements &&
+               count > values_.capacity() && values_.capacity() > MaximumRetainedElements / 2)
+                reserve(MaximumRetainedElements);
+            resize(count);
+        }
         std::size_t growths() const noexcept { return growths_; }
         bool reused() const noexcept { return reused_; }
         std::size_t bytes() const noexcept { return values_.capacity() * sizeof(T); }
