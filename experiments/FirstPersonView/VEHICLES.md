@@ -135,6 +135,21 @@ bounded by the ABI counts. GPU resources use the existing ownership/lifecycle
 and resource budgets. Native animation feedback schedules ordinary bounded
 redraws while a confirmed hinge/rolling interpolation remains active.
 
+Straight panel lofts coalesce redundant coplanar strips only when every original
+edge sample agrees with the same linear surface. Real wheel cut-outs, rounded
+corners and local dents retain their sampled contour. World-space material
+shading and the installed part identity are unchanged; the horizon and LOD
+thresholds are unchanged. Complete Native frame comparisons still decide whether
+this reduces the observed first CPU-frame cost.
+
+The CPU path also skips back-facing triangles of closed frames, seats, intact
+wheels, axles, tanks and bounded equipment when the eye is outside the exact
+component bounds. Thin body panels, glass, open hulls and broken tire scraps
+remain two-sided. Geometry-only ray comparisons from fourteen directions check
+that the nearest actual surface is unchanged. This does not reduce the horizon,
+LOD detail or the GPU component meshes, and still requires full Native frame
+timing and image qualification.
+
 The opt-in `VehicleGallery` Native fixture creates fourteen real prototype
 families on each pinned 1040/1807 Host. It records matched Legacy/Modular CPU/GPU
 captures, Native identities and full presented-frame durations. Functional
@@ -142,6 +157,13 @@ cases include boarding, doors, damage, removal, installation, movement,
 deletion and save/reload. Exact source-bound review sheets are a separate bounded
 artifact; full captures remain in CI. The capture verifier checks provenance and
 comparable inputs, and explicitly does not grant aesthetic acceptance.
+
+Native randomly opens some doors even on undamaged spawns. The intact gallery
+and benchmark close actual openable parts through Native before comparison;
+explicit open/closed and damaged/removed cases follow separately. Production
+spawn behavior is unchanged. Standard Native heavy-duty doors and hatches use
+the same body-colour policy as ordinary steel doors; authored mod colours and
+wood/cloth materials remain individual.
 
 Every family with seats also supplies occupied views. Before/after interior
 captures pin the same actual Native seat eye for both implementations; the
@@ -174,6 +196,11 @@ As in the canonical non-interactive smoke's initial setup, a successful load
 marks the character playable before rendering; the interactive first input turn
 is not entered by this fixture. Production loading and availability guards are
 unchanged.
+The complete lifecycle uses a dedicated vehicle qualification gateway. The
+pre-existing multi-level coordinate serialization gate retains main's original
+in-place load gateway and deadlines; it is not a complete world restart test.
+Native process/bootstrap restart and vehicle lifetime reload are separately
+qualified. A vehicle fixture must not silently replace another test's scope.
 
 Vehicle exteriors use separate outside-surface permissions at their actual
 source cells. Roofs retain their own permission; boundary panels/doors/windows

@@ -1476,7 +1476,14 @@ class renderer {
             if(!draw.geometry||!visible(draw.cell)||(world_data&&!(world_flags(draw.cell)&((draw.roof_surface||draw.exterior_surface)?NCMM_WORLD_FLOOR_TOP:NCMM_WORLD_BODY_VISIBLE))))continue;
             ++f.vehicle_parts;f.triangles+=uint32_t(draw.geometry->triangles.size());
             if(gpu_sink&&gpu_sink->vehicle_component(draw))continue;
+            const first_person::vehicle::point to_eye{eye.x-draw.placement.origin.x,eye.y-draw.placement.origin.y,eye.z-draw.placement.origin.z};
+            const first_person::vehicle::point local_eye{first_person::vehicle::dot(to_eye,draw.placement.x),first_person::vehicle::dot(to_eye,draw.placement.y),first_person::vehicle::dot(to_eye,draw.placement.z)};
+            // Only closed component shells viewed from outside their bounds
+            // have invisible back faces. Thin panels/glass and an inside eye
+            // keep both sides; Native visibility and the GPU path are intact.
+            const bool cull=options.cull_geometry&&!gpu_sink&&draw.geometry->closed_shell&&!draw.geometry->contains(local_eye);
             for(const auto &source:draw.geometry->triangles){
+                if(cull&&!first_person::vehicle::model::front_facing(source,local_eye))continue;
                 const auto &appearance=draw.geometry->materials[source.material];triangle t{};
                 t.m={nullptr,{appearance.color[0],appearance.color[1],appearance.color[2]},appearance.color[3],false,false,false,draw.cell,vehicle_finish(appearance.kind)};
                 t.m.smooth=true;

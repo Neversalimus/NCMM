@@ -122,6 +122,7 @@ Copy-Item (Join-Path $PSScriptRoot 'NativeDiagnosticDebugger.cs') $stage
 Copy-Item (Join-Path $fpBuild 'Release/ncmm_native_dump_analyzer.exe') $stage
 Copy-Item (Join-Path $PSScriptRoot 'tests/multilevel_fixture.json') $stage
 Copy-Item (Join-Path $PSScriptRoot 'DIAGNOSTICS.md') $stage
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'VEHICLES.md') -Destination $stage
 $diagnosticTools=Join-Path $stage 'tests'
 New-Item -ItemType Directory -Force $diagnosticTools | Out-Null
 foreach($tool in @('compare_movement_runs.py','verify_horizon_release.py','verify_static_stair_audit.py','verify_vehicle_gallery.py','Test-BenchmarkEnvironment.ps1','Test-BenchmarkEvidence.ps1','Test-BenchmarkPaths.ps1','Test-BenchmarkCapture.ps1','Test-BenchmarkDataCopy.ps1')){
@@ -290,9 +291,14 @@ Host updates are disabled in this preview. Use the normal NCMM installer to
 return to the current certified Host, or Restore vanilla EXE for vanilla play.
 Uncheck First Person View and install again to remove its managed DLL/manifest.
 
-Current limits: automatic coarse vehicle geometry, generic environment dimensions
-and conservative hidden-surface reconstruction. Unsupported held items use the
-existing fallback.
+Vehicle renderer: select Vehicle Renderer: Modular 2.0 in the world's First
+Person settings to reconstruct the actual installed vehicle parts. Legacy is
+the default and remains available in the same setting. The vehicle component
+licenses and import manifest are bundled; VEHICLES.md explains the optional
+bridge, modular construction, cache ownership and qualification limits.
+Current limits: generic environment dimensions and conservative hidden-surface
+reconstruction. Unsupported held items use the existing fallback. Hosted CI
+adapter timings do not establish ordinary hardware FPS or a manual playthrough.
 The 0.12 world includes loaded Z-levels, floors, ceilings, stairs and shafts.
 Camera easing follows safe adjacent walking and stair movement visually after
 the first successful presentation; native movement remains turn-based.

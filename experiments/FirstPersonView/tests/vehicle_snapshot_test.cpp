@@ -33,6 +33,51 @@ unsigned part_reads=0;
 int get_scene(ncmm_graphics_vehicle_scene_v1 *out){*out=native.scene;return 1;}
 int get_vehicles(ncmm_graphics_vehicle_v1 *out,size_t n){if(n!=native.vehicles.size())return 0;std::copy(native.vehicles.begin(),native.vehicles.end(),out);return 1;}
 int get_parts(ncmm_graphics_vehicle_part_v1 *out,size_t n){++part_reads;if(fail_parts||n!=native.parts.size())return 0;std::copy(native.parts.begin(),native.parts.end(),out);return 1;}
+double reference_intersection(const first_person::vehicle::triangle &t,first_person::vehicle::point eye,first_person::vehicle::point direction){
+    // Independent high-precision geometric reference. Float barycentrics can
+    // reject a shared thin-beam edge and mistake its rear wall for the front.
+    using dpoint=std::array<double,3>;
+    const auto convert=[](auto p){return dpoint{{p.x,p.y,p.z}};};
+    const auto sub=[](dpoint a,dpoint b){return dpoint{{a[0]-b[0],a[1]-b[1],a[2]-b[2]}};};
+    const auto cross=[](dpoint a,dpoint b){return dpoint{{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}};};
+    const auto dot=[](dpoint a,dpoint b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];};
+    const auto a=convert(t.vertices[0].position),e1=sub(convert(t.vertices[1].position),a),e2=sub(convert(t.vertices[2].position),a);
+    const auto ray=convert(direction),h=cross(ray,e2);const double determinant=dot(e1,h),none=std::numeric_limits<double>::infinity();
+    if(std::abs(determinant)<1e-12)return none;
+    const double inverse=1/determinant;const auto from=sub(convert(eye),a);const double u=inverse*dot(from,h);
+    if(u<0||u>1)return none;const auto q=cross(from,e1);const double v=inverse*dot(ray,q);
+    if(v<0||u+v>1)return none;const double distance=inverse*dot(e2,q);return distance>.0001?distance:none;
+}
+void verify_closed_surface(const first_person::vehicle::model &mesh){
+    using namespace first_person::vehicle;
+    if(!mesh.closed_shell)return;
+    const auto center=(mesh.minimum+mesh.maximum)*.5f;
+    const auto diagonal=mesh.maximum-mesh.minimum;
+    const float extent=std::sqrt(dot(diagonal,diagonal))*.55f+.02f;
+    require(mesh.contains(center),"closed-shell inside eye retains both sides");
+    const std::array<point,14> directions{{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1},
+        {1,1,1},{1,1,-1},{1,-1,1},{1,-1,-1},{-1,1,1},{-1,1,-1},{-1,-1,1},{-1,-1,-1}}};
+    size_t rejected=0,kept=0;
+    for(auto direction:directions){const auto eye=center+unit(direction)*(extent*4+1),forward=unit(center-eye);
+        const auto side=unit(cross(forward,std::abs(forward.z)<.8f?point{0,0,1}:point{0,1,0})),up=unit(cross(side,forward));
+        require(!mesh.contains(eye),"closed-shell test observes from outside its exact bounds");
+        for(const auto &t:mesh.triangles){if(model::front_facing(t,eye))++kept;else ++rejected;}
+        for(int x=-4;x<=4;++x)for(int y=-4;y<=4;++y){
+            const auto ray=unit(center+side*(extent*x/4)+up*(extent*y/4)-eye);
+            double original=std::numeric_limits<double>::infinity(),culled=original;const triangle *nearest=nullptr;
+            for(const auto &t:mesh.triangles){const double distance=reference_intersection(t,eye,ray);if(!std::isfinite(distance))continue;
+                if(distance<original){original=distance;nearest=&t;}if(model::front_facing(t,eye))culled=std::min(culled,distance);
+            }
+            const bool same=std::isfinite(original)==std::isfinite(culled)&&(!std::isfinite(original)||std::abs(original-culled)<1e-5f);
+            if(!same)std::fprintf(stderr,"closed shell kind=%u eye=(%.7g,%.7g,%.7g) grid=(%d,%d) before=%.9g after=%.9g\n",
+                unsigned(mesh.kind),eye.x,eye.y,eye.z,x,y,original,culled);
+            if(!same&&nearest)for(const auto &v:nearest->vertices)std::fprintf(stderr," p=(%.9g,%.9g,%.9g) n=(%.9g,%.9g,%.9g)\n",v.position.x,v.position.y,v.position.z,v.normal.x,v.normal.y,v.normal.z);
+            require(same,
+                "closed-shell CPU culling preserves the nearest actual surface from every sampled view");
+        }
+    }
+    require(rejected>0&&kept>0,"closed-shell work reduction actually skips only the hidden side");
+}
 }
 int main(){
     static_assert(std::is_trivially_copyable<ncmm_graphics_vehicle_part_v1>::value,"ABI contains only copied values");
@@ -85,6 +130,33 @@ int main(){
     require(topology.mounts.size()==2&&topology.mounts.begin()->second.parts.size()==3,"whole topology retains all mount layers");
     require(topology.wheels.size()==1,"topology cannot manufacture four wheels");
     {
+        auto straight=original;straight.vehicles[0].min_x=-1;
+        for(int x:{-1,1}){auto frame=original.parts[0];frame.mount_x=x;frame.part_id=200+x;straight.parts.push_back(frame);}
+        auto panel=original.parts[0];panel.features=NCMM_VP_PANEL|NCMM_VP_HALF_PANEL;
+        panel.state=NCMM_VP_EXISTS|NCMM_VP_EXTERIOR_SURFACE;panel.surface_faces=1u<<3;panel.material=NCMM_VM_PAINT;
+        panel.part_id=204;std::strcpy(panel.id,"custom_half_panel");straight.parts.push_back(panel);
+        straight.scene.part_count=straight.vehicles[0].part_count=uint32_t(straight.parts.size());
+        require(first_person::vehicle::valid(straight,16),"surface-equivalence fixture describes actual distinct installed parts");
+        const first_person::vehicle::topology layout(straight,straight.vehicles[0]);
+        const auto flat=first_person::vehicle::generate(straight,layout,panel,0);
+        require(flat->triangles.size()==4,"straight manufactured panel does not retain redundant coplanar subdivisions");
+        float area=0;
+        for(const auto &t:flat->triangles){const auto q=first_person::vehicle::cross(t.vertices[1].position-t.vertices[0].position,t.vertices[2].position-t.vertices[0].position);area+=.5f*std::sqrt(first_person::vehicle::dot(q,q));}
+        const float expected=std::hypot(.81f*.64f,.05f)+std::hypot(.81f*.36f,.05f);
+        require(std::abs(area-expected)<1e-5f,"coplanar merge preserves both full-size shoulder surfaces without a gap or extra skin");
+        const auto paint_triangles=[](const auto &mesh){return std::count_if(mesh->triangles.begin(),mesh->triangles.end(),[](const auto &t){return t.material==0;});};
+        panel.health=.4f;const auto dented=first_person::vehicle::generate(straight,layout,panel,0);
+        require(paint_triangles(dented)>paint_triangles(flat),"a genuine curved dent retains its original surface samples");
+        panel.health=1;straight.parts[3].mount_x=0;
+        const first_person::vehicle::topology wheel_layout(straight,straight.vehicles[0]);
+        const auto arch=first_person::vehicle::generate(straight,wheel_layout,panel,0);
+        require(paint_triangles(arch)>paint_triangles(flat),"a real wheel arch is not flattened into a straight body panel");
+        straight.parts[3].mount_x=1;straight.parts[5].features=0;
+        const first_person::vehicle::topology corner_layout(straight,straight.vehicles[0]);
+        const auto corner=first_person::vehicle::generate(straight,corner_layout,panel,0);
+        require(paint_triangles(corner)>paint_triangles(flat),"a rounded outer body corner keeps its full contour samples");
+    }
+    {
         auto names=original.parts[0];std::strcpy(names.id,"dashboard");std::strcpy(names.variant,"_extra");
         const auto a=topology.recipe(names,0);std::strcpy(names.id,"dashboard_extra");names.variant[0]=0;
         require(a!=topology.recipe(names,0),"part and variant string boundaries cannot alias different component recipes");
@@ -100,6 +172,11 @@ int main(){
         std::strcpy(door.id,"door");door.material=NCMM_VM_PAINT;door.features=NCMM_VP_DOOR;door.color[0]=0;door.color[1]=door.color[2]=.7f;
         const auto common=first_person::vehicle::generate(painted,body,door,0);
         require(common->materials[0].color[0]==painted.parts[2].color[0],"generic door functional symbol colour follows an actual body paint definition");
+        std::strcpy(door.id,"hddoor_opaque");const auto heavy=first_person::vehicle::generate(painted,body,door,0);
+        require(heavy->materials[0].color[0]==painted.parts[2].color[0],"Native heavy-duty door uses body paint rather than its inherited cyan operational symbol");
+        std::strcpy(door.id,"door_wood");door.material=NCMM_VM_WOOD;const auto wooden=first_person::vehicle::generate(painted,body,door,0);
+        require(wooden->materials[0].color[0]==0&&wooden->materials[0].kind==NCMM_VM_WOOD,"a real wooden door retains its Native material and authored colour");
+        door.material=NCMM_VM_PAINT;
         std::strcpy(door.id,"custom_door_cyan");const auto custom=first_person::vehicle::generate(painted,body,door,0);
         require(custom->materials[0].color[0]==0&&custom->materials[0].color[1]==.7f,"custom door retains its authored per-part colour");
     }
@@ -108,6 +185,7 @@ int main(){
         auto p=original.parts[0];p.features=feature;p.wheel_radius=.32f;p.wheel_width=.18f;
         for(unsigned lod=0;lod<3;++lod){const auto mesh=first_person::vehicle::generate(original,topology,p,lod);
             require(mesh&&!mesh->triangles.empty(),"component library generates every supported semantic type");
+            verify_closed_surface(*mesh);
             for(const auto &t:mesh->triangles){require(t.material<mesh->materials.size(),"component material range");
                 for(const auto &v:t.vertices)require(std::isfinite(v.position.x)&&std::isfinite(v.position.y)&&std::isfinite(v.position.z)&&
                     std::abs(first_person::vehicle::dot(v.normal,v.normal)-1)<.005f,"finite manufactured surface and unit normal");}
@@ -124,6 +202,9 @@ int main(){
     {
         auto wheel=original.parts[3];wheel.state|=NCMM_VP_BROKEN;wheel.health=0;
         const auto broken=first_person::vehicle::generate(original,topology,wheel,0);
+        require(!broken->closed_shell,"broken tire scraps remain two-sided rather than claiming a closed shell");
+        auto truck=original.parts[3];truck.wheel_radius=.6f;truck.wheel_width=.4f;
+        const auto truck_wheel=first_person::vehicle::generate(original,topology,truck,0);verify_closed_surface(*truck_wheel);
         auto rubber=[](const auto &mesh){return std::count_if(mesh->triangles.begin(),mesh->triangles.end(),[&](const auto &t){return mesh->materials[t.material].kind==NCMM_VM_RUBBER;});};
         require(rubber(broken)<rubber(wheel_mesh),"broken wheel no longer keeps an intact licensed tire");
         auto roof=original.parts[2];const auto whole=first_person::vehicle::generate(original,topology,roof,0);

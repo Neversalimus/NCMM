@@ -728,6 +728,8 @@ void initialize();''')
         "        bool ncmm_graphics_smoke_handle_action() { return handle_action(); }\n"
         "        void ncmm_graphics_smoke_prepare_turns();\n"
         "        bool ncmm_graphics_smoke_reload( const save_t &name ) {\n"
+        "            return load( name );\n        }\n"
+        "        bool ncmm_graphics_smoke_vehicle_reload( const save_t &name ) {\n"
         "            // Follow Native quickload's quit cleanup and menu setup.\n"
         "            // load(name) alone appends saved global EOCs to live queues.\n"
         "            uquit = QUIT_NOSAVED;\n"

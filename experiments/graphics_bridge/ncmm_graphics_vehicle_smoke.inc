@@ -20,8 +20,17 @@
     // Keep CDDA's data, perception, actual part API and SDL submission. No mesh
     // preview, fixture collision replacement, or changed quality setting.
     const auto street=get_map().get_abs(center);auto subject=street;std::vector<vehicle *> cars;
+    const auto close_native_openables=[&](vehicle &car){
+        // Native randomly opens even UNDAMAGED spawns. Give the intact
+        // comparison a known state; later cases explicitly open/damage parts.
+        for(const vpart_reference &p:car.get_all_parts())if(!p.part().removed&&!p.part().is_fake&&p.has_feature("OPENABLE")&&p.part().open){
+            car.close(get_map(),int(p.part_index()));}
+        for(const vpart_reference &p:car.get_all_parts())if(!p.part().removed&&!p.part().is_fake&&p.has_feature("OPENABLE")){
+            require(!p.part().open,"vehicle_intact_baseline_not_closed");}
+    };
     std::ofstream stream(game_root()/"ncmm"/"first-person-vehicles.json");JsonOut evidence(stream);
     evidence.start_object();evidence.member("schema",1);evidence.member("actual_cdda",true);evidence.member("manual_playthrough",false);
+    evidence.member("intact_baseline_doors_closed",true);
     evidence.member("width",640);evidence.member("height",480);evidence.member("horizon_radius",NCMM_GRAPHICS_V2_RADIUS);
     evidence.member("frames");evidence.start_array();
     auto look=[&](float wanted,float pitch){
@@ -115,6 +124,7 @@
     for(const char *prototype:prototypes){
         vehicle *car=get_map().add_vehicle(vproto_id(prototype),get_map().get_bub(street),0_degrees,0,veh_spawn_status::UNDAMAGED,false);
         require(car!=nullptr,"vehicle_gallery_prototype_not_created");cars.push_back(car);
+        close_native_openables(*car);
         int min_x=1000000,max_x=-1000000,min_y=1000000,max_y=-1000000;
         for(const vpart_reference &p:car->get_all_parts())if(!p.part().removed&&!p.part().is_fake){const auto at=get_map().get_abs(p.pos_bub(get_map()));
             min_x=std::min(min_x,at.x());max_x=std::max(max_x,at.x());min_y=std::min(min_y,at.y());max_y=std::max(max_y,at.y());}
@@ -235,7 +245,7 @@
     get_map().destroy_vehicle(retired);
     const auto save=save_t::from_save_id(get_avatar().get_save_id());
     require(g->save(),"vehicle_native_save_failed");cars.clear();
-    require(g->ncmm_graphics_smoke_reload(save),"vehicle_native_reload_failed");
+    require(g->ncmm_graphics_smoke_vehicle_reload(save),"vehicle_native_reload_failed");
     ncmm::graphics_note_input_context("DEFAULTMODE");if(!graphics_view.enabled)press_f6();
     camera(0,12,-.10f);pair("save-reload","mixed");
     require(graphics_vehicle_rows.size()==5,"vehicle_reload_lost_live_snapshot");

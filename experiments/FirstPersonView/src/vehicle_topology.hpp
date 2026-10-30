@@ -82,7 +82,10 @@ public:
     bool generic_door_paint(const ncmm_graphics_vehicle_part_v1 &p)const{
         const std::string_view id(p.id);
         return body_paint_known&&p.material==NCMM_VM_PAINT&&(p.features&NCMM_VP_DOOR)&&
-            (id=="door"||id=="door_opaque"||id=="door_trunk"||id=="door_heavy"||id=="door_sliding");
+            (id=="door"||id=="door_opaque"||id=="hddoor"||id=="hddoor_opaque"||
+             id=="door_trunk"||id=="hddoor_trunk"||id=="door_sliding"||id=="door_internal"||
+             id=="hatch"||id=="hatch_opaque"||id=="hdhatch"||id=="hdhatch_opaque"||
+             id=="hatchback_trunk"||id=="door_shutter");
     }
     unsigned edge(mount at)const{
         const auto [x,y,z]=at;(void)z;

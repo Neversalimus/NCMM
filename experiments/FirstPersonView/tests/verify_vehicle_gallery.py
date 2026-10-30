@@ -45,6 +45,7 @@ def verify(root, output, source, engine, module=None):
     report = json.loads((root/'first-person-vehicles.json').read_text(encoding='utf-8-sig'))
     assert report['schema']==1 and report['success'] and report['actual_cdda'] and report['native_parts_verified']
     assert report['native_driving_verified']
+    assert report['intact_baseline_doors_closed']
     assert report['native_reload_lifecycle']=='quit_cleanup_setup_load'
     assert not report['manual_playthrough'] and not report['hardware_performance_qualified']
     assert (report['width'],report['height'],report['horizon_radius'])==(640,480,48)

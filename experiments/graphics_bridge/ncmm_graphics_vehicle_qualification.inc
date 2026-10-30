@@ -8,7 +8,7 @@
     const auto clear_cars=[&](){cars.clear();for(const auto &v:get_map().get_vehicles()){get_map().destroy_vehicle(v.v);}};
     const auto create=[&](const char *type,int dx,int dy){
         auto *v=get_map().add_vehicle(vproto_id(type),get_map().get_bub(tripoint_abs_ms(street.x()+dx,street.y()+dy,street.z())),0_degrees,0,veh_spawn_status::UNDAMAGED,false);
-        require(v!=nullptr,"vehicle_qualification_create_failed");cars.push_back(v);return v;
+        require(v!=nullptr,"vehicle_qualification_create_failed");cars.push_back(v);close_native_openables(*v);return v;
     };
     subject=street;camera(0,14,-.1f);graphics_smoke_seconds=10.;
     for(const std::string scene:{"empty","one","multiple","parking","large"}){
@@ -88,6 +88,7 @@
     // steering and passenger relocation. The module only observes their result.
     vehicle *driven=get_map().add_vehicle(vproto_id("car"),get_map().get_bub(street),0_degrees,100,veh_spawn_status::UNDAMAGED,false);
     require(driven!=nullptr,"vehicle_driving_create_failed");cars.push_back(driven);int driver_seat=-1;
+    close_native_openables(*driven);
     for(const vpart_reference &p:driven->get_all_parts())if(p.has_feature("SEAT")&&driven->part_with_feature(p.part().mount,"CONTROLS",true)>=0){driver_seat=int(p.part_index());break;}
     require(driver_seat>=0,"vehicle_driving_controls_missing");
     const auto driver_position=driven->bub_part_pos(get_map(),driver_seat);
@@ -136,7 +137,7 @@
         draw("soak-"+std::to_string(iteration),"mixed",(iteration/64)%2?"cpu":"gpu","modular",false,true,iteration%32==0);
         require(graphics_vehicle_metrics.owned_bytes<128u*1024u*1024u,"vehicle_soak_unbounded_module_memory");
         if(iteration%256==255){const auto saved=save_t::from_save_id(get_avatar().get_save_id());require(g->save(),"vehicle_soak_save_failed");++saves;cars.clear();
-            require(g->ncmm_graphics_smoke_reload(saved),"vehicle_soak_reload_failed");++loads;
+            require(g->ncmm_graphics_smoke_vehicle_reload(saved),"vehicle_soak_reload_failed");++loads;
             for(const auto &entry:get_map().get_vehicles()){cars.push_back(entry.v);}require(cars.size()==3,"vehicle_soak_reload_lost_car");
             ncmm::graphics_note_input_context("DEFAULTMODE");if(!graphics_view.enabled){press_f6();}}
         require(++iteration<65536,"vehicle_soak_iteration_bound_exceeded");
