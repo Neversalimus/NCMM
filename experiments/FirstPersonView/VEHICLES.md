@@ -170,6 +170,10 @@ that lifecycle: Native appends saved global EOCs to the existing live queue,
 while normal setup clears the queue first. The report retains the actual queue
 size as well as process RAM; neither memory limit nor the required soak duration
 is reduced. A changed test lifecycle still needs a complete fresh Native run.
+As in the canonical non-interactive smoke's initial setup, a successful load
+marks the character playable before rendering; the interactive first input turn
+is not entered by this fixture. Production loading and availability guards are
+unchanged.
 
 Vehicle exteriors use separate outside-surface permissions at their actual
 source cells. Roofs retain their own permission; boundary panels/doors/windows
