@@ -24,7 +24,7 @@ inline float chassis(std::vector<float> radii){
     if(radii.empty())return .20f;
     std::sort(radii.begin(),radii.end());return std::clamp(radii[radii.size()/2]+.12f,.18f,1.5f);
 }
-inline float seated_eye(float floor,float body_scale,float roof){
-    return std::clamp(std::min(floor+.28f+.75f*body_scale,roof-.12f),.35f,3.85f);
+inline float seated_eye(float floor,float body_scale,float roof,float seat_surface=.28f){
+    return std::clamp(std::min(floor+seat_surface+.75f*body_scale,roof-.12f),.35f,3.85f);
 }
 }

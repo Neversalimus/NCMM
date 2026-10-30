@@ -19,7 +19,7 @@ inline point rotate(point p,float yaw){const float c=std::cos(yaw),s=std::sin(ya
 struct vertex {point position,normal;float u=0,v=0;};
 struct material {std::array<float,4> color{};uint32_t kind=NCMM_VM_METAL;bool emissive=false;};
 struct triangle {std::array<vertex,3> vertices;uint16_t material=0;};
-enum class component {frame,roof,panel,door,glass,wheel,seat,controls,engine,cargo,armor,solar,turret,light,rack,tank,curtain,hull,axle,other};
+enum class component {frame,roof,panel,door,glass,wheel,seat,controls,engine,cargo,armor,solar,turret,light,rack,tank,curtain,hull,axle,dashboard,other};
 struct model {
     std::vector<triangle> triangles;
     std::vector<material> materials;
@@ -90,7 +90,7 @@ public:
         for(size_t i=0;i<mesh.count;++i){const auto &source=mesh.triangles[i];std::array<float,4> color{};
             std::copy(std::begin(source.color),std::end(source.color),color.begin());
             auto found=palette.find(color);if(found==palette.end()){
-                const auto kind=color[0]+color[1]+color[2]<.6f?NCMM_VM_RUBBER:NCMM_VM_METAL;
+                const auto kind=std::max({color[0],color[1],color[2]})<.36f?NCMM_VM_RUBBER:NCMM_VM_METAL;
                 found=palette.emplace(color,add({color,uint32_t(kind)})).first;}
             triangle result{};result.material=found->second;
             for(unsigned j=0;j<3;++j){const auto &v=source.vertices[j];result.vertices[j]={{v.position[0]*radius,v.position[1]*width,v.position[2]*radius},
@@ -100,6 +100,7 @@ public:
     }
 };
 inline component classify(const ncmm_graphics_vehicle_part_v1 &p){const auto f=p.features;
+    if(std::string_view(p.id)=="dashboard")return component::dashboard;
     if(f&NCMM_VP_CURTAIN)return component::curtain;
     if(f&NCMM_VP_DOOR)return component::door;if(f&NCMM_VP_WINDOW)return component::glass;
     if(f&NCMM_VP_WHEEL)return component::wheel;if(f&NCMM_VP_SEAT)return component::seat;
@@ -174,6 +175,14 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
     };
     if(kind==component::wheel){
         const float r=p.wheel_radius,w=p.wheel_width;const bool bicycle=(p.features&NCMM_VP_BICYCLE)!=0;
+        if(p.state&NCMM_VP_BROKEN){
+            b.torus({}, {1,0,0},{0,0,1},r*.52f,r*.035f,w*.32f,b.steel,segments,6);
+            for(unsigned n=0;n<6;++n){const float a=2*pi*n/6;b.beam({}, {std::cos(a)*r*.52f,0,std::sin(a)*r*.52f},r*.06f,r*.06f,b.steel,6);}
+            for(unsigned n=0;n<5;++n){const float a=pi*(1.1f+n*.16f),c=a+.11f;
+                b.face({std::cos(a)*r*.85f,-w*.28f,std::sin(a)*r*.85f},{std::cos(c)*r,-w*.32f,std::sin(c)*r},
+                    {std::cos(c)*r,w*.26f,std::sin(c)*r},{std::cos(a)*r*.85f,w*.28f,std::sin(a)*r*.85f},b.rubber);}
+            return std::make_shared<model>(std::move(b.output));
+        }
         if(!bicycle&&!(p.features&NCMM_VP_MOTORCYCLE)&&lod<2){
             b.wheel_asset(r>.48f||w>.34f?vehicle_assets::id::truck_wheel:vehicle_assets::id::road_wheel,r,w);
             return std::make_shared<model>(std::move(b.output));
@@ -238,10 +247,12 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             const float center=(layout.max_y+layout.min_y)*.5f;
             const float normalized=(p.mount_y+y-center)/(span*.5f);
             float z=height-.11f*normalized*normalized;
+            z-=(1-p.health)*.09f*std::max(0.f,1-4*x*x)*std::max(0.f,1-4*y*y);
             if(!layout.has(topology::adjacent(at,0),NCMM_VP_ROOF))z-=.11f*std::max(0.f,x+.15f);
             if(!layout.has(topology::adjacent(at,2),NCMM_VP_ROOF))z-=.11f*std::max(0.f,.15f-x);
             return point{x,y,z};};
         for(unsigned x=0;x<nx;++x)for(unsigned y=0;y<ny;++y){const float x0=-.5f+float(x)/nx,x1=-.5f+float(x+1)/nx,y0=-.5f+float(y)/ny,y1=-.5f+float(y+1)/ny;
+            if((p.state&NCMM_VP_BROKEN)&&std::abs((x0+x1)*.5f)<.23f&&std::abs((y0+y1)*.5f)<.29f)continue;
             const auto a=roof(x0,y0),c=roof(x1,y1),d=roof(x0,y1),q=roof(x1,y0);
             b.face(a,q,c,d,b.paint);b.face(d-point{0,0,.035f},c-point{0,0,.035f},q-point{0,0,.035f},a-point{0,0,.035f},b.fabric);}
         for(unsigned side=0;side<4;++side)if(!layout.has(topology::adjacent(at,side),NCMM_VP_ROOF)){
@@ -284,10 +295,15 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
     }else if(kind==component::controls){
         if(layout.narrow){b.beam({.1f,0,chassis+.1f},{.28f,0,chassis+.72f},.04f,.04f,b.steel);
             b.beam({.28f,-.32f,chassis+.72f},{.28f,.32f,chassis+.72f},.035f,.035f,b.dark);}
-        else{b.cushion({.30f,0,chassis+.63f},{.25f,.94f,.20f},.055f,b.dark);
-            const point center{.05f,0,chassis+.68f};
+        else{
+            const point center{.35f,0,chassis+.68f};
             b.torus(center,{0,1,0},{.25f,0,.97f},.17f,.016f,.016f,b.dark,segments,6);
             for(unsigned n=0;n<3;++n){const float a=2*pi*n/3;b.beam(center,center+point{.25f*std::sin(a)*.16f,std::cos(a)*.16f,.97f*std::sin(a)*.16f},.022f,.022f,b.steel,6);}}
+    }else if(kind==component::dashboard){
+        b.cushion({.61f,0,chassis+.64f},{.22f,.94f,.23f},.045f,b.dark);
+        const bool on=(p.state&NCMM_VP_LIGHT_ON)!=0;
+        const auto display=b.add({{on?.18f:.07f,on?.30f:.08f,on?.21f:.08f,1},NCMM_VM_GLASS,on});
+        b.face({.495f,-.23f,chassis+.58f},{.495f,.23f,chassis+.58f},{.495f,.23f,chassis+.73f},{.495f,-.23f,chassis+.73f},display);
     }else if(kind==component::engine){
         if(std::string_view(p.id)=="foot_pedals"){
             const point crank{0,0,chassis+.12f};b.torus(crank,{1,0,0},{0,0,1},.075f,.008f,.008f,b.steel,segments,6);
@@ -327,10 +343,17 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         b.face({-.42f,-.42f,chassis+layout.cabin+.112f},{.42f,-.42f,chassis+layout.cabin+.112f},{.42f,.42f,chassis+layout.cabin+.112f},{-.42f,.42f,chassis+layout.cabin+.112f},cell);
         if(lod<2)for(float y:{-.21f,0.f,.21f})b.beam({-.42f,y,chassis+layout.cabin+.115f},{.42f,y,chassis+layout.cabin+.115f},.008f,.008f,b.steel,4);
     }else if(kind==component::light){
-        b.cushion({.34f,0,chassis+.40f},{.18f,.26f,.18f},.055f,b.dark);
+        if(p.features&NCMM_VP_LIGHT_OMNI){
+            const float z=chassis+layout.cabin+((p.features&NCMM_VP_LIGHT_CEILING)?-.09f:.10f);
+            b.cushion({0,0,z},{.24f,.20f,.07f},.035f,b.dark);
+            const bool on=(p.state&NCMM_VP_LIGHT_ON)!=0;const auto lens=b.add({{on?.91f:.32f,on?.89f:.33f,on?.72f:.30f,1},NCMM_VM_GLASS,on});
+            b.cushion({0,0,z+((p.features&NCMM_VP_LIGHT_CEILING)?-.04f:.04f)},{.19f,.15f,.018f},.025f,lens);
+            return std::make_shared<model>(std::move(b.output));
+        }
+        b.cushion({.51f,0,chassis+.40f},{.18f,.26f,.18f},.055f,b.dark);
         const bool on=(p.state&NCMM_VP_LIGHT_ON)!=0;
         const auto lens=b.add({{on?.95f:.30f,on?.86f:.32f,on?.62f:.31f,1},NCMM_VM_GLASS,on});
-        b.face({.435f,-.10f,chassis+.33f},{.435f,.10f,chassis+.33f},{.435f,.10f,chassis+.47f},{.435f,-.10f,chassis+.47f},lens);
+        b.face({.605f,-.10f,chassis+.33f},{.605f,.10f,chassis+.33f},{.605f,.10f,chassis+.47f},{.605f,-.10f,chassis+.47f},lens);
     }else if(kind==component::turret){
         b.beam({0,0,chassis+.1f},{0,0,chassis+.60f},.20f,.20f,b.steel,12);
         b.cushion({0,0,chassis+.62f},{.43f,.30f,.21f},.05f,b.dark);
@@ -348,7 +371,9 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
     }else{
         // Unknown installed equipment remains a neutral rounded component at
         // its true mount. It cannot manufacture a cabin, glass or spare wheels.
-        b.cushion({0,0,chassis+.15f},{.40f,.40f,.24f},.09f,b.steel);
+        if(std::string_view(p.id).find("seatbelt")!=std::string_view::npos){
+            b.beam({-.22f,-.24f,chassis+.25f},{-.24f,.24f,chassis+.88f},.035f,.008f,b.dark,4);
+        }else b.cushion({.20f,0,chassis+.22f},{.16f,.14f,.11f},.025f,b.steel);
     }
     if(p.health<.85f&&lod<2&&kind!=component::wheel&&kind!=component::glass&&kind!=component::door){
         const auto damage=b.add({{.16f,.13f,.10f,1},NCMM_VM_METAL});

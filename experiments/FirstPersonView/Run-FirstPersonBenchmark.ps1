@@ -220,9 +220,12 @@ try {
     # Keep the independent 180-second no-progress/crash guard below.
     $deadline=[DateTime]::UtcNow.AddSeconds($(if($VehicleGallery){3000}elseif($Extended){7200}elseif($FocusedGpuBenchmark -or $HeldAssetGallery -or $CameraInputProbe -or $FpsInputProbe -or $StaticStairProbe -or $TargetHudGallery){600}elseif($MovementBenchmark){1200}else{$SoakSeconds+3600}))
     $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
+    if($VehicleGallery){$progressPath=Join-Path $test 'ncmm/first-person-vehicle-progress.txt'}
     if($HeldAssetGallery){$progressPath=Join-Path $test 'ncmm/first-person-held-gallery-progress.txt'}
     $lastProgress='native startup'
     $lastAdvance=[DateTime]::UtcNow
+    $vehicleMemory=[System.Collections.Generic.List[object]]::new()
+    $vehicleMemoryStart=[DateTime]::UtcNow
     while(-not $process.WaitForExit(20000)){
         $nativeCrash=[NCMMNativeCrashDialog]::CloseOwnedCrash([uint32]$process.Id)
         if($nativeCrash){
@@ -238,6 +241,7 @@ try {
         if($line -and $line -ne $lastProgress){$lastProgress=[string]$line;$lastAdvance=[DateTime]::UtcNow}
         try {
             $process.Refresh()
+            if($VehicleGallery){$vehicleMemory.Add([ordered]@{elapsed_seconds=([DateTime]::UtcNow-$vehicleMemoryStart).TotalSeconds;working_set_bytes=$process.WorkingSet64;peak_working_set_bytes=$process.PeakWorkingSet64})}
             Write-Host ('Native SDL audit: {0}; process_cpu_seconds={1:F2}; working_set_mib={2:F1}' -f $lastProgress,$process.TotalProcessorTime.TotalSeconds,($process.WorkingSet64/1MB))
         } catch {Write-Host "Native SDL audit: $lastProgress"}
         if(([DateTime]::UtcNow-$lastAdvance).TotalSeconds -gt 180){
@@ -317,6 +321,9 @@ public static class NCMMBenchmarkWindow {
     if($debugger){$debugger.Dispose()}
     if($process -and $process.HasExited){$process.WaitForExit();$exitCode=$process.ExitCode}
     if($progressPath){$lastProgress=[string](Read-NativeBenchmarkProgress $progressPath)}
+    if($VehicleGallery -and $vehicleMemory){
+        [ordered]@{schema=1;actual_native=$true;source_commit=$bundle.ncmm_source_commit;engine_commit=$bundle.source_commit;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';sample_period_seconds=20;samples=$vehicleMemory.ToArray()} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence 'first-person-process-memory.json') -Encoding UTF8
+    }
     [ordered]@{schema=1;child_pid=$(if($process){$process.Id}else{$null});exit_signed=$exitCode;exit_hex=$(if($null -ne $exitCode){'0x'+([BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$exitCode),0)).ToString('X8')}else{$null});last_progress=$lastProgress;wrapper_failure=$failure;debugger_requested=[bool]$CaptureCrashDump;debugger_error=$(if($debugger){$debugger.Error}else{$null});crash_dumps=$(if($debugger){$debugger.Dumps}else{0});host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';ncmm_commit=$bundle.ncmm_source_commit;engine_commit=$bundle.source_commit;focused_gpu=[bool]$FocusedGpuBenchmark;movement=[bool]$MovementBenchmark} | ConvertTo-Json | Set-Content (Join-Path $evidence 'first-person-process-result.json') -Encoding UTF8
     try { if($CaptureCrashDump -and (Test-Path -LiteralPath $DumpAnalyzer) -and (Test-Path -LiteralPath (Join-Path $evidence 'first-person-debug-events.log'))){
         $events=Get-Content -LiteralPath (Join-Path $evidence 'first-person-debug-events.log') -Raw

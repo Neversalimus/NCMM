@@ -20,7 +20,7 @@ struct station {
 class topology {
 public:
     std::map<mount,station> mounts;
-    std::array<uint32_t,28> feature_counts{};
+    std::array<uint32_t,31> feature_counts{};
     std::vector<uint32_t> wheels;
     struct wheel_size {int x,y,z;float radius;};
     std::map<uint32_t,wheel_size> sizes;
@@ -36,7 +36,7 @@ public:
         std::vector<float> radii;unsigned dedicated_cargo=0;std::map<std::array<float,3>,unsigned> paints;
         for(uint32_t k=0;k<v.part_count;++k){const uint32_t index=v.first_part+k;const auto &p=s.parts[index];
             auto &node=mounts[{p.mount_x,p.mount_y,p.mount_z}];node.parts.push_back(index);node.features|=p.features;
-            for(unsigned bit=0;bit<28;++bit)if(p.features&(1u<<bit))++feature_counts[bit];
+            for(unsigned bit=0;bit<31;++bit)if(p.features&(1u<<bit))++feature_counts[bit];
             if(p.material==NCMM_VM_PAINT&&(p.features&(NCMM_VP_PANEL|NCMM_VP_ROOF))&&!(p.features&(NCMM_VP_DOOR|NCMM_VP_WINDOW))){
                 paints[{p.color[0],p.color[1],p.color[2]}]+=(p.features&NCMM_VP_PANEL)?2u:1u;}
             if(p.features&(NCMM_VP_SEAT|NCMM_VP_CONTROLS)){cabin_min_x=std::min(cabin_min_x,p.mount_x);cabin_max_x=std::max(cabin_max_x,p.mount_x);}
@@ -46,7 +46,7 @@ public:
         chassis=ncmm_graphics_vehicle_policy::chassis(radii);
         if(!paints.empty()){body_paint=std::max_element(paints.begin(),paints.end(),[](const auto &a,const auto &b){return a.second<b.second;})->first;body_paint_known=true;}
         std::sort(radii.begin(),radii.end());
-        const auto count=[&](uint32_t f){uint32_t n=0;for(unsigned bit=0;bit<28;++bit)if(f&(1u<<bit))n+=feature_counts[bit];return n;};
+        const auto count=[&](uint32_t f){uint32_t n=0;for(unsigned bit=0;bit<31;++bit)if(f&(1u<<bit))n+=feature_counts[bit];return n;};
         const auto profile=ncmm_graphics_vehicle_policy::shape(narrow,max_x-min_x,unsigned(wheels.size()),count(NCMM_VP_SEAT),count(NCMM_VP_ROOF),
             dedicated_cargo,count(NCMM_VP_CONTROLS),count(NCMM_VP_ARMOR),count(NCMM_VP_FLOAT),count(NCMM_VP_ENGINE),count(NCMM_VP_BICYCLE),
             radii.empty()?0:radii[radii.size()/2]);kind=profile.kind;cabin=profile.cabin;
@@ -110,6 +110,7 @@ public:
             add(p.wheel_radius);add(p.wheel_width);return h?h:1;
         }
         add(chassis);
+        if((p.features&NCMM_VP_LIGHT)&&(p.features&NCMM_VP_LIGHT_OMNI))add(cabin);
         const uint32_t shell=NCMM_VP_DOOR|NCMM_VP_WINDOW|NCMM_VP_ROOF|NCMM_VP_PANEL|NCMM_VP_ARMOR|NCMM_VP_SOLAR|NCMM_VP_FLOAT;
         if((p.features&shell)&&!(p.features&(NCMM_VP_SEAT|NCMM_VP_CONTROLS))){
             add(cabin);for(int value:{p.mount_x,p.mount_y,p.mount_z,min_x,max_x,min_y,max_y,cabin_min_x,cabin_max_x})add(value);

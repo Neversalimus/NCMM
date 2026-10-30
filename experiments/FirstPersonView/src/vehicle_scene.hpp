@@ -133,6 +133,7 @@ public:
                     }
                     pose.x=x;pose.y=y;
                     if(fresh)pose.target=pose.angle=0;
+                    if(p.state&NCMM_VP_BROKEN)pose.target=pose.angle=0;
                     const float step=std::clamp(pose.target-pose.angle,-float(dt)*45.f,float(dt)*45.f);
                     pose.angle+=step;roll=pose.angle;
                     if(std::abs(pose.angle)>1024){const float turns=std::floor(pose.angle/(2*pi))*(2*pi);pose.angle-=turns;pose.target-=turns;roll=pose.angle;}
@@ -140,6 +141,7 @@ public:
                     if((p.features&NCMM_VP_STEERABLE)&&(v.flags&NCMM_VEHICLE_STEERING_KNOWN))yaw+=std::clamp(v.steering,-.8f,.8f);
                 }
                 pose.touched=frame;pose.seconds=input.scene.seconds;
+                if(kind==component::light&&(p.state&NCMM_VP_DIRECTION_KNOWN)&&!(p.features&NCMM_VP_LIGHT_OMNI))yaw+=p.direction;
                 if(kind==component::axle&&t.narrow&&(p.features&NCMM_VP_STEERABLE)&&(v.flags&NCMM_VEHICLE_STEERING_KNOWN))yaw+=std::clamp(v.steering,-.8f,.8f);
                 const point placed=origin+rotate(local,v.yaw);
                 const auto placement=rigid(placed,yaw,roll);
@@ -151,7 +153,7 @@ public:
                     uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));revision=(revision^bits)*1099511628211ull;}
             }
             if(complete){groups.insert(v.legacy_group);coverage_revision=(coverage_revision^v.legacy_group)*1099511628211ull;
-                for(const auto &draw:vehicle_draws)if(draw.roof_surface){roof_cells.insert(draw.cell);coverage_revision=(coverage_revision^uint32_t(draw.cell))*1099511628211ull;}
+                for(const auto &draw:vehicle_draws)if(draw.roof_surface)roof_cells.insert(draw.cell);
                 draws.insert(draws.end(),vehicle_draws.begin(),vehicle_draws.end());}
         }
         for(auto it=poses.begin();it!=poses.end();)if(it->second.touched!=frame)it=poses.erase(it);else ++it;

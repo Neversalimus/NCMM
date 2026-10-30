@@ -29,6 +29,15 @@ def digest(path):
     with Path(path).open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
+def process_memory(status):
+    result={}
+    for key,name in [('VmRSS','rss_bytes'),('VmHWM','peak_rss_bytes')]:
+        match=re.search(r'^'+key+r':\s+(\d+) kB$',status,re.MULTILINE)
+        if not match:raise ValueError('Native process memory field unavailable: '+key)
+        result[name]=int(match[1])*1024
+    return result
+
+
 def seed_linux_configuration(game):
     path=Path(game)/'config/options.json'
     if path.exists():raise ValueError('Linux fixture requires a fresh owned configuration')
@@ -118,7 +127,7 @@ def run(args):
             from seed_deferred_options import seed
             seed(game);environment['NCMM_FP_VERIFY_DEFERRED_OPTIONS']='1'
         initial_options=(game/'config/options.json').read_bytes()
-        started=time.time(); timed_out=False
+        started=time.time(); timed_out=False;memory=[]
         # A distro-style Linux build defaults to PREFIX/share/cataclysm-dda.
         # The owned fixture uses the portable data/gfx layout in its cwd.
         # An explicit empty base selects that upstream-supported layout;
@@ -128,7 +137,17 @@ def run(args):
         with (game/'stdout.log').open('wb') as stdout,(game/'stderr.log').open('wb') as stderr:
             process=subprocess.Popen(command,cwd=game,env=environment,
                 stdout=stdout,stderr=stderr,start_new_session=True)
-            try: code=process.wait(timeout=4200 if mode=='gameplay' else 3000 if mode=='vehicles' else 1500)
+            try:
+                if mode!='vehicles':code=process.wait(timeout=4200 if mode=='gameplay' else 1500)
+                else:
+                    deadline=time.monotonic()+3000
+                    while True:
+                        try:code=process.wait(timeout=5);break
+                        except subprocess.TimeoutExpired:
+                            if time.monotonic()>=deadline:raise
+                            try:sample=process_memory(Path('/proc',str(process.pid),'status').read_text())
+                            except (FileNotFoundError,ProcessLookupError):continue
+                            memory.append(dict(elapsed_seconds=time.time()-started,**sample))
             except subprocess.TimeoutExpired:
                 import signal
                 timed_out=True;os.killpg(process.pid,signal.SIGKILL);code=process.wait()
@@ -139,6 +158,9 @@ def run(args):
         results.append(result)
         (output/'process-results.json').write_text(json.dumps(results,indent=2)+'\n')
         evidence=output/'evidence'/mode;evidence.mkdir(parents=True)
+        if mode=='vehicles':
+            (evidence/'first-person-process-memory.json').write_text(json.dumps(dict(schema=1,actual_native=True,
+                source_commit=ncmm_source,engine_commit=source,module_sha256=inventory['FirstPersonView'],sample_period_seconds=5,samples=memory),indent=2)+'\n')
         (evidence/'fixture-options-before-launch.json').write_bytes(initial_options)
         (evidence/'fixture-inputs-before-launch.json').write_text(json.dumps(fixture_inputs,indent=2)+'\n',encoding='utf-8')
         for file in list((game/'ncmm').glob('*'))+list((game/'config').glob('*.log'))+[game/'stdout.log',game/'stderr.log']:

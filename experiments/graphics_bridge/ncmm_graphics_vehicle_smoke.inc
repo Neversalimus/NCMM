@@ -51,6 +51,9 @@
         require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"vehicle_present_failed");
         graphics_world_frame_presented();require(SDL_SetRenderTarget(renderer,canvas),"vehicle_capture_rebind_failed");++frames;
         const double frame_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
+        if(frames%16==0){std::ofstream progress(game_root()/"ncmm"/"first-person-vehicle-progress.txt");
+            progress<<"vehicles: frame="<<frames<<" scene="<<prototype<<" phase="<<label<<'\n';
+            require(bool(progress),"vehicle_progress_write_failed");}
         if(!record){return frame_ms;}
         evidence.start_object();evidence.member("label",label);evidence.member("prototype",prototype);evidence.member("backend",backend);evidence.member("renderer",mode);
         evidence.member("frame_width",frame_width);evidence.member("frame_height",frame_height);
@@ -58,6 +61,9 @@
         evidence.member("yaw",graphics_camera_yaw);evidence.member("pitch",graphics_camera_pitch);evidence.member("eye_height",graphics_presentation.eye_height);
         evidence.member("actual_gpu",graphics_gpu_frame);evidence.member("snapshot_vehicles",graphics_vehicle_rows.size());evidence.member("snapshot_parts",graphics_vehicle_parts.size());
         evidence.member("vehicle_extraction_ms",graphics_vehicle_extraction_ms);evidence.member("vehicle_preparation_ms",graphics_vehicle_metrics.preparation_ms);
+        evidence.member("vehicle_discovery_body_cells",graphics_vehicle_discovery.body_cells);evidence.member("vehicle_discovery_floor_cells",graphics_vehicle_discovery.floor_cells);
+        evidence.member("vehicle_discovery_vehicles",graphics_vehicle_discovery.vehicles);evidence.member("vehicle_discovery_parts",graphics_vehicle_discovery.parts);
+        evidence.member("vehicle_discovery_roof_cells",graphics_vehicle_discovery.roof_cells);evidence.member("vehicle_discovery_groups",graphics_vehicle_discovery.groups);
         evidence.member("vehicle_owned_bytes",graphics_vehicle_metrics.owned_bytes);evidence.member("vehicle_generated",graphics_vehicle_metrics.generated);
         evidence.member("vehicle_reused",graphics_vehicle_metrics.reused);evidence.member("vehicle_topology_builds",graphics_vehicle_metrics.topology_builds);
         evidence.member("vehicle_submitted_parts",graphics_vehicle_metrics.submitted_parts);
@@ -106,7 +112,9 @@
         const struct view {const char *name;int x,y;float pitch;} views[]={
             {"front",10,0,-.05f},{"rear",-10,0,-.05f},{"left",0,-10,-.05f},{"right",0,10,-.05f},
             {"front-three-quarter",9,9,-.10f},{"rear-three-quarter",-9,9,-.10f},{"top-oblique",5,5,-.58f}};
-        for(const auto &v:views){camera(v.x? (v.x>0?radius:-radius):0,v.y? (v.y>0?radius:-radius):0,v.pitch,std::strcmp(v.name,"top-oblique")==0?1:0);pair(v.name,prototype);verify_car(*car);}
+        for(const auto &v:views){const bool upper=std::strcmp(v.name,"top-oblique")==0;
+            const float pitch=upper?-std::atan2(NCMM_WORLD_LEVEL_HEIGHT+graphics_eye_height()-1.f,float(radius)*std::sqrt(2.f)):v.pitch;
+            camera(v.x? (v.x>0?radius:-radius):0,v.y? (v.y>0?radius:-radius):0,pitch,upper?1:0);pair(v.name,prototype);verify_car(*car);}
         camera(0,8,-.08f);
         if(std::strcmp(prototype,"car")==0){
             int door_index=-1,wheel_index=-1,roof_index=-1;std::vector<int> seats;
@@ -132,6 +140,8 @@
                 get_map().unboard_vehicle(get_avatar().pos_bub());camera(0,8,-.08f);require(!get_avatar().in_vehicle,"vehicle_exit_failed");}
             const auto hp=car->part(door_index).hp();car->set_hp(car->part(door_index),std::max(1,hp/3),true);
             pair("damaged",prototype);car->set_hp(car->part(door_index),0,true);pair("broken-door",prototype);
+            const auto wheel_hp=car->part(wheel_index).hp();car->set_hp(car->part(wheel_index),0,true);pair("broken-wheel",prototype);
+            car->set_hp(car->part(wheel_index),wheel_hp,true);
             const uint64_t removed=car->part(wheel_index).ncmm_graphics_part_id();
             std::set<uint64_t> remaining;
             for(const vpart_reference &p:car->get_all_parts())if(!p.part().removed&&!p.part().is_fake&&p.part().ncmm_graphics_part_id()!=removed){remaining.insert(p.part().ncmm_graphics_part_id());}
@@ -144,11 +154,11 @@
             require(added>=0,"vehicle_armor_install_failed");pair("installed-armor",prototype);verify_car(*car);
             for(const vpart_reference &p:car->get_all_parts())if(p.has_feature("CONE_LIGHT")){p.part().enabled=false;}
             get_map().set_lightmap_cache_dirty(get_avatar().posz());pair("headlights-off",prototype);
-            require(std::none_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return (p.state&NCMM_VP_LIGHT_ON)!=0;}),"vehicle_disabled_headlight_emits");
+            require(std::none_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return (p.features&NCMM_VP_LIGHT)&&!(p.features&NCMM_VP_LIGHT_OMNI)&&(p.state&NCMM_VP_LIGHT_ON);}),"vehicle_disabled_headlight_emits");
             car->charge_battery(get_map(),10000,false);
             for(const vpart_reference &p:car->get_all_parts())if(p.has_feature("CONE_LIGHT")){p.part().enabled=true;}
             get_map().set_lightmap_cache_dirty(get_avatar().posz());pair("headlights-on",prototype);
-            require(std::any_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return (p.state&NCMM_VP_LIGHT_ON)!=0;}),"vehicle_powered_headlight_missing");
+            require(std::any_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return (p.features&NCMM_VP_LIGHT)&&!(p.features&NCMM_VP_LIGHT_OMNI)&&(p.state&NCMM_VP_LIGHT_ON);}),"vehicle_powered_headlight_missing");
             calendar::turn=calendar::turn_zero;
             if(get_avatar().has_trait(trait_id("DEBUG_NIGHTVISION"))){get_avatar().toggle_trait(trait_id("DEBUG_NIGHTVISION"));}
             camera(5,3,-.12f);pair("night-headlights",prototype);

@@ -108,6 +108,20 @@ int main(){
     const auto wheel_mesh=find_draw(moving,103).geometry;
     for(const auto &face:wheel_mesh->triangles)for(const auto &v:face.vertices){
         require(std::hypot(v.position.x,v.position.z)<=.32001f&&std::abs(v.position.y)<=.09001f,"licensed wheel respects actual Native radius and width");}
+    {
+        auto wheel=original.parts[3];wheel.state|=NCMM_VP_BROKEN;wheel.health=0;
+        const auto broken=first_person::vehicle::generate(original,topology,wheel,0);
+        auto rubber=[](const auto &mesh){return std::count_if(mesh->triangles.begin(),mesh->triangles.end(),[&](const auto &t){return mesh->materials[t.material].kind==NCMM_VM_RUBBER;});};
+        require(rubber(broken)<rubber(wheel_mesh),"broken wheel no longer keeps an intact licensed tire");
+        auto roof=original.parts[2];const auto whole=first_person::vehicle::generate(original,topology,roof,0);
+        roof.state|=NCMM_VP_BROKEN;roof.health=0;const auto damaged=first_person::vehicle::generate(original,topology,roof,0);
+        require(damaged->triangles.size()<whole->triangles.size(),"broken roof has a local aperture instead of an intact slab");
+        require(ncmm_graphics_vehicle_policy::seated_eye(.4f,1,4,.515f)>ncmm_graphics_vehicle_policy::seated_eye(.4f,1,4),"actual saddle surface raises the seated eye");
+        require(ncmm_graphics_vehicle_policy::seated_eye(.4f,1,1.5f,.515f)<=1.38f,"only an actual local roof clamps saddle headroom");
+        auto dash=original.parts[0];std::strcpy(dash.id,"dashboard");dash.features=NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI;
+        const auto display=first_person::vehicle::generate(original,topology,dash,0);
+        require(display->kind==first_person::vehicle::component::dashboard,"actual dashboard is not an unknown cube or extra steering wheel");
+    }
     moving.input.vehicles[0].origin_x+=.2f;moving.input.scene.seconds+=.1;moving.observe({0,0,1.5f});
     require(moving.generated==initial_builds&&find_draw(moving,103).geometry==wheel_mesh,"translation only changes instance transforms");
     moving.input.vehicles[0].yaw+=.2f;moving.input.scene.seconds+=.1;moving.observe({0,0,1.5f});

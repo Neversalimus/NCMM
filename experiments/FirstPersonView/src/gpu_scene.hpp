@@ -562,9 +562,7 @@ class scene_cache {
             }
             const auto key=content_position(size_t(i));
             const uint32_t flags=levels?levels->coordinates[i].flags:0,direction=levels?levels->coordinates[i].direction:0;
-            const uint32_t vehicle_geometry=metadata&&metadata->vehicles?
-                uint32_t(metadata->vehicles->handles(s.details[i].vehicle_group))|
-                (uint32_t(metadata->vehicles->handles_roof(i))<<1):0;
+            const uint32_t vehicle_geometry=metadata&&metadata->vehicles?uint32_t(metadata->vehicles->handles(s.details[i].vehicle_group)):0;
             const normalized_record *old=nullptr;
             uint32_t slot=normalized_missing;
             if(retain){

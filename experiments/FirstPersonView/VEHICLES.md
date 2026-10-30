@@ -140,12 +140,20 @@ cache refresh; device resources may remain resident. A separate 900-second real
 Native loop changes poses and doors, alternates CPU/GPU, saves/reloads and checks
 bounded owned memory. Its completion must be verified in the emitted record.
 
-Vehicle roofs use a separate surface permission where Native exposes their
-architectural upper-storey floor. That permission emits only the installed roof,
-without granting visibility to the hidden interior. The corresponding synthetic
-slab is replaced only for an accepted Modular component. Cached GPU cell keys
-include this replacement and Legacy/Modular ownership; rigid motion stays outside
-the static terrain key.
+Vehicle roofs use a separate outside-surface permission where Native exposes the
+bounded architectural surface at the actual source cell. That permission emits
+only the installed roof, without granting visibility to the hidden interior.
+The terrain underneath stays present. Discovery enumerates actual loaded vehicles
+and parts rather than treating a 2D sprite or `veh_at` display cache as the source
+of a 3D vehicle's existence. Cached GPU cell keys include Legacy/Modular ownership;
+rigid motion stays outside the static terrain key.
+
+Dashboard equipment is distinct from a steering control. Directional light
+orientation follows the Native part angle; dome/aisle/overhead lights use their
+actual mounting family. Emission requires the Native enabled/available/power
+state, including power-deficit suppression and self-powered light parts. Broken
+wheels show rims/remnants, and broken roofs have local apertures. Neither gives
+permission to reveal hidden occupants or container contents.
 
 Remaining qualification before enabling the new default or publishing a final
 installer: inspect the actual Native images; complete custom-construction,

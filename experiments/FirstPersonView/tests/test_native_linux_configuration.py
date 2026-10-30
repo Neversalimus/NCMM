@@ -3,11 +3,16 @@ import hashlib
 from pathlib import Path
 import tempfile
 import unittest
-from run_native_linux import seed_linux_configuration,install_linux_fixtures
+from run_native_linux import seed_linux_configuration,install_linux_fixtures,process_memory
 from seed_deferred_options import seed
 
 
 class LinuxConfigurationTests(unittest.TestCase):
+    def test_process_memory_keeps_kernel_units_and_peak_separate(self):
+        value=process_memory('Name:\tncmm\nVmHWM:\t 1400 kB\nVmRSS:\t 1200 kB\n')
+        self.assertEqual(value,dict(rss_bytes=1200*1024,peak_rss_bytes=1400*1024))
+        with self.assertRaises(ValueError):process_memory('VmRSS: 4 kB\n')
+
     def test_fresh_fixture_selects_a_real_language_before_startup(self):
         with tempfile.TemporaryDirectory() as folder:
             game=Path(folder);seed_linux_configuration(game)
