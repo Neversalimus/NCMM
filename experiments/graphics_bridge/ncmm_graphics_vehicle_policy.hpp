@@ -8,7 +8,7 @@ struct profile {archetype kind=archetype::utility;float cabin=1.28f;};
 inline profile shape(bool narrow,int length,unsigned wheels,unsigned seats,unsigned roofs,unsigned cargo,unsigned controls,
     unsigned armor,unsigned floats,unsigned engines,unsigned bicycle,float radius){
     if(floats&&!wheels)return {archetype::boat,1.28f};
-    if(narrow&&wheels)return {engines?archetype::motorcycle:bicycle?archetype::bicycle:archetype::utility,1.28f};
+    if(narrow&&wheels)return {bicycle?archetype::bicycle:engines?archetype::motorcycle:archetype::utility,1.28f};
     if(!controls&&!seats&&cargo)return {wheels?archetype::trailer:archetype::platform,1.28f};
     if(armor>=3)return {archetype::armored,1.48f};
     if((seats>=6&&length>=6)||(roofs>=18&&length>=8))return {archetype::bus,1.9f};

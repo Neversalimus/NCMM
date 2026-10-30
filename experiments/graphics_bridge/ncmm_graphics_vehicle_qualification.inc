@@ -45,25 +45,34 @@
     // Test original Native actor start/finish costs and exact stable identities,
     // including vector relocation between start and completion.
     clear_cars();vehicle *door_car=create("car",0,0);int door_index=-1;
-    for(const vpart_reference &p:door_car->get_all_parts()){if(p.has_feature("DOOR")&&!p.part().open){door_index=int(p.part_index());break;}}
+    for(const vpart_reference &p:door_car->get_all_parts())if(p.has_feature("DOOR")){
+        if(p.part().open){door_car->close(get_map(),int(p.part_index()));}
+        if(door_index<0||p.part().mount.y()<door_car->part(door_index).mount.y()){door_index=int(p.part_index());}
+    }
     require(door_index>=0,"vehicle_activity_door_missing");
     const auto door_position=door_car->bub_part_pos(get_map(),door_index);
     get_avatar().setpos(get_map(),door_position+tripoint_rel_ms(0,-1,0),false);g->ter_view_p=get_avatar().pos_bub();
-    look(ncmm_graphics_camera::pi*.5f,0);draw("activity-source","car","gpu","modular",true);
     const auto at=get_map().get_abs(door_position);const auto vehicle_id=door_car->ncmm_graphics_vehicle_id(),part_id=door_car->part(door_index).ncmm_graphics_part_id();
-    graphics_vehicle_activity_request={true,true,vehicle_id,part_id,graphics_vehicle_scene.world_epoch,at.x(),at.y(),at.z()};
-    open_tile_activity_actor open_actor(door_position);player_activity open_activity;open_actor.start(open_activity,get_avatar());
+    door_car->part(door_index).locked=false;
+    bool picked=false;
+    for(unsigned probe=0;probe<10&&!picked;++probe){look(ncmm_graphics_camera::pi*.5f,-.3f-.1f*probe);
+        draw("activity-pick-probe","car","gpu","modular",false,true,false);
+        picked=graphics_vehicle_focus_entity==vehicle_id&&graphics_vehicle_focus_part==part_id;}
+    require(picked,"vehicle_actual_displayed_door_pick_missing");draw("activity-source","car","gpu","modular",true);
+    graphics_vehicle_activity_request={true,true,graphics_vehicle_focus_entity,graphics_vehicle_focus_part,graphics_vehicle_scene.world_epoch,at.x(),at.y(),at.z()};
+    open_tile_activity_actor open_actor(door_position);player_activity open_activity(open_actor);open_actor.start(open_activity,get_avatar());
     require(open_activity.moves_total==to_moves<int>(1_seconds)&&!door_car->part(door_index).open,"vehicle_open_native_cost_changed");
     open_actor.finish(open_activity,get_avatar());require(door_car->part(door_index).open,"vehicle_exact_open_activity_failed");
     draw("activity-open","car","gpu","modular",true);
     graphics_vehicle_activity_request={true,false,vehicle_id,part_id,graphics_vehicle_scene.world_epoch,at.x(),at.y(),at.z()};
-    close_tile_activity_actor close_actor(door_position);player_activity close_activity;close_actor.start(close_activity,get_avatar());
+    close_tile_activity_actor close_actor(door_position);player_activity close_activity(close_actor);close_actor.start(close_activity,get_avatar());
     require(close_activity.moves_total==90&&door_car->part(door_index).open,"vehicle_close_native_cost_changed");
     close_actor.finish(close_activity,get_avatar());require(!door_car->part(door_index).open,"vehicle_exact_close_activity_failed");
     // A removed pending target must never open a replacement at the same mount.
     draw("activity-closed","car","gpu","modular",false);
     graphics_vehicle_activity_request={true,true,vehicle_id,part_id,graphics_vehicle_scene.world_epoch,at.x(),at.y(),at.z()};
-    open_tile_activity_actor stale_actor(door_position);player_activity stale_activity;stale_actor.start(stale_activity,get_avatar());
+    open_tile_activity_actor stale_actor(door_position);player_activity stale_activity(stale_actor);stale_actor.start(stale_activity,get_avatar());
+    require(!stale_activity.is_null(),"vehicle_stale_activity_was_never_started");
     door_car->remove_part(door_car->part(door_index));door_car->part_removal_cleanup(get_map());
     stale_actor.finish(stale_activity,get_avatar());require(stale_activity.is_null(),"vehicle_stale_activity_not_cancelled");
     clear_cars();for(int n=0;n<3;++n){create(n%2?"suv":"car",n*9-9,0);}subject=street;camera(0,14,-.1f);
@@ -77,6 +86,10 @@
         if(iteration%16==0){v->face.init(v->turn_dir);}
         if(iteration%64==0){for(const vpart_reference &p:v->get_all_parts())if(p.has_feature("DOOR")&&p.part().is_available()){
             if(p.part().open){v->close(get_map(),int(p.part_index()));}else{v->open(get_map(),int(p.part_index()));}++mutations;break;}}
+        if(iteration%128==0){int armor=-1;for(const vpart_reference &p:v->get_all_parts())if(p.part().info().id.str()=="rebar_plate"){armor=int(p.part_index());break;}
+            if(armor>=0){v->remove_part(v->part(armor));v->part_removal_cleanup(get_map());}
+            else{require(v->install_part(get_map(),point_rel_ms(0,0),vpart_id("rebar_plate"))>=0,"vehicle_soak_install_failed");}++mutations;}
+        if(iteration%384==383){press_f6();require(!graphics_view.enabled,"vehicle_soak_f6_disable_failed");press_f6();require(graphics_view.enabled,"vehicle_soak_f6_enable_failed");}
         graphics_smoke_seconds=20.+iteration*.05;
         look(-ncmm_graphics_camera::pi*.5f+.22f*std::sin(iteration*.05f),-.08f);
         draw("soak-"+std::to_string(iteration),"mixed",(iteration/64)%2?"cpu":"gpu","modular",false,true,iteration%32==0);

@@ -84,6 +84,10 @@
         require(count==found->part_count,"vehicle_snapshot_lost_individual_parts");
         for(uint32_t n=0;n<found->part_count;++n){const auto &p=graphics_vehicle_parts[found->first_part+n];
             require(ids.erase(p.part_id)==1,"vehicle_snapshot_false_or_duplicate_part");
+            for(const vpart_reference &ref:v.get_all_parts())if(ref.part().ncmm_graphics_part_id()==p.part_id){
+                require(bool(p.features&NCMM_VP_FRAME)==(ref.info().location.str()=="structure"),"vehicle_native_structure_location_not_mapped");
+                require(p.mount_x==ref.part().mount.x()&&p.mount_y==ref.part().mount.y(),"vehicle_native_mount_changed");
+            }
             require((p.state&NCMM_VP_TOPOLOGY_ONLY)?p.cell_index==-1:p.cell_index>=0,"vehicle_hidden_part_gained_geometry");}
         require(ids.empty(),"vehicle_snapshot_lost_mount_layer");
     };

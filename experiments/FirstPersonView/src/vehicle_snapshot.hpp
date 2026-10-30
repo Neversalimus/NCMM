@@ -44,7 +44,7 @@ inline bool valid(const snapshot &input,size_t cells){
                (topology_only?p.cell_index!=-1:(p.cell_index<0||size_t(p.cell_index)>=cells))||p.mount_x<v.min_x||p.mount_x>v.max_x||
                p.mount_y<v.min_y||p.mount_y>v.max_y||p.mount_z<-16||p.mount_z>16||
                !(p.state&NCMM_VP_EXISTS)||(p.state&~511u)||((p.state&NCMM_VP_ROOF_SURFACE)&&(!(p.features&NCMM_VP_ROOF)||topology_only))||
-               (p.features&~134217727u)||p.material>=NCMM_VM_COUNT||
+               (p.features&~268435455u)||p.material>=NCMM_VM_COUNT||
                !p.id[0]||!terminated(p.id)||!terminated(p.variant)||!terminated(p.material_id))return false;
             for(float f:{p.health,p.wheel_radius,p.wheel_width,p.direction})if(!finite(f))return false;
             if(p.health<0||p.health>1||p.wheel_radius<0||p.wheel_radius>4||p.wheel_width<0||p.wheel_width>3||std::abs(p.direction)>32)return false;

@@ -58,6 +58,18 @@ support narrow bikes, open frames, cars, SUVs, vans, trucks, buses, pickups,
 armored constructions, trailers/platforms and boats. This is a visual heuristic;
 the Native collision grid and vehicle simulation remain authoritative.
 
+Structural nodes come from Native's `vpart_info.location == structure`, not a
+nonexistent `STRUCTURE` flag. Wheel-mount flags provide axle/fork components;
+flotation parts provide local hull lofts. Saddle and basket definitions keep
+their own part identities and compact/wire geometry. Missing mounts are never
+bridged into a new complete vehicle.
+
+The copied colour remains the actual Native definition value. Standard generic
+doors use the most frequent installed body-panel definition colour instead of
+their cyan operational map symbol; custom part IDs retain their authored colour.
+This chooses one canonical colour without averaging sprite pixels. Paint/material
+changes invalidate the related topology and component recipe.
+
 Confirmed Native state drives doors and shutters. A damaged part affects its
 own surface; broken glass/door leaves and removed parts do not remain as intact
 ghost geometry. Wheel angle comes from real absolute component displacement;

@@ -33,7 +33,7 @@ def prepare(root, updates, bridge):
     updates['vehicle.h'] = patch_vehicle_header(header)
     loader = updates['ncmm_loader.cpp']
     loader = replace_once(loader, '#include "ncmm_graphics_presentation_policy.hpp"',
-        '#include "ncmm_graphics_presentation_policy.hpp"\n#include "ncmm_graphics_vehicles.h"\n#if defined(TILES)\n#include "sdl_utils.h"\n#endif')
+        '#include "ncmm_graphics_presentation_policy.hpp"\n#include "ncmm_graphics_vehicles.h"\n#if defined(TILES)\n#include "sdl_utils.h"\n#include "activity_actor_definitions.h"\n#endif')
     loader = replace_once(loader, '    "graphics.presentation.v1",',
         '    "graphics.presentation.v1",\n    "graphics.vehicles.v1",')
     loader = replace_once(loader, '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {',

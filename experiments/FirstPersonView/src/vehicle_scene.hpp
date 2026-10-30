@@ -140,6 +140,7 @@ public:
                     if((p.features&NCMM_VP_STEERABLE)&&(v.flags&NCMM_VEHICLE_STEERING_KNOWN))yaw+=std::clamp(v.steering,-.8f,.8f);
                 }
                 pose.touched=frame;pose.seconds=input.scene.seconds;
+                if(kind==component::axle&&t.narrow&&(p.features&NCMM_VP_STEERABLE)&&(v.flags&NCMM_VEHICLE_STEERING_KNOWN))yaw+=std::clamp(v.steering,-.8f,.8f);
                 const point placed=origin+rotate(local,v.yaw);
                 const auto placement=rigid(placed,yaw,roll);
                 vehicle_draws.push_back({geometry,placement,v.entity_id,p.part_id,p.cell_index,bool(p.state&NCMM_VP_ROOF_SURFACE)});

@@ -1,9 +1,6 @@
 // Native-only producer; snapshots own trivial values and never borrow a part,
 // cargo item, vehicle, map cache or prototype across callbacks.
 #include "ncmm_graphics_vehicle_policy.hpp"
-#if defined(TILES)
-#include "activity_actor_definitions.h"
-#endif
 ncmm_graphics_vehicle_scene_v1 graphics_vehicle_scene{};
 bool graphics_vehicles_requested=false;
 std::vector<ncmm_graphics_vehicle_v1> graphics_vehicle_rows;
@@ -205,7 +202,7 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
             if(cell==permitted.end())out.state|=NCMM_VP_TOPOLOGY_ONLY;
             out.direction=float(units::to_radians(part.direction));out.state|=NCMM_VP_DIRECTION_KNOWN;
             const std::pair<const char *,uint32_t> features[]={
-                {"STRUCTURE",NCMM_VP_FRAME},{"ROOF",NCMM_VP_ROOF},{"OBSTACLE",NCMM_VP_PANEL},
+                {"ROOF",NCMM_VP_ROOF},{"OBSTACLE",NCMM_VP_PANEL},
                 {"WINDOW",NCMM_VP_WINDOW},{"DOOR",NCMM_VP_DOOR},{"OPENABLE",NCMM_VP_OPENABLE},{"WHEEL",NCMM_VP_WHEEL},
                 {"HALF_BOARD",NCMM_VP_HALF_PANEL},{"WINDSHIELD",NCMM_VP_WINDSHIELD},{"CURTAIN",NCMM_VP_CURTAIN},
                 {"SEAT",NCMM_VP_SEAT},{"CARGO",NCMM_VP_CARGO},{"ENGINE",NCMM_VP_ENGINE},
@@ -215,6 +212,8 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
                 {"AISLE",NCMM_VP_AISLE},{"BATTERY",NCMM_VP_BATTERY},{"FUEL_TANK",NCMM_VP_FUEL_TANK},
                 {"BIKE_RACK_VEH",NCMM_VP_RACK}};
             for(const auto &[name,flag]:features)if(ref.has_feature(name))out.features|=flag;
+            if(part.info().location.str()=="structure"){out.features|=NCMM_VP_FRAME;}
+            if(ref.has_feature("WHEEL_MOUNT_LIGHT")||ref.has_feature("WHEEL_MOUNT_MEDIUM")||ref.has_feature("WHEEL_MOUNT_HEAVY")){out.features|=NCMM_VP_AXLE;}
             if((out.features&NCMM_VP_ROOF)&&part.is_available()){
                 const auto surface=roof_surfaces.find(pos);
                 if(surface!=roof_surfaces.end()){out.cell_index=surface->second;out.state&=~NCMM_VP_TOPOLOGY_ONLY;out.state|=NCMM_VP_ROOF_SURFACE;}
@@ -260,6 +259,8 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
             graphics_vehicle_hash_value(row.state_revision,out.health);graphics_vehicle_hash_value(row.state_revision,out.direction);
             graphics_vehicle_hash_value(row.state_revision,out.cell_index);graphics_vehicle_hash_value(row.state_revision,out.material);
             for(float value:out.color)graphics_vehicle_hash_value(row.state_revision,value);
+            graphics_vehicle_hash_value(row.structure_revision,out.material);
+            for(float value:out.color)graphics_vehicle_hash_value(row.structure_revision,value);
             if(you.in_vehicle&&pos==you.pos_bub()){
                 scene.occupied_vehicle=row.entity_id;
                 if((out.features&NCMM_VP_FLOOR)&&part.passenger_id==you.getID())scene.occupied_part=out.part_id;
