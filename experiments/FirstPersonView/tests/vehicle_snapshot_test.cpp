@@ -2,6 +2,8 @@
 #include "vehicle_geometry.hpp"
 #include "vehicle_scene.hpp"
 #include "gpu_packet.hpp"
+#include "gpu_input_fingerprint.hpp"
+#include "raster_dispatch.hpp"
 #include "ncmm_graphics_vehicle_identity.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -12,6 +14,9 @@
 using first_person::vehicle::snapshot;
 namespace {
 int checks=0;
+int traced_submissions=0;
+struct data_backend {bool submit(const ncmm_gpu_scene_v1 &s,const ncmm_gpu_multilevel_scene_v1 *){return s.mode!=NCMM_GPU_CPU;}};
+void trace_data(const ncmm_gpu_scene_v1 &,const ncmm_gpu_multilevel_scene_v1 *){++traced_submissions;}
 void require(bool value,const char *message){++checks;if(!value){std::fprintf(stderr,"vehicle snapshot: %s\n",message);std::exit(1);}}
 void verify_gpu_vertices(const first_person::vehicle::model &model){
     first_person::gpu::owned_mesh mesh;first_person::gpu::vertex_index indexed(model.triangles.size()*3);
@@ -96,6 +101,21 @@ void verify_closed_surface(const first_person::vehicle::model &mesh){
 }
 }
 int main(){
+    {for(int workers:{1,2,3,4})for(int low=0;low<96;++low)for(int high=low;high<128;++high)for(int worker=0;worker<workers;++worker){
+        bool reference=false;for(int row=low;row<=high;++row)if((row/16)%workers==worker){reference=true;break;}
+        const auto mask=first_person::hybrid::raster_worker_mask(low,high,workers);
+        require(bool(mask&(1u<<worker))==reference,"worker mask agrees with an independent exhaustive scanline reference");
+        require(!(mask>>workers),"worker mask never names a nonexistent worker");}}
+    {ncmm_gpu_scene_v1 scene{};scene.mode=NCMM_GPU_FORCE;
+        gpu_input_diagnostic::traced_backend<data_backend,trace_data> trace;
+        require(trace.submit(scene)&&traced_submissions==1,"diagnostic wrapper preserves successful submit and traces copied data");
+        scene.mode=NCMM_GPU_CPU;require(!trace.submit(scene)&&traced_submissions==1,"failed/invalid submissions are never dereferenced by the diagnostic");
+        ncmm_gpu_vertex_v1 vertex{};ncmm_gpu_mesh_v1 mesh{};mesh.vertices=&vertex;mesh.vertex_count=1;scene.meshes=&mesh;scene.mesh_count=1;
+        const auto before=gpu_input_diagnostic::fingerprint(scene);scene.geometry_ms=123;scene.producer_cache_bytes=123456;
+        require(gpu_input_diagnostic::fingerprint(scene)==before,"profiling noise is excluded from semantic input fingerprints");
+        auto duplicate=vertex;mesh.vertices=&duplicate;require(gpu_input_diagnostic::fingerprint(scene)==before,"pointer/heap addresses are excluded from fingerprints");
+        duplicate.position[0]=.25f;const auto changed=gpu_input_diagnostic::fingerprint(scene);
+        for(size_t i=0;i<before.size();++i)require((before[i]!=changed[i])==(i==2),"a vertex position change is isolated to its semantic input group");}
     {first_person::gpu::owned_mesh mesh;first_person::gpu::vertex_index indexed(200);
         std::map<std::array<uint32_t,18>,uint32_t> reference;
         auto verify=[&](const auto &bytes){ncmm_gpu_vertex_v1 v{};std::memcpy(&v,bytes.data(),sizeof(v));

@@ -338,6 +338,17 @@ if(FIRST_PERSON_BUILD_GPU_TESTS)
     target_compile_definitions(first_person_gpu_scene_tests PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
   endif()
   add_test(NAME first_person_gpu_scene COMMAND first_person_gpu_scene_tests gpu-scene)
+  # Developer compile target for the same test-only capture used by the paired
+  # scratch-policy probe. Excluded from ordinary builds and test execution.
+  file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/gpu_scratch_capture.cpp" CONTENT
+    "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/gpu_scratch_capture.inc\"\n#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/gpu_scene_test.cpp\"\n")
+  add_executable(first_person_gpu_scratch_capture EXCLUDE_FROM_ALL "${CMAKE_CURRENT_BINARY_DIR}/generated/gpu_scratch_capture.cpp")
+  first_person_target(first_person_gpu_scratch_capture)
+  target_compile_definitions(first_person_gpu_scratch_capture PRIVATE NCMM_GPU_CAPTURE_INPUTS=1)
+  target_link_libraries(first_person_gpu_scratch_capture PRIVATE SDL3::SDL3)
+  if(FIRST_PERSON_GPU_SHADER_HEADER)
+    target_compile_definitions(first_person_gpu_scratch_capture PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
+  endif()
   if(WIN32 AND TARGET SDL3::SDL3-shared)
     foreach(target first_person_gpu_probe_tests first_person_gpu_scene_tests)
       add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different

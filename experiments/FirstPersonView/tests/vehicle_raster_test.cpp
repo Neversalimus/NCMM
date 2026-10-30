@@ -13,7 +13,7 @@ template<class T> bool identical(const std::vector<T> &a,const std::vector<T> &b
 }
 void compare(const h::frame &a,const h::frame &b){
     require(a.width==b.width&&a.height==b.height,"same internal viewport, no resolution reduction");
-    require(identical(a.pixels,b.pixels),"streamed and parallel full colour buffers are bitwise equal");
+    require(identical(a.pixels,b.pixels),"scheduling variants preserve the complete colour buffer bit for bit");
     require(identical(a.depth,b.depth)&&identical(a.held_depth,b.held_depth),"world/held depth bits are unchanged");
     require(a.owners==b.owners&&a.creatures==b.creatures,"cell and creature picking preserve every pixel");
     require(a.focus==b.focus&&a.focus_depth==b.focus_depth&&a.aimed==b.aimed,"crosshair selection/depth are unchanged");
@@ -43,28 +43,32 @@ struct fixture {
             const auto mesh=v::generate(input,shape,p,0);
             vehicles.draws.push_back({mesh,v::rigid({12+float(i%5)*.4f,11.7f+float(i/5)*.4f,.12f},i*.37f),7,100+i,312,false,false,true});}
     }
-    h::frame render(bool streamed,float yaw,float pitch,const h::frame *cache=nullptr,h::frame *world=nullptr){
-        h::render_options options;options.stream_vehicle_raster=streamed;h::frame result;
+    h::frame render(int dispatch,float yaw,float pitch,const h::frame *cache=nullptr,h::frame *world=nullptr){
+        h::render_options options;options.stream_vehicle_raster=dispatch==2;options.prune_vehicle_workers=dispatch==1;h::frame result;
         h::renderer painter(scene,yaw,pitch,{},result,{},&metadata,options);painter.run(1280,800,cache,world);return result;
     }
 };
 }
 int main(){
-    fixture f;uint32_t streamed=0;
+    fixture f;uint32_t skipped=0;
     for(float yaw:{-.17f,0.f,.17f})for(float pitch:{-.15f,0.f,.12f}){
-        h::frame old_world,new_world;const auto before=f.render(false,yaw,pitch,nullptr,&old_world),after=f.render(true,yaw,pitch,nullptr,&new_world);
-        compare(before,after);streamed+=after.vehicle_streamed_triangles;
-        const auto cached_before=f.render(false,yaw,pitch,&old_world),cached_after=f.render(true,yaw,pitch,&new_world);compare(cached_before,cached_after);
+        h::frame old_world,new_world;const auto before=f.render(0,yaw,pitch,nullptr,&old_world),after=f.render(1,yaw,pitch,nullptr,&new_world);
+        compare(before,after);skipped+=after.vehicle_worker_skips;
+        require(before.triangles==after.triangles,"parallel worker pruning retains every participating triangle visit");
+        require(after.vehicle_streamed_triangles==0,"ordinary optimized path keeps parallel pixel work");
+        const auto cached_before=f.render(0,yaw,pitch,&old_world),cached_after=f.render(1,yaw,pitch,&new_world);compare(cached_before,cached_after);
     }
-    require(streamed>0,"equivalence actually executes the streamed vehicle painter");
+    if(std::thread::hardware_concurrency()>1)require(skipped>0,"equivalence actually rejects empty worker strips");
+    const auto reference=f.render(0,0,0),streamed=f.render(2,0,0);compare(reference,streamed);
+    require(streamed.vehicle_streamed_triangles>0,"disabled streaming experiment remains an explicit correctness reference");
     f.scene.base.camera_x=12.5f;
     ncmm_graphics_vehicle_part_v1 part{};part.health=1;part.color[0]=.4f;part.color[3]=1;
     v::builder inside(part);inside.cushion({0,0,0},{2,2,2},.1f,inside.paint);
     f.vehicles.draws.push_back({inside.finish(),v::rigid({12.5f,12.5f,1.55f},0),7,999,312,false,false,true});
-    for(float yaw:{0.f,1.2f,3.1f}){const auto before=f.render(false,yaw,-.12f),after=f.render(true,yaw,-.12f);compare(before,after);
+    for(float yaw:{0.f,1.2f,3.1f}){const auto before=f.render(0,yaw,-.12f),after=f.render(1,yaw,-.12f);compare(before,after);
         require(after.vehicle_streamed_triangles==0,"near-plane/inside component conservatively keeps parallel path");}
     f.scene.base.camera_x=1.5f;f.cells[312].flags=0;
-    const auto hidden_before=f.render(false,0,0),hidden_after=f.render(true,0,0);compare(hidden_before,hidden_after);
+    const auto hidden_before=f.render(0,0,0),hidden_after=f.render(1,0,0);compare(hidden_before,hidden_after);
     require(hidden_after.vehicle_parts==0&&hidden_after.vehicle_streamed_triangles==0,"hidden Native cell cannot submit vehicle geometry");
     std::printf("vehicle raster: %d checks passed; full 1280x800 colour/depth/picking equivalence\n",checks);
 }

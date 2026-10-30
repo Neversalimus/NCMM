@@ -18,6 +18,7 @@
 #include "ncmm_graphics_composite.hpp"
 #include "ncmm_graphics_presentation_policy.hpp"
 #include "vehicle_scene.hpp"
+#include "raster_dispatch.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -77,13 +78,15 @@ struct frame {
     uint32_t vertical_doors=0,vertical_windows=0,vertical_fences=0,plants=0,shadow_cells=0;
     uint32_t geometry_cells=0,culled_cells=0,culled_quads=0,sky_pixels=0;
     uint64_t volume_samples=0;
-    uint32_t viewmodel_draws=0,viewmodel_errors=0,vehicle_streamed_triangles=0;
+    uint32_t viewmodel_draws=0,viewmodel_errors=0,vehicle_streamed_triangles=0,vehicle_worker_skips=0;
 };
 // Internal reference switches used by correctness tests and the manual
 // benchmark. They do not alter the Host ABI or add player-facing settings.
 struct render_options {
     bool cull_geometry=true,skip_hidden_sky=true,skip_empty_volume=true,contact_shadows=true;
-    bool stream_vehicle_raster=true;
+    // Sequential streaming remains a correctness reference: actual Native
+    // measurements rejected its performance, so ordinary frames retain workers.
+    bool stream_vehicle_raster=false,prune_vehicle_workers=true;
 };
 using sprite_provider=std::function<bool(uint32_t,uint32_t,ncmm_graphics_sprite_v2 &)>;
 struct image {
@@ -490,6 +493,7 @@ class renderer {
         std::array<float,3> iz,uu,vv,fine,medium;
         material m;vec normal,flat_light,flat_color;
         int xmin,xmax,ymin,ymax;float inv,dw0,dw1;bool coarse,detailed;
+        uint8_t worker_mask=15;
     };
     void project_piece(const triangle &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<projected_triangle> &output){
         std::array<vec,3> p{};
@@ -644,7 +648,7 @@ class renderer {
         auto &queue=m.overlay?overlay:m.alpha<.99f&&!m.cutout?transparent:opaque;
         queue.push_back(t0);queue.push_back(t1);
     }
-    void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr,bool stream=false){
+    void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr,bool stream=false,bool prune_workers=false){
         if(queue.empty()&&(!last||last->empty()))return;
         const auto begun=std::chrono::steady_clock::now();++f.raster_calls;f.submitted_triangles+=queue.size()+(last?last->size():0);
         if(stream){
@@ -670,13 +674,21 @@ class renderer {
         for(const auto &t:queue)project(t,projected);
         if(last)for(const auto &t:*last)project(t,projected);
         if(projected.empty()){f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();return;}
-        std::array<uint32_t,4> totals{};std::array<std::thread,3> threads;
-        auto band=[&](int n){for(const auto &t:projected)raster(t,n,count,totals[n]);};
+        const bool prune=prune_workers&&count>1;
+        if(prune)for(auto &t:projected)t.worker_mask=uint8_t(raster_worker_mask(t.ymin,t.ymax,count));
+        std::array<uint32_t,4> totals{},skipped{};std::array<std::thread,3> threads;
+        auto band=[&](int n){for(const auto &t:projected){
+            // Tiny component triangles often occupy just one worker's strip.
+            // Reject the other workers before material/derivative preparation;
+            // each participating worker still executes the original rasterizer.
+            if(prune&&!(t.worker_mask&(1u<<n))){++skipped[n];continue;}
+            raster(t,n,count,totals[n]);}};
         // Sprites/geometry are resolved on the callback thread. Workers only
         // read owned analyses and write disjoint pixel/depth rows, then join.
         for(int n=1;n<count;++n){try{threads[n-1]=std::thread(band,n);}catch(const std::system_error &){band(n);}}
         band(0);for(auto &t:threads)if(t.joinable())t.join();
         for(auto total:totals)f.triangles+=total;
+        for(auto total:skipped)f.vehicle_worker_skips+=total;
         f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
     }
     void solid_quad(vec a,vec b,vec c,vec d,material m,vec normal={0,0,1}){
@@ -1566,7 +1578,7 @@ public:
     void collect(geometry_sink &sink,int width,int height){
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
-        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=0;
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=0;
         modular_vehicles();if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
     }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
@@ -1591,11 +1603,11 @@ public:
             f.sun_shadows=shadows;
             if(world_output)*world_output=f;
         }
-        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=0;
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=0;
         // Animate only these near-field blades. The floor, walls and distant
         // world remain in the CPU cache; animation never changes Native time.
         opaque.clear();transparent.clear();
-        modular_vehicles();paint(opaque,nullptr,small_vehicle_region());opaque.clear();
+        modular_vehicles();paint(opaque,nullptr,small_vehicle_region(),options.prune_vehicle_workers);opaque.clear();
         std::vector<triangle> vehicle_glass;vehicle_glass.swap(transparent);
         std::vector<int> lawns;
         for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&ncmm_grass::terrain(base.cells[i].terrain)&&

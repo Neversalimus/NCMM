@@ -26,20 +26,29 @@ def image_difference(left, right):
         return result
     result['comparable_pixels'] = True
     changed = alpha = maximum = 0
+    storage_byte_changes = [0,0,0,0]
+    samples = []
     minimum_x, minimum_y, maximum_x, maximum_y = width, height, -1, -1
     for offset in range(12, expected, 4):
         a, b = left[offset:offset+4], right[offset:offset+4]
         if a == b:
             continue
         changed += 1
-        alpha += a[3] != b[3]
+        # Captures request SDL_PIXELFORMAT_RGBA8888 on little-endian CI;
+        # storage is A,B,G,R, so byte three is red rather than alpha.
+        alpha += a[0] != b[0]
         maximum = max(maximum, *(abs(x-y) for x, y in zip(a, b)))
         pixel = (offset-12)//4
         x, y = pixel % width, pixel // width
+        for channel in range(4):storage_byte_changes[channel] += a[channel] != b[channel]
+        if len(samples)<16:samples.append(dict(x=x,y=y,reference_storage_bytes=list(a),candidate_storage_bytes=list(b)))
         minimum_x, minimum_y = min(minimum_x, x), min(minimum_y, y)
         maximum_x, maximum_y = max(maximum_x, x), max(maximum_y, y)
     result.update(different_pixels=changed, different_alpha_pixels=alpha,
                   max_channel_delta=maximum,
+                  storage_byte_differences=storage_byte_changes,
+                  first_pixel_differences=samples,
+                  storage_order='A,B,G,R (little-endian SDL_PIXELFORMAT_RGBA8888)',
                   changed_bounds=[minimum_x, minimum_y, maximum_x, maximum_y] if changed else None)
     return result
 
@@ -71,6 +80,16 @@ def write_comparison(out, runs, metadata):
                   device_descriptors_equal=same_device,
                   reference_images=len(reference), candidate_images=len(candidate),
                   image_differences=differences, runs=runs)
+    # Input equality supplements the exact existing pixel gate. It distinguishes
+    # producer math/data differences from GPU state; it never excuses pixels.
+    if all('submission_inputs' in runs[k] for k in ('reference','candidate')):
+        left,right=(runs[k]['submission_inputs'] for k in ('reference','candidate'))
+        mismatches=[]
+        for index in range(max(len(left),len(right))):
+            a=left[index] if index<len(left) else None;b=right[index] if index<len(right) else None
+            if a!=b:mismatches.append(dict(submission=index,reference=a,candidate=b))
+        result.update(semantic_submission_inputs_equal=left==right,submission_input_mismatches=mismatches)
+        result['success'] = result['success'] and left==right
     # Preserve hashes and numeric mismatch details even when the exact gate
     # below fails. A diagnostic manifest is never an acceptance override.
     (out/'comparison.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
@@ -87,6 +106,7 @@ def main():
     parser.add_argument('--vcpkg-installed-dir',type=Path)
     parser.add_argument('--shader-header',type=Path)
     parser.add_argument('--sanitize',action='store_true',help='Clang ASan/UBSan on Linux')
+    parser.add_argument('--trace-inputs',action='store_true',help='Separate diagnostic experiment; never replaces the ordinary pixel gate')
     args=parser.parse_args();repo=args.repository.resolve();out=args.output.resolve()
     assert not out.exists(),'Use a fresh directory; preserve earlier output'
     assert not (args.sanitize and os.name=='nt'),'Use the compiler-specific Windows ASan fixture'
@@ -125,30 +145,7 @@ def main():
     reference=reference.replace(disposal,original_disposal)
     assert hashlib.sha256(reference.encode()).hexdigest()==REFERENCE_SHA256,'Unreviewed reference reconstruction'
     out.mkdir(parents=True);(out/'reference').mkdir();(out/'reference/ncmm_gpu_backend.hpp').write_text(reference,encoding='utf-8',newline='\n')
-    capture='''#include "ncmm_graphics_performance.hpp"
-#include "ncmm_gpu_backend.hpp"
-#include "gpu_scene.hpp"
-#include <array>
-#include <cstdio>
-#include <cstdlib>
-#include <fstream>
-#include <string>
-namespace {
-unsigned observed_image_count=0;
-SDL_Surface *observed_convert_surface(SDL_Surface *source,SDL_PixelFormat format){
-    auto *result=SDL_ConvertSurface(source,format);
-    if(result&&format==SDL_PIXELFORMAT_RGBA8888){
-        std::ofstream stream("readback-"+std::to_string(observed_image_count++)+".rgba",std::ios::binary);
-        const uint32_t shape[]={uint32_t(result->w),uint32_t(result->h),uint32_t(format)};
-        stream.write(reinterpret_cast<const char *>(shape),sizeof(shape));
-        for(int y=0;y<result->h;++y)stream.write(static_cast<const char *>(result->pixels)+y*result->pitch,result->w*4);
-        if(!stream){std::fprintf(stderr,"Could not preserve complete GPU readback\\n");std::exit(3);}
-    }
-    return result;
-}
-}
-#define SDL_ConvertSurface observed_convert_surface
-'''
+    capture = '#include "'+(parent/'tests/gpu_scratch_capture.inc').as_posix()+'"\n'
     (out/'capture.cpp').write_text(capture+'#include "'+(parent/'tests/gpu_scene_test.cpp').as_posix()+'"\n',encoding='utf-8',newline='\n')
     cmake='''cmake_minimum_required(VERSION 3.20)
 project(ScratchReusePixelComparison LANGUAGES CXX)
@@ -170,6 +167,9 @@ foreach(variant reference candidate)
 endforeach()
 '''
     (out/'CMakeLists.txt').write_text(cmake,encoding='utf-8',newline='\n')
+    if args.trace_inputs:
+        cmake=cmake.replace('  first_person_target(scratch_${variant})','  first_person_target(scratch_${variant})\n  target_compile_definitions(scratch_${variant} PRIVATE NCMM_GPU_CAPTURE_INPUTS=1)')
+        (out/'CMakeLists.txt').write_text(cmake,encoding='utf-8',newline='\n')
     env=os.environ.copy();env['MSBUILDDISABLENODEREUSE']='1'
     cmake_binary=shutil.which('cmake');assert cmake_binary,'CMake is required'
     configure=[cmake_binary,'-S',str(out),'-B',str(out/'build'),'-DCMAKE_BUILD_TYPE=RelWithDebInfo',
@@ -199,12 +199,22 @@ endforeach()
         images={p.name:dict(bytes=p.stat().st_size,sha256=sha(p)) for p in directory.glob('readback-*.rgba')}
         assert images,'No complete existing readbacks captured'
         runs[variant]=dict(images=images,report=report,log_sha256=sha(directory/'run.log'),executable_sha256=sha(executable))
-    metadata=dict(reference_backend_sha256=REFERENCE_SHA256,
+        if args.trace_inputs:
+            inputs=directory/'submission-inputs.jsonl'
+            assert inputs.is_file() and inputs.stat().st_size<=4*1024*1024,'Missing/bounded semantic input trace'
+            runs[variant]['submission_inputs']=[json.loads(line) for line in inputs.read_text(encoding='utf-8').splitlines()]
+    metadata=dict(runtime_source=subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip(),
+                  runtime_tree=subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD^{tree}'],text=True).strip(),
+                  reference_backend_sha256=REFERENCE_SHA256,
                   candidate_backend_sha256=hashlib.sha256(candidate.encode()).hexdigest(),
                   compiled_with_sanitizers=args.sanitize,
-                  existing_scene_test_sha256=sha(parent/'tests/gpu_scene_test.cpp'))
+                  semantic_input_trace=args.trace_inputs,
+                  existing_scene_test_sha256=sha(parent/'tests/gpu_scene_test.cpp'),
+                  semantic_input_fingerprint_sha256=sha(parent/'tests/gpu_input_fingerprint.hpp'),
+                  capture_instrumentation_sha256=sha(parent/'tests/gpu_scratch_capture.inc'))
     result=write_comparison(out,runs,metadata)
     assert runs['reference']['images']==runs['candidate']['images'],'Complete pixel mismatch; outputs retained'
+    if args.trace_inputs:assert result['semantic_submission_inputs_equal'],'Successful submission inputs differ; producer fingerprints retained'
     assert all(runs['reference']['report'][k]==runs['candidate']['report'][k] for k in ('backend','device','software_device'))
     print(json.dumps({k:result[k] for k in ('success','unit_gpu_fixture','compared_images','compared_bytes','full_normalized_readbacks_equal','performance_accepted')}))
 

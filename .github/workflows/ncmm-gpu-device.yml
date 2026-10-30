@@ -53,11 +53,20 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'GPU probe build failed.'}
       - name: Require real draw commands, hardware depth and ordinary SDL UI
         run: ctest --test-dir gpu-build -C Release -R "gpu_probe|gpu_contract|gpu_scene" --output-on-failure
+      - name: Verify pure numeric scratch diagnostics
+        run: python -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
       - name: Compare every existing normalized GPU image with the original scratch policy
+        id: scratch_pixels
         shell: pwsh
         run: |
           python -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-pair --toolchain-file "$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" --vcpkg-triplet x64-windows-static --vcpkg-installed-dir "$PWD/gpu-upstream/msvc-full-features/vcpkg_installed/x64-windows-static" --shader-header gpu-shader-bytes.hpp
           if($LASTEXITCODE -ne 0){throw 'Full scratch-reuse pixel comparison failed.'}
+      - name: Diagnose inputs after the original pixel gate fails
+        if: ${{ failure() && steps.scratch_pixels.outcome == 'failure' }}
+        shell: pwsh
+        run: |
+          python -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-inputs --toolchain-file "$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" --vcpkg-triplet x64-windows-static --vcpkg-installed-dir "$PWD/gpu-upstream/msvc-full-features/vcpkg_installed/x64-windows-static" --shader-header gpu-shader-bytes.hpp --trace-inputs
+          if($LASTEXITCODE -ne 0){throw 'Semantic scratch input diagnostic retained differences.'}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,6 +75,7 @@ jobs:
             gpu-build/gpu-probe.*
             gpu-build/gpu-scene*
             scratch-pair/comparison.json
+            scratch-inputs/comparison.json
             scratch-pair/build.log
             scratch-pair/reference/run/
             scratch-pair/candidate/run/
@@ -100,8 +110,14 @@ jobs:
           cmake -S experiments/FirstPersonView -B gpu-build -DCMAKE_BUILD_TYPE=Release -DSDL3_DIR="$PWD/gpu-sdl-build" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
           cmake --build gpu-build --parallel 2 --target first_person_gpu_probe_tests first_person_gpu_contract_tests first_person_gpu_scene_tests
           ctest --test-dir gpu-build -R "gpu_probe|gpu_contract|gpu_scene" --output-on-failure
+      - name: Verify pure numeric scratch diagnostics
+        run: python3 -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
       - name: Compare every existing normalized Vulkan image with the original scratch policy
+        id: scratch_pixels
         run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-pair --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp
+      - name: Diagnose inputs after the original pixel gate fails
+        if: ${{ failure() && steps.scratch_pixels.outcome == 'failure' }}
+        run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-inputs --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp --trace-inputs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -110,6 +126,7 @@ jobs:
             gpu-build/gpu-probe.*
             gpu-build/gpu-scene*
             scratch-pair/comparison.json
+            scratch-inputs/comparison.json
             scratch-pair/build.log
             scratch-pair/reference/run/
             scratch-pair/candidate/run/
@@ -131,17 +148,17 @@ jobs:
           from pathlib import Path
           import hashlib,json,os
           files={
-            'experiments/FirstPersonView/CMakeLists.txt':'f74e0c564f647373f66bb562520d3536354088ec7aed497db84aebd32176dbd0',
+            'experiments/FirstPersonView/CMakeLists.txt':'7aafd20cfa3d9251022e4e7262cd155e63da224e36b74e098b0922a7cc63ec42',
             'experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp':'d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597',
             'experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp':'f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b',
             'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'b60edf4b3c56168023d89d777ab019e67dc2cc9f5ac68f6672f75e442eb8ca0c',
             'experiments/graphics_bridge/ncmm_gpu_geometry.hpp':'0b4908e30c9855d78466fad31f9c194a057268d4d2a82d1397fb57c504618e9d',
             'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'3e27b50646eb7e9f96074a0a0c8d74e4fc9c65e6a73ee75d54a8d84c1f96f893',
             'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'3b5ce5f1c95e4a156be4dad5e6896c60217f557491156cf953952e7ec0a95dd4',
-            'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'84848ff88c40edb1719238a8b4f9fa7801c0a1eda0554e46b1707b60867eb868',
+            'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'3d28b7978c0ee49d49c2981642f3db37f0d880dbdaa6627a44ebda368867f48a',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'e7ca95216b84c3bfdb34bcf9c2638a8d46696b8eda28014a5c18511c1e38a16d',
             'experiments/FirstPersonView/src/gpu_scene.hpp':'3120cc645923cb747b1be8f75a87c6d52f4f917a0c3de347537ce8d72fe13e1b',
-            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'b795319fed31c16c7af7975f05de3fa9f6df8afe4b2467ac74245e6ad4c0ab03',
+            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'526e9e4478c30bfd1127e17b3977c3da36afed0668e4107f6aceb4ae02701244',
             'experiments/FirstPersonView/tests/viewmodel_gpu_test.cpp':'4297305f7cc2f99026373322b42b6bcc07ec97c01da8af706a564296608bd3ef',
             'experiments/FirstPersonView/src/multilevel_geometry.inc':'3adae8955b66dc15c9faa2baddcb74b78afcc6702a4031227f85b472f22c4de4',
             'experiments/FirstPersonView/src/grass.inc':'d9ccc9eb4c0f0e0fb92f074cdee8bed96b27ea9a3f3f87a6c7262d8bdc16c5b8',
@@ -319,8 +336,12 @@ jobs:
             'experiments/FirstPersonView/src/vehicle_snapshot.hpp':'34e27bcb3dd07c003ecdeeb8d1b6e77e75f210788892e85e1744a887e418bcbd',
             'experiments/FirstPersonView/src/vehicle_topology.hpp':'6c1be124010a40c68f88db40aae972f4c991348ee52c0962be860c715a11860e',
             'experiments/FirstPersonView/tests/test_import_vehicle_components.py':'578c5d82130a6f872c844691c3b26ddca1a639e0a1a25dcd31b6251e84c32e9b',
-            'experiments/FirstPersonView/tests/vehicle_raster_test.cpp':'c3127e8c900b60f5cbb5a6c30665eabff45b47e0df2ba4ef61a8783f8b4055fb',
-            'experiments/FirstPersonView/tests/vehicle_snapshot_test.cpp':'b5df4c7cb07594b9b608c66298f036af748e988f4517149fdb95245b91bc964e',
+            'experiments/FirstPersonView/src/raster_dispatch.hpp':'0b0a2f4f0f40b9461301d76212d433065cb85080503d6da94283930797495c68',
+            'experiments/FirstPersonView/tests/gpu_input_fingerprint.hpp':'6407914cc82d5250a9249085407181fca264c18725706ac57ab68d0b424867a4',
+            'experiments/FirstPersonView/tests/gpu_scratch_capture.inc':'51b295e9e853867f1f124cc4b2ad634d44aac461fa16674ff3aec343d554f816',
+            'experiments/FirstPersonView/tests/test_compare_scratch_inputs.py':'9d63fa24a050d9c06bae412c3078ff53734c7b03c760bb5da870aff797c8b21b',
+            'experiments/FirstPersonView/tests/vehicle_raster_test.cpp':'45f2fe7a7109ce901b8052a6c72eb2b5042636af7c665118557749d233b85c12',
+            'experiments/FirstPersonView/tests/vehicle_snapshot_test.cpp':'93a7800bca64d8b1c9d327a826ff6e7462883131eeee712f181c7f5addacfb59',
             'experiments/FirstPersonView/tests/verify_vehicle_gallery.py':'e1c98f6446efc32dfc7532b0dfe1c5d597f6fb5f0db9dab5f6babbd240e79c3f',
             'experiments/FirstPersonView/tools/import_vehicle_components.py':'eb3ad1e712185cc10bd2c97329d6fd3a2f761a97e3a24277d616ff5de417c705',
             'experiments/graphics_bridge/ncmm_graphics_vehicle_qualification.inc':'9798a0f35ad77e7e22696bd6489d59e249cef9e9bc1cb2f425cd20d4b761cee2',
@@ -368,8 +389,14 @@ jobs:
           cmake --build vertex-asan --parallel 2 --target first_person_gpu_resource_cache_tests first_person_gpu_scene_tests first_person_gpu_vertex_lease_edge_tests first_person_gpu_resource_failure_tests
       - name: Verify exact GPU bytes, lease lifetime, picking and depth without suppressions
         run: ctest --test-dir vertex-asan -R '^first_person_gpu_(resource_cache|scene|vertex_lease_edge|resource_failure)$' --output-on-failure -V
+      - name: Verify pure numeric scratch diagnostics
+        run: python3 -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
       - name: Compare all normalized Vulkan images with ASan UBSan and exit leak checks
+        id: scratch_pixels
         run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-pair-asan --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp --sanitize
+      - name: Diagnose inputs after the original pixel gate fails
+        if: ${{ failure() && steps.scratch_pixels.outcome == 'failure' }}
+        run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-inputs --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp --sanitize --trace-inputs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -378,6 +405,7 @@ jobs:
             vertex-source-proof.json
             lvp-fixture.json
             scratch-pair-asan/comparison.json
+            scratch-inputs/comparison.json
             scratch-pair-asan/build.log
             scratch-pair-asan/reference/run/
             scratch-pair-asan/candidate/run/
