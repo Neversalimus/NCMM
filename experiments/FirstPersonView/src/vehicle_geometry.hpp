@@ -62,8 +62,13 @@ public:
     std::shared_ptr<const model> finish(){
         if(!output.triangles.empty()){
             using key=std::array<uint32_t,6>;
-            struct hash {size_t operator()(const key &v)const{size_t result=2166136261u;for(uint32_t n:v)result=(result^n)*16777619u;return result;}};
-            std::unordered_map<key,uint32_t,hash> unique;unique.reserve(output.triangles.size());
+            // At most three distinct vertices per source triangle. One flat
+            // scratch allocation replaces a heap node per distinct vertex;
+            // the half-full table always has a free slot, even with collisions.
+            struct slot {key identity{};uint32_t index=UINT32_MAX;};
+            size_t capacity=1;while(capacity<output.triangles.size()*6)capacity*=2;
+            std::vector<slot> unique(capacity);const size_t mask=capacity-1;
+            output.shared_vertices.reserve(output.triangles.size());
             output.vertex_indices.reserve(output.triangles.size());
             output.minimum=output.maximum=output.triangles.front().vertices[0].position;
             for(const auto &t:output.triangles){std::array<uint32_t,3> indices{};
@@ -72,9 +77,14 @@ public:
                     output.maximum={std::max(output.maximum.x,p.x),std::max(output.maximum.y,p.y),std::max(output.maximum.z,p.z)};
                     const std::array<float,6> values{{p.x,p.y,p.z,v.normal.x,v.normal.y,v.normal.z}};
                     key identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
-                    const auto inserted=unique.emplace(identity,uint32_t(output.shared_vertices.size()));
-                    if(inserted.second)output.shared_vertices.push_back(v);
-                    indices[n]=inserted.first->second;
+                    uint64_t hash=1469598103934665603ull;for(uint32_t value:identity)hash=(hash^value)*1099511628211ull;
+                    // Regular grid floats often share all their low bits.
+                    // Mix the full identity before the power-of-two mask.
+                    hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
+                    size_t at=size_t(hash)&mask;while(unique[at].index!=UINT32_MAX&&unique[at].identity!=identity)at=(at+1)&mask;
+                    auto &found=unique[at];
+                    if(found.index==UINT32_MAX){found.identity=identity;found.index=uint32_t(output.shared_vertices.size());output.shared_vertices.push_back(v);}
+                    indices[n]=found.index;
                 }
                 output.vertex_indices.push_back(indices);
             }
@@ -225,12 +235,15 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             shared_after=kind==component::glass&&layout.has(topology::adjacent(at,after),NCMM_VP_WINDSHIELD);
         const float u0=shared_before?-.5f:-.46f,u1=shared_after?.5f:.46f;
         const float top=(p.features&NCMM_VP_WINDSHIELD)?-.48f:.36f;
+        const auto meet_roof=[&](point value){const auto join=layout.glazing_roof_join(at,value.x,value.y);
+            return join.found?point{join.x,join.y,join.z}:value;};
         const auto a=side_point(u0,.455f,low),d=side_point(u1,.455f,low),
-            c=side_point(u1,top,high),q=side_point(u0,top,high);
+            c=meet_roof(side_point(u1,top,high)),q=meet_roof(side_point(u0,top,high));
         const bool lowered=(p.state&NCMM_VP_OPEN)&&(p.features&NCMM_VP_OPENABLE)&&!(p.features&NCMM_VP_DOOR);
-        if(!lowered)b.face(a,q,c,d,b.glass);
+        const bool corner=dot(c-q,c-q)<1e-12f;
+        if(!lowered){if(corner)b.face(a,q,d,d,b.glass);else{b.face(a,q,c,c,b.glass);b.face(a,c,d,d,b.glass);}}
         b.beam(a,d,.028f,.028f,b.dark);if(!shared_after)b.beam(d,c,.025f,.025f,b.dark);
-        b.beam(c,q,.028f,.028f,b.dark);if(!shared_before)b.beam(q,a,.025f,.025f,b.dark);
+        if(!corner)b.beam(c,q,.028f,.028f,b.dark);if(!shared_before)b.beam(q,a,.025f,.025f,b.dark);
         if(!lowered&&p.health<.85f&&lod<2){const auto crack=b.add({{.55f,.63f,.65f,.68f},NCMM_VM_GLASS});
             const point center=(a+d+c+q)*.25f;
             for(const auto &edge:std::array<point,3>{{a,c,q}})b.beam(center,center+(edge-center)*(.45f+.3f*(1-p.health)),.009f,.009f,crack,4);}
@@ -304,16 +317,8 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         const bool open_frame=layout.kind==archetype::bicycle||layout.kind==archetype::motorcycle||layout.kind==archetype::boat;
         if(!open_frame&&layout.has(at,NCMM_VP_FLOOR|NCMM_VP_AISLE))b.cushion({0,0,chassis+.035f},{1,1,.055f},.025f,b.dark);
     }else if(kind==component::roof){
-        const float height=chassis+layout.cabin;
         const unsigned nx=lod==0?6:3,ny=lod==0?8:4;
-        auto roof=[&](float x,float y){const float span=std::max(1.f,float(layout.max_y-layout.min_y+1));
-            const float center=(layout.max_y+layout.min_y)*.5f;
-            const float normalized=(p.mount_y+y-center)/(span*.5f);
-            float z=height-.11f*normalized*normalized;
-            z-=(1-p.health)*.09f*std::max(0.f,1-4*x*x)*std::max(0.f,1-4*y*y);
-            if(!layout.has(topology::adjacent(at,0),NCMM_VP_ROOF))z-=.11f*std::max(0.f,x+.15f);
-            if(!layout.has(topology::adjacent(at,2),NCMM_VP_ROOF))z-=.11f*std::max(0.f,.15f-x);
-            return point{x,y,z};};
+        auto roof=[&](float x,float y){return point{x,y,layout.roof_height(at,x,y,p.health)};};
         for(unsigned x=0;x<nx;++x)for(unsigned y=0;y<ny;++y){const float x0=-.5f+float(x)/nx,x1=-.5f+float(x+1)/nx,y0=-.5f+float(y)/ny,y1=-.5f+float(y+1)/ny;
             if((p.state&NCMM_VP_BROKEN)&&std::abs((x0+x1)*.5f)<.23f&&std::abs((y0+y1)*.5f)<.29f)continue;
             const auto a=roof(x0,y0),c=roof(x1,y1),d=roof(x0,y1),q=roof(x1,y0);

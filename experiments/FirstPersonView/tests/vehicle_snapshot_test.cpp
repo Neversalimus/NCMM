@@ -148,6 +148,48 @@ int main(){
     require(topology.mounts.size()==2&&topology.mounts.begin()->second.parts.size()==3,"whole topology retains all mount layers");
     require(topology.wheels.size()==1,"topology cannot manufacture four wheels");
     {
+        // Native's car has a four-mount-wide shell and roofs only over the
+        // two inner columns. Glass must meet those installed roof edges.
+        using namespace first_person::vehicle;
+        auto shell=original;shell.parts.clear();auto &v=shell.vehicles[0];
+        v.min_x=-3;v.max_x=2;v.min_y=-1;v.max_y=2;
+        const auto add=[&](int x,int y,uint32_t features,const char *id){auto p=original.parts[0];
+            p.part_id=1000+shell.parts.size();p.mount_x=x;p.mount_y=y;p.features=features;p.cell_index=0;
+            std::strcpy(p.id,id);shell.parts.push_back(p);return p;};
+        for(int x=-3;x<=2;++x)for(int y=-1;y<=2;++y)add(x,y,NCMM_VP_FRAME,"frame");
+        for(int x=-2;x<=0;++x)for(int y=0;y<=1;++y)add(x,y,NCMM_VP_ROOF,"roof");
+        const auto door=add(0,-1,NCMM_VP_DOOR|NCMM_VP_WINDOW|NCMM_VP_OPENABLE,"door");
+        const auto corner=add(1,-1,NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD,"windshield");
+        add(1,0,NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD,"windshield");
+        v.part_count=shell.scene.part_count=uint32_t(shell.parts.size());
+        const first_person::vehicle::topology joined(shell,v);const auto edge=joined.glazing_roof_join({0,-1,0},.46f,-.36f);
+        require(edge.found&&std::abs(edge.y-.5f)<1e-6f,"side glazing meets the actual inboard roof instead of floating beside it");
+        require(std::abs(edge.z-(joined.roof_height({0,0,0},.46f,-.5f)-.035f))<1e-6f,"glass top meets the existing roof underside profile");
+        const auto glass=generate(shell,joined,corner,0);
+        unsigned glass_triangles=0;
+        for(const auto &t:glass->triangles){if(glass->materials[t.material].kind==NCMM_VM_GLASS)++glass_triangles;
+            for(const auto &a:t.vertices)require(std::isfinite(a.position.x)&&std::isfinite(a.position.y)&&std::isfinite(a.position.z)&&
+                std::abs(dot(a.normal,a.normal)-1)<.005f,"collapsed corner seam retains a finite correctly oriented triangular pane");}
+        require(glass_triangles==1,"a real corner windshield joins one roof corner without overlapping duplicate glass");
+        const auto door_mesh=generate(shell,joined,door,0);
+        for(const auto &t:door_mesh->triangles)if(door_mesh->materials[t.material].kind==NCMM_VM_GLASS){
+            const auto normal=unit(cross(t.vertices[1].position-t.vertices[0].position,t.vertices[2].position-t.vertices[0].position));
+            require(dot(normal,t.vertices[0].normal)>.999f,"each sloping glass triangle retains its own actual surface normal");}
+        for(const auto &p:shell.parts)if(p.features&NCMM_VP_ROOF){const auto mesh=generate(shell,joined,p,0);
+            require(mesh->minimum.x>=-.53f&&mesh->maximum.x<=.53f&&mesh->minimum.y>=-.53f&&mesh->maximum.y<=.53f,
+                "joining glass never expands an opaque roof into an absent neighbouring roof mount");}
+        auto no_roof=shell;no_roof.parts.erase(std::remove_if(no_roof.parts.begin(),no_roof.parts.end(),[](const auto &p){return bool(p.features&NCMM_VP_ROOF);}),no_roof.parts.end());
+        no_roof.vehicles[0].part_count=no_roof.scene.part_count=uint32_t(no_roof.parts.size());
+        const first_person::vehicle::topology open(no_roof,no_roof.vehicles[0]);
+        require(!open.glazing_roof_join({0,-1,0},.46f,-.36f).found,"removing actual roofs cannot retain an inferred roof seam or opaque cap");
+        require(joined.recipe(door,0)!=open.recipe(door,0),"roof removal invalidates only the dependent cached glass recipe");
+        auto island=original;island.parts.clear();auto part=original.parts[0];part.mount_x=part.mount_y=0;part.features=NCMM_VP_FRAME|NCMM_VP_WINDOW;island.parts.push_back(part);
+        part.mount_x=part.mount_y=1;part.part_id=101;part.features=NCMM_VP_FRAME|NCMM_VP_ROOF;island.parts.push_back(part);
+        island.vehicles[0].part_count=island.scene.part_count=2;island.vehicles[0].max_y=1;
+        const first_person::vehicle::topology separate(island,island.vehicles[0]);
+        require(!separate.glazing_roof_join({0,0,0},.36f,.36f).found,"a diagonal roof on a disconnected frame cannot pull another construction's glazing");
+    }
+    {
         auto straight=original;straight.vehicles[0].min_x=-1;
         for(int x:{-1,1}){auto frame=original.parts[0];frame.mount_x=x;frame.part_id=200+x;straight.parts.push_back(frame);}
         auto panel=original.parts[0];panel.features=NCMM_VP_PANEL|NCMM_VP_HALF_PANEL;
@@ -210,14 +252,19 @@ int main(){
                     require(p.x>=box[0].x&&p.x<=box[1].x&&p.y>=box[0].y&&p.y<=box[1].y&&p.z>=box[0].z&&p.z<=box[1].z,
                         "conservative world bounds contain every actual vertex through rigid yaw and wheel/hinge rotation");}}
             require(mesh->vertex_indices.size()==mesh->triangles.size(),"every original triangle keeps its shared-vertex indices");
+            std::map<std::array<uint32_t,6>,uint32_t> reference_vertices;
             for(size_t index=0;index<mesh->triangles.size();++index){const auto &t=mesh->triangles[index];require(t.material<mesh->materials.size(),"component material range");
                 for(size_t n=0;n<3;++n){const auto shared=mesh->vertex_indices[index][n];require(shared<mesh->shared_vertices.size(),"shared vehicle vertex index is bounded");
                     const auto &a=t.vertices[n],&b=mesh->shared_vertices[shared];
                     const std::array<float,6> source{{a.position.x,a.position.y,a.position.z,a.normal.x,a.normal.y,a.normal.z}},
                         cached{{b.position.x,b.position.y,b.position.z,b.normal.x,b.normal.y,b.normal.z}};
-                    require(std::memcmp(source.data(),cached.data(),sizeof(source))==0,"shared CPU transform/light input preserves all original position and normal bits");}
+                    require(std::memcmp(source.data(),cached.data(),sizeof(source))==0,"shared CPU transform/light input preserves all original position and normal bits");
+                    std::array<uint32_t,6> identity{};std::memcpy(identity.data(),source.data(),sizeof(identity));
+                    const auto expected=reference_vertices.emplace(identity,uint32_t(reference_vertices.size()));
+                    require(shared==expected.first->second,"flat vertex lookup retains the independent ordered-map first-seen identity and index");}
                 for(const auto &v:t.vertices)require(std::isfinite(v.position.x)&&std::isfinite(v.position.y)&&std::isfinite(v.position.z)&&
                     std::abs(first_person::vehicle::dot(v.normal,v.normal)-1)<.005f,"finite manufactured surface and unit normal");}
+            require(reference_vertices.size()==mesh->shared_vertices.size(),"flat vertex lookup neither loses nor invents a distinct vertex");
         }
     }
     first_person::vehicle::presentation moving;moving.input=original;moving.input.enabled=true;moving.observe({0,0,1.5f});

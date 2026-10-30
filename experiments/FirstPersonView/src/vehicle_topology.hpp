@@ -65,6 +65,36 @@ public:
     uint32_t features(mount at)const{const auto found=mounts.find(at);return found==mounts.end()?0:found->second.features;}
     bool has(mount at,uint32_t f)const{return (features(at)&f)!=0;}
     bool outer(mount at,unsigned side)const{return !has(adjacent(at,side),NCMM_VP_FRAME);}
+    float roof_height(mount at,float x,float y,float health=1)const{
+        const auto [mx,my,mz]=at;(void)mx;(void)mz;
+        const float span=std::max(1.f,float(max_y-min_y+1)),center=(max_y+min_y)*.5f;
+        const float normalized=(my+y-center)/(span*.5f);
+        float z=chassis+cabin-.11f*normalized*normalized;
+        z-=(1-health)*.09f*std::max(0.f,1-4*x*x)*std::max(0.f,1-4*y*y);
+        if(!has(adjacent(at,0),NCMM_VP_ROOF))z-=.11f*std::max(0.f,x+.15f);
+        if(!has(adjacent(at,2),NCMM_VP_ROOF))z-=.11f*std::max(0.f,.15f-x);
+        return z;
+    }
+    struct roof_join {float x=0,y=0,z=0;bool found=false;};
+    bool glazing_roof_candidate(mount at,mount roof)const{
+        const auto source=mounts.find(at),candidate=mounts.find(roof);
+        if(candidate==mounts.end()||!(candidate->second.features&NCMM_VP_ROOF))return false;
+        return source==mounts.end()||source->second.component<0||candidate->second.component<0||source->second.component==candidate->second.component;
+    }
+    roof_join glazing_roof_join(mount at,float x,float y)const{
+        const auto [mx,my,mz]=at;roof_join result;float best=1.1f*1.1f;
+        // Native commonly places the roof over the seats, one mount inboard
+        // of the glass. Join that real edge; never emit another roof panel.
+        for(int dx=-1;dx<=1;++dx)for(int dy=-1;dy<=1;++dy){
+            const mount roof{mx+dx,my+dy,mz};if(!glazing_roof_candidate(at,roof))continue;
+            const float rx=std::clamp(float(mx)+x,float(mx+dx)-.5f,float(mx+dx)+.5f),
+                ry=std::clamp(float(my)+y,float(my+dy)-.5f,float(my+dy)+.5f);
+            const float ax=rx-(float(mx)+x),ay=ry-(float(my)+y),distance=ax*ax+ay*ay;
+            if(distance>=best)continue;
+            best=distance;result={rx-mx,ry-my,roof_height(roof,rx-(mx+dx),ry-(my+dy))-.035f,true};
+        }
+        return result;
+    }
     unsigned part_edge(const ncmm_graphics_vehicle_part_v1 &p)const{
         const std::string_view variant(p.variant);
         if(p.features&NCMM_VP_WINDSHIELD){
@@ -120,6 +150,8 @@ public:
         const uint32_t shell=NCMM_VP_DOOR|NCMM_VP_WINDOW|NCMM_VP_ROOF|NCMM_VP_PANEL|NCMM_VP_ARMOR|NCMM_VP_SOLAR|NCMM_VP_FLOAT|NCMM_VP_CURTAIN;
         if((p.features&shell)&&!(p.features&(NCMM_VP_SEAT|NCMM_VP_CONTROLS))){
             add(cabin);for(int value:{p.mount_x,p.mount_y,p.mount_z,min_x,max_x,min_y,max_y,cabin_min_x,cabin_max_x})add(value);
+            if(p.features&(NCMM_VP_DOOR|NCMM_VP_WINDOW))for(int dx=-1;dx<=1;++dx)for(int dy=-1;dy<=1;++dy)
+                add(glazing_roof_candidate(at,{p.mount_x+dx,p.mount_y+dy,p.mount_z}));
             add(features(at)&(NCMM_VP_ENGINE|NCMM_VP_SEAT|NCMM_VP_CONTROLS|NCMM_VP_HALF_PANEL|NCMM_VP_PANEL|NCMM_VP_DOOR));
             for(unsigned side=0;side<4;++side){const auto f=features(adjacent(at,side));
                 add(f&(NCMM_VP_FRAME|NCMM_VP_PANEL|NCMM_VP_ROOF|NCMM_VP_FLOAT));add(bool(f));}

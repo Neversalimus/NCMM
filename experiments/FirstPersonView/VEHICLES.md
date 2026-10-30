@@ -261,6 +261,19 @@ it. They supplement actual CPU/GPU cabin captures; they are not image tests or
 a manual driving qualification. The Native seat position and camera remain the
 source of the eye, and removing either real part still removes its own mesh.
 
+Glazing joins the nearest actual roof edge on the same connected construction
+and level. This covers Native layouts that put the roof over the seats and
+windows one mount outside it, including triangular corner panes. The roof's
+own footprint and part count stay unchanged; no opaque surface fills a missing
+roof. Removing a roof invalidates the dependent glass recipe. A disconnected
+nearby roof cannot pull another construction's window frame towards itself.
+
+Exact shared position/normal indices are built in one bounded flat scratch
+table, retaining first-seen vertex order and every original corner UV. This
+avoids a heap node per distinct vertex during component preparation. It is a
+construction-cost change, not a reduction of geometry, resolution or quality;
+complete Native frame timings still determine its measured benefit.
+
 The long-run gate also validates source-bound process RAM samples, not just
 module/GPU accounting. It rejects a late resident median more than 50 percent
 (at least 256 MiB) above the warmed baseline, or a transient peak above twice
