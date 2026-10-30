@@ -225,6 +225,25 @@ int main(){
         require(std::none_of(console->materials.begin(),console->materials.end(),[](const auto &m){return m.emissive;}),"unpowered control display does not invent emission");
         dash.state|=NCMM_VP_LIGHT_ON;const auto lit_console=first_person::vehicle::generate(original,topology,dash,0);
         require(std::any_of(lit_console->materials.begin(),lit_console->materials.end(),[](const auto &m){return m.emissive;}),"Native-powered instrument display emits at its real controls mount");
+        auto cabin=original;cabin.vehicles[0].min_y=-1;cabin.vehicles[0].max_y=2;
+        const first_person::vehicle::topology cabin_layout(cabin,cabin.vehicles[0]);
+        auto steering=original.parts[0];steering.features=NCMM_VP_CONTROLS;
+        const auto steering_mesh=first_person::vehicle::generate(cabin,cabin_layout,steering,0);
+        const float eye=ncmm_graphics_vehicle_policy::seated_eye(cabin_layout.chassis,1,cabin_layout.chassis+cabin_layout.cabin);
+        // Project the emitted geometry from the real seated eye, using an 80
+        // degree horizontal field and the Native1280x800 fixture's aspect.
+        const float horizontal=std::tan(80.f*first_person::vehicle::pi/360.f),vertical=horizontal/1.6f;
+        const auto dashboard=first_person::vehicle::generate(cabin,cabin_layout,dash,0);
+        size_t trim=0,visible=0;
+        for(const auto &triangle:steering_mesh->triangles)if(steering_mesh->materials[triangle.material].kind==NCMM_VM_RUBBER)
+            for(const auto &vertex:triangle.vertices){const auto p=vertex.position;++trim;
+                if(p.x>.04f&&std::abs(p.y)<p.x*horizontal&&std::abs(p.z-eye)<p.x*vertical){++visible;
+                    const first_person::vehicle::point from{0,0,eye},delta=p-from;
+                    const float distance=std::sqrt(first_person::vehicle::dot(delta,delta));
+                    const auto ray=first_person::vehicle::unit(delta);
+                    for(const auto &panel:dashboard->triangles)
+                        require(reference_intersection(panel,from,ray)>=distance-.0005f,"instrument pod does not occlude the visible steering rim");}}
+        require(trim>0&&visible*100>=trim*65,"steering rim remains predominantly inside the actual seated forward view");
         require(ncmm_graphics_vehicle_policy::shape(false,10,8,0,50,30,0,0,0,0,0,.5f).cabin>1.9f,"an enclosed cargo trailer has a full-height cargo shell");
     }
     moving.input.vehicles[0].origin_x+=.2f;moving.input.scene.seconds+=.1;moving.observe({0,0,1.5f});

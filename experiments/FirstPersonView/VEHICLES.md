@@ -221,6 +221,13 @@ state, including power-deficit suppression and self-powered light parts. Broken
 wheels show rims/remnants, and broken roofs have local apertures. Neither gives
 permission to reveal hidden occupants or container contents.
 
+The steering rim, hub and column sit ahead of the actual seated eye, with the
+instrument pod recessed behind them. Pure projection and independent ray tests
+check that the forward view retains the rim and that the console cannot obscure
+it. They supplement actual CPU/GPU cabin captures; they are not image tests or
+a manual driving qualification. The Native seat position and camera remain the
+source of the eye, and removing either real part still removes its own mesh.
+
 The long-run gate also validates source-bound process RAM samples, not just
 module/GPU accounting. It rejects a late resident median more than 50 percent
 (at least 256 MiB) above the warmed baseline, or a transient peak above twice

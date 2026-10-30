@@ -346,9 +346,13 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         if(layout.narrow){b.beam({.1f,0,chassis+.1f},{.28f,0,chassis+.72f},.04f,.04f,b.steel);
             b.beam({.28f,-.32f,chassis+.72f},{.28f,.32f,chassis+.72f},.035f,.035f,b.dark);}
         else{
-            const point center{.35f,0,chassis+.68f};
-            b.torus(center,{0,1,0},{.25f,0,.97f},.17f,.016f,.016f,b.dark,segments,6);
-            for(unsigned n=0;n<3;++n){const float a=2*pi*n/3;b.beam(center,center+point{.25f*std::sin(a)*.16f,std::cos(a)*.16f,.97f*std::sin(a)*.16f},.022f,.022f,b.steel,6);}}
+            // Keep the actual controls in front of the seated occupant rather
+            // than directly below the eye. The Native seat/camera is unchanged.
+            const point center{.64f,0,chassis+.80f};
+            b.beam(center+point{.035f,0,-.01f},{.91f,0,chassis+.54f},.055f,.055f,b.dark,12);
+            b.torus(center,{0,1,0},{.25f,0,.97f},.17f,.016f,.016f,b.rubber,segments,6);
+            for(unsigned n=0;n<3;++n){const float a=2*pi*n/3;b.beam(center,center+point{.25f*std::sin(a)*.16f,std::cos(a)*.16f,.97f*std::sin(a)*.16f},.022f,.022f,b.steel,6);}
+            b.cushion(center,{.055f,.13f,.09f},.025f,b.dark);}
     }else if(kind==component::dashboard){
         if(layout.narrow){
             b.beam({.10f,0,chassis+.62f},{.36f,0,chassis+.68f},.028f,.028f,b.steel);
@@ -357,10 +361,15 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             b.face({.27f,-.09f,chassis+.68f},{.27f,.09f,chassis+.68f},{.27f,.09f,chassis+.75f},{.27f,-.09f,chassis+.75f},screen);
             return b.finish();
         }
-        b.cushion({.61f,0,chassis+.64f},{.22f,.94f,.23f},.045f,b.dark);
+        // The real instrument part forms a recessed pod behind the steering
+        // wheel. It never places a display over a missing dashboard mount.
+        b.cushion({.94f,0,chassis+.67f},{.44f,.94f,.22f},.065f,b.dark);
+        b.cushion({.86f,0,chassis+.83f},{.32f,.56f,.17f},.075f,b.dark);
         const bool on=(p.state&NCMM_VP_LIGHT_ON)!=0;
         const auto display=b.add({{on?.18f:.07f,on?.30f:.08f,on?.21f:.08f,1},NCMM_VM_GLASS,on});
-        b.face({.495f,-.23f,chassis+.58f},{.495f,.23f,chassis+.58f},{.495f,.23f,chassis+.73f},{.495f,-.23f,chassis+.73f},display);
+        b.face({.694f,-.23f,chassis+.76f},{.694f,.23f,chassis+.76f},{.694f,.23f,chassis+.88f},{.694f,-.23f,chassis+.88f},display);
+        if(lod<2)for(float side:{-1.f,1.f})for(unsigned n=0;n<4;++n){const float y=side*.37f,z=chassis+.62f+n*.032f;
+            b.beam({.713f,y-.065f,z},{.713f,y+.065f,z},.012f,.012f,b.steel,4);}
     }else if(kind==component::engine){
         if(std::string_view(p.id)=="foot_pedals"){
             const point crank{0,0,chassis+.12f};b.torus(crank,{1,0,0},{0,0,1},.075f,.008f,.008f,b.steel,segments,6);
