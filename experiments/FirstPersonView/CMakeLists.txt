@@ -161,6 +161,11 @@ if(MSVC)
 endif()
 add_test(NAME first_person_vehicle_snapshot COMMAND first_person_vehicle_snapshot_tests)
 
+# Keep full software raster equivalence separate from pure vehicle data/math.
+add_executable(first_person_vehicle_raster_tests tests/vehicle_raster_test.cpp)
+first_person_target(first_person_vehicle_raster_tests)
+add_test(NAME first_person_vehicle_raster COMMAND first_person_vehicle_raster_tests)
+
 add_library(ncmm_mod SHARED src/module.cpp)
 target_compile_definitions(ncmm_mod PRIVATE NCMM_MOD_BUILD)
 set_target_properties(ncmm_mod PROPERTIES PREFIX "" OUTPUT_NAME "ncmm_mod")

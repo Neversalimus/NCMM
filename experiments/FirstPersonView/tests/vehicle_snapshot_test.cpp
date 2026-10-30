@@ -1,6 +1,7 @@
 #include "vehicle_snapshot.hpp"
 #include "vehicle_geometry.hpp"
 #include "vehicle_scene.hpp"
+#include "gpu_packet.hpp"
 #include "ncmm_graphics_vehicle_identity.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -12,6 +13,21 @@ using first_person::vehicle::snapshot;
 namespace {
 int checks=0;
 void require(bool value,const char *message){++checks;if(!value){std::fprintf(stderr,"vehicle snapshot: %s\n",message);std::exit(1);}}
+void verify_gpu_vertices(const first_person::vehicle::model &model){
+    first_person::gpu::owned_mesh mesh;first_person::gpu::vertex_index indexed(model.triangles.size()*3);
+    std::map<std::array<uint32_t,18>,uint32_t> reference;
+    for(const auto &triangle:model.triangles)for(const auto &corner:triangle.vertices){
+        ncmm_gpu_vertex_v1 v{};v.position[0]=corner.position.x;v.position[1]=corner.position.y;v.position[2]=corner.position.z;
+        v.normal[0]=v.face_normal[0]=corner.normal.x;v.normal[1]=v.face_normal[1]=corner.normal.y;v.normal[2]=v.face_normal[2]=corner.normal.z;
+        v.uv[0]=corner.u;v.uv[1]=corner.v;v.material=triangle.material;
+        std::array<uint32_t,18> bytes{};static_assert(sizeof(bytes)==sizeof(v),"independent exact GPU vertex reference");
+        std::memcpy(bytes.data(),&v,sizeof(v));const auto expected=reference.emplace(bytes,uint32_t(reference.size()));
+        const auto index=indexed.add(mesh,v);mesh.indices.push_back(index);
+        require(index==expected.first->second,"GPU corner indexing agrees with independent ordered byte identity");
+        require(index<mesh.vertices.size()&&std::memcmp(&mesh.vertices[index],&v,sizeof(v))==0,"every indexed GPU corner preserves all original attribute bits");
+    }
+    require(mesh.vertices.size()==reference.size()&&mesh.indices.size()==model.triangles.size()*3,"GPU indexing preserves source triangle count and order");
+}
 snapshot fixture(){
     snapshot s;s.scene.struct_size=sizeof(s.scene);s.scene.version=1;s.scene.world_epoch=3;
     s.scene.seconds=12;s.scene.revision=2;s.scene.level_height=3.2f;s.scene.vehicle_count=1;s.scene.part_count=4;
@@ -80,6 +96,15 @@ void verify_closed_surface(const first_person::vehicle::model &mesh){
 }
 }
 int main(){
+    {first_person::gpu::owned_mesh mesh;first_person::gpu::vertex_index indexed(200);
+        std::map<std::array<uint32_t,18>,uint32_t> reference;
+        auto verify=[&](const auto &bytes){ncmm_gpu_vertex_v1 v{};std::memcpy(&v,bytes.data(),sizeof(v));
+            const auto expected=reference.emplace(bytes,uint32_t(reference.size()));
+            require(indexed.add(mesh,v)==expected.first->second,"GPU identity retains every float/integer field, signed zero and exact NaN payload");};
+        std::array<uint32_t,18> zero{};verify(zero);
+        for(size_t field=0;field<zero.size();++field)for(uint32_t bits:{0x3f800000u,0x80000000u,0x7fc00001u}){
+            auto changed=zero;changed[field]=bits;verify(changed);verify(changed);verify(zero);}
+        require(mesh.vertices.size()==55,"exact GPU interning cannot merge a distinct attribute or duplicate an equal corner");}
     static_assert(std::is_trivially_copyable<ncmm_graphics_vehicle_part_v1>::value,"ABI contains only copied values");
     static_assert(std::is_trivially_copyable<ncmm_graphics_vehicle_v1>::value,"ABI contains no game ownership");
     const auto original=fixture();require(first_person::vehicle::valid(original,16),"multiple distinct layers at one mount");
@@ -246,6 +271,7 @@ int main(){
         for(unsigned lod=0;lod<3;++lod){const auto mesh=first_person::vehicle::generate(original,topology,p,lod);
             require(mesh&&!mesh->triangles.empty(),"component library generates every supported semantic type");
             verify_closed_surface(*mesh);
+            verify_gpu_vertices(*mesh);
             for(unsigned pose=0;pose<8;++pose){const auto placement=first_person::vehicle::rigid({2,3,1},float(pose)*.73f,float(pose)*.21f);
                 const auto box=placement.bounds(mesh->minimum,mesh->maximum);
                 for(const auto &t:mesh->triangles)for(const auto &v:t.vertices){const auto p=placement.position(v.position);

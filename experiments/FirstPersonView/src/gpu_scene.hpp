@@ -198,7 +198,7 @@ class scene_cache {
             if(cache.vehicle_templates.size()>=2048)cache.vehicle_templates.clear();
             auto &entry=cache.vehicle_templates[draw.geometry->recipe];
             for(uint32_t pass=0;pass<2;++pass){auto mesh=entry[pass].lock();
-                if(!mesh){mesh_builder builder;
+                if(!mesh){mesh_builder builder;vertex_index corners(draw.geometry->triangles.size()*3);
                     for(const auto &source:draw.geometry->triangles){const auto &appearance=draw.geometry->materials[source.material];
                         if(uint32_t(appearance.color[3]<.99f)!=pass)continue;
                         ncmm_gpu_material_v1 material{};std::copy(appearance.color.begin(),appearance.color.end(),material.color);
@@ -208,7 +208,7 @@ class scene_cache {
                             v.position[0]=value.position.x;v.position[1]=value.position.y;v.position[2]=value.position.z;
                             v.normal[0]=v.face_normal[0]=value.normal.x;v.normal[1]=v.face_normal[1]=value.normal.y;v.normal[2]=v.face_normal[2]=value.normal.z;
                             v.uv[0]=value.u;v.uv[1]=value.v;v.material=slot;
-                            builder.mesh.indices.push_back(uint32_t(builder.mesh.vertices.size()));builder.mesh.vertices.push_back(v);}
+                            builder.mesh.indices.push_back(corners.add(builder.mesh,v));}
                     }
                     if(builder.mesh.indices.empty())continue;
                     mesh=cache.assets.mesh(std::move(builder.mesh));

@@ -135,6 +135,18 @@ bounded by the ABI counts. GPU resources use the existing ownership/lifecycle
 and resource budgets. Native animation feedback schedules ordinary bounded
 redraws while a confirmed hinge/rolling interpolation remains active.
 
+GPU component templates index exact duplicate corners, including all UV,
+normal, material, joint, flag and pivot bits. Triangle order and hard/UV seams
+remain intact; the geometry shader does not use the vertex index as an input.
+An independent ordered byte map verifies the full expanded corner stream.
+For CPU cars whose conservative projected component-box union covers at most
+one quarter of the viewport, the painter streams clipped triangles directly
+through the same scanline rasterizer. Larger/near-plane/interior cases retain
+the existing parallel path. Only scheduling and intermediate storage change.
+The separate raster test compares complete 1280x800 colour, depth and picking
+buffers bit for bit, with cold/cached, angled, clipped, inside and hidden cases.
+Both optimizations still require actual Native full-frame qualification.
+
 Straight panel lofts coalesce redundant coplanar strips only when every original
 edge sample agrees with the same linear surface. Real wheel cut-outs, rounded
 corners and local dents retain their sampled contour. World-space material

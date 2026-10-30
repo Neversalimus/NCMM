@@ -2,6 +2,8 @@
 #include "ncmm_graphics_gpu.h"
 #include "scene_hash.hpp"
 #include <algorithm>
+#include <array>
+#include <cstring>
 #include <map>
 #include <memory>
 #include <set>
@@ -27,6 +29,28 @@ struct owned_mesh {
     std::vector<std::shared_ptr<const owned_texture>> textures;
     ncmm_gpu_mesh_v1 view()const{return {key,vertices.data(),indices.data(),materials.data(),uint32_t(vertices.size()),uint32_t(indices.size()),uint32_t(materials.size()),flags};}
     size_t bytes()const{return vertices.capacity()*sizeof(vertices[0])+indices.capacity()*sizeof(indices[0])+materials.capacity()*sizeof(materials[0]);}
+};
+// Exact corner interning for rigid component templates. Include every scalar
+// attribute, including flat normals/materials/flags; a position-only index
+// would join hard edges or UV seams. No padding bytes enter the identity.
+class vertex_index {
+    std::vector<uint32_t> slots;
+    static std::array<uint32_t,18> identity(const ncmm_gpu_vertex_v1 &v){
+        const float values[]={v.position[0],v.position[1],v.position[2],v.normal[0],v.normal[1],v.normal[2],v.uv[0],v.uv[1],
+            v.face_normal[0],v.face_normal[1],v.face_normal[2],v.pivot[0],v.pivot[1],v.pivot[2]};
+        std::array<uint32_t,18> key{};std::memcpy(key.data(),values,sizeof(values));
+        key[14]=v.material;key[15]=v.joint;key[16]=v.flags;key[17]=v.reserved;return key;
+    }
+public:
+    explicit vertex_index(size_t corners){size_t capacity=1;while(capacity<corners*2)capacity*=2;slots.assign(capacity,UINT32_MAX);}
+    uint32_t add(owned_mesh &mesh,const ncmm_gpu_vertex_v1 &v){
+        const auto key=identity(v);uint64_t hash=1469598103934665603ull;
+        for(uint32_t word:key)hash=(hash^word)*1099511628211ull;
+        hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
+        const size_t mask=slots.size()-1;size_t at=size_t(hash)&mask;
+        while(slots[at]!=UINT32_MAX){if(identity(mesh.vertices[slots[at]])==key)return slots[at];at=(at+1)&mask;}
+        const auto index=uint32_t(mesh.vertices.size());mesh.vertices.push_back(v);slots[at]=index;return index;
+    }
 };
 inline uint64_t material_key(const ncmm_gpu_material_v1 &m) {
     uint64_t key=hash_bytes(1469598103934665603ull,m.color,sizeof(m.color));

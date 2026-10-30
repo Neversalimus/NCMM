@@ -77,12 +77,13 @@ struct frame {
     uint32_t vertical_doors=0,vertical_windows=0,vertical_fences=0,plants=0,shadow_cells=0;
     uint32_t geometry_cells=0,culled_cells=0,culled_quads=0,sky_pixels=0;
     uint64_t volume_samples=0;
-    uint32_t viewmodel_draws=0,viewmodel_errors=0;
+    uint32_t viewmodel_draws=0,viewmodel_errors=0,vehicle_streamed_triangles=0;
 };
 // Internal reference switches used by correctness tests and the manual
 // benchmark. They do not alter the Host ABI or add player-facing settings.
 struct render_options {
     bool cull_geometry=true,skip_hidden_sky=true,skip_empty_volume=true,contact_shadows=true;
+    bool stream_vehicle_raster=true;
 };
 using sprite_provider=std::function<bool(uint32_t,uint32_t,ncmm_graphics_sprite_v2 &)>;
 struct image {
@@ -339,6 +340,27 @@ class renderer {
     // Allocate callback-local references only for layers this scene requests.
     std::array<std::vector<image *>,NCMM_GFX_GLOVE_RIGHT+1> image_refs;std::array<image *,NCMM_GFX_GLOVE_RIGHT+1> held_refs{};
     std::map<sprite_key,image> images;std::vector<triangle> transparent,opaque,overlay;
+    struct vehicle_screen_region {
+        float left=std::numeric_limits<float>::infinity(),top=left,right=-left,bottom=-left;
+        bool near=false;
+    } vehicle_region;
+    void vehicle_screen_bounds(vec low,vec high){
+        if(vehicle_region.near)return;
+        for(unsigned n=0;n<8;++n){const auto p=view({n&1?high.x:low.x,n&2?high.y:low.y,n&4?high.z:low.z});
+            if(p.z<.08f){vehicle_region.near=true;return;}
+            const float x=std::clamp(f.width*.5f+projection*p.x/p.z,0.f,float(f.width));
+            const float y=std::clamp(f.height*.5f-projection*p.y/p.z,0.f,float(f.height));
+            if(!std::isfinite(x)||!std::isfinite(y)){vehicle_region.near=true;return;}
+            vehicle_region.left=std::min(vehicle_region.left,x);vehicle_region.right=std::max(vehicle_region.right,x);
+            vehicle_region.top=std::min(vehicle_region.top,y);vehicle_region.bottom=std::max(vehicle_region.bottom,y);
+        }
+    }
+    bool small_vehicle_region()const{
+        // A conservative projected component-box union chooses scheduling only.
+        // Near-plane crossings/interiors retain the existing parallel painter.
+        return options.stream_vehicle_raster&&!vehicle_region.near&&
+            (vehicle_region.right-vehicle_region.left)*(vehicle_region.bottom-vehicle_region.top)<=float(f.width)*f.height*.25f;
+    }
     std::map<std::tuple<uint32_t,int,int>,int> vehicle_mounts;
     struct vehicle_palette {vec color{};float weight=0;};
     std::map<uint32_t,vehicle_palette> vehicle_colors;
@@ -622,9 +644,19 @@ class renderer {
         auto &queue=m.overlay?overlay:m.alpha<.99f&&!m.cutout?transparent:opaque;
         queue.push_back(t0);queue.push_back(t1);
     }
-    void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr){
+    void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr,bool stream=false){
         if(queue.empty()&&(!last||last->empty()))return;
         const auto begun=std::chrono::steady_clock::now();++f.raster_calls;f.submitted_triangles+=queue.size()+(last?last->size():0);
+        if(stream){
+            // Small on-screen cars need no viewport-wide thread dispatch or
+            // full projected-triangle copy. Keep source order and the exact
+            // same scanline rasterizer, including clipping, depth and picking.
+            std::vector<projected_triangle> scratch;scratch.reserve(2);uint32_t total=0;
+            auto submit=[&](const auto &values){for(const auto &t:values){scratch.clear();project(t,scratch);
+                for(const auto &piece:scratch){raster(piece,0,1,total);++f.vehicle_streamed_triangles;}}};
+            submit(queue);if(last)submit(*last);f.triangles+=total;
+            f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();return;
+        }
         const bool dense_grass=queue.size()>=2048&&queue.front().m.grass;
         const size_t area=size_t(f.width)*f.height;
         // Balanced CPU world frames can be below the large-frame threshold.
@@ -1472,12 +1504,15 @@ class renderer {
     }
     void modular_vehicles(){
         if(!metadata||!metadata->vehicles)return;
+        vehicle_region={};
         struct prepared_vertex {vec position{},lit{};uint8_t ready=0;};
         std::vector<prepared_vertex> prepared;
         for(const auto &draw:metadata->vehicles->draws){
             if(!draw.geometry||!visible(draw.cell)||(world_data&&!(world_flags(draw.cell)&((draw.roof_surface||draw.exterior_surface)?NCMM_WORLD_FLOOR_TOP:NCMM_WORLD_BODY_VISIBLE))))continue;
-            if(!gpu_sink&&options.cull_geometry){const auto bounds=draw.placement.bounds(draw.geometry->minimum,draw.geometry->maximum);
-                if(!in_view({bounds[0].x,bounds[0].y,bounds[0].z},{bounds[1].x,bounds[1].y,bounds[1].z}))continue;}
+            if(!gpu_sink){const auto bounds=draw.placement.bounds(draw.geometry->minimum,draw.geometry->maximum);
+                const vec low{bounds[0].x,bounds[0].y,bounds[0].z},high{bounds[1].x,bounds[1].y,bounds[1].z};
+                if(options.cull_geometry&&!in_view(low,high))continue;
+                if(options.stream_vehicle_raster)vehicle_screen_bounds(low,high);}
             ++f.vehicle_parts;f.triangles+=uint32_t(draw.geometry->triangles.size());
             if(gpu_sink&&gpu_sink->vehicle_component(draw))continue;
             const first_person::vehicle::point to_eye{eye.x-draw.placement.origin.x,eye.y-draw.placement.origin.y,eye.z-draw.placement.origin.z};
@@ -1531,7 +1566,7 @@ public:
     void collect(geometry_sink &sink,int width,int height){
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
-        f.creature_lods={};f.creature_culled=f.creature_fallback=0;
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=0;
         modular_vehicles();if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
     }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
@@ -1556,11 +1591,11 @@ public:
             f.sun_shadows=shadows;
             if(world_output)*world_output=f;
         }
-        f.creature_lods={};f.creature_culled=f.creature_fallback=0;
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=0;
         // Animate only these near-field blades. The floor, walls and distant
         // world remain in the CPU cache; animation never changes Native time.
         opaque.clear();transparent.clear();
-        modular_vehicles();paint(opaque);opaque.clear();
+        modular_vehicles();paint(opaque,nullptr,small_vehicle_region());opaque.clear();
         std::vector<triangle> vehicle_glass;vehicle_glass.swap(transparent);
         std::vector<int> lawns;
         for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&ncmm_grass::terrain(base.cells[i].terrain)&&

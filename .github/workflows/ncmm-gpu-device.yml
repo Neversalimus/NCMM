@@ -131,7 +131,7 @@ jobs:
           from pathlib import Path
           import hashlib,json,os
           files={
-            'experiments/FirstPersonView/CMakeLists.txt':'ff530e2252510917dd7195b4e446767eaad2c79202d1d4495f0cf9b9396d5c61',
+            'experiments/FirstPersonView/CMakeLists.txt':'f74e0c564f647373f66bb562520d3536354088ec7aed497db84aebd32176dbd0',
             'experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp':'d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597',
             'experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp':'f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b',
             'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'b60edf4b3c56168023d89d777ab019e67dc2cc9f5ac68f6672f75e442eb8ca0c',
@@ -140,8 +140,8 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'3b5ce5f1c95e4a156be4dad5e6896c60217f557491156cf953952e7ec0a95dd4',
             'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'84848ff88c40edb1719238a8b4f9fa7801c0a1eda0554e46b1707b60867eb868',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'e7ca95216b84c3bfdb34bcf9c2638a8d46696b8eda28014a5c18511c1e38a16d',
-            'experiments/FirstPersonView/src/gpu_scene.hpp':'d83836fb9b9b09212a6aa4077d8ae3562b307b61e26cde1ba318b64dc1ce0e4a',
-            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'930c64685a3ccd668ea07111eb25a3c44d470a200369368656ab733f5799a459',
+            'experiments/FirstPersonView/src/gpu_scene.hpp':'3120cc645923cb747b1be8f75a87c6d52f4f917a0c3de347537ce8d72fe13e1b',
+            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'b795319fed31c16c7af7975f05de3fa9f6df8afe4b2467ac74245e6ad4c0ab03',
             'experiments/FirstPersonView/tests/viewmodel_gpu_test.cpp':'4297305f7cc2f99026373322b42b6bcc07ec97c01da8af706a564296608bd3ef',
             'experiments/FirstPersonView/src/multilevel_geometry.inc':'3adae8955b66dc15c9faa2baddcb74b78afcc6702a4031227f85b472f22c4de4',
             'experiments/FirstPersonView/src/grass.inc':'d9ccc9eb4c0f0e0fb92f074cdee8bed96b27ea9a3f3f87a6c7262d8bdc16c5b8',
@@ -204,7 +204,7 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_locomotion.inc':'a3403f4f55a9a786877ba8a678caa564ec266a0d6348aaa941a64402c5fcf91f',
             'experiments/graphics_bridge/ncmm_graphics_bridge.inc':'8bdfd209757a3a0b53294bc21a4791970e486309f1b840280e36637cd81d04db',
             'experiments/graphics_bridge/ncmm_graphics_world.inc':'7d9e56759122f2f46bbd7ebf3aae64c74bf92b025e33b3acda656d673d239633',
-            'experiments/FirstPersonView/src/gpu_packet.hpp':'68c8fac6edd8fa779d7a1e6b812107ec7f566a719b870ac58d0f474b0b7ed7ed',
+            'experiments/FirstPersonView/src/gpu_packet.hpp':'b2e0bffecea856f26330e26703e1d750f3f5ba835c0175a8abcba1941a1f3068',
             'experiments/FirstPersonView/tests/locomotion_test.cpp':'d66cbe4b2fa22f79ac94d24948967ad4a0320051d8142fd0db7ac7f6c4bd4947',
             'experiments/FirstPersonView/tests/gpu_contract_test.cpp':'f2a03e88a35f7fbc417da9227f3d6b76092508913759edfd679099f6e97d2a25',
             'experiments/FirstPersonView/tests/multilevel_module_test.cpp':'573ef120b4dce032ffd2817ecc474186649320f67fd5fe7171a4e176e7fcff4f',
@@ -319,7 +319,8 @@ jobs:
             'experiments/FirstPersonView/src/vehicle_snapshot.hpp':'34e27bcb3dd07c003ecdeeb8d1b6e77e75f210788892e85e1744a887e418bcbd',
             'experiments/FirstPersonView/src/vehicle_topology.hpp':'6c1be124010a40c68f88db40aae972f4c991348ee52c0962be860c715a11860e',
             'experiments/FirstPersonView/tests/test_import_vehicle_components.py':'578c5d82130a6f872c844691c3b26ddca1a639e0a1a25dcd31b6251e84c32e9b',
-            'experiments/FirstPersonView/tests/vehicle_snapshot_test.cpp':'b34acca9bb7166d15b467d6c9bdbe50425670e4f513824f59d766ec2a440e68a',
+            'experiments/FirstPersonView/tests/vehicle_raster_test.cpp':'c3127e8c900b60f5cbb5a6c30665eabff45b47e0df2ba4ef61a8783f8b4055fb',
+            'experiments/FirstPersonView/tests/vehicle_snapshot_test.cpp':'b5df4c7cb07594b9b608c66298f036af748e988f4517149fdb95245b91bc964e',
             'experiments/FirstPersonView/tests/verify_vehicle_gallery.py':'e1c98f6446efc32dfc7532b0dfe1c5d597f6fb5f0db9dab5f6babbd240e79c3f',
             'experiments/FirstPersonView/tools/import_vehicle_components.py':'eb3ad1e712185cc10bd2c97329d6fd3a2f761a97e3a24277d616ff5de417c705',
             'experiments/graphics_bridge/ncmm_graphics_vehicle_qualification.inc':'9798a0f35ad77e7e22696bd6489d59e249cef9e9bc1cb2f425cd20d4b761cee2',
