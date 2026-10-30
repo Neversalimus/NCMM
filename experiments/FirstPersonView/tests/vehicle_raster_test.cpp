@@ -49,13 +49,13 @@ struct fixture {
     }
     h::frame render(int dispatch,float yaw,float pitch,const h::frame *cache=nullptr,h::frame *world=nullptr){
         h::render_options options;options.stream_vehicle_raster=dispatch==2;options.prune_vehicle_workers=dispatch==1||dispatch==3;
-        options.prune_empty_vehicle_samples=dispatch==3;h::frame result;
+        options.prune_empty_vehicle_samples=dispatch==3;options.prune_unused_vehicle_bands=dispatch==3||dispatch==4;h::frame result;
         h::renderer painter(scene,yaw,pitch,{},result,{},&metadata,options);painter.run(1280,800,cache,world);return result;
     }
 };
 }
 int main(){
-    fixture f;uint32_t skipped=0,empty=0;
+    fixture f;uint32_t skipped=0,empty=0,bands=0;
     for(float yaw:{-.17f,0.f,.17f})for(float pitch:{-.15f,0.f,.12f}){
         h::frame old_world,new_world;const auto before=f.render(0,yaw,pitch,nullptr,&old_world),after=f.render(1,yaw,pitch,nullptr,&new_world);
         compare(before,after);skipped+=after.vehicle_worker_skips;
@@ -64,9 +64,11 @@ int main(){
         const auto cached_before=f.render(0,yaw,pitch,&old_world),cached_after=f.render(1,yaw,pitch,&new_world);compare(cached_before,cached_after);
         const auto covered=f.render(3,yaw,pitch);compare(before,covered);empty+=covered.vehicle_empty_triangles;
         compare(cached_before,f.render(3,yaw,pitch,&old_world));
+        const auto bandless=f.render(4,yaw,pitch);compare(before,bandless);bands+=bandless.vehicle_band_skips;
     }
     if(std::thread::hardware_concurrency()>1)require(skipped>0,"equivalence actually rejects empty worker strips");
     require(empty>0,"exact sample pruning actually rejects projected zero-fragment triangles without dropping source geometry");
+    require(bands>0,"unused band pruning actually avoids per-corner calculations while preserving reflective colour and all pixels");
     const auto reference=f.render(0,0,0),streamed=f.render(2,0,0);compare(reference,streamed);
     require(streamed.vehicle_streamed_triangles>0,"disabled streaming experiment remains an explicit correctness reference");
     f.scene.base.camera_x=12.5f;

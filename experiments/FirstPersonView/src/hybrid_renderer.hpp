@@ -78,7 +78,7 @@ struct frame {
     uint32_t vertical_doors=0,vertical_windows=0,vertical_fences=0,plants=0,shadow_cells=0;
     uint32_t geometry_cells=0,culled_cells=0,culled_quads=0,sky_pixels=0;
     uint64_t volume_samples=0;
-    uint32_t viewmodel_draws=0,viewmodel_errors=0,vehicle_streamed_triangles=0,vehicle_worker_skips=0,vehicle_empty_triangles=0;
+    uint32_t viewmodel_draws=0,viewmodel_errors=0,vehicle_streamed_triangles=0,vehicle_worker_skips=0,vehicle_empty_triangles=0,vehicle_band_skips=0;
 };
 // Internal reference switches used by correctness tests and the manual
 // benchmark. They do not alter the Host ABI or add player-facing settings.
@@ -86,7 +86,7 @@ struct render_options {
     bool cull_geometry=true,skip_hidden_sky=true,skip_empty_volume=true,contact_shadows=true;
     // Sequential streaming remains a correctness reference: actual Native
     // measurements rejected its performance, so ordinary frames retain workers.
-    bool stream_vehicle_raster=false,prune_vehicle_workers=true,prune_empty_vehicle_samples=true;
+    bool stream_vehicle_raster=false,prune_vehicle_workers=true,prune_empty_vehicle_samples=true,prune_unused_vehicle_bands=true;
 };
 using sprite_provider=std::function<bool(uint32_t,uint32_t,ncmm_graphics_sprite_v2 &)>;
 struct image {
@@ -495,7 +495,7 @@ class renderer {
         int xmin,xmax,ymin,ymax;float inv,dw0,dw1;bool coarse,detailed;
         uint8_t worker_mask=15;
     };
-    void project_piece(const triangle &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<projected_triangle> &output,bool reject_empty=false){
+    void project_piece(const triangle &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<projected_triangle> &output,bool reject_empty=false,bool skip_unused_bands=false){
         std::array<vec,3> p{};
         std::array<float,3> iz{},uu{},vv{};
         for(int i=0;i<3;++i){auto q=viewed?(*viewed)[i]:view(v[i].p);iz[i]=1/q.z;p[i]={f.width*0.5f+projection*q.x*iz[i],f.height*0.5f-projection*q.y*iz[i],q.z};uu[i]=v[i].u*iz[i];vv[i]=v[i].v*iz[i];}
@@ -516,23 +516,29 @@ class renderer {
         const bool reflective=t.m.finish==surface::paint||t.m.finish==surface::metal;
         const vec flat_color=reflective?surface_color(t.m.color,t.m,(v[0].p+v[1].p+v[2].p)*(1.0f/3),t.normal,(p[0].z+p[1].z+p[2].z)/3):t.m.color;
         std::array<float,3> fine{},medium{};
-        for(int n=0;!t.m.grass&&n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
+        // Flat reflective colour above has its own original footprint. Its
+        // per-corner bands are never read because detailed is false. The same
+        // holds for unshaded/contact surfaces; keep every band for detailed
+        // materials and water. This removes no texture/reflective detail.
+        const bool bands=!skip_unused_bands||(!reflective&&t.m.finish!=surface::none&&t.m.finish!=surface::contact);
+        if(!bands)++f.vehicle_band_skips;
+        for(int n=0;!t.m.grass&&bands&&n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
             fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
         const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&t.m.finish!=surface::contact&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
         output.push_back({v,p,iz,uu,vv,fine,medium,t.m,t.normal,flat_light,flat_color,xmin,xmax,ymin,ymax,inv,dw0,dw1,coarse,detailed});
     }
-    void project(const triangle &t,std::vector<projected_triangle> &output,bool reject_empty=false){
+    void project(const triangle &t,std::vector<projected_triangle> &output,bool reject_empty=false,bool skip_unused_bands=false){
         // Keep world-space clipping exact; reuse the input view transforms.
         const std::array<vec,3> viewed={view(t.v[0].p),view(t.v[1].p),view(t.v[2].p)};
         const bool uncut=viewed[0].z>=.08f&&viewed[1].z>=.08f&&viewed[2].z>=.08f;
-        if(uncut){project_piece(t,t.v,&viewed,output,reject_empty);return;}
+        if(uncut){project_piece(t,t.v,&viewed,output,reject_empty,skip_unused_bands);return;}
         std::array<vertex,5> poly{};int count=0;
         for(int i=0;i<3;++i){const auto &a=t.v[i],&b=t.v[(i+1)%3];float za=viewed[i].z,zb=viewed[(i+1)%3].z;
             if(za>=0.08f)poly[count++]=a;
             if((za>=0.08f)!=(zb>=0.08f))poly[count++]=interpolate(a,b,(0.08f-za)/(zb-za));}
         if(count<3)return;
         for(int piece=1;piece<count-1;++piece)
-            project_piece(t,{poly[0],poly[piece],poly[piece+1]},nullptr,output,reject_empty);
+            project_piece(t,{poly[0],poly[piece],poly[piece+1]},nullptr,output,reject_empty,skip_unused_bands);
     }
     void raster(const projected_triangle &t,int worker,int workers,uint32_t &triangles){
         const auto &v=t.v;const auto &p=t.p;const auto &iz=t.iz;const auto &uu=t.uu;const auto &vv=t.vv;
@@ -649,7 +655,7 @@ class renderer {
         auto &queue=m.overlay?overlay:m.alpha<.99f&&!m.cutout?transparent:opaque;
         queue.push_back(t0);queue.push_back(t1);
     }
-    void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr,bool stream=false,bool prune_workers=false,bool reject_empty=false){
+    void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr,bool stream=false,bool prune_workers=false,bool reject_empty=false,bool skip_unused_bands=false){
         if(queue.empty()&&(!last||last->empty()))return;
         const auto begun=std::chrono::steady_clock::now();++f.raster_calls;f.submitted_triangles+=queue.size()+(last?last->size():0);
         if(stream){
@@ -672,8 +678,8 @@ class renderer {
         const unsigned limit=area>=500000||dense_grass?4u:medium_world?2u:1u;
         const int count=limit>1?int(std::clamp(std::thread::hardware_concurrency(),1u,limit)):1;
         std::vector<projected_triangle> projected;projected.reserve(queue.size()+(last?last->size():0));
-        for(const auto &t:queue)project(t,projected,reject_empty);
-        if(last)for(const auto &t:*last)project(t,projected,reject_empty);
+        for(const auto &t:queue)project(t,projected,reject_empty,skip_unused_bands);
+        if(last)for(const auto &t:*last)project(t,projected,reject_empty,skip_unused_bands);
         if(projected.empty()){f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();return;}
         const bool prune=prune_workers&&count>1;
         if(prune)for(auto &t:projected)t.worker_mask=uint8_t(raster_worker_mask(t.ymin,t.ymax,count));
@@ -1579,7 +1585,7 @@ public:
     void collect(geometry_sink &sink,int width,int height){
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
-        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=0;
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;
         modular_vehicles();if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
     }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
@@ -1604,11 +1610,11 @@ public:
             f.sun_shadows=shadows;
             if(world_output)*world_output=f;
         }
-        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=0;
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;
         // Animate only these near-field blades. The floor, walls and distant
         // world remain in the CPU cache; animation never changes Native time.
         opaque.clear();transparent.clear();
-        modular_vehicles();paint(opaque,nullptr,small_vehicle_region(),options.prune_vehicle_workers,options.prune_empty_vehicle_samples);opaque.clear();
+        modular_vehicles();paint(opaque,nullptr,small_vehicle_region(),options.prune_vehicle_workers,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands);opaque.clear();
         std::vector<triangle> vehicle_glass;vehicle_glass.swap(transparent);
         std::vector<int> lawns;
         for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&ncmm_grass::terrain(base.cells[i].terrain)&&

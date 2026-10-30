@@ -135,16 +135,32 @@ bounded by the ABI counts. GPU resources use the existing ownership/lifecycle
 and resource budgets. Native animation feedback schedules ordinary bounded
 redraws while a confirmed hinge/rolling interpolation remains active.
 
+The Native producer caches only finalized definition feature bits, under owned
+canonical IDs and the world lifetime. At most 4096 IDs of 127 bytes are retained;
+longer mod IDs use the original resolver without truncation or storage. Client
+teardown/world changes discard the cache. Health, availability, open/enabled
+state, materials, powered light and installed steering remain live part values.
+
 GPU component templates index exact duplicate corners, including all UV,
 normal, material, joint, flag and pivot bits. Triangle order and hard/UV seams
 remain intact; the geometry shader does not use the vertex index as an input.
 An independent ordered byte map verifies the full expanded corner stream.
+Immutable component recipes also retain an explicit absent-pass bit. An opaque
+part no longer allocates indexing scratch or scans all triangles again for an
+empty transparent pass. This is separate from an expired mesh owner, which must
+rebuild after resource eviction. A changed glazing recipe checks both passes.
 CPU vehicle triangles keep parallel scanline processing. A precomputed worker
 mask skips only workers whose sixteen-row strips cannot intersect the triangle,
 before those workers prepare material/derivative data. Source triangles, order,
 participating visits and pixel arithmetic remain intact. Sequential streaming
 of small projected batches was slower in actual Native measurements and is
 disabled; it remains available only as an internal correctness reference.
+For triangles spanning at most three rows, the exact original inclusive
+scanline intersections can prove that no pixel sample exists before material
+preparation. This is not an area/LOD cutoff: source geometry remains complete.
+Per-corner detail bands are also omitted where the painter never reads them
+(flat reflective, unshaded and contact materials). The original flat reflection,
+detailed material bands and all pixel arithmetic remain intact.
 The separate raster test compares complete 1280x800 colour, depth and picking
 buffers bit for bit, with cold/cached, angled, clipped, inside and hidden cases.
 New scheduling changes still require actual Native full-frame qualification.
