@@ -24,14 +24,24 @@ def verify(root, output, source, engine, module=None):
     assert not report['manual_playthrough'] and not report['hardware_performance_qualified']
     assert (report['width'],report['height'],report['horizon_radius'])==(640,480,48)
     assert len(source)==40 and len(engine)==40
+    assert module is not None and len(module)==64 and all(c in '0123456789abcdef' for c in module)
     groups=defaultdict(dict)
-    captures=[]
+    captures=[];benchmarks=defaultdict(list);soak=None
     for r in report['frames']:
+        if r['label']=='soak-summary':
+            assert soak is None;soak=r
+            assert 0<=r['requested_seconds']<=1800 and r['elapsed_seconds']>=r['requested_seconds']
+            if r['requested_seconds']>=900:assert r['iterations']>=256 and r['saves']==r['loads']>=2 and r['mutations']>=4
+            continue
         assert r['backend'] in {'cpu','gpu'} and r['renderer'] in {'legacy','modular'}
         assert r['actual_gpu']==(r['backend']=='gpu')
         for name in ['yaw','pitch','eye_height','full_frame_ms']:
             assert isinstance(r[name],(int,float)) and math.isfinite(r[name])
         assert r['full_frame_ms']>0
+        if r['label'].startswith('bench-'):
+            assert (r['frame_width'],r['frame_height'])==(1280,800)
+            scene=r['prototype'];assert scene in {'empty','one','multiple','parking','large'}
+            benchmarks[(scene,r['backend'],r['renderer'],'cold' if r['label'].endswith('-cold') else 'warm')].append(r['full_frame_ms'])
         if 'file' not in r:continue
         name=r['file'];assert Path(name).name==name and name.startswith('vehicle-') and name.endswith('.bmp')
         key=r['prototype'],r['label'];variant=r['backend'],r['renderer']
@@ -39,7 +49,8 @@ def verify(root, output, source, engine, module=None):
         groups[key][variant]=r
         path=root/name
         with Image.open(path) as original:
-            assert original.size==(640,480) and original.format=='BMP'
+            assert original.size==(r.get('frame_width',640),r.get('frame_height',480)) and original.format=='BMP'
+            assert original.size in {(640,480),(1280,800)}
             image=original.convert('RGB');assert image.getextrema()!=((0,0),(0,0),(0,0)),name
             captures.append(dict(file=name,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
     for prototype in PROTOTYPES:
@@ -47,13 +58,20 @@ def verify(root, output, source, engine, module=None):
     assert {('car',v) for v in ['driver','passenger','open-door','damaged','broken-door','removed-wheel',
                                'installed-armor','night','rain','fog']} <= groups.keys()
     assert {('mixed','parking'),('mixed','after-motion'),('mixed','save-reload')} <= groups.keys()
+    if benchmarks:
+        for scene in ['empty','one','multiple','parking','large']:
+            for backend in ['cpu','gpu']:
+                for mode in ['legacy','modular']:
+                    assert len(benchmarks[(scene,backend,mode,'cold')])==7
+                    assert len(benchmarks[(scene,backend,mode,'warm')])==49
+        assert ('custom','asymmetric-extension') in groups and ('custom','turned') in groups
     for (prototype,label),variants in groups.items():
-        if label.startswith('moving-'):continue
+        if label.startswith('moving-') or label.startswith('activity-'):continue
         assert set(variants)=={(b,m) for b in ['cpu','gpu'] for m in ['legacy','modular']}
         inputs={(tuple(r['camera_xyz']),r['yaw'],r['pitch']) for r in variants.values()}
         assert len(inputs)==1,(prototype,label,'comparison camera differs')
         for r in variants.values():
-            if r['renderer']=='modular':assert r['snapshot_vehicles'] and r['snapshot_parts']
+            if r['renderer']=='modular' and label not in {'night','night-headlights'}:assert r['snapshot_vehicles'] and r['snapshot_parts']
     output.mkdir(parents=True,exist_ok=False)
     inventory={}
     def sheet(name,keys):
@@ -70,15 +88,24 @@ def verify(root, output, source, engine, module=None):
         assert path.stat().st_size<=4*1024*1024
         inventory[name]=dict(bytes=path.stat().st_size,sha256=hashlib.sha256(path.read_bytes()).hexdigest(),width=page.width,height=page.height)
     sheet('vehicle-exteriors.png',[(p,'front-three-quarter') for p in sorted(PROTOTYPES)])
-    car_keys=sorted(k for k in groups if k[0]=='car' and not k[1].startswith('moving-'))
+    car_keys=sorted(k for k in groups if k[0]=='car' and not k[1].startswith(('moving-','activity-')))
     for offset in range(0,len(car_keys),12):sheet('vehicle-details-'+str(offset//12)+'.png',car_keys[offset:offset+12])
     sheet('vehicle-parking.png',[k for k in sorted(groups) if k[0]=='mixed' and not k[1].startswith('moving-')])
+    if benchmarks:sheet('vehicle-custom.png',[k for k in sorted(groups) if k[0]=='custom'])
+    def percentile(values,fraction):
+        values=sorted(values);return values[round((len(values)-1)*fraction)]
+    performance=[]
+    for key,values in sorted(benchmarks.items()):
+        scene,backend,mode,phase=key
+        performance.append(dict(scene=scene,backend=backend,renderer=mode,phase=phase,samples=len(values),
+                                median_ms=percentile(values,.5),p95_ms=percentile(values,.95),p99_ms=percentile(values,.99),max_ms=max(values)))
     result=dict(schema=1,success=True,source=source,engine_source=engine,module_sha256=module,
                 actual_cdda=True,manual_playthrough=False,visual_acceptance=False,hardware_performance_qualified=False,
                 comparable_configurations=len(groups),captured_frames=len(captures),
                 capture_inventory=captures,review_inventory=inventory,
+                performance=performance,soak=soak,cold_definition='Native cache refresh and first frame after switching the vehicle renderer; device resources may be retained',
                 limitations=['Automated Native capture integrity does not establish visual acceptance.',
-                             '640x480 on CI adapters is a functional comparison, not hardware FPS.',
+                             '640x480 visual captures and 1280x800 full-frame timings on CI adapters do not establish hardware FPS.',
                              'Interior camera intentionally changes from Legacy clamp to actual seat.'])
     (output/'vehicle-review.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     return result
@@ -86,6 +113,6 @@ def verify(root, output, source, engine, module=None):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True,type=Path)
-    p.add_argument('--output',required=True,type=Path);p.add_argument('--source',required=True);p.add_argument('--engine',required=True)
-    args=p.parse_args();result=verify(args.root,args.output,args.source,args.engine)
+    p.add_argument('--output',required=True,type=Path);p.add_argument('--source',required=True);p.add_argument('--engine',required=True);p.add_argument('--module-sha256')
+    args=p.parse_args();result=verify(args.root,args.output,args.source,args.engine,args.module_sha256)
     print(json.dumps({k:v for k,v in result.items() if k not in {'capture_inventory','review_inventory'}}))

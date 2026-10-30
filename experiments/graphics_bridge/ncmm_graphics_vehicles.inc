@@ -1,6 +1,9 @@
 // Native-only producer; snapshots own trivial values and never borrow a part,
 // cargo item, vehicle, map cache or prototype across callbacks.
 #include "ncmm_graphics_vehicle_policy.hpp"
+#if defined(TILES)
+#include "activity_actor_definitions.h"
+#endif
 ncmm_graphics_vehicle_scene_v1 graphics_vehicle_scene{};
 bool graphics_vehicles_requested=false;
 std::vector<ncmm_graphics_vehicle_v1> graphics_vehicle_rows;
@@ -131,8 +134,21 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
     map &here=get_map();const auto &you=get_avatar();
     if(world){scene.origin_x=world->origin_x;scene.origin_y=world->origin_y;scene.origin_z=world->origin_z;}
     else if(!positions.empty()){const auto p=here.get_abs(positions[0]);scene.origin_x=p.x();scene.origin_y=p.y();scene.origin_z=p.z();}
-    std::map<tripoint_bub_ms,int> permitted;
+    std::map<tripoint_bub_ms,int> permitted,roof_surfaces;
     std::map<const vehicle *,uint32_t> groups;
+    // Native represents a vehicle roof as a floor on the storey above. That
+    // architectural surface remains visible when CDDA correctly hides the
+    // contents underneath it. Publish only the actual installed roof part;
+    // never grant BODY permission to its seats, cargo or other hidden layers.
+    if(world)for(size_t i=0;i<positions.size();++i){
+        if(!(base.cells[i].flags&NCMM_GFX_VISIBLE)||!(world->coordinates[i].flags&(NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM))||
+           !here.ter(positions[i]).obj().has_flag("NO_FLOOR")){continue;}
+        const auto below=positions[i]+tripoint_rel_ms(0,0,-1);
+        if(!here.ncmm_graphics_loaded(below)){continue;}
+        if(const auto vp=here.veh_at(below);vp&&vp->part_with_feature("ROOF",true)){
+            roof_surfaces.emplace(below,int(i));groups.emplace(&vp->vehicle(),uint32_t(groups.size()+1));
+        }
+    }
     for(size_t i=0;i<positions.size();++i){
         if(!(base.cells[i].flags&NCMM_GFX_VISIBLE)||(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)))continue;
         permitted.emplace(positions[i],int(i));
@@ -199,6 +215,10 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
                 {"AISLE",NCMM_VP_AISLE},{"BATTERY",NCMM_VP_BATTERY},{"FUEL_TANK",NCMM_VP_FUEL_TANK},
                 {"BIKE_RACK_VEH",NCMM_VP_RACK}};
             for(const auto &[name,flag]:features)if(ref.has_feature(name))out.features|=flag;
+            if((out.features&NCMM_VP_ROOF)&&part.is_available()){
+                const auto surface=roof_surfaces.find(pos);
+                if(surface!=roof_surfaces.end()){out.cell_index=surface->second;out.state&=~NCMM_VP_TOPOLOGY_ONLY;out.state|=NCMM_VP_ROOF_SURFACE;}
+            }
             const auto &info=part.info();const auto &item=part.get_base();
             graphics_vehicle_copy(out.id,info.id.str());graphics_vehicle_copy(out.variant,part.variant);
             out.material=(out.features&NCMM_VP_WINDOW)?NCMM_VM_GLASS:
@@ -242,7 +262,7 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
             for(float value:out.color)graphics_vehicle_hash_value(row.state_revision,value);
             if(you.in_vehicle&&pos==you.pos_bub()){
                 scene.occupied_vehicle=row.entity_id;
-                if(out.features&NCMM_VP_SEAT)scene.occupied_part=out.part_id;
+                if((out.features&NCMM_VP_FLOOR)&&part.passenger_id==you.getID())scene.occupied_part=out.part_id;
             }
             graphics_vehicle_parts.push_back(out);++row.part_count;
         }

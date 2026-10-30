@@ -60,7 +60,7 @@ class scene_cache {
         std::array<unsigned char,sizeof(ncmm_graphics_detail_v1)> extra;
         signature_position position;
         uint64_t hash;
-        uint32_t flags,direction,detail_band,occupied_vehicle;
+        uint32_t flags,direction,detail_band,occupied_vehicle,vehicle_geometry;
         bool metadata;
         // Every used field is written before publication. Avoid zeroing the
         // scratch allocation before immediately copying the complete records.
@@ -562,6 +562,9 @@ class scene_cache {
             }
             const auto key=content_position(size_t(i));
             const uint32_t flags=levels?levels->coordinates[i].flags:0,direction=levels?levels->coordinates[i].direction:0;
+            const uint32_t vehicle_geometry=metadata&&metadata->vehicles?
+                uint32_t(metadata->vehicles->handles(s.details[i].vehicle_group))|
+                (uint32_t(metadata->vehicles->handles_roof(i))<<1):0;
             const normalized_record *old=nullptr;
             uint32_t slot=normalized_missing;
             if(retain){
@@ -569,7 +572,7 @@ class scene_cache {
                 while(previous<normalized_positions.size()&&normalized_positions[previous]<key)release_old(previous++);
                 if(previous<normalized_positions.size()&&normalized_positions[previous]==key){slot=normalized_slots[previous++];
                     if(slot!=normalized_missing)old=&normalized_at(slot);}}
-            const bool same=signature_cached&&old&&old->position==key&&old->metadata==bool(metadata)&&old->flags==flags&&old->direction==direction&&old->detail_band==detail_band&&
+            const bool same=signature_cached&&old&&old->position==key&&old->metadata==bool(metadata)&&old->flags==flags&&old->direction==direction&&old->detail_band==detail_band&&old->vehicle_geometry==vehicle_geometry&&
                 !std::memcmp(old->cell.data(),&cell,sizeof(cell))&&!std::memcmp(old->detail.data(),&detail,sizeof(detail))&&
                 (!metadata||(old->occupied_vehicle==metadata->view.occupied_vehicle&&!std::memcmp(old->extra.data(),&extra,sizeof(extra))));
             uint64_t hash;
@@ -578,7 +581,7 @@ class scene_cache {
                 ++signature_content_hashes;hash=hash_bytes(1469598103934665603ull,&cell,sizeof(cell));hash=hash_bytes(hash,&detail,sizeof(detail));
                 if(levels){const auto &c=levels->coordinates[i];hash=hash_bytes(hash,&c.x,sizeof(c.x)*3);hash=hash_bytes(hash,&c.flags,sizeof(c.flags));hash=hash_bytes(hash,&c.direction,sizeof(c.direction));}
                 if(metadata){hash=hash_bytes(hash,&extra,sizeof(extra));hash=hash_bytes(hash,&metadata->view.occupied_vehicle,sizeof(metadata->view.occupied_vehicle));}
-                hash=hash_bytes(hash,&detail_band,sizeof(detail_band));}
+                hash=hash_bytes(hash,&detail_band,sizeof(detail_band));hash=hash_bytes(hash,&vehicle_geometry,sizeof(vehicle_geometry));}
             values[i]=hash;
             if(retain&&!same&&signature_content_updates<update_limit){
                 if(slot==normalized_missing){
@@ -594,7 +597,7 @@ class scene_cache {
                 std::memcpy(entry.cell.data(),&cell,sizeof(cell));std::memcpy(entry.detail.data(),&detail,sizeof(detail));
                 if(metadata)std::memcpy(entry.extra.data(),&extra,sizeof(extra));
                 entry.position=key;entry.hash=hash;entry.flags=flags;entry.direction=direction;entry.detail_band=detail_band;
-                entry.metadata=bool(metadata);entry.occupied_vehicle=metadata?metadata->view.occupied_vehicle:0;
+                entry.metadata=bool(metadata);entry.occupied_vehicle=metadata?metadata->view.occupied_vehicle:0;entry.vehicle_geometry=vehicle_geometry;
                 ++signature_content_updates;}}
             if(retain)normalized_next_slots[i]=slot;}
         if(retain){

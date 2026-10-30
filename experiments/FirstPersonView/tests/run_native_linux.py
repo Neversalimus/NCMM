@@ -112,6 +112,7 @@ def run(args):
         environment.update(NCMM_FP_APPEARANCE_SMOKE='1',SDL_ASSERT='abort',
                            SDL_RENDER_DRIVER='gpu',SDL_GPU_DRIVER='vulkan',SDL_AUDIODRIVER='dummy')
         environment.update(switches)
+        if mode=='vehicles':environment['NCMM_FP_VEHICLE_SOAK_SECONDS']='900'
         seed_linux_configuration(game)
         if mode=='controls':
             from seed_deferred_options import seed
@@ -145,6 +146,9 @@ def run(args):
         print(json.dumps(result),flush=True)
         for file in [game/'stdout.log',game/'stderr.log',game/'ncmm/first-person-audit-progress.txt']:
             if file.exists():print(file.read_text(errors='replace')[-12000:],flush=True)
+        if code!=0:
+            failure=game/'ncmm/first-person-smoke.json'
+            if failure.exists():print(failure.read_text(errors='replace')[:8192],flush=True)
         assert not timed_out and code==0, f'Actual Linux Native failed: {mode}, exit {code}'
         smoke=json.loads((game/'ncmm/first-person-smoke.json').read_text())
         gameplay=json.loads((game/'ncmm/gameplay-smoke.json').read_text())

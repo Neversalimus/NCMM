@@ -13,7 +13,8 @@ struct snapshot {
     std::vector<ncmm_graphics_vehicle_v1> vehicles;
     std::vector<ncmm_graphics_vehicle_part_v1> parts;
     bool enabled=false;
-    void clear(){scene={};vehicles.clear();parts.clear();enabled=false;}
+    size_t validated_cells=0;
+    void clear(){scene={};vehicles.clear();parts.clear();enabled=false;validated_cells=0;}
     size_t bytes()const{return vehicles.capacity()*sizeof(ncmm_graphics_vehicle_v1)+parts.capacity()*sizeof(ncmm_graphics_vehicle_part_v1);}
 };
 inline bool finite(float f){return std::isfinite(f);}
@@ -42,13 +43,14 @@ inline bool valid(const snapshot &input,size_t cells){
             if(!p.part_id||!parts.insert(p.part_id).second||p.vehicle_index!=n||
                (topology_only?p.cell_index!=-1:(p.cell_index<0||size_t(p.cell_index)>=cells))||p.mount_x<v.min_x||p.mount_x>v.max_x||
                p.mount_y<v.min_y||p.mount_y>v.max_y||p.mount_z<-16||p.mount_z>16||
-               !(p.state&NCMM_VP_EXISTS)||(p.state&~255u)||(p.features&~134217727u)||p.material>=NCMM_VM_COUNT||
+               !(p.state&NCMM_VP_EXISTS)||(p.state&~511u)||((p.state&NCMM_VP_ROOF_SURFACE)&&(!(p.features&NCMM_VP_ROOF)||topology_only))||
+               (p.features&~134217727u)||p.material>=NCMM_VM_COUNT||
                !p.id[0]||!terminated(p.id)||!terminated(p.variant)||!terminated(p.material_id))return false;
             for(float f:{p.health,p.wheel_radius,p.wheel_width,p.direction})if(!finite(f))return false;
             if(p.health<0||p.health>1||p.wheel_radius<0||p.wheel_radius>4||p.wheel_width<0||p.wheel_width>3||std::abs(p.direction)>32)return false;
             if((p.features&NCMM_VP_WHEEL)&&(p.wheel_radius<.04f||p.wheel_width<.01f))return false;
             for(float f:p.color)if(!finite(f)||f<0||f>1)return false;
-            if(s.occupied_part==p.part_id){if(v.entity_id!=s.occupied_vehicle||!(p.features&NCMM_VP_SEAT))return false;seat=true;}
+            if(s.occupied_part==p.part_id){if(v.entity_id!=s.occupied_vehicle||!(p.features&(NCMM_VP_SEAT|NCMM_VP_FLOOR)))return false;seat=true;}
         }
         offset+=v.part_count;
     }
@@ -71,13 +73,13 @@ inline bool acquire(snapshot &out,const ncmm_host_graphics_vehicles_v1 *api,size
        next.scene.part_count>NCMM_VEHICLE_MAX_PARTS){out.clear();return false;}
     // The owned-copy API revision covers all vehicle/part payload values.
     // Monotonic presentation time is intentionally separate from that payload.
-    if(out.enabled&&same_payload(out.scene,next.scene)&&std::isfinite(next.scene.seconds)&&next.scene.seconds>=0){
+    if(out.enabled&&out.validated_cells==cells&&same_payload(out.scene,next.scene)&&std::isfinite(next.scene.seconds)&&next.scene.seconds>=0){
         out.scene.seconds=next.scene.seconds;return true;
     }
     next.vehicles.resize(next.scene.vehicle_count);next.parts.resize(next.scene.part_count);
     if(!api->get_vehicles(next.vehicles.data(),next.vehicles.size())||!api->get_parts(next.parts.data(),next.parts.size())||!valid(next,cells)){
         out.clear();return false;
     }
-    next.enabled=true;out=std::move(next);return true;
+    next.enabled=true;next.validated_cells=cells;out=std::move(next);return true;
 }
 }

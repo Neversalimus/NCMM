@@ -17,6 +17,7 @@ struct submission {
     transform placement;
     uint64_t vehicle_id=0,part_id=0;
     int cell=-1;
+    bool roof_surface=false;
 };
 class presentation {
     struct entry {std::shared_ptr<const model> geometry;uint64_t touched=0;};
@@ -29,6 +30,7 @@ class presentation {
     struct construction {uint64_t revision=0,touched=0;uint32_t first=0,count=0;std::unique_ptr<topology> shape;};
     std::unordered_map<uint64_t,construction> layouts;
     std::unordered_set<uint32_t> groups;
+    std::unordered_set<int> roof_cells;
     uint64_t frame=0,world=0;
     size_t model_bytes=0;
     std::shared_ptr<const model> mesh(const topology &t,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod){
@@ -50,7 +52,7 @@ public:
         // Restrict intersections to the Native cell selected by the actual
         // displayed depth/picking pass. This cannot select through a wall or
         // choose an unperceived part from the topology-only construction.
-        for(const auto &draw:draws)if(draw.cell==cell)for(const auto &triangle:draw.geometry->triangles){
+        for(const auto &draw:draws)if(draw.cell==cell&&!draw.roof_surface)for(const auto &triangle:draw.geometry->triangles){
             const auto a=draw.placement.position(triangle.vertices[0].position),
                 b=draw.placement.position(triangle.vertices[1].position),c=draw.placement.position(triangle.vertices[2].position);
             const auto e1=b-a,e2=c-a,h=cross(direction,e2);const float determinant=dot(e1,h);
@@ -67,9 +69,10 @@ public:
     std::vector<submission> draws;
     uint64_t generated=0,reused=0,evicted=0,revision=0,coverage_revision=0,topology_builds=0;
     bool active_animation=false;
-    void reset(){input.clear();models.clear();poses.clear();layouts.clear();groups.clear();draws.clear();
+    void reset(){input.clear();models.clear();poses.clear();layouts.clear();groups.clear();roof_cells.clear();draws.clear();
         frame=world=generated=reused=evicted=revision=coverage_revision=topology_builds=0;model_bytes=0;active_animation=false;}
     bool handles(uint32_t group)const{return input.enabled&&groups.count(group)!=0;}
+    bool handles_roof(int cell)const{return input.enabled&&roof_cells.count(cell)!=0;}
     size_t bytes()const{return input.bytes()+model_bytes+draws.capacity()*sizeof(submission)+
         models.size()*(sizeof(entry)+sizeof(uint64_t)+3*sizeof(void *))+poses.size()*(sizeof(pose_state)+sizeof(uint64_t)+3*sizeof(void *))+layout_bytes();}
     size_t layout_bytes()const{size_t result=layouts.size()*(sizeof(construction)+sizeof(uint64_t)+3*sizeof(void *));
@@ -79,7 +82,7 @@ public:
         return result;
     }
     void observe(point eye){
-        draws.clear();groups.clear();active_animation=false;coverage_revision=1469598103934665603ull;
+        draws.clear();groups.clear();roof_cells.clear();active_animation=false;coverage_revision=1469598103934665603ull;
         if(!input.enabled)return;
         if(world!=input.scene.world_epoch){models.clear();poses.clear();layouts.clear();model_bytes=0;world=input.scene.world_epoch;}
         ++frame;revision=input.scene.revision;
@@ -126,6 +129,7 @@ public:
                         // a teleport/window rebase into fictitious wheel speed.
                         if(dx*dx+dy*dy<16)pose.target+=float(dx*std::cos(v.yaw)+dy*std::sin(v.yaw))/p.wheel_radius;
                         else pose.target=pose.angle;
+                        if(dx*dx+dy*dy<1e-10&&v.native_velocity==0)pose.target=pose.angle;
                     }
                     pose.x=x;pose.y=y;
                     if(fresh)pose.target=pose.angle=0;
@@ -138,14 +142,16 @@ public:
                 pose.touched=frame;pose.seconds=input.scene.seconds;
                 const point placed=origin+rotate(local,v.yaw);
                 const auto placement=rigid(placed,yaw,roll);
-                vehicle_draws.push_back({geometry,placement,v.entity_id,p.part_id,p.cell_index});
+                vehicle_draws.push_back({geometry,placement,v.entity_id,p.part_id,p.cell_index,bool(p.state&NCMM_VP_ROOF_SURFACE)});
                 revision=(revision^geometry->recipe)*1099511628211ull;
                 // CPU cache invalidation is based on real pose changes and
                 // confirmed state interpolation, not a redraw-driven windup.
                 for(float value:{placement.origin.x,placement.origin.y,placement.origin.z,yaw,roll}){
                     uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));revision=(revision^bits)*1099511628211ull;}
             }
-            if(complete){groups.insert(v.legacy_group);coverage_revision=(coverage_revision^v.legacy_group)*1099511628211ull;draws.insert(draws.end(),vehicle_draws.begin(),vehicle_draws.end());}
+            if(complete){groups.insert(v.legacy_group);coverage_revision=(coverage_revision^v.legacy_group)*1099511628211ull;
+                for(const auto &draw:vehicle_draws)if(draw.roof_surface){roof_cells.insert(draw.cell);coverage_revision=(coverage_revision^uint32_t(draw.cell))*1099511628211ull;}
+                draws.insert(draws.end(),vehicle_draws.begin(),vehicle_draws.end());}
         }
         for(auto it=poses.begin();it!=poses.end();)if(it->second.touched!=frame)it=poses.erase(it);else ++it;
         for(auto it=layouts.begin();it!=layouts.end();)if(it->second.touched!=frame)it=layouts.erase(it);else ++it;

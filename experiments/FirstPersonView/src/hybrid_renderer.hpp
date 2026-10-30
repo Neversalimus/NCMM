@@ -1194,7 +1194,7 @@ class renderer {
             opaque.reserve(std::min<size_t>(opaque_cells*4,131072));
         for(int pass=0;pass<2;++pass)for(int i:order){const vec at=cell_origin(i);const int x=int(at.x),y=int(at.y);const auto &c=base.cells[i];const auto &d=s.details[i];
             if(pass==1){
-            if(world_data)world_slab(i);
+            if(world_data){if(!metadata||!metadata->vehicles||!metadata->vehicles->handles_roof(i))world_slab(i);}
             else if(!(c.flags&NCMM_GFX_NO_FLOOR)&&in_view({float(x),float(y),0},{float(x+1),float(y+1),0})){auto floor=ground_edges(i,mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f}));floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
                 if(ncmm_rail::bed(c.terrain))floor=rail_bed(i);
                 const uint32_t liquid=terrain_liquid(i);
@@ -1473,7 +1473,7 @@ class renderer {
     void modular_vehicles(){
         if(!metadata||!metadata->vehicles)return;
         for(const auto &draw:metadata->vehicles->draws){
-            if(!draw.geometry||!visible(draw.cell)||(world_data&&!(world_flags(draw.cell)&NCMM_WORLD_BODY_VISIBLE)))continue;
+            if(!draw.geometry||!visible(draw.cell)||(world_data&&!(world_flags(draw.cell)&(draw.roof_surface?(NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM):NCMM_WORLD_BODY_VISIBLE))))continue;
             ++f.vehicle_parts;f.triangles+=uint32_t(draw.geometry->triangles.size());
             if(gpu_sink&&gpu_sink->vehicle_component(draw))continue;
             for(const auto &source:draw.geometry->triangles){

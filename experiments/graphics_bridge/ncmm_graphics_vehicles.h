@@ -30,7 +30,8 @@ enum {
     NCMM_VP_EXISTS=1u, NCMM_VP_BROKEN=2u, NCMM_VP_OPEN=4u,
     NCMM_VP_ENABLED=8u, NCMM_VP_LIGHT_ON=16u,
     NCMM_VP_DIRECTION_KNOWN=32u, NCMM_VP_WHEEL_SIZE_KNOWN=64u,
-    NCMM_VP_TOPOLOGY_ONLY=128u
+    NCMM_VP_TOPOLOGY_ONLY=128u,
+    NCMM_VP_ROOF_SURFACE=256u
 };
 enum {
     NCMM_VM_DEFAULT, NCMM_VM_PAINT, NCMM_VM_METAL, NCMM_VM_RUBBER,
@@ -42,7 +43,8 @@ enum { NCMM_VEHICLE_PARTIAL=1u, NCMM_VEHICLE_STEERING_KNOWN=2u };
 typedef struct ncmm_graphics_vehicle_part_v1 {
     uint64_t part_id;
     uint32_t vehicle_index;
-    int32_t cell_index; /* Native-permitted BODY cell, or -1 with TOPOLOGY_ONLY.
+    int32_t cell_index; /* Native-permitted BODY cell, visible upper roof surface
+                        * with ROOF_SURFACE, or -1 with TOPOLOGY_ONLY.
                         * Topology-only parts cannot emit any geometry/labels.
                         * No container contents, fuel or inventory are copied. */
     int32_t mount_x, mount_y, mount_z;

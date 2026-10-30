@@ -56,6 +56,29 @@ int main(int argc,char **argv){
         SDL_ReleaseGPUFence(device,fence);
     }
     ncmm_gpu::backend engine;require(engine.bind(renderer,1),"borrow existing device");engine.profile();
+    {
+        // Warm Legacy chunks must be replaced on a Modular toggle. The part
+        // mesh is instanced separately, so retaining Legacy here draws both.
+        namespace fp=first_person;constexpr unsigned side=16,count=side*side,at=8*side+8;
+        std::array<ncmm_graphics_cell_v1,count> cells{};std::array<ncmm_graphics_cell_v2,count> details{};
+        for(unsigned i=0;i<count;++i){cells[i].flags=NCMM_GFX_VISIBLE;std::strcpy(cells[i].terrain,"t_pavement");
+            std::strcpy(details[i].ground,"t_pavement");details[i].light_r=details[i].light_g=details[i].light_b=1;}
+        details[at].vehicle_features=NCMM_VEH_FRAME|NCMM_VEH_BOARD;details[at].vehicle_group=1;details[at].vehicle_x=details[at].vehicle_y=8.5f;details[at].vehicle_health=1;
+        ncmm_graphics_scene_v2 source{};source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,side,side,8.5f,12.5f,cells.data(),count};
+        source.details=details.data();source.detail_count=count;source.environment.daylight=1;source.environment.sun_z=1;
+        fp::hybrid::presentation_data metadata;metadata.view.struct_size=sizeof(metadata.view);metadata.view.eye_height=1.55f;metadata.view.body_scale=1;metadata.view.held_length=.6f;metadata.cells.resize(count);
+        fp::vehicle::presentation vehicle;vehicle.input.enabled=true;vehicle.input.scene.world_epoch=1;vehicle.input.scene.revision=1;vehicle.input.scene.level_height=3.2f;
+        ncmm_graphics_vehicle_v1 car{};car.entity_id=7;car.structure_revision=car.state_revision=1;car.legacy_group=1;car.part_count=1;car.origin_x=car.origin_y=8.5f;vehicle.input.vehicles.push_back(car);
+        ncmm_graphics_vehicle_part_v1 part{};part.part_id=9;part.cell_index=at;part.features=NCMM_VP_FRAME|NCMM_VP_FLOOR;part.state=NCMM_VP_EXISTS;part.health=1;
+        std::strcpy(part.id,"frame");part.color[0]=part.color[1]=part.color[2]=.4f;part.color[3]=1;vehicle.input.parts.push_back(part);vehicle.observe({8.5f,12.5f,1.55f});
+        fp::gpu::scene_cache cache;fp::hybrid::frame statistics;fp::gpu::packet legacy,modular,warm,restored;
+        auto build=[&](fp::gpu::packet &packet){require(cache.build(source,-fp::hybrid::pi*.5f,-.1f,{},packet,statistics,engine.metrics(),{},&metadata,nullptr,640,480,NCMM_GPU_FORCE),cache.last_reason.c_str());};
+        build(legacy);metadata.vehicles=&vehicle;build(modular);require(cache.generated_cells>0,"Legacy to Modular invalidates static vehicle chunks");
+        build(warm);require(cache.generated_cells==0,"unchanged Modular retains warm terrain chunks");
+        vehicle.input.vehicles[0].origin_x+=.1f;vehicle.input.scene.seconds+=.1;vehicle.observe({8.5f,12.5f,1.55f});
+        fp::gpu::packet moving;build(moving);require(cache.generated_cells==0,"instance motion does not rebuild static terrain");
+        metadata.vehicles=nullptr;build(restored);require(cache.generated_cells>0,"Modular to Legacy restores static vehicle geometry");
+    }
     ncmm_gpu_scene_v1 scene{};scene.struct_size=sizeof(scene);scene.width=640;scene.height=480;scene.mode=NCMM_GPU_FORCE;scene.frame_serial=1;
     auto &camera=scene.camera;camera.right[0]=1;camera.up[2]=1;camera.forward[1]=1;camera.projection[0]=640;camera.projection[1]=480;camera.projection[2]=457;camera.projection[3]=512;
     camera.sun[2]=1;camera.sun[3]=1;camera.sky_top[2]=.4f;camera.sky_bottom[0]=.3f;camera.sky_bottom[1]=.4f;camera.sky_bottom[2]=.5f;camera.grid[0]=camera.grid[1]=camera.grid[2]=1;

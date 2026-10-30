@@ -43,7 +43,7 @@ def prepare(root, updates, bridge):
         '    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {')
     updates['ncmm_loader.cpp'] = loader
     prepare_interactions(root,updates)
-    for name in ('ncmm_graphics_vehicles.h','ncmm_graphics_vehicle_identity.hpp','ncmm_graphics_vehicles.inc','ncmm_graphics_vehicle_policy.hpp','ncmm_graphics_vehicle_smoke.inc'):
+    for name in ('ncmm_graphics_vehicles.h','ncmm_graphics_vehicle_identity.hpp','ncmm_graphics_vehicles.inc','ncmm_graphics_vehicle_policy.hpp','ncmm_graphics_vehicle_smoke.inc','ncmm_graphics_vehicle_qualification.inc'):
         if (root / 'src' / name).exists():
             raise ValueError('Experimental vehicle source already exists: ' + name)
         updates[name] = (bridge / name).read_text(encoding='utf-8')

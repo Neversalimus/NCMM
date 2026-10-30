@@ -11,6 +11,7 @@
     [switch]$FpsInputProbe,
     [switch]$StaticStairProbe,
     [switch]$VehicleGallery,
+    [ValidateRange(0,1800)][int]$VehicleSoakSeconds=900,
     [switch]$Extended,
     [switch]$FullSizeGpuMatrix,
     [switch]$CameraSnapshotVerify,
@@ -179,6 +180,7 @@ public static class NCMMNativeCrashDialog {
 '@
 }
 $names=@('NCMM_FP_VEHICLE_ONLY','NCMM_FP_SIGHT_COMPARE','NCMM_FP_VERIFY_DEFERRED_OPTIONS','NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_FPS_INPUT_ONLY','NCMM_FP_STATIC_STAIRS_ONLY','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_TERRAIN_PROFILE','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS','NCMM_FP_TARGET_HUD_ONLY','NCMM_FP_PERF_GPU_FULLSIZE','NCMM_FP_TARGET_HUD')
+$names+='NCMM_FP_VEHICLE_SOAK_SECONDS'
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -190,7 +192,7 @@ $failure=$null
 $process=$null
 $lastProgress='native startup'
 try {
-    if($VehicleGallery){$env:NCMM_FP_VEHICLE_ONLY='1'}elseif($StaticStairProbe){$env:NCMM_FP_STATIC_STAIRS_ONLY='1'}elseif($CameraInputProbe){$env:NCMM_FP_CAMERA_INPUT='1'}elseif($HeldAssetGallery){$env:NCMM_FP_HELD_GALLERY_ONLY='1'}elseif($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
+    if($VehicleGallery){$env:NCMM_FP_VEHICLE_ONLY='1';$env:NCMM_FP_VEHICLE_SOAK_SECONDS=[string]$VehicleSoakSeconds}elseif($StaticStairProbe){$env:NCMM_FP_STATIC_STAIRS_ONLY='1'}elseif($CameraInputProbe){$env:NCMM_FP_CAMERA_INPUT='1'}elseif($HeldAssetGallery){$env:NCMM_FP_HELD_GALLERY_ONLY='1'}elseif($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
     if($DisableHeldAssets){$env:NCMM_FP_HELD_ASSETS='0'}
     if($SightCacheComparison){$env:NCMM_FP_SIGHT_COMPARE='1'}
     if($Extended){$env:NCMM_FP_EXTENDED='1'}
@@ -360,7 +362,9 @@ if($SightCacheComparison){
 if($VehicleGallery){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
     if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda -ne $true -or $audit.manual_playthrough -ne $false -or $audit.native_parts_verified -ne $true){throw 'Native vehicle gallery is incomplete.'}
-    $soaked=0
+    $summary=@($audit.frames | Where-Object {$_.label -eq 'soak-summary'})
+    if($summary.Count -ne 1 -or $summary[0].requested_seconds -ne $VehicleSoakSeconds -or $summary[0].elapsed_seconds -lt $VehicleSoakSeconds){throw 'Native vehicle long run did not complete.'}
+    $soaked=$summary[0].elapsed_seconds
 }elseif($StaticStairProbe){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
     if($audit.schema -notin @(1,2) -or $audit.success -ne $true -or $audit.diagnostic_only -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.renderer -ne 'cpu' -or $audit.width -ne 640 -or $audit.height -ne 480 -or @($audit.cases).Count -ne 3){throw 'Static terrain-stair diagnostic evidence is incomplete.'}

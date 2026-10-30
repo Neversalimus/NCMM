@@ -483,7 +483,8 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Vehicle review dependency unavailable.'}
           $output=Join-Path $env:RUNNER_TEMP 'fp-vehicles'
           ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -VehicleGallery -CaptureCrashDump
-          python -B ncmmrepo/experiments/FirstPersonView/tests/verify_vehicle_gallery.py --root (Join-Path $output 'evidence') --output (Join-Path $output 'review') --source '${{ github.sha }}' --engine '${{ matrix.source }}'
+          $moduleSha=(Get-Content -LiteralPath (Join-Path $output 'evidence/first-person-process-result.json') -Raw | ConvertFrom-Json).module_sha256
+          python -B ncmmrepo/experiments/FirstPersonView/tests/verify_vehicle_gallery.py --root (Join-Path $output 'evidence') --output (Join-Path $output 'review') --source '${{ github.sha }}' --engine '${{ matrix.source }}' --module-sha256 $moduleSha
           if($LASTEXITCODE -ne 0){throw 'Actual Native modular vehicle gallery failed.'}
       - uses: actions/upload-artifact@v4
         if: always()
