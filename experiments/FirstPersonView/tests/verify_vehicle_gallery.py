@@ -38,6 +38,8 @@ def verify(root, output, source, engine, module=None):
         for name in ['yaw','pitch','eye_height','full_frame_ms']:
             assert isinstance(r[name],(int,float)) and math.isfinite(r[name])
         assert r['full_frame_ms']>0
+        if r['renderer']=='modular' and r['snapshot_parts']:
+            assert 0<r['vehicle_submitted_parts']<=r['snapshot_parts'],(r['label'],'Native rows were not rendered')
         if r['label'].startswith('bench-'):
             assert (r['frame_width'],r['frame_height'])==(1280,800)
             scene=r['prototype'];assert scene in {'empty','one','multiple','parking','large'}
@@ -55,7 +57,7 @@ def verify(root, output, source, engine, module=None):
             captures.append(dict(file=name,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
     for prototype in PROTOTYPES:
         assert {(prototype,v) for v in VIEWS} <= groups.keys(),prototype
-    assert {('car',v) for v in ['driver','passenger','open-door','damaged','broken-door','removed-wheel',
+    assert {('car',v) for v in ['driver','passenger','open-door','damaged','broken-door','broken-wheel','removed-wheel',
                                'installed-armor','night','rain','fog']} <= groups.keys()
     assert {('mixed','parking'),('mixed','after-motion'),('mixed','save-reload')} <= groups.keys()
     if benchmarks:

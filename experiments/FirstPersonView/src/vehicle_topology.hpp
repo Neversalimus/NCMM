@@ -100,10 +100,10 @@ public:
         auto add=[&](const auto &v){const auto *bytes=reinterpret_cast<const unsigned char *>(&v);for(size_t i=0;i<sizeof(v);++i)h=(h^bytes[i])*1099511628211ull;};
         const mount at{p.mount_x,p.mount_y,p.mount_z};
         for(uint32_t f:{p.features,p.material,lod})add(f);
-        for(const char *text:{p.id,p.variant})for(;*text;++text)add(*text);
+        for(const char *text:{p.id,p.variant}){const uint32_t length=uint32_t(std::strlen(text));add(length);for(;*text;++text)add(*text);}
         // Door/wheel transforms and vehicle motion are deliberately absent.
         const uint32_t visual_state=p.state&(NCMM_VP_BROKEN|((p.features&NCMM_VP_LIGHT)?uint32_t(NCMM_VP_LIGHT_ON):0u)|
-            ((p.features&NCMM_VP_CURTAIN)?uint32_t(NCMM_VP_OPEN):0u));add(visual_state);add(p.health);
+            ((p.features&NCMM_VP_CURTAIN)||((p.features&NCMM_VP_WINDOW)&&!(p.features&NCMM_VP_DOOR))?uint32_t(NCMM_VP_OPEN):0u));add(visual_state);add(p.health);
         for(float c:p.color)add(c);
         if(generic_door_paint(p))for(float c:body_paint)add(c);
         if((p.features&NCMM_VP_WHEEL)&&!(p.features&(NCMM_VP_DOOR|NCMM_VP_WINDOW))){
@@ -111,7 +111,7 @@ public:
         }
         add(chassis);
         if((p.features&NCMM_VP_LIGHT)&&(p.features&NCMM_VP_LIGHT_OMNI))add(cabin);
-        const uint32_t shell=NCMM_VP_DOOR|NCMM_VP_WINDOW|NCMM_VP_ROOF|NCMM_VP_PANEL|NCMM_VP_ARMOR|NCMM_VP_SOLAR|NCMM_VP_FLOAT;
+        const uint32_t shell=NCMM_VP_DOOR|NCMM_VP_WINDOW|NCMM_VP_ROOF|NCMM_VP_PANEL|NCMM_VP_ARMOR|NCMM_VP_SOLAR|NCMM_VP_FLOAT|NCMM_VP_CURTAIN;
         if((p.features&shell)&&!(p.features&(NCMM_VP_SEAT|NCMM_VP_CONTROLS))){
             add(cabin);for(int value:{p.mount_x,p.mount_y,p.mount_z,min_x,max_x,min_y,max_y,cabin_min_x,cabin_max_x})add(value);
             add(features(at)&(NCMM_VP_ENGINE|NCMM_VP_SEAT|NCMM_VP_CONTROLS|NCMM_VP_HALF_PANEL|NCMM_VP_PANEL|NCMM_VP_DOOR));

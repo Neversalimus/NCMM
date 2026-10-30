@@ -79,6 +79,14 @@ int main(){
     const first_person::vehicle::topology topology(original,original.vehicles[0]);
     require(topology.mounts.size()==2&&topology.mounts.begin()->second.parts.size()==3,"whole topology retains all mount layers");
     require(topology.wheels.size()==1,"topology cannot manufacture four wheels");
+    {
+        auto names=original.parts[0];std::strcpy(names.id,"dashboard");std::strcpy(names.variant,"_extra");
+        const auto a=topology.recipe(names,0);std::strcpy(names.id,"dashboard_extra");names.variant[0]=0;
+        require(a!=topology.recipe(names,0),"part and variant string boundaries cannot alias different component recipes");
+        auto bike=original;bike.parts[1].features|=NCMM_VP_FLOOR;bike.parts[3].features|=NCMM_VP_BICYCLE;bike.parts[3].wheel_width=.04f;
+        const first_person::vehicle::topology layout(bike,bike.vehicles[0]);const auto frame=first_person::vehicle::generate(bike,layout,bike.parts[0],0);
+        for(const auto &face:frame->triangles)for(const auto &v:face.vertices)require(std::abs(v.position.y)<.1f,"a boardable bicycle saddle does not create a metre-wide floor platform");
+    }
     require(ncmm_graphics_vehicle_policy::shape(true,2,2,1,0,1,0,0,0,1,2,.35f).kind==ncmm_graphics_vehicle_policy::archetype::bicycle,
         "Native foot-pedal ENGINE flag does not turn a bicycle into a motorcycle");
     {
@@ -148,6 +156,18 @@ int main(){
         require(!exact.pick(draw.cell+1,origin,normal*-1).part,"part picking cannot cross Native depth-selected cells");
     }
     const auto closed_axis=find_draw(doors,100).placement.x;const auto before_door_builds=doors.generated;
+    {
+        auto source=original;source.vehicles[0].max_y=2;source.parts[0].features=NCMM_VP_DOOR|NCMM_VP_WINDOW;
+        auto extra=source.parts[0];extra.part_id=200;extra.features=NCMM_VP_FRAME;extra.mount_y=2;source.parts.push_back(extra);
+        ++source.scene.part_count;++source.vehicles[0].part_count;
+        first_person::vehicle::presentation left;left.input=source;left.input.enabled=true;left.observe({0,0,1.5f});
+        const auto closed=find_draw(left,100);const first_person::vehicle::point center={0,-.47f,.6f};
+        const auto before=closed.placement.position(center-closed.geometry->pivot);
+        left.input.parts[0].state|=NCMM_VP_OPEN;left.input.scene.seconds+=.1;left.observe({0,0,1.5f});
+        const auto &opened=find_draw(left,100);const auto after=opened.placement.position(center-opened.geometry->pivot);
+        const auto outside=first_person::vehicle::rotate({0,-1,0},source.vehicles[0].yaw);
+        require(first_person::vehicle::dot(after-before,outside)>.1f,"mirrored left door opens outward instead of folding into the cabin");
+    }
     doors.input.parts[0].state|=NCMM_VP_OPEN;doors.input.scene.seconds+=.09;doors.observe({0,0,1.5f});
     require(doors.generated==before_door_builds&&find_draw(doors,100).geometry==door_mesh,"opening confirmed door animates hinge without rebuilding");
     require(std::abs(find_draw(doors,100).placement.x.x-closed_axis.x)>.1f&&doors.active_animation,"only confirmed state drives door interpolation");

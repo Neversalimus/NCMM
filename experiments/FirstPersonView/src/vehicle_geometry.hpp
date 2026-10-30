@@ -166,10 +166,11 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         const float top=(p.features&NCMM_VP_WINDSHIELD)?-.48f:.36f;
         const auto a=side_point(u0,.455f,low),d=side_point(u1,.455f,low),
             c=side_point(u1,top,high),q=side_point(u0,top,high);
-        b.face(a,q,c,d,b.glass);
+        const bool lowered=(p.state&NCMM_VP_OPEN)&&(p.features&NCMM_VP_OPENABLE)&&!(p.features&NCMM_VP_DOOR);
+        if(!lowered)b.face(a,q,c,d,b.glass);
         b.beam(a,d,.028f,.028f,b.dark);if(!shared_after)b.beam(d,c,.025f,.025f,b.dark);
         b.beam(c,q,.028f,.028f,b.dark);if(!shared_before)b.beam(q,a,.025f,.025f,b.dark);
-        if(p.health<.85f&&lod<2){const auto crack=b.add({{.55f,.63f,.65f,.68f},NCMM_VM_GLASS});
+        if(!lowered&&p.health<.85f&&lod<2){const auto crack=b.add({{.55f,.63f,.65f,.68f},NCMM_VM_GLASS});
             const point center=(a+d+c+q)*.25f;
             for(const auto &edge:std::array<point,3>{{a,c,q}})b.beam(center,center+(edge-center)*(.45f+.3f*(1-p.health)),.009f,.009f,crack,4);}
     };
@@ -239,7 +240,8 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             b.beam({-.5f,.31f,chassis},{.5f,.31f,chassis},.075f,.10f,b.steel);
             b.beam({0,-.4f,chassis},{0,.4f,chassis},.06f,.09f,b.steel);
         }
-        if(layout.has(at,NCMM_VP_FLOOR|NCMM_VP_AISLE))b.cushion({0,0,chassis+.035f},{1,1,.055f},.025f,b.dark);
+        const bool open_frame=layout.kind==archetype::bicycle||layout.kind==archetype::motorcycle||layout.kind==archetype::boat;
+        if(!open_frame&&layout.has(at,NCMM_VP_FLOOR|NCMM_VP_AISLE))b.cushion({0,0,chassis+.035f},{1,1,.055f},.025f,b.dark);
     }else if(kind==component::roof){
         const float height=chassis+layout.cabin;
         const unsigned nx=lod==0?6:3,ny=lod==0?8:4;
@@ -276,9 +278,10 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         panel(chassis-.12f,chassis+.64f,b.paint,false);
         if(p.features&NCMM_VP_WINDOW)window(chassis+.69f,chassis+layout.cabin-.08f);
         else if(!(p.features&NCMM_VP_HALF_PANEL))panel(chassis+.64f,chassis+layout.cabin-.08f,b.paint,false);
-        const auto handle=side_point(-.28f,.523f,chassis+.59f);
-        b.beam(handle+point{-.075f,0,0},handle+point{.075f,0,0},.032f,.026f,b.steel,6);
-        b.shift_pivot(side_point(.48f,.47f,chassis));
+        const float hinge=(active_side==0||active_side==3)?-.48f:.48f,handle_u=hinge>0?-.28f:.28f;
+        const auto handle=side_point(handle_u,.523f,chassis+.59f),tangent=side_point(handle_u+.075f,.523f,chassis+.59f)-handle;
+        b.beam(handle-tangent,handle+tangent,.032f,.026f,b.steel,6);
+        b.shift_pivot(side_point(hinge,.47f,chassis));
     }else if(kind==component::glass){window(chassis+.67f,chassis+layout.cabin-.08f);
     }else if(kind==component::seat){
         if(std::string_view(p.id).find("saddle")!=std::string_view::npos){
@@ -363,8 +366,9 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
     }else if(kind==component::tank){
         b.cushion({0,0,chassis+.19f},{.62f,.61f,.34f},.12f,b.steel);
     }else if(kind==component::curtain){
-        if(!(p.state&NCMM_VP_OPEN)){const auto cloth=b.add({{.21f,.23f,.25f,1},NCMM_VM_CLOTH});
-            for(unsigned n=0;n<12;++n){const float x=-.46f+n*.077f,y=x+.077f;
+        {const bool open=(p.state&NCMM_VP_OPEN)!=0;const auto cloth=b.add({{.21f,.23f,.25f,1},NCMM_VM_CLOTH});
+            const unsigned folds=open?3u:12u;const float width=open?.032f:.077f,start=open?.36f:-.46f;
+            for(unsigned n=0;n<folds;++n){const float x=start+n*width,y=x+width;
                 const float fold=n%2?.425f:.445f;
                 b.face(side_point(x,fold,chassis+.68f),side_point(y,fold,chassis+.68f),
                     side_point(y,fold,chassis+layout.cabin-.09f),side_point(x,fold,chassis+layout.cabin-.09f),cloth);}}

@@ -182,12 +182,21 @@
         draw("moving-"+std::to_string(n),"mixed",n%2?"cpu":"gpu","modular",n<4);
     }
     pair("after-motion","mixed");
+    // A still-live vehicle may remain in CDDA's mapbuffer across load. Test
+    // dead identity reuse with an object that Native actually destroys first.
+    vehicle *retired=get_map().add_vehicle(vproto_id("bicycle"),get_map().get_bub(tripoint_abs_ms(street.x(),street.y()+20,street.z())),0_degrees,0,veh_spawn_status::UNDAMAGED,false);
+    require(retired!=nullptr,"vehicle_retired_fixture_create_failed");
+    const auto retired_identity=retired->ncmm_graphics_vehicle_id();
+    draw("before-retire","mixed","gpu","modular",false);verify_car(*retired);
+    get_map().destroy_vehicle(retired);
     const auto save=save_t::from_save_id(get_avatar().get_save_id());
-    require(g->save(),"vehicle_native_save_failed");const auto old_identity=cars.front()->ncmm_graphics_vehicle_id();cars.clear();
+    require(g->save(),"vehicle_native_save_failed");cars.clear();
     require(g->ncmm_graphics_smoke_reload(save),"vehicle_native_reload_failed");
     ncmm::graphics_note_input_context("DEFAULTMODE");if(!graphics_view.enabled)press_f6();
     camera(0,12,-.10f);pair("save-reload","mixed");
-    require(!graphics_vehicle_rows.empty()&&std::none_of(graphics_vehicle_rows.begin(),graphics_vehicle_rows.end(),[&](const auto &v){return v.entity_id==old_identity;}),"vehicle_reload_reused_dead_identity");
+    require(graphics_vehicle_rows.size()==5,"vehicle_reload_lost_live_snapshot");
+    require(std::none_of(graphics_vehicle_rows.begin(),graphics_vehicle_rows.end(),[&](const auto &v){return v.entity_id==retired_identity;}),"vehicle_reload_reused_dead_identity");
+    for(const auto &entry:get_map().get_vehicles()){verify_car(*entry.v);}
     for(const auto &v:get_map().get_vehicles())get_map().destroy_vehicle(v.v);
     draw("world-empty","empty","gpu","modular",false);require(graphics_vehicle_parts.empty(),"vehicle_world_cleanup_failed");
     #include "ncmm_graphics_vehicle_qualification.inc"

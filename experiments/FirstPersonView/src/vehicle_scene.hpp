@@ -141,7 +141,7 @@ public:
                     if((p.features&NCMM_VP_STEERABLE)&&(v.flags&NCMM_VEHICLE_STEERING_KNOWN))yaw+=std::clamp(v.steering,-.8f,.8f);
                 }
                 pose.touched=frame;pose.seconds=input.scene.seconds;
-                if(kind==component::light&&(p.state&NCMM_VP_DIRECTION_KNOWN)&&!(p.features&NCMM_VP_LIGHT_OMNI))yaw+=p.direction;
+                if((kind==component::turret||(kind==component::light&&!(p.features&NCMM_VP_LIGHT_OMNI)))&&(p.state&NCMM_VP_DIRECTION_KNOWN))yaw+=p.direction;
                 if(kind==component::axle&&t.narrow&&(p.features&NCMM_VP_STEERABLE)&&(v.flags&NCMM_VEHICLE_STEERING_KNOWN))yaw+=std::clamp(v.steering,-.8f,.8f);
                 const point placed=origin+rotate(local,v.yaw);
                 const auto placement=rigid(placed,yaw,roll);

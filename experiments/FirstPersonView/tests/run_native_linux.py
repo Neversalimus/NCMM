@@ -147,6 +147,9 @@ def run(args):
                             if time.monotonic()>=deadline:raise
                             try:sample=process_memory(Path('/proc',str(process.pid),'status').read_text())
                             except (FileNotFoundError,ProcessLookupError):continue
+                            except ValueError:
+                                if process.poll() is None:raise
+                                continue
                             memory.append(dict(elapsed_seconds=time.time()-started,**sample))
             except subprocess.TimeoutExpired:
                 import signal

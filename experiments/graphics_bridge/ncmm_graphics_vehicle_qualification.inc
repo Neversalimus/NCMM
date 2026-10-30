@@ -42,6 +42,13 @@
     custom->turn(30_degrees);custom->precalc_mounts(1,custom->turn_dir,custom->pivot_point(get_map()));
     require(get_map().displace_vehicle(*custom,tripoint_rel_ms(1,0,0)-custom->pivot_displacement()),"vehicle_custom_turn_displacement_failed");
     custom->face.init(custom->turn_dir);pair("turned","custom");verify_car(*custom);
+    // Reload the installed atlas through CDDA, with live custom geometry and
+    // both renderer paths still active. The old texture epoch must not leak.
+    const auto loaded_tileset=get_option<std::string>("TILES");
+    const auto previous_tileset_epoch=tilecontext->ncmm_graphics_tileset_epoch();
+    tilecontext->load_tileset(loaded_tileset,false,true);
+    require(tilecontext->is_valid()&&tilecontext->ncmm_graphics_tileset_id()==loaded_tileset&&tilecontext->ncmm_graphics_tileset_epoch()!=previous_tileset_epoch,"vehicle_actual_tileset_reload_failed");
+    ncmm::graphics_note_input_context("DEFAULTMODE");pair("tileset-reload","custom");verify_car(*custom);
     // Test original Native actor start/finish costs and exact stable identities,
     // including vector relocation between start and completion.
     clear_cars();vehicle *door_car=create("car",0,0);int door_index=-1;
