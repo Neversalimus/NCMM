@@ -6,6 +6,8 @@
 *.exe binary
 *.dll binary
 experiments/graphics_bridge/third_party/sdl3-port/** -text
+# Preserve the author's licensed OBJ/MTL bytes and their archive hashes.
+experiments/FirstPersonView/assets/vehicles/source/** -text whitespace=-blank-at-eol,-blank-at-eof
 # The frozen Native PLF oracle retains upstream indentation and its exact digest.
 experiments/FirstPersonView/tests/third_party/native_plf_list.h whitespace=-space-before-tab
 

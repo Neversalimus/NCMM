@@ -15,6 +15,7 @@ from native_options_bridge import prepare as prepare_deferred_options
 from native_compiler_bridge import prepare as prepare_native_compiler
 from native_atlas_bridge import prepare as prepare_native_atlas
 from fps_input_bridge import prepare as prepare_fps_input
+from vehicle_bridge import prepare as prepare_vehicles
 
 SOURCES = {
     "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": "cdda-experimental-2026-10-01-1040",
@@ -824,6 +825,7 @@ void initialize();''')
         raise ValueError("Experimental source already exists: ncmm_graphics_target_smoke.inc")
     updates["ncmm_graphics_target_smoke.inc"]=(bridge/"ncmm_graphics_target_smoke.inc").read_text(encoding="utf-8")
     prepare_fps_input(root,updates,bridge)
+    prepare_vehicles(root,updates,bridge)
     # No writes above this line. No save/installation/feed/catalog changes.
     for name, content in updates.items():
         (root / "src" / name).parent.mkdir(parents=True,exist_ok=True)

@@ -17,6 +17,7 @@
 #include "liquid_surface.hpp"
 #include "ncmm_graphics_composite.hpp"
 #include "ncmm_graphics_presentation_policy.hpp"
+#include "vehicle_scene.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -51,6 +52,7 @@ inline float noise(float x,float y){int ix=int(std::floor(x)),iy=int(std::floor(
     auto n=[](int a,int b){return random(uint32_t(a)*374761393u+uint32_t(b)*668265263u);};
     return(n(ix,iy)*(1-fx)+n(ix+1,iy)*fx)*(1-fy)+(n(ix,iy+1)*(1-fx)+n(ix+1,iy+1)*fx)*fy;}
 struct presentation_data {
+    vehicle::presentation *vehicles=nullptr;
     std::vector<projectile_assets::flight> projectiles;
     ncmm_graphics_presentation_v1 view{};
     std::vector<ncmm_graphics_detail_v1> cells;
@@ -202,7 +204,7 @@ inline size_t radio_lattice_owned_bytes(){
 }
 inline void clear_radio_lattices(){for(auto &mask:radio_lattices())mask.reset();}
 inline size_t horizon_owned_bytes(const presentation_data &p){
-    return p.horizon.capacity()*sizeof(ncmm_lod_patch_v1)+p.skyline.capacity()*sizeof(ncmm_skyline_feature_v1)+radio_lattice_owned_bytes();
+    return p.horizon.capacity()*sizeof(ncmm_lod_patch_v1)+p.skyline.capacity()*sizeof(ncmm_skyline_feature_v1)+radio_lattice_owned_bytes()+(p.vehicles?p.vehicles->bytes():0);
 }
 
 // Upper terrain uses a foliage-only cutout. Some 2D atlas fallbacks map
@@ -246,6 +248,12 @@ struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float
     bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;
     bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false,distance_lod=false,grass=false,gpu_local=false;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
+inline surface vehicle_finish(uint32_t kind){
+    switch(kind){case NCMM_VM_PAINT:return surface::paint;case NCMM_VM_RUBBER:return surface::rubber;
+        case NCMM_VM_CLOTH:return surface::cloth;case NCMM_VM_LEATHER:return surface::skin;
+        case NCMM_VM_WOOD:return surface::wood;case NCMM_VM_GLASS:return surface::none;
+        default:return surface::metal;}
+}
 struct prop_placement {props::id model;vec scale,origin;unsigned turns=0;surface finish=surface::none;};
 inline bool opaque_prop(props::id id){
     static const auto values=[](){std::array<bool,size_t(props::id::count)> out{};
@@ -280,6 +288,7 @@ struct geometry_sink {
     virtual bool arms(const viewmodel::submission &){return false;}
     virtual bool item(const held::submission &){return false;}
     virtual bool prop(const prop_placement &,int){return false;}
+    virtual bool vehicle_component(const vehicle::submission &){return false;}
     // Optional producer shortcut for an otherwise empty opaque TOP-only cell.
     // The material has already passed all ground/rail/liquid overrides. CPU
     // and other sinks retain the ordinary quad/slab path by returning false.
@@ -1216,7 +1225,8 @@ class renderer {
             railway(i);
             if(world_data)world_transition(i);
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
-            if(d.vehicle_features)vehicle(i);else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
+            if(d.vehicle_features){if(!metadata||!metadata->vehicles||!metadata->vehicles->handles(d.vehicle_group))vehicle(i);}
+            else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
             if(c.item[0]&&!extra(i).item_liquid){
                 // Ground inventory is a physical horizontal surface. A vertical
                 // camera-facing icon made roof loot float across the sky.
@@ -1460,6 +1470,24 @@ class renderer {
                 face(point(ax,ay),point(bx,by),point(bx,by,.028f),point(ax,ay,.028f),edge);}}
         face(point(0,float(img->data.height)),point(float(img->data.width),float(img->data.height)),point(float(img->data.width),0),point(0,0),item);
     }
+    void modular_vehicles(){
+        if(!metadata||!metadata->vehicles)return;
+        for(const auto &draw:metadata->vehicles->draws){
+            if(!draw.geometry||!visible(draw.cell)||(world_data&&!(world_flags(draw.cell)&NCMM_WORLD_BODY_VISIBLE)))continue;
+            ++f.vehicle_parts;f.triangles+=uint32_t(draw.geometry->triangles.size());
+            if(gpu_sink&&gpu_sink->vehicle_component(draw))continue;
+            for(const auto &source:draw.geometry->triangles){
+                const auto &appearance=draw.geometry->materials[source.material];triangle t{};
+                t.m={nullptr,{appearance.color[0],appearance.color[1],appearance.color[2]},appearance.color[3],false,false,false,draw.cell,vehicle_finish(appearance.kind)};
+                t.m.smooth=true;
+                for(size_t n=0;n<3;++n){const auto &v=source.vertices[n];const auto position=draw.placement.position(v.position),normal=draw.placement.normal(v.normal);
+                    const vec lit=appearance.emissive?vec{1,1,1}:light(draw.cell,{normal.x,normal.y,normal.z});
+                    t.v[n]={{position.x,position.y,position.z},v.u,v.v,lit};}
+                t.normal=normalize(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p));
+                if(gpu_sink)gpu_sink->emit(t);else if(t.m.alpha<.99f)transparent.push_back(t);else opaque.push_back(t);
+            }
+        }
+    }
     void projectiles(){
         if(!metadata)return;
         for(const auto &flight:metadata->projectiles){
@@ -1483,7 +1511,7 @@ public:
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;
-        if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
+        modular_vehicles();if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
     }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;
@@ -1511,6 +1539,8 @@ public:
         // Animate only these near-field blades. The floor, walls and distant
         // world remain in the CPU cache; animation never changes Native time.
         opaque.clear();transparent.clear();
+        modular_vehicles();paint(opaque);opaque.clear();
+        std::vector<triangle> vehicle_glass;vehicle_glass.swap(transparent);
         std::vector<int> lawns;
         for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&ncmm_grass::terrain(base.cells[i].terrain)&&
             (!world_data||(world_flags(i)&NCMM_WORLD_BODY_VISIBLE))){const vec delta=cell_center(i)-eye;
@@ -1528,7 +1558,10 @@ public:
             paint(transparent);
         }
         opaque.clear();transparent.clear();projectiles();paint(opaque);paint(transparent);
-        if(f.transparency)paint(f.transparency->triangles);
+        if(vehicle_glass.empty()){if(f.transparency)paint(f.transparency->triangles);}
+        else{if(f.transparency)vehicle_glass.insert(vehicle_glass.end(),f.transparency->triangles.begin(),f.transparency->triangles.end());
+            std::stable_sort(vehicle_glass.begin(),vehicle_glass.end(),[&](const triangle &a,const triangle &b){return view(a.v[0].p+a.v[1].p+a.v[2].p).z>view(b.v[0].p+b.v[1].p+b.v[2].p).z;});
+            paint(vehicle_glass);}
         f.aimed=-1;
         const int target=f.creatures[size_t(f.height/2)*f.width+f.width/2];
         if(target>=0){f.aimed=target;const float h=extra(target).creature_height>0?extra(target).creature_height:1.7f;

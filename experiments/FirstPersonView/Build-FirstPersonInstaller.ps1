@@ -105,6 +105,9 @@ $worldLicenses=[IO.File]::ReadAllText((Join-Path $worldRoot 'source/kenney/Licen
 [IO.File]::WriteAllText((Join-Path $fp 'world-assets-license.txt'),$worldLicenses,(New-Object Text.UTF8Encoding($false)))
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'assets/fire_effects/references.json') -Destination (Join-Path $fp 'weapon-effects.references.json')
 # End offline world resource packaging.
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'assets/vehicles/source/License.txt') -Destination (Join-Path $fp 'vehicle-components-license.txt')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'assets/vehicles/selection.json') -Destination (Join-Path $fp 'vehicle-components-selection.json')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'assets/vehicles/generated/manifest.json') -Destination (Join-Path $fp 'vehicle-components-manifest.json')
 Copy-Item (Join-Path $HostRoot 'cataclysm-tiles.exe') (Join-Path $hostDest 'cataclysm-tiles.ncmm.exe')
 Copy-Item (Join-Path $HostRoot 'first-person-source.json') $hostDest
 Copy-Item (Join-Path $HostRoot 'LICENSE.txt') (Join-Path $stage 'CDDA-LICENSE.txt')
@@ -121,7 +124,7 @@ Copy-Item (Join-Path $PSScriptRoot 'tests/multilevel_fixture.json') $stage
 Copy-Item (Join-Path $PSScriptRoot 'DIAGNOSTICS.md') $stage
 $diagnosticTools=Join-Path $stage 'tests'
 New-Item -ItemType Directory -Force $diagnosticTools | Out-Null
-foreach($tool in @('compare_movement_runs.py','verify_horizon_release.py','verify_static_stair_audit.py','Test-BenchmarkEnvironment.ps1','Test-BenchmarkEvidence.ps1','Test-BenchmarkPaths.ps1','Test-BenchmarkCapture.ps1','Test-BenchmarkDataCopy.ps1')){
+foreach($tool in @('compare_movement_runs.py','verify_horizon_release.py','verify_static_stair_audit.py','verify_vehicle_gallery.py','Test-BenchmarkEnvironment.ps1','Test-BenchmarkEvidence.ps1','Test-BenchmarkPaths.ps1','Test-BenchmarkCapture.ps1','Test-BenchmarkDataCopy.ps1')){
     Copy-Item (Join-Path $PSScriptRoot ('tests/'+$tool)) $diagnosticTools
 }
 

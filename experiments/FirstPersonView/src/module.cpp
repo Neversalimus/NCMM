@@ -32,6 +32,9 @@ struct held_metrics_guard {
     }
 };
 const ncmm_host_graphics_presentation_v1 *presentation=nullptr;
+const ncmm_host_graphics_vehicles_v1 *vehicles_api=nullptr;
+first_person::vehicle::presentation vehicle_state;
+bool modular_vehicles=false;
 const ncmm_host_graphics_gpu_v1 *gpu=nullptr;
 const ncmm_host_api_v2_core *settings=nullptr;
 void (*diagnostic_log)(ncmm_log_level_v1,const char *)=nullptr;
@@ -82,6 +85,8 @@ uint64_t geometry_key(const ncmm_graphics_scene_v2 &s,bool dynamic=false){
     uint64_t h=1469598103934665603ull;
     auto bytes=[&](const void *p,size_t n){h=first_person::hash_bytes(h,p,n);};
     bytes(&yaw,sizeof(yaw));bytes(&pitch,sizeof(pitch));bytes(&high_quality,sizeof(high_quality));
+    bytes(&modular_vehicles,sizeof(modular_vehicles));
+    if(metadata.vehicles)bytes(&metadata.vehicles->coverage_revision,sizeof(metadata.vehicles->coverage_revision));
     if(creature_state)bytes(&creature_state->native_art,sizeof(creature_state->native_art));
     if(active_world){const auto &w=*active_world;bytes(&w.world_epoch,sizeof(w.world_epoch));
         for(int32_t value:{w.origin_x,w.origin_y,w.origin_z,w.loaded_min_z,w.loaded_max_z})bytes(&value,sizeof(value));
@@ -117,7 +122,9 @@ ncmm_graphics_control_state_v1 control_state(){
     if(!std::isfinite(state.attack_started)||!std::isfinite(state.mouse_dx)||!std::isfinite(state.mouse_dy)||!std::isfinite(state.held_length)||state.attack_kind>2||state.grip_kind>NCMM_GRIP_GUN)state={sizeof(state),0,NCMM_GRIP_SINGLE,0,0,0,0,0,.6f};
     return state;
 }
-int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
+int render_hybrid(const ncmm_graphics_scene_v2 *source_scene,void *) {
+    if(!source_scene)return 0;
+    auto adjusted_scene=*source_scene;const auto *scene=&adjusted_scene;
     const auto frame_begun=std::chrono::steady_clock::now();bool cpu_built=false;
     if(!hybrid||!scene||!first_person::hybrid::valid_scene(*scene,float(yaw),pitch,active_world))return 0;
     last_scene_seconds=scene->environment.animation_seconds;
@@ -125,6 +132,22 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     bool has_metadata=false;
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
         has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());
+    }
+    bool selected_vehicles=false;
+    if(settings&&vehicles_api){const char *value=settings->world_setting_get_string("NCMM_FIRST_PERSON_VEHICLES","legacy");selected_vehicles=value&&std::strcmp(value,"modular")==0;}
+    if(selected_vehicles!=modular_vehicles){modular_vehicles=selected_vehicles;frame_valid=world_valid=false;
+        if(!modular_vehicles)vehicle_state.reset();}
+    metadata.vehicles=nullptr;
+    if(has_metadata&&modular_vehicles&&first_person::vehicle::acquire(vehicle_state.input,vehicles_api,scene->base.cell_count)&&
+       (!active_world||vehicle_state.input.scene.world_epoch==active_world->world_epoch)){
+        const auto &vehicle_view=vehicle_state.input.scene;
+        if(vehicle_view.eye_valid){
+            adjusted_scene.base.camera_x=vehicle_view.eye_x-(active_world?active_world->camera_dx:0);
+            adjusted_scene.base.camera_y=vehicle_view.eye_y-(active_world?active_world->camera_dy:0);
+            metadata.view.eye_height=vehicle_view.eye_z;
+        }
+        vehicle_state.observe({scene->base.camera_x+(active_world?active_world->camera_dx:0),scene->base.camera_y+(active_world?active_world->camera_dy:0),
+            metadata.view.eye_height+(active_world?active_world->camera_dz:0)});metadata.vehicles=&vehicle_state;
     }
     metadata.horizon.clear();metadata.skyline.clear();metadata.horizon_revision=0;metadata.horizon_enabled=false;
     bool replacement_horizon=false;
@@ -262,6 +285,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     }else if(renderer_mode!=NCMM_GPU_CPU)report_gpu_fallback("Host does not provide compatible Graphics GPU/Mesh API v1");
     const uint64_t common=geometry_key(*scene,has_creatures);
     uint64_t key=scene_key(*scene,common);
+    if(metadata.vehicles)key=first_person::hash_bytes(key,&metadata.vehicles->revision,sizeof(metadata.vehicles->revision));
     for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y,pose.equip_phase,pose.attack_phase,pose.aim}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
     key=first_person::hash_bytes(key,&pose.seconds,sizeof(pose.seconds));key=first_person::hash_bytes(key,&pose.attack_serial,sizeof(pose.attack_serial));
     key=first_person::hash_bytes(key,&pose.attack_kind,sizeof(pose.attack_kind));
@@ -361,6 +385,7 @@ void input(uint32_t action,void *) {
     if(controls)controls->set_camera(float(yaw),pitch);
 }
 int init(const ncmm_host_api_v1 *api) {
+    vehicles_api=nullptr;vehicle_state.reset();modular_vehicles=false;
     projectile_api=nullptr;projectile_v2_api=nullptr;projectile_mounts.reset();
     hand_timeline.reset();hand_animator.reset();
     weapon_effects.reset();weapon_effect_pixels.clear();weapon_composed_pixels.clear();
@@ -420,6 +445,15 @@ int init(const ncmm_host_api_v1 *api) {
         if(api->has_capability(NCMM_GRAPHICS_PRESENTATION_CAP)){
             auto *p=static_cast<const ncmm_host_graphics_presentation_v1 *>(api->query_interface(NCMM_GRAPHICS_PRESENTATION_ID,1,0));
             if(p&&p->abi_version==1&&p->major==1&&p->struct_size>=sizeof(*p)&&p->get_scene&&p->get_cells&&p->set_target&&p->submit_effects)presentation=p;}
+        if(api->has_capability(NCMM_GRAPHICS_VEHICLES_CAP)){
+            const auto *v=static_cast<const ncmm_host_graphics_vehicles_v1 *>(api->query_interface(NCMM_GRAPHICS_VEHICLES_ID,1,0));
+            if(v&&v->abi_version==1&&v->major==1&&v->struct_size>=sizeof(*v)&&v->get_scene&&v->get_vehicles&&v->get_parts){
+                vehicles_api=v;
+                if(settings){const char *values[]={"modular","legacy"},*labels[]={"Vehicle Renderer: Modular 2.0","Vehicle Renderer: Legacy"};
+                    settings->world_setting_register_enum(id,"NCMM_FIRST_PERSON_VEHICLES","Vehicle renderer / Транспорт",
+                        "Reconstruct installed parts, or use the original vehicle appearance. / Отдельные установленные детали или прежний вид транспорта.",values,labels,2,"legacy",NCMM_WORLD_SETTING_LIVE);}
+            }
+        }
         if(api->has_capability(NCMM_GRAPHICS_CREATURES_CAP)){
             auto *c=static_cast<const ncmm_host_graphics_creatures_v1 *>(api->query_interface(NCMM_GRAPHICS_CREATURES_ID,1,0));
             if(c&&c->abi_version==1&&c->major==1&&c->struct_size>=sizeof(*c)&&c->get_scene&&c->get_creatures){creatures=c;creature_state=std::make_unique<first_person::creature::presentation>();creature_state->native_art=true;
@@ -443,6 +477,7 @@ int init(const ncmm_host_api_v1 *api) {
     return 1;
 }
 void shutdown() {
+    vehicles_api=nullptr;vehicle_state.reset();modular_vehicles=false;
     projectile_api=nullptr;projectile_v2_api=nullptr;projectile_mounts.reset();
     aim_blend=0;aim_seconds=0;aim_epoch=0;
     hand_timeline.reset();hand_animator.reset();

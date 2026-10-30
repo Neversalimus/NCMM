@@ -18,6 +18,7 @@ import time
 PINS = {'1040':'3f7fb352bf492ba521bd9408a0c9f6ce239e8d83',
         '1807':'074aa98bd5be3de4c35f154082db32a0e63bb0f1'}
 MODES = {'controls':{}, 'camera':{'NCMM_FP_CAMERA_INPUT':'1'},
+         'vehicles':{'NCMM_FP_VEHICLE_ONLY':'1'},
          'fps':{'NCMM_FP_GAMEPLAY_AUDIT':'1','NCMM_FP_FPS_INPUT_ONLY':'1'},
          'held':{'NCMM_FP_HELD_GALLERY_ONLY':'1'},
          'target':{'NCMM_FP_GAMEPLAY_AUDIT':'1','NCMM_FP_TARGET_HUD_ONLY':'1'},
@@ -65,6 +66,7 @@ def run(args):
             verifier='verify_held_gallery.py' if mode=='held' else 'verify_target_audit.py'
             assert Path(__file__).with_name(verifier).is_file(), 'Compiled Native feature lacks its verifier'
     modes={name:flags for name,flags in MODES.items() if name not in features or features[name]}
+    modes={name:flags for name,flags in modes.items() if (name=='vehicles' if args.mode=='vehicles' else name!='vehicles')}
     engine=args.engine.resolve(); data=args.data.resolve(); output=args.output.resolve()
     assert not output.exists(), 'Preserve earlier Native evidence'
     output.mkdir(parents=True)
@@ -125,7 +127,7 @@ def run(args):
         with (game/'stdout.log').open('wb') as stdout,(game/'stderr.log').open('wb') as stderr:
             process=subprocess.Popen(command,cwd=game,env=environment,
                 stdout=stdout,stderr=stderr,start_new_session=True)
-            try: code=process.wait(timeout=4200 if mode=='gameplay' else 1500)
+            try: code=process.wait(timeout=4200 if mode=='gameplay' else 3000 if mode=='vehicles' else 1500)
             except subprocess.TimeoutExpired:
                 import signal
                 timed_out=True;os.killpg(process.pid,signal.SIGKILL);code=process.wait()
@@ -147,6 +149,9 @@ def run(args):
         smoke=json.loads((game/'ncmm/first-person-smoke.json').read_text())
         gameplay=json.loads((game/'ncmm/gameplay-smoke.json').read_text())
         assert smoke['success'] and gameplay['success']
+        if mode=='vehicles':
+            from verify_vehicle_gallery import verify
+            verify(evidence,output/'vehicle-review',ncmm_source,source,inventory['FirstPersonView'])
         if mode=='controls':
             assert smoke['sdl_frames']>=70
             restored=json.loads((evidence/'first-person-deferred-options.json').read_text())
@@ -194,4 +199,5 @@ if __name__=='__main__':
     parser.add_argument('--modules',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--build',choices=PINS,required=True)
+    parser.add_argument('--mode',choices=['standard','vehicles'],default='standard')
     run(parser.parse_args())

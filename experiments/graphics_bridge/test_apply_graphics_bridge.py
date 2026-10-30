@@ -983,6 +983,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src/game.h").write_text("        bool save();\n")
         (root / "src/game.cpp").write_text('#include "game.h"\n'+native_update_map_original()+'\n// Native continuation retained.\n')
         (root / "src/vehicle_use.cpp").write_text(NATIVE_TOGGLE)
+        (root / "src/vehicle.h").write_text('struct vehicle_part {\n};\nclass vehicle {\n    public:\n        vehicle( const vehicle & ) = delete;\n};\n',encoding='utf-8')
         (root / "src/debug.cpp").write_text('#include "debug.h"\nstd::string ncmm_debug_report_text( const std::string &text )\n{ return text; }\nvoid native_debug_window() {\n    for( bool stop = false; !stop; ) {\n    }\n}\n')
         options='static void ncmm_apply_deferred_option_value( const std::string &, options_manager::cOpt & );\n// NCMM v8.7.6.6 stale world-option repair:\n'
         for kind in ['bool','int','float','enum']:

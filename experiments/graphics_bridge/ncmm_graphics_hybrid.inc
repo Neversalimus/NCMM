@@ -47,6 +47,7 @@ uint64_t graphics_texture_identity(SDL_Texture *texture)
 #endif
 #include "ncmm_graphics_presentation.inc"
 #include "ncmm_graphics_creatures.inc"
+#include "ncmm_graphics_vehicles.inc"
 #include "ncmm_graphics_gpu.inc"
 
 #if defined(TILES)
@@ -164,6 +165,7 @@ void graphics_clear_hybrid()
     graphics_clear_world();
     graphics_clear_gpu();
     graphics_clear_creatures();
+    graphics_clear_vehicles();
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
     graphics_presentation_cells.clear(); graphics_effect_pixels.clear(); graphics_clear_target();
@@ -532,6 +534,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         copy_id( env.held_item, held->typeId().str() ); env.held_kind = held->is_gun() ? 1u : held->is_melee() ? 2u : 3u;
     }
     graphics_hybrid_last_environment = env;
+    graphics_prepare_vehicles(base,positions,details,world);
     graphics_prepare_held();
     graphics_prepare_presentation( base,positions,details,world );
     if(graphics_camera_cache.verify&&graphics_camera_cache.totals.verification_mismatches){
