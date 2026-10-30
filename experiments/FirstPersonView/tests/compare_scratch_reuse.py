@@ -99,6 +99,30 @@ def main():
     replacements=[('c.cycle=clear&&cycle_private_scratch();', 'c.cycle=clear;'), ('depth.cycle=(clear||held)&&cycle_private_scratch();', 'depth.cycle=clear||held;'), ('shadow_binding.cycle=cycle_private_scratch();', 'shadow_binding.cycle=true;'), ('e.cycle=cycle_private_scratch();', 'e.cycle=true;')]
     for before,after in replacements:
         assert reference.count(before)==1,before;reference=reference.replace(before,after)
+    # Reconstruct the same frozen baseline, including its original lifecycle
+    # disposal. The candidate now drains SDL's deferred child releases after
+    # clear(); that change must preserve these pixels too. Do not advance the
+    # reference hash to the candidate or share its new disposal with both runs.
+    disposal='''        auto *device=context_.device();
+        if(device){
+            if(context_.renderer())SDL_FlushRenderer(context_.renderer());
+            SDL_WaitForGPUIdle(context_.device());
+        }
+        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
+        // SDL queues Release* calls in a pending-destroy list. The preceding
+        // drain protects queued draws, but cannot retire objects released
+        // afterwards. Finish disposal at this lifecycle boundary, including
+        // when the next mode is CPU and no further 3D submission will occur.
+        if(device)SDL_WaitForGPUIdle(device);
+'''
+    original_disposal='''        if(context_.device()){
+            if(context_.renderer())SDL_FlushRenderer(context_.renderer());
+            SDL_WaitForGPUIdle(context_.device());
+        }
+        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
+'''
+    assert reference.count(disposal)==1,'Unreviewed lifecycle reconstruction'
+    reference=reference.replace(disposal,original_disposal)
     assert hashlib.sha256(reference.encode()).hexdigest()==REFERENCE_SHA256,'Unreviewed reference reconstruction'
     out.mkdir(parents=True);(out/'reference').mkdir();(out/'reference/ncmm_gpu_backend.hpp').write_text(reference,encoding='utf-8',newline='\n')
     capture='''#include "ncmm_graphics_performance.hpp"
