@@ -74,9 +74,21 @@ int main(int argc,char **argv){
         fp::gpu::scene_cache cache;fp::hybrid::frame statistics;fp::gpu::packet legacy,modular,warm,restored;
         auto build=[&](fp::gpu::packet &packet){require(cache.build(source,-fp::hybrid::pi*.5f,-.1f,{},packet,statistics,engine.metrics(),{},&metadata,nullptr,640,480,NCMM_GPU_FORCE),cache.last_reason.c_str());};
         build(legacy);metadata.vehicles=&vehicle;build(modular);require(cache.generated_cells>0,"Legacy to Modular invalidates static vehicle chunks");
+        const auto scans=cache.vehicle_pass_scans;require(scans==2,"opaque component checks its present and absent passes once");
         build(warm);require(cache.generated_cells==0,"unchanged Modular retains warm terrain chunks");
+        require(cache.vehicle_pass_scans==scans,"warm opaque component neither scans nor allocates its absent transparent pass");
         vehicle.input.vehicles[0].origin_x+=.1f;vehicle.input.scene.seconds+=.1;vehicle.observe({8.5f,12.5f,1.55f});
         fp::gpu::packet moving;build(moving);require(cache.generated_cells==0,"instance motion does not rebuild static terrain");
+        require(cache.vehicle_pass_scans==scans,"rigid motion reuses both positive and negative component pass results");
+        vehicle.input.parts[0].features=NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD;
+        ++vehicle.input.vehicles[0].structure_revision;++vehicle.input.vehicles[0].state_revision;
+        ++vehicle.input.scene.revision;vehicle.observe({8.5f,12.5f,1.55f});
+        fp::gpu::packet glass,glass_warm;build(glass);
+        require(cache.vehicle_pass_scans>scans,"changed component recipe cannot inherit an old negative pass result");
+        require(std::any_of(glass.draws.begin(),glass.draws.end(),[](const auto &d){return d.pass==NCMM_GPU_TRANSPARENT;}),
+            "real glazing retains its transparent GPU pass after an opaque recipe");
+        const auto glass_scans=cache.vehicle_pass_scans;build(glass_warm);
+        require(cache.vehicle_pass_scans==glass_scans,"warm mixed/glass recipe also avoids repeated pass scans");
         metadata.vehicles=nullptr;build(restored);require(cache.generated_cells>0,"Modular to Legacy restores static vehicle geometry");
     }
     ncmm_gpu_scene_v1 scene{};scene.struct_size=sizeof(scene);scene.width=640;scene.height=480;scene.mode=NCMM_GPU_FORCE;scene.frame_serial=1;

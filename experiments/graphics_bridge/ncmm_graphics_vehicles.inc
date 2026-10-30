@@ -12,6 +12,7 @@ double graphics_vehicle_extraction_ms=0;
 struct {uint32_t body_cells=0,floor_cells=0,vehicles=0,parts=0,roof_cells=0,groups=0;} graphics_vehicle_discovery;
 struct {bool valid=false,opening=false;uint64_t entity=0,part=0,world=0;int x=0,y=0,z=0;} graphics_vehicle_activity_request;
 extern uint64_t graphics_world_epoch;
+ncmm_graphics_vehicle_policy::definition_features graphics_vehicle_feature_cache;
 
 void graphics_clear_vehicles()
 {
@@ -19,7 +20,7 @@ void graphics_clear_vehicles()
     graphics_vehicle_focus_cell=-1;graphics_vehicle_focus_entity=graphics_vehicle_focus_part=0;
     graphics_vehicle_discovery={};
 }
-void graphics_forget_vehicle_client(){graphics_clear_vehicles();graphics_vehicles_requested=false;graphics_vehicle_activity_request={};}
+void graphics_forget_vehicle_client(){graphics_clear_vehicles();graphics_vehicle_feature_cache.clear();graphics_vehicles_requested=false;graphics_vehicle_activity_request={};}
 int graphics_vehicle_get_scene(ncmm_graphics_vehicle_scene_v1 *out)
 {
     if(!graphics_hybrid_frame||active_module_id!=graphics_view.owner||!out||out->struct_size<sizeof(*out))return 0;
@@ -116,6 +117,35 @@ template<size_t N>void graphics_vehicle_copy(char(&out)[N],const std::string &te
 {
     const auto n=std::min(N-1,text.size());std::memcpy(out,text.data(),n);out[n]=0;
 }
+constexpr uint64_t graphics_vehicle_directional_light=uint64_t(1)<<32;
+uint64_t graphics_vehicle_features(const vpart_reference &ref,uint64_t epoch)
+{
+    return graphics_vehicle_feature_cache.get(ref.info().id.str(),epoch,[&](){
+        uint64_t bits=0;
+        const std::pair<const char *,uint32_t> features[]={
+            {"ROOF",NCMM_VP_ROOF},{"OBSTACLE",NCMM_VP_PANEL},
+            {"WINDOW",NCMM_VP_WINDOW},{"DOOR",NCMM_VP_DOOR},{"OPENABLE",NCMM_VP_OPENABLE},{"WHEEL",NCMM_VP_WHEEL},
+            {"HALF_BOARD",NCMM_VP_HALF_PANEL},{"WINDSHIELD",NCMM_VP_WINDSHIELD},{"CURTAIN",NCMM_VP_CURTAIN},
+            {"SEAT",NCMM_VP_SEAT},{"CARGO",NCMM_VP_CARGO},{"ENGINE",NCMM_VP_ENGINE},
+            {"CONE_LIGHT",NCMM_VP_LIGHT},{"WIDE_CONE_LIGHT",NCMM_VP_LIGHT},{"HALF_CIRCLE_LIGHT",NCMM_VP_LIGHT},
+            {"CIRCLE_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},{"DOME_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},
+            {"AISLE_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},{"ATOMIC_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI|NCMM_VP_LIGHT_SELF_POWERED},
+            {"CONTROLS",NCMM_VP_CONTROLS},
+            {"ARMOR",NCMM_VP_ARMOR},{"SOLAR_PANEL",NCMM_VP_SOLAR},{"TURRET",NCMM_VP_TURRET},
+            {"BOARDABLE",NCMM_VP_FLOOR},{"STEERABLE",NCMM_VP_STEERABLE},{"FLOATS",NCMM_VP_FLOAT},
+            {"AISLE",NCMM_VP_AISLE},{"BATTERY",NCMM_VP_BATTERY},{"FUEL_TANK",NCMM_VP_FUEL_TANK},
+            {"BIKE_RACK_VEH",NCMM_VP_RACK}};
+        for(const auto &[name,flag]:features)if(ref.has_feature(name))bits|=flag;
+        if(ncmm_graphics_vehicle_policy::control_panel(ref.has_feature("CTRL_ELECTRONIC"),ref.has_feature("DOME_LIGHT"))){bits|=NCMM_VP_CONTROL_PANEL;}
+        if(ref.info().location.str()=="structure"){bits|=NCMM_VP_FRAME;}
+        if(ref.has_feature("WHEEL_MOUNT_LIGHT")||ref.has_feature("WHEEL_MOUNT_MEDIUM")||ref.has_feature("WHEEL_MOUNT_HEAVY")){bits|=NCMM_VP_AXLE;}
+        if((bits&NCMM_VP_LIGHT)&&ref.info().location.str()=="on_ceiling"){bits|=NCMM_VP_LIGHT_CEILING;}
+        // A custom definition may have both cone and omni flags. Preserve the
+        // discovery predicate independently of the public combined light bits.
+        if(ref.has_feature("CONE_LIGHT")||ref.has_feature("WIDE_CONE_LIGHT")||ref.has_feature("HALF_CIRCLE_LIGHT")){bits|=graphics_vehicle_directional_light;}
+        return bits;
+    });
+}
 void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
     const std::vector<tripoint_bub_ms> &positions,std::vector<ncmm_graphics_cell_v2> &details,
     const ncmm_graphics_multilevel_scene_v1 *world)
@@ -160,16 +190,17 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
         std::set<point_rel_ms> structural_mounts;unsigned mapped=0;
         for(const vpart_reference &ref:v.get_all_parts()){
             if(++mapped>NCMM_VEHICLE_MAX_PARTS_PER_VEHICLE)break;
-            if(!ref.part().removed&&!ref.part().is_fake&&ref.info().location.str()=="structure"){structural_mounts.insert(ref.part().mount);}
+            if(!ref.part().removed&&!ref.part().is_fake&&(graphics_vehicle_features(ref,scene.world_epoch)&NCMM_VP_FRAME)){structural_mounts.insert(ref.part().mount);}
         }
         for(const vpart_reference &ref:v.get_all_parts()){
             if(++tested>NCMM_VEHICLE_MAX_PARTS_PER_VEHICLE||++graphics_vehicle_discovery.parts>65536)break;
             if(ref.part().removed||ref.part().is_fake)continue;
             const auto at=ref.pos_bub(here);const auto access=at_permissions(at);const int body=access.body,floor=access.floor;
-            const bool roof=ref.has_feature("ROOF")&&floor>=0;
+            const auto features=graphics_vehicle_features(ref,scene.world_epoch);
+            const bool roof=(features&NCMM_VP_ROOF)&&floor>=0;
             uint32_t faces=0;
-            const bool directional_light=ref.has_feature("CONE_LIGHT")||ref.has_feature("WIDE_CONE_LIGHT")||ref.has_feature("HALF_CIRCLE_LIGHT");
-            if(body<0&&floor>=0&&(ref.has_feature("OBSTACLE")||ref.has_feature("DOOR")||ref.has_feature("WINDOW")||ref.has_feature("WHEEL")||directional_light)){
+            const bool directional_light=(features&graphics_vehicle_directional_light)!=0;
+            if(body<0&&floor>=0&&((features&(NCMM_VP_PANEL|NCMM_VP_DOOR|NCMM_VP_WINDOW|NCMM_VP_WHEEL))||directional_light)){
                 for(unsigned side=0;side<4;++side){const auto adjacent=ref.part().mount+point_rel_ms(side==0?1:side==2?-1:0,side==1?1:side==3?-1:0);
                     if(!structural_mounts.count(adjacent)&&at_permissions(v.mount_to_tripoint(&here,adjacent)).body>=0){faces|=1u<<side;}}
             }
@@ -237,24 +268,7 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
             if(part.enabled){out.state|=NCMM_VP_ENABLED;}
             if(cell<0)out.state|=NCMM_VP_TOPOLOGY_ONLY;
             out.direction=float(units::to_radians(part.direction));out.state|=NCMM_VP_DIRECTION_KNOWN;
-            const std::pair<const char *,uint32_t> features[]={
-                {"ROOF",NCMM_VP_ROOF},{"OBSTACLE",NCMM_VP_PANEL},
-                {"WINDOW",NCMM_VP_WINDOW},{"DOOR",NCMM_VP_DOOR},{"OPENABLE",NCMM_VP_OPENABLE},{"WHEEL",NCMM_VP_WHEEL},
-                {"HALF_BOARD",NCMM_VP_HALF_PANEL},{"WINDSHIELD",NCMM_VP_WINDSHIELD},{"CURTAIN",NCMM_VP_CURTAIN},
-                {"SEAT",NCMM_VP_SEAT},{"CARGO",NCMM_VP_CARGO},{"ENGINE",NCMM_VP_ENGINE},
-                {"CONE_LIGHT",NCMM_VP_LIGHT},{"WIDE_CONE_LIGHT",NCMM_VP_LIGHT},{"HALF_CIRCLE_LIGHT",NCMM_VP_LIGHT},
-                {"CIRCLE_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},{"DOME_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},
-                {"AISLE_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},{"ATOMIC_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI|NCMM_VP_LIGHT_SELF_POWERED},
-                {"CONTROLS",NCMM_VP_CONTROLS},
-                {"ARMOR",NCMM_VP_ARMOR},{"SOLAR_PANEL",NCMM_VP_SOLAR},{"TURRET",NCMM_VP_TURRET},
-                {"BOARDABLE",NCMM_VP_FLOOR},{"STEERABLE",NCMM_VP_STEERABLE},{"FLOATS",NCMM_VP_FLOAT},
-                {"AISLE",NCMM_VP_AISLE},{"BATTERY",NCMM_VP_BATTERY},{"FUEL_TANK",NCMM_VP_FUEL_TANK},
-                {"BIKE_RACK_VEH",NCMM_VP_RACK}};
-            for(const auto &[name,flag]:features)if(ref.has_feature(name))out.features|=flag;
-            if(ncmm_graphics_vehicle_policy::control_panel(ref.has_feature("CTRL_ELECTRONIC"),ref.has_feature("DOME_LIGHT"))){out.features|=NCMM_VP_CONTROL_PANEL;}
-            if(part.info().location.str()=="structure"){out.features|=NCMM_VP_FRAME;}
-            if(ref.has_feature("WHEEL_MOUNT_LIGHT")||ref.has_feature("WHEEL_MOUNT_MEDIUM")||ref.has_feature("WHEEL_MOUNT_HEAVY")){out.features|=NCMM_VP_AXLE;}
-            if((out.features&NCMM_VP_LIGHT)&&part.info().location.str()=="on_ceiling"){out.features|=NCMM_VP_LIGHT_CEILING;}
+            out.features=uint32_t(graphics_vehicle_features(ref,scene.world_epoch));
             if((out.features&NCMM_VP_ROOF)&&cell<0){
                 const auto surface=roof_surfaces.find(pos);
                 if(surface!=roof_surfaces.end()){out.cell_index=surface->second;out.state&=~NCMM_VP_TOPOLOGY_ONLY;out.state|=NCMM_VP_ROOF_SURFACE;}

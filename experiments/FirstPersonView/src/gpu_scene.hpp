@@ -93,7 +93,13 @@ class scene_cache {
     normalized_record &normalized_at(uint32_t slot)noexcept{return normalized_records[slot/normalized_page_cells][slot%normalized_page_cells];}
     std::map<std::tuple<uint64_t,int,bool,bool>,std::weak_ptr<const owned_mesh>> skins;
     std::map<std::tuple<uint64_t,int,int,bool>,std::weak_ptr<const owned_mesh>> impostors;
-    std::map<uint64_t,std::array<std::weak_ptr<const owned_mesh>,2>> vehicle_templates;
+    struct vehicle_template {
+        std::array<std::weak_ptr<const owned_mesh>,2> meshes;
+        // Recipes are immutable. An absent alpha pass is different from a
+        // resource owner that expired and must be rebuilt after eviction.
+        uint8_t empty_passes=0;
+    };
+    std::map<uint64_t,vehicle_template> vehicle_templates;
     resources assets;
     // Whole opaque cell templates keep floors and authored furniture in the
     // same draw. Repeated rooms never expand/hash every source triangle again.
@@ -197,9 +203,15 @@ class scene_cache {
             if(!draw.geometry||draw.cell<0||size_t(draw.cell)>=scene.base.cell_count)return true;
             if(cache.vehicle_templates.size()>=2048)cache.vehicle_templates.clear();
             auto &entry=cache.vehicle_templates[draw.geometry->recipe];
-            for(uint32_t pass=0;pass<2;++pass){auto mesh=entry[pass].lock();
-                if(!mesh){mesh_builder builder;vertex_index corners(draw.geometry->triangles.size()*3);
-                    for(const auto &source:draw.geometry->triangles){const auto &appearance=draw.geometry->materials[source.material];
+            for(uint32_t pass=0;pass<2;++pass){if(entry.empty_passes&(1u<<pass))continue;
+                auto mesh=entry.meshes[pass].lock();
+                if(!mesh){
+                    ++cache.vehicle_pass_scans;
+                    const auto first=std::find_if(draw.geometry->triangles.begin(),draw.geometry->triangles.end(),[&](const auto &source){
+                        return uint32_t(draw.geometry->materials[source.material].color[3]<.99f)==pass;});
+                    if(first==draw.geometry->triangles.end()){entry.empty_passes|=uint8_t(1u<<pass);continue;}
+                    mesh_builder builder;vertex_index corners(draw.geometry->triangles.size()*3);
+                    for(auto source_at=first;source_at!=draw.geometry->triangles.end();++source_at){const auto &source=*source_at;const auto &appearance=draw.geometry->materials[source.material];
                         if(uint32_t(appearance.color[3]<.99f)!=pass)continue;
                         ncmm_gpu_material_v1 material{};std::copy(appearance.color.begin(),appearance.color.end(),material.color);
                         material.flags=NCMM_GPU_SMOOTH|(appearance.emissive?uint32_t(NCMM_GPU_EMISSIVE):0u);material.finish=uint32_t(hybrid::vehicle_finish(appearance.kind));
@@ -213,7 +225,7 @@ class scene_cache {
                     if(builder.mesh.indices.empty())continue;
                     mesh=cache.assets.mesh(std::move(builder.mesh));
                     if(!mesh){fail("GPU modular vehicle component exceeds resource cache budget");return true;}
-                    entry[pass]=mesh;
+                    entry.meshes[pass]=mesh;
                 }
                 auto transform=identity();const auto &p=draw.placement;
                 const vehicle::point basis[]={p.x,p.y,p.z,p.origin};
@@ -658,7 +670,7 @@ public:
     explicit scene_cache(size_t mesh_budget=resources::mesh_limit,size_t texture_budget=resources::texture_limit):assets(mesh_budget,texture_budget){}
     uint32_t generated_cells=0;uint64_t signature_reuses=0;double geometry_ms=0;
     uint32_t prop_template_builds=0,prop_template_reuses=0;uint64_t prop_source_triangles=0;
-    uint32_t floor_template_builds=0,floor_template_reuses=0;uint64_t floor_source_triangles=0;
+    uint32_t floor_template_builds=0,floor_template_reuses=0;uint64_t floor_source_triangles=0,vehicle_pass_scans=0;
     bool floor_templates_enabled=true; // Internal test ablation, never a Host/user setting.
     uint64_t signature_neighbor_queries=0,signature_reused_cells=0,signature_neighborhood_marks=0;
     uint64_t signature_content_reuses=0,signature_content_hashes=0,signature_content_updates=0,signature_content_allocation_bytes=0;
@@ -667,9 +679,9 @@ public:
         signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_positions=std::vector<signature_position>{};signature_dirty_slots=std::vector<uint8_t>{};signature_reuses=0;
         clear_normalized();coordinate_index.clear();
         prop_template_builds=prop_template_reuses=0;prop_source_triangles=0;
-        floor_template_builds=floor_template_reuses=0;floor_source_triangles=0;
+        floor_template_builds=floor_template_reuses=0;floor_source_triangles=vehicle_pass_scans=0;
         signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;}
-    size_t bytes()const{return assets.bytes()+vehicle_templates.size()*(sizeof(uint64_t)+sizeof(std::array<std::weak_ptr<const owned_mesh>,2>)+3*sizeof(void *))+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+prop_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(prop_templates.empty()?0:prop_templates.bucket_count()*sizeof(void *))+floor_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(floor_templates.empty()?0:floor_templates.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes()+coordinate_index.bytes();}
+    size_t bytes()const{return assets.bytes()+vehicle_templates.size()*(sizeof(uint64_t)+sizeof(vehicle_template)+3*sizeof(void *))+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+prop_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(prop_templates.empty()?0:prop_templates.bucket_count()*sizeof(void *))+floor_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(floor_templates.empty()?0:floor_templates.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes()+coordinate_index.bytes();}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
                hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr){
         last_reason.clear();

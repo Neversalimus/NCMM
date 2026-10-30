@@ -3,8 +3,33 @@
 #include <array>
 #include <vector>
 #include <string_view>
+#include <cstdint>
+#include <string>
+#include <unordered_map>
 // Shared pure geometry policy; no Native objects or graphics devices.
 namespace ncmm_graphics_vehicle_policy {
+// Own canonical definition IDs and copied flag bits only. Definitions are
+// finalized before gameplay; mutable installed-part state never enters here.
+// A new world/definition lifetime or module release discards every entry.
+class definition_features {
+    std::unordered_map<std::string,uint64_t> values;
+    uint64_t epoch=0;
+    bool bound=false;
+public:
+    static constexpr size_t limit=4096,max_id_bytes=127;
+    void clear(){decltype(values){}.swap(values);epoch=0;bound=false;}
+    size_t size()const{return values.size();}
+    template<class Read>uint64_t get(const std::string &id,uint64_t world,Read read){
+        if(!bound||epoch!=world){clear();epoch=world;bound=true;}
+        // Oversized mod IDs retain exact semantics without unbounded storage
+        // or truncation collisions with ordinary canonical IDs.
+        if(id.size()>max_id_bytes)return read();
+        const auto found=values.find(id);if(found!=values.end())return found->second;
+        const auto value=read();
+        if(values.size()>=limit)values.clear();
+        values.emplace(id,value);return value;
+    }
+};
 // Rebuilt from this frame's exact Native permissions, without a persistent
 // lifetime cache or Native pointers. Duplicate cells keep the first body and
 // floor index independently, just as the original two ordered maps did.

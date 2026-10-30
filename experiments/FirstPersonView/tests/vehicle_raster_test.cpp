@@ -42,23 +42,31 @@ struct fixture {
             p.wheel_radius=.32f;p.wheel_width=.18f;
             const auto mesh=v::generate(input,shape,p,0);
             vehicles.draws.push_back({mesh,v::rigid({12+float(i%5)*.4f,11.7f+float(i/5)*.4f,.12f},i*.37f),7,100+i,312,false,false,true});}
+        v::builder tiny(input.parts[0]);
+        for(unsigned i=0;i<20;++i){const float y=i*.03f;
+            tiny.face({0,y,0},{0,y+.0008f,0},{0,y,.0008f},{0,y,0},tiny.paint);}
+        vehicles.draws.push_back({tiny.finish(),v::rigid({12,12,1.2f},0),7,150,312,false,false,true});
     }
     h::frame render(int dispatch,float yaw,float pitch,const h::frame *cache=nullptr,h::frame *world=nullptr){
-        h::render_options options;options.stream_vehicle_raster=dispatch==2;options.prune_vehicle_workers=dispatch==1;h::frame result;
+        h::render_options options;options.stream_vehicle_raster=dispatch==2;options.prune_vehicle_workers=dispatch==1||dispatch==3;
+        options.prune_empty_vehicle_samples=dispatch==3;h::frame result;
         h::renderer painter(scene,yaw,pitch,{},result,{},&metadata,options);painter.run(1280,800,cache,world);return result;
     }
 };
 }
 int main(){
-    fixture f;uint32_t skipped=0;
+    fixture f;uint32_t skipped=0,empty=0;
     for(float yaw:{-.17f,0.f,.17f})for(float pitch:{-.15f,0.f,.12f}){
         h::frame old_world,new_world;const auto before=f.render(0,yaw,pitch,nullptr,&old_world),after=f.render(1,yaw,pitch,nullptr,&new_world);
         compare(before,after);skipped+=after.vehicle_worker_skips;
         require(before.triangles==after.triangles,"parallel worker pruning retains every participating triangle visit");
         require(after.vehicle_streamed_triangles==0,"ordinary optimized path keeps parallel pixel work");
         const auto cached_before=f.render(0,yaw,pitch,&old_world),cached_after=f.render(1,yaw,pitch,&new_world);compare(cached_before,cached_after);
+        const auto covered=f.render(3,yaw,pitch);compare(before,covered);empty+=covered.vehicle_empty_triangles;
+        compare(cached_before,f.render(3,yaw,pitch,&old_world));
     }
     if(std::thread::hardware_concurrency()>1)require(skipped>0,"equivalence actually rejects empty worker strips");
+    require(empty>0,"exact sample pruning actually rejects projected zero-fragment triangles without dropping source geometry");
     const auto reference=f.render(0,0,0),streamed=f.render(2,0,0);compare(reference,streamed);
     require(streamed.vehicle_streamed_triangles>0,"disabled streaming experiment remains an explicit correctness reference");
     f.scene.base.camera_x=12.5f;
@@ -66,6 +74,7 @@ int main(){
     v::builder inside(part);inside.cushion({0,0,0},{2,2,2},.1f,inside.paint);
     f.vehicles.draws.push_back({inside.finish(),v::rigid({12.5f,12.5f,1.55f},0),7,999,312,false,false,true});
     for(float yaw:{0.f,1.2f,3.1f}){const auto before=f.render(0,yaw,-.12f),after=f.render(1,yaw,-.12f);compare(before,after);
+        compare(before,f.render(3,yaw,-.12f));
         require(after.vehicle_streamed_triangles==0,"near-plane/inside component conservatively keeps parallel path");}
     f.scene.base.camera_x=1.5f;f.cells[312].flags=0;
     const auto hidden_before=f.render(0,0,0),hidden_after=f.render(1,0,0);compare(hidden_before,hidden_after);

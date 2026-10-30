@@ -101,6 +101,30 @@ void verify_closed_surface(const first_person::vehicle::model &mesh){
 }
 }
 int main(){
+    {struct sample_point {float x,y;};
+        const std::array<std::array<sample_point,3>,4> shapes{{
+            {{{.1f,.1f},{.2f,.1f},{.1f,.2f}}},
+            {{{.4f,.4f},{.8f,.4f},{.4f,.8f}}},
+            {{{.1f,0.f},{.2f,3.f},{.1f,3.f}}},
+            {{{.5f,.5f},{.5f,.75f},{.75f,.5f}}}}};
+        for(size_t shape=0;shape<shapes.size();++shape)for(int shift=1;shift<32;++shift)for(int rotation=0;rotation<3;++rotation)for(bool reversed:{false,true}){
+            std::array<sample_point,3> p{};
+            for(int n=0;n<3;++n){const auto q=shapes[shape][size_t((rotation+(reversed?3-n:n))%3)];p[n]={q.x+shift,q.y+shift};}
+            const bool expected=shape==1||shape==3;
+            require(first_person::hybrid::triangle_has_scanline_sample(p,shift,shift+3,shift,shift+3,64)==expected,
+                "sample existence preserves translated subpixel holes, interior samples, inclusive vertices and both windings");
+        }}
+    {ncmm_graphics_vehicle_policy::definition_features cache;unsigned reads=0;uint32_t flags=7;
+        auto read=[&](){++reads;return flags;};std::string id="door";
+        require(cache.get(id,3,read)==7&&reads==1,"definition flags are read from the canonical definition once");
+        id="wheel";flags=11;
+        require(cache.get("door",3,read)==7&&reads==1,"cache owns its ID independently of Native strings and input scratch");
+        require(cache.get(id,3,read)==11&&reads==2,"different canonical definitions cannot alias");
+        flags=13;require(cache.get("door",4,read)==13&&reads==3&&cache.size()==1,"world/definition lifetime change invalidates old flags");
+        cache.clear();flags=17;require(cache.get("door",4,read)==17&&reads==4,"client teardown drops every retained definition");
+        for(size_t i=0;i<cache.limit+1;++i){cache.get(std::to_string(i),4,read);require(cache.size()<=cache.limit,"definition cache remains bounded with custom mods");}
+        const auto before=cache.size();const std::string large(cache.max_id_bytes+1,'x');const auto count=reads;
+        require(cache.get(large,4,read)==17&&cache.get(large,4,read)==17&&reads==count+2&&cache.size()==before,"oversized IDs bypass storage without truncation or stale flags");}
     {for(int workers:{1,2,3,4})for(int low=0;low<96;++low)for(int high=low;high<128;++high)for(int worker=0;worker<workers;++worker){
         bool reference=false;for(int row=low;row<=high;++row)if((row/16)%workers==worker){reference=true;break;}
         const auto mask=first_person::hybrid::raster_worker_mask(low,high,workers);
