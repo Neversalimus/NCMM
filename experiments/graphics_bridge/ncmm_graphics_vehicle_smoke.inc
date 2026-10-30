@@ -18,7 +18,8 @@
         get_map().furn_set(p,furn_id("f_null"));get_map().ter_set(p,ter_id("t_pavement"));get_map().clear_fields(p);
         get_map().furn_set(tripoint_bub_ms(p.x(),p.y(),1),furn_id("f_null"));get_map().ter_set(tripoint_bub_ms(p.x(),p.y(),1),ter_id("t_open_air"));}
     // Keep CDDA's data, perception, actual part API and SDL submission. No mesh
-    // preview, fixture collision replacement, or changed quality setting.
+    // preview or fixture collision replacement. The full-size qualification
+    // below selects the same existing high-quality CPU setting for both modes.
     const auto street=get_map().get_abs(center);auto subject=street;std::vector<vehicle *> cars;
     const auto close_native_openables=[&](vehicle &car){
         // Native randomly opens even UNDAMAGED spawns. Give the intact
@@ -83,6 +84,12 @@
         evidence.member("vehicle_submitted_parts",graphics_vehicle_metrics.submitted_parts);
         evidence.member("host_world_snapshot_bytes",graphics_world_snapshot_storage_bytes());
         evidence.member("host_sprite_cache_bytes",graphics_hybrid_sprite_bytes);evidence.member("cpu_renderer_cache_bytes",graphics_cpu_metrics.cache_bytes);
+        if(!gpu){
+            evidence.member("cpu_width",graphics_cpu_metrics.width);evidence.member("cpu_height",graphics_cpu_metrics.height);
+            evidence.member("cpu_callback_ms",graphics_cpu_metrics.frame_ms);evidence.member("cpu_geometry_ms",graphics_cpu_metrics.geometry_ms);
+            evidence.member("cpu_raster_ms",graphics_cpu_metrics.raster_ms);evidence.member("cpu_effects_ms",graphics_cpu_metrics.effects_ms);
+            evidence.member("cpu_raster_calls",graphics_cpu_metrics.raster_calls);evidence.member("cpu_triangles",graphics_cpu_metrics.triangles);
+        }
         evidence.member("native_lights_on",std::count_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return (p.state&NCMM_VP_LIGHT_ON)!=0;}));
         evidence.member("full_frame_ms",frame_ms);
         if(graphics_gpu_engine){const auto metrics=graphics_gpu_engine->metrics();
@@ -152,8 +159,10 @@
             camera(0,8,-.08f);
         }
         if(std::strcmp(prototype,"car")==0){
-            int door_index=-1,wheel_index=-1,roof_index=-1;std::vector<int> seats;
+            int door_index=-1,wheel_index=-1,roof_index=-1,min_part_y=1000,max_part_y=-1000;std::vector<int> seats;
             for(const vpart_reference &p:car->get_all_parts()){
+                if(p.part().removed||p.part().is_fake)continue;
+                min_part_y=std::min(min_part_y,p.part().mount.y());max_part_y=std::max(max_part_y,p.part().mount.y());
                 if(p.has_feature("OPENABLE")&&door_index<0)door_index=int(p.part_index());
                 if(p.has_feature("WHEEL")&&wheel_index<0)wheel_index=int(p.part_index());
                 if(p.has_feature("ROOF")&&roof_index<0)roof_index=int(p.part_index());
@@ -161,11 +170,14 @@
             require(door_index>=0&&wheel_index>=0&&roof_index>=0&&seats.size()>=2,"vehicle_real_fixture_parts_missing");
             std::stable_sort(seats.begin(),seats.end(),[&](int a,int b){
                 return (car->part_with_feature(car->part(a).mount,"CONTROLS",true)>=0)>(car->part_with_feature(car->part(b).mount,"CONTROLS",true)>=0);});
-            camera(0,8,-.08f);car->open(get_map(),door_index);pair("open-door",prototype);
+            const int mutation_side=car->part(door_index).mount.y()*2<=min_part_y+max_part_y?-8:8;
+            const auto mutation_view=[&](){camera(0,mutation_side,-.08f);};
+            mutation_view();pair("mutation-before",prototype);
+            car->open(get_map(),door_index);pair("open-door",prototype);
             const uint64_t opened=car->part(door_index).ncmm_graphics_part_id();
             const auto door=std::find_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[&](const auto &p){return p.part_id==opened;});
             require(door!=graphics_vehicle_parts.end()&&(door->state&NCMM_VP_OPEN),"vehicle_open_not_native_confirmed");
-            car->close(get_map(),door_index);draw("closed-door",prototype,"gpu","modular",false);
+            car->close(get_map(),door_index);pair("closed-door",prototype);
             for(size_t n=0;n<2;++n){const auto pos=car->bub_part_pos(get_map(),seats[n]);
                 get_avatar().setpos(get_map(),pos,false);get_map().board_vehicle(pos,&get_avatar());
                 require(get_avatar().in_vehicle,"vehicle_board_failed");
@@ -175,8 +187,11 @@
                 pair(n==0?"driver":"passenger",prototype);
                 require(graphics_vehicle_scene.occupied_part&&graphics_vehicle_scene.eye_valid,"vehicle_seat_camera_missing");
                 get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();camera(0,8,-.08f);require(!get_avatar().in_vehicle,"vehicle_exit_failed");}
-            const auto hp=car->part(door_index).hp();car->set_hp(car->part(door_index),std::max(1,hp/3),true);
+            mutation_view();const auto hp=car->part(door_index).hp();car->set_hp(car->part(door_index),std::max(1,hp/3),true);
             pair("damaged",prototype);car->set_hp(car->part(door_index),0,true);pair("broken-door",prototype);
+            car->set_hp(car->part(door_index),hp,true);
+            const int wheel_side=car->part(wheel_index).mount.y()*2<=min_part_y+max_part_y?-8:8;
+            camera(0,wheel_side,-.08f);pair("wheel-before",prototype);
             const auto wheel_hp=car->part(wheel_index).hp();car->set_hp(car->part(wheel_index),0,true);pair("broken-wheel",prototype);
             car->set_hp(car->part(wheel_index),wheel_hp,true);
             const uint64_t removed=car->part(wheel_index).ncmm_graphics_part_id();

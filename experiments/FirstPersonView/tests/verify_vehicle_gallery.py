@@ -14,6 +14,27 @@ PROTOTYPES = {'car','suv','cube_van','semi_truck','bus','pickup','motorcycle','b
               'quad_bike','apc','truck_trailer','flatbed_truck','shopping_cart','canoe'}
 VIEWS = {'front','rear','left','right','front-three-quarter','rear-three-quarter','top-oblique'}
 
+def verify_cpu_metrics(r):
+    assert (r['cpu_width'],r['cpu_height'])==(r.get('frame_width',640),r.get('frame_height',480)), 'CPU resolution differs from the Native viewport'
+    for name in ('cpu_callback_ms','cpu_geometry_ms','cpu_raster_ms','cpu_effects_ms'):
+        assert type(r[name]) in (int,float) and math.isfinite(r[name]) and r[name]>=0,name
+    assert 0<r['cpu_callback_ms']<=r['full_frame_ms']+.01,'CPU callback must belong to the actual full frame'
+    for name in ('cpu_raster_calls','cpu_triangles'):assert type(r[name]) is int and r[name]>=0,name
+
+def verify_mutation_views(groups):
+    """Same actual camera across the before/state-change/after sequence."""
+    variants={('cpu','legacy'),('cpu','modular'),('gpu','legacy'),('gpu','modular')}
+    for sequence in [('mutation-before','open-door','closed-door','damaged','broken-door'),
+                     ('wheel-before','broken-wheel','removed-wheel')]:
+        for label in sequence:
+            assert ('car',label) in groups,('mutation capture missing',label)
+            assert set(groups[('car',label)])==variants,('mutation capture matrix incomplete',label)
+        for variant in variants:
+            before=groups[('car',sequence[0])][variant]
+            for label in sequence[1:]:
+                after=groups[('car',label)][variant]
+                assert all(after[k]==before[k] for k in ('camera_xyz','yaw','pitch','eye_height')),('mutation camera changed',label,variant)
+
 
 def verify_memory(path, source, engine, module):
     from statistics import median
@@ -68,6 +89,7 @@ def verify(root, output, source, engine, module=None):
         for name in ['yaw','pitch','eye_height','full_frame_ms']:
             assert isinstance(r[name],(int,float)) and math.isfinite(r[name])
         assert r['full_frame_ms']>0
+        if r['backend']=='cpu':verify_cpu_metrics(r)
         if r['renderer']=='modular' and r['snapshot_parts']:
             assert 0<r['vehicle_submitted_parts']<=r['snapshot_parts'],(r['label'],'Native rows were not rendered')
         if r['label'].startswith('bench-'):
@@ -90,6 +112,7 @@ def verify(root, output, source, engine, module=None):
         if prototype not in {'shopping_cart','truck_trailer'}:assert (prototype,'driver') in groups,(prototype,'missing Native occupied view')
     assert {('car',v) for v in ['driver','passenger','open-door','damaged','broken-door','broken-wheel','removed-wheel',
                                'installed-armor','night','rain','fog','paint-red','paint-blue']} <= groups.keys()
+    verify_mutation_views(groups)
     assert {('mixed','parking'),('mixed','after-motion'),('mixed','save-reload')} <= groups.keys()
     assert {('car','driving-'+str(step)) for step in range(8)} <= groups.keys()
     driving=[]
@@ -151,6 +174,7 @@ def verify(root, output, source, engine, module=None):
                 actual_cdda=True,manual_playthrough=False,visual_acceptance=False,hardware_performance_qualified=False,
                 comparable_configurations=len(groups),captured_frames=len(captures),
                 native_driving_verified=True,
+                cpu_internal_dimensions_verified=True,
                 capture_inventory=captures,review_inventory=inventory,
                 performance=performance,soak=soak,process_memory=memory,cold_definition='Native cache refresh and first frame after switching the vehicle renderer; device resources may be retained',
                 limitations=['Automated Native capture integrity does not establish visual acceptance.',

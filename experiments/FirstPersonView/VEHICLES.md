@@ -179,6 +179,12 @@ spawn behavior is unchanged. Standard Native heavy-duty doors and hatches use
 the same body-colour policy as ordinary steel doors; authored mod colours and
 wood/cloth materials remain individual.
 
+The mutation sequence takes its side from the actual selected Native door or
+wheel mount. Separate intact, open, closed and damaged captures retain the same
+camera, with independent checks for all four CPU/GPU and Legacy/Modular views.
+Door health is restored before the independent wheel mutation case, so an
+unrelated earlier broken door does not contaminate that comparison.
+
 Every family with seats also supplies occupied views. Before/after interior
 captures pin the same actual Native seat eye for both implementations; the
 production Legacy camera is unchanged. Red/blue cases temporarily change actual
@@ -192,6 +198,19 @@ per pair. A cold sample means the first frame after a renderer switch and Native
 cache refresh; device resources may remain resident. A separate 900-second real
 Native loop changes poses and doors, alternates CPU/GPU, saves/reloads and checks
 bounded owned memory. Its completion must be verified in the emitted record.
+
+Before the full-size series, the fixture uses the existing quality action to
+select actual 1280x800 CPU rendering for both Legacy and Modular, then verifies
+those internal dimensions. It restores the prior setting on leaving the fixture.
+Earlier full-size canvas reports without internal dimensions can include main's
+inherited 960x600 CPU cap and cannot certify full-resolution CPU performance.
+
+CPU records also retain the actual internal dimensions and the existing module
+callback, geometry, raster and effect telemetry. Callback time is contained in
+the full presented-frame wall interval; the internal debug timings are not
+claimed to be mutually exclusive and must not be summed as independent work.
+Reuse can legitimately report zero raster calls. GPU metrics describe the last
+3D submission and can remain unchanged when a finished image is reused.
 
 An occupied driving sequence starts a fueled real Native engine and calls the
 same `pldrive()` command used by CDDA, followed by `map::vehmove()`. It verifies

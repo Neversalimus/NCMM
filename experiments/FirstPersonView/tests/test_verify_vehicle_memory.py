@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from verify_vehicle_gallery import verify_memory
+from verify_vehicle_gallery import verify_memory,verify_mutation_views,verify_cpu_metrics
 
 
 class VehicleMemoryTests(unittest.TestCase):
@@ -37,6 +37,48 @@ class VehicleMemoryTests(unittest.TestCase):
         with self.assertRaises(AssertionError):self.admit(receipt)
         receipt=self.receipt();receipt['samples']=receipt['samples'][:2]
         with self.assertRaises(AssertionError):self.admit(receipt)
+
+
+class CpuMetricTests(unittest.TestCase):
+    def row(self):
+        return dict(cpu_width=1280,cpu_height=800,frame_width=1280,frame_height=800,full_frame_ms=10,
+            cpu_callback_ms=8,cpu_geometry_ms=2,cpu_raster_ms=5,cpu_effects_ms=.1,cpu_raster_calls=30,cpu_triangles=400)
+    def test_actual_full_resolution_callback_and_reused_frame(self):
+        verify_cpu_metrics(self.row())
+        row=self.row();row.update(cpu_geometry_ms=0,cpu_raster_ms=0,cpu_effects_ms=0,cpu_raster_calls=0,cpu_triangles=0)
+        verify_cpu_metrics(row)
+    def test_scaled_invalid_or_uncontained_cpu_telemetry_is_rejected(self):
+        for name,value in [('cpu_width',960),('cpu_height',600),('cpu_callback_ms',11),('cpu_callback_ms',0),
+                           ('cpu_geometry_ms',float('nan')),('cpu_raster_ms',-.1),('cpu_triangles',-1)]:
+            row=self.row();row[name]=value
+            with self.subTest(name=name,value=value),self.assertRaises(AssertionError):verify_cpu_metrics(row)
+
+
+class MutationViewTests(unittest.TestCase):
+    def groups(self):
+        labels=('mutation-before','open-door','closed-door','damaged','broken-door','wheel-before','broken-wheel','removed-wheel')
+        return {('car',label):{(backend,mode):dict(camera_xyz=[60,52,0],yaw=1.57,pitch=-.08,eye_height=1.55)
+                for backend in ('cpu','gpu') for mode in ('legacy','modular')} for label in labels}
+
+    def test_complete_matched_mutations_are_accepted(self):
+        verify_mutation_views(self.groups())
+
+    def test_changed_position_direction_or_eye_is_rejected(self):
+        for name,value in [('camera_xyz',[60,68,0]),('yaw',-1.57),('pitch',.2),('eye_height',2)]:
+            groups=self.groups();groups['car','broken-door']['gpu','modular'][name]=value
+            with self.subTest(name=name),self.assertRaises(AssertionError):verify_mutation_views(groups)
+
+    def test_missing_baseline_or_variant_is_rejected(self):
+        groups=self.groups();del groups['car','wheel-before']
+        with self.assertRaises(AssertionError):verify_mutation_views(groups)
+        groups=self.groups();del groups['car','open-door']['cpu','legacy']
+        with self.assertRaises(AssertionError):verify_mutation_views(groups)
+
+    def test_wheel_and_door_can_use_different_actual_sides(self):
+        groups=self.groups()
+        for label in ('wheel-before','broken-wheel','removed-wheel'):
+            for row in groups['car',label].values():row['camera_xyz']=[60,68,0];row['yaw']=-1.57
+        verify_mutation_views(groups)
 
 
 if __name__=='__main__':unittest.main()

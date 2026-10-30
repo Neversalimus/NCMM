@@ -5,6 +5,17 @@
     SDL_DestroyTexture(canvas);frame_width=1280;frame_height=800;
     canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,frame_width,frame_height);
     vehicle_guard.canvas=canvas;require(canvas!=nullptr,"vehicle_fullsize_canvas_failed");
+    // The ordinary CPU mode inherits a 960x600 cap. Select the existing high
+    // quality action for both comparison modes, and prove actual 1280x800 work
+    // rather than merely presenting an upscaled 1280x800 canvas.
+    draw("fullsize-quality-probe","mixed","cpu","legacy",false,true,false);
+    const bool quality_changed=graphics_cpu_metrics.width!=uint32_t(frame_width)||graphics_cpu_metrics.height!=uint32_t(frame_height);
+    struct vehicle_quality_guard {bool changed;~vehicle_quality_guard(){if(changed){graphics_action("ncmm.view.quality");}}} quality_guard{quality_changed};
+    if(quality_changed){
+        require(graphics_action("ncmm.view.quality"),"vehicle_fullsize_quality_action_failed");
+        draw("fullsize-quality-probe","mixed","cpu","legacy",false,true,false);
+    }
+    require(graphics_cpu_metrics.width==uint32_t(frame_width)&&graphics_cpu_metrics.height==uint32_t(frame_height),"vehicle_fullsize_cpu_resolution_changed");
     const auto clear_cars=[&](){cars.clear();for(const auto &v:get_map().get_vehicles()){get_map().destroy_vehicle(v.v);}};
     const auto create=[&](const char *type,int dx,int dy){
         auto *v=get_map().add_vehicle(vproto_id(type),get_map().get_bub(tripoint_abs_ms(street.x()+dx,street.y()+dy,street.z())),0_degrees,0,veh_spawn_status::UNDAMAGED,false);
