@@ -25,7 +25,8 @@ inline bool valid(const snapshot &input,size_t cells){
        !finite(s.level_height)||s.level_height<2||s.level_height>10||s.reserved||s.reserved_position||
        s.vehicle_count>NCMM_VEHICLE_MAX_VEHICLES||s.part_count>NCMM_VEHICLE_MAX_PARTS||
        s.vehicle_count!=input.vehicles.size()||s.part_count!=input.parts.size()||s.eye_valid>1||
-       !finite(s.eye_x)||!finite(s.eye_y)||!finite(s.eye_z)||(s.eye_valid&&(!s.occupied_part||s.eye_z<.1f||s.eye_z>4)))return false;
+       !finite(s.eye_x)||!finite(s.eye_y)||!finite(s.eye_z)||std::abs(s.eye_x)>4096||std::abs(s.eye_y)>4096||
+       (s.eye_valid&&(!s.occupied_part||s.eye_z<.1f||s.eye_z>4)))return false;
     std::set<uint64_t> entities,parts;
     uint32_t offset=0;
     bool occupied=!s.occupied_vehicle,seat=!s.occupied_part;

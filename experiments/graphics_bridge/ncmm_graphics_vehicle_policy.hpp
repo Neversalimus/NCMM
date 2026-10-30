@@ -31,5 +31,10 @@ inline float seated_eye(float floor,float body_scale,float roof,float seat_surfa
 inline bool compact_seat(archetype kind,std::string_view id){
     return kind==archetype::bicycle||kind==archetype::motorcycle||id.find("saddle")!=id.npos;
 }
+inline bool control_panel(bool electronic,bool instrument_light){
+    // Native also marks heaters/coolers CTRL_ELECTRONIC. The dashboard and
+    // electrical switch panel additionally have their own DOME_LIGHT display.
+    return electronic&&instrument_light;
+}
 inline float seat_surface(archetype kind,std::string_view id){return compact_seat(kind,id)?.515f:.28f;}
 }

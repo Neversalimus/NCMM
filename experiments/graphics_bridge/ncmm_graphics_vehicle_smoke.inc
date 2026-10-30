@@ -60,7 +60,11 @@
         evidence.member("camera_xyz",std::array<int,3>{get_avatar().pos_abs().x(),get_avatar().pos_abs().y(),get_avatar().pos_abs().z()});
         evidence.member("yaw",graphics_camera_yaw);evidence.member("pitch",graphics_camera_pitch);evidence.member("eye_height",graphics_presentation.eye_height);
         evidence.member("actual_gpu",graphics_gpu_frame);evidence.member("snapshot_vehicles",graphics_vehicle_rows.size());evidence.member("snapshot_parts",graphics_vehicle_parts.size());
+        evidence.member("occupied_vehicle",graphics_vehicle_scene.occupied_vehicle);evidence.member("occupied_part",graphics_vehicle_scene.occupied_part);
+        evidence.member("occupied_eye_valid",bool(graphics_vehicle_scene.eye_valid));
+        evidence.member("occupied_eye_xy",std::array<float,2>{graphics_vehicle_scene.eye_x,graphics_vehicle_scene.eye_y});
         evidence.member("vehicle_extraction_ms",graphics_vehicle_extraction_ms);evidence.member("vehicle_preparation_ms",graphics_vehicle_metrics.preparation_ms);
+        evidence.member("native_global_eoc_queue_size",g->queued_global_effect_on_conditions.list.size());
         evidence.member("vehicle_discovery_body_cells",graphics_vehicle_discovery.body_cells);evidence.member("vehicle_discovery_floor_cells",graphics_vehicle_discovery.floor_cells);
         evidence.member("vehicle_discovery_vehicles",graphics_vehicle_discovery.vehicles);evidence.member("vehicle_discovery_parts",graphics_vehicle_discovery.parts);
         evidence.member("vehicle_discovery_roof_cells",graphics_vehicle_discovery.roof_cells);evidence.member("vehicle_discovery_groups",graphics_vehicle_discovery.groups);
@@ -96,6 +100,7 @@
             require(ids.erase(p.part_id)==1,"vehicle_snapshot_false_or_duplicate_part");
             for(const vpart_reference &ref:v.get_all_parts())if(ref.part().ncmm_graphics_part_id()==p.part_id){
                 require(bool(p.features&NCMM_VP_FRAME)==(ref.info().location.str()=="structure"),"vehicle_native_structure_location_not_mapped");
+                require(bool(p.features&NCMM_VP_CONTROL_PANEL)==ncmm_graphics_vehicle_policy::control_panel(ref.has_feature("CTRL_ELECTRONIC"),ref.has_feature("DOME_LIGHT")),"vehicle_electronic_appliance_misidentified_as_instruments");
                 require(p.mount_x==ref.part().mount.x()&&p.mount_y==ref.part().mount.y(),"vehicle_native_mount_changed");
                 const auto color=curses_color_to_SDL(ref.info().color);
                 require(std::abs(p.color[0]-color.r/255.f)<.00001f&&std::abs(p.color[1]-color.g/255.f)<.00001f&&std::abs(p.color[2]-color.b/255.f)<.00001f,"vehicle_native_definition_colour_changed");
@@ -183,7 +188,7 @@
             require(std::any_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return (p.features&NCMM_VP_LIGHT)&&!(p.features&NCMM_VP_LIGHT_OMNI)&&(p.state&NCMM_VP_LIGHT_ON);}),"vehicle_powered_headlight_missing");
             calendar::turn=calendar::turn_zero;
             if(get_avatar().has_trait(trait_id("DEBUG_NIGHTVISION"))){get_avatar().toggle_trait(trait_id("DEBUG_NIGHTVISION"));}
-            camera(6,0,-.12f);pair("night-headlights",prototype);
+            camera(9,0,-.10f);pair("night-headlights",prototype);
             for(const vpart_reference &p:car->get_all_parts())if(p.has_feature("CONE_LIGHT")){p.part().enabled=false;}
             get_map().set_lightmap_cache_dirty(get_avatar().posz());pair("night",prototype);
             calendar::turn=calendar::turn_zero+12_hours;get_avatar().toggle_trait(trait_id("DEBUG_NIGHTVISION"));camera(0,8,-.08f);
@@ -192,11 +197,15 @@
             {
                 // Exercise actual Native definition colours, as authored mod
                 // parts do. Both renderers see the same temporary definitions.
-                auto &board=const_cast<vpart_info &>(vpart_id("board").obj());auto &roof=const_cast<vpart_info &>(vpart_id("roof").obj());
-                struct native_paint_restore {vpart_info &board,&roof;nc_color board_color,roof_color;
-                    ~native_paint_restore(){board.color=board_color;roof.color=roof_color;}} restore{board,roof,board.color,roof.color};
-                board.color=roof.color=c_red;pair("paint-red",prototype);verify_car(*car);
-                board.color=roof.color=c_blue;pair("paint-blue",prototype);verify_car(*car);
+                std::map<vpart_info *,nc_color> paints;
+                for(const vpart_reference &part:car->get_all_parts())if(part.has_feature("ROOF")||part.has_feature("HALF_BOARD")||
+                    (part.has_feature("OBSTACLE")&&!part.has_feature("WINDOW")&&!part.has_feature("DOOR"))){
+                    auto &info=const_cast<vpart_info &>(part.info());paints.emplace(&info,info.color);}
+                require(!paints.empty(),"vehicle_native_paint_definitions_missing");
+                struct native_paint_restore {std::map<vpart_info *,nc_color> &values;
+                    ~native_paint_restore(){for(const auto &entry:values)entry.first->color=entry.second;}} restore{paints};
+                for(const auto &entry:paints){entry.first->color=c_red;}pair("paint-red",prototype);verify_car(*car);
+                for(const auto &entry:paints){entry.first->color=c_blue;}pair("paint-blue",prototype);verify_car(*car);
             }
         }
         get_map().destroy_vehicle(car);cars.clear();subject=street;camera(0,10,-.06f);draw("deleted",prototype,"gpu","modular",false);
@@ -213,8 +222,12 @@
         draw("moving-"+std::to_string(n),"mixed",n%2?"cpu":"gpu","modular",n<4);
     }
     pair("after-motion","mixed");
-    // A still-live vehicle may remain in CDDA's mapbuffer across load. Test
-    // dead identity reuse with an object that Native actually destroys first.
+    // A full Native quit/setup/load destroys the old mapbuffer lifetimes.
+    // Saved vehicles and every installed layer must receive fresh runtime IDs.
+    std::set<uint64_t> before_load_vehicles,before_load_parts;
+    for(const auto &entry:get_map().get_vehicles()){
+        before_load_vehicles.insert(entry.v->ncmm_graphics_vehicle_id());
+        for(const vpart_reference &p:entry.v->get_all_parts())if(!p.part().removed&&!p.part().is_fake){before_load_parts.insert(p.part().ncmm_graphics_part_id());}}
     vehicle *retired=get_map().add_vehicle(vproto_id("bicycle"),get_map().get_bub(tripoint_abs_ms(street.x(),street.y()+5,street.z())),0_degrees,0,veh_spawn_status::UNDAMAGED,false);
     require(retired!=nullptr,"vehicle_retired_fixture_create_failed");
     const auto retired_identity=retired->ncmm_graphics_vehicle_id();
@@ -227,11 +240,15 @@
     camera(0,12,-.10f);pair("save-reload","mixed");
     require(graphics_vehicle_rows.size()==5,"vehicle_reload_lost_live_snapshot");
     require(std::none_of(graphics_vehicle_rows.begin(),graphics_vehicle_rows.end(),[&](const auto &v){return v.entity_id==retired_identity;}),"vehicle_reload_reused_dead_identity");
-    for(const auto &entry:get_map().get_vehicles()){verify_car(*entry.v);}
+    for(const auto &entry:get_map().get_vehicles()){
+        require(!before_load_vehicles.count(entry.v->ncmm_graphics_vehicle_id()),"vehicle_full_reload_kept_old_object_identity");
+        for(const vpart_reference &p:entry.v->get_all_parts())if(!p.part().removed&&!p.part().is_fake){require(!before_load_parts.count(p.part().ncmm_graphics_part_id()),"vehicle_full_reload_kept_old_part_identity");}
+        verify_car(*entry.v);}
     for(const auto &v:get_map().get_vehicles())get_map().destroy_vehicle(v.v);
     draw("world-empty","empty","gpu","modular",false);require(graphics_vehicle_parts.empty(),"vehicle_world_cleanup_failed");
     #include "ncmm_graphics_vehicle_qualification.inc"
-    evidence.end_array();evidence.member("success",true);evidence.member("native_parts_verified",true);evidence.member("hardware_performance_qualified",false);
+    evidence.end_array();evidence.member("success",true);evidence.member("native_parts_verified",true);evidence.member("native_driving_verified",true);
+    evidence.member("native_reload_lifecycle","quit_cleanup_setup_load");evidence.member("hardware_performance_qualified",false);
     evidence.end_object();stream.close();require(bool(stream),"vehicle_evidence_write_failed");
     press_f6();require(!graphics_view.enabled,"vehicle_f6_restore_failed");
 }

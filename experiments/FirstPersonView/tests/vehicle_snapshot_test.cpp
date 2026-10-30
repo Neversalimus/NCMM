@@ -53,6 +53,11 @@ int main(){
     invalid([](auto &s){s.parts[0].state=0;},"removed components cannot be present");
     invalid([](auto &s){s.parts[3].wheel_radius=0;},"zero-sized wheels rejected");
     invalid([](auto &s){s.scene.occupied_vehicle=99;},"unknown occupied car rejected");
+    invalid([](auto &s){s.scene.eye_x=std::numeric_limits<float>::max();},"out-of-window seat camera X cannot overflow a renderer");
+    invalid([](auto &s){s.scene.eye_y=-std::numeric_limits<float>::max();},"out-of-window seat camera Y cannot overflow a renderer");
+    require(ncmm_graphics_vehicle_policy::control_panel(true,true),"Native instrument-light electronics identify an actual control panel");
+    require(!ncmm_graphics_vehicle_policy::control_panel(true,false),"electronically controlled Native heaters/coolers are not invented dashboards");
+    require(!ncmm_graphics_vehicle_policy::control_panel(false,true),"an actual cabin lamp remains a lamp rather than a control panel");
     invalid([](auto &s){s.scene.occupied_vehicle=7;s.scene.occupied_part=100;},"driver mount must identify an actual seat");
     auto seated=original;seated.scene.occupied_vehicle=7;seated.scene.occupied_part=101;
     require(first_person::vehicle::valid(seated,16),"actual occupied seat preserved");

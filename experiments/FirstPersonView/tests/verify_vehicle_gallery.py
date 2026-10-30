@@ -44,6 +44,8 @@ def verify(root, output, source, engine, module=None):
     root, output = Path(root), Path(output)
     report = json.loads((root/'first-person-vehicles.json').read_text(encoding='utf-8-sig'))
     assert report['schema']==1 and report['success'] and report['actual_cdda'] and report['native_parts_verified']
+    assert report['native_driving_verified']
+    assert report['native_reload_lifecycle']=='quit_cleanup_setup_load'
     assert not report['manual_playthrough'] and not report['hardware_performance_qualified']
     assert (report['width'],report['height'],report['horizon_radius'])==(640,480,48)
     assert len(source)==40 and len(engine)==40
@@ -88,6 +90,16 @@ def verify(root, output, source, engine, module=None):
     assert {('car',v) for v in ['driver','passenger','open-door','damaged','broken-door','broken-wheel','removed-wheel',
                                'installed-armor','night','rain','fog','paint-red','paint-blue']} <= groups.keys()
     assert {('mixed','parking'),('mixed','after-motion'),('mixed','save-reload')} <= groups.keys()
+    assert {('car','driving-'+str(step)) for step in range(8)} <= groups.keys()
+    driving=[]
+    for step in range(8):
+        for (backend,mode),record in groups[('car','driving-'+str(step))].items():
+            # Legacy deliberately does not request/copy the optional transport
+            # snapshot. Only the selected new renderer can report its anchor.
+            if mode=='modular':assert record['occupied_vehicle'] and record['occupied_part'] and record['occupied_eye_valid']
+        driving.append(groups[('car','driving-'+str(step))][('gpu','modular')])
+    assert len({tuple(r['camera_xyz']) for r in driving})>1,'Native driving never moved the actual passenger'
+    assert len({r['yaw'] for r in driving})>1,'Native driving never changed the actual heading'
     assert benchmarks and soak is not None,'Full-frame series and completed 900-second Native soak are mandatory'
     if benchmarks:
         for scene in ['empty','one','multiple','parking','large']:
@@ -126,6 +138,7 @@ def verify(root, output, source, engine, module=None):
     for offset in range(0,len(car_keys),12):sheet('vehicle-details-'+str(offset//12)+'.png',car_keys[offset:offset+12])
     sheet('vehicle-parking.png',[k for k in sorted(groups) if k[0]=='mixed' and not k[1].startswith('moving-')])
     if benchmarks:sheet('vehicle-custom.png',[k for k in sorted(groups) if k[0]=='custom'])
+    sheet('vehicle-driving.png',[('car','driving-0'),('car','driving-7')])
     def percentile(values,fraction):
         values=sorted(values);return values[round((len(values)-1)*fraction)]
     performance=[]
@@ -136,6 +149,7 @@ def verify(root, output, source, engine, module=None):
     result=dict(schema=1,success=True,source=source,engine_source=engine,module_sha256=module,
                 actual_cdda=True,manual_playthrough=False,visual_acceptance=False,hardware_performance_qualified=False,
                 comparable_configurations=len(groups),captured_frames=len(captures),
+                native_driving_verified=True,
                 capture_inventory=captures,review_inventory=inventory,
                 performance=performance,soak=soak,process_memory=memory,cold_definition='Native cache refresh and first frame after switching the vehicle renderer; device resources may be retained',
                 limitations=['Automated Native capture integrity does not establish visual acceptance.',

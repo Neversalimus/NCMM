@@ -242,12 +242,13 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
                 {"CONE_LIGHT",NCMM_VP_LIGHT},{"WIDE_CONE_LIGHT",NCMM_VP_LIGHT},{"HALF_CIRCLE_LIGHT",NCMM_VP_LIGHT},
                 {"CIRCLE_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},{"DOME_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},
                 {"AISLE_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},{"ATOMIC_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI|NCMM_VP_LIGHT_SELF_POWERED},
-                {"CONTROLS",NCMM_VP_CONTROLS},{"CTRL_ELECTRONIC",NCMM_VP_CONTROL_PANEL},
+                {"CONTROLS",NCMM_VP_CONTROLS},
                 {"ARMOR",NCMM_VP_ARMOR},{"SOLAR_PANEL",NCMM_VP_SOLAR},{"TURRET",NCMM_VP_TURRET},
                 {"BOARDABLE",NCMM_VP_FLOOR},{"STEERABLE",NCMM_VP_STEERABLE},{"FLOATS",NCMM_VP_FLOAT},
                 {"AISLE",NCMM_VP_AISLE},{"BATTERY",NCMM_VP_BATTERY},{"FUEL_TANK",NCMM_VP_FUEL_TANK},
                 {"BIKE_RACK_VEH",NCMM_VP_RACK}};
             for(const auto &[name,flag]:features)if(ref.has_feature(name))out.features|=flag;
+            if(ncmm_graphics_vehicle_policy::control_panel(ref.has_feature("CTRL_ELECTRONIC"),ref.has_feature("DOME_LIGHT"))){out.features|=NCMM_VP_CONTROL_PANEL;}
             if(part.info().location.str()=="structure"){out.features|=NCMM_VP_FRAME;}
             if(ref.has_feature("WHEEL_MOUNT_LIGHT")||ref.has_feature("WHEEL_MOUNT_MEDIUM")||ref.has_feature("WHEEL_MOUNT_HEAVY")){out.features|=NCMM_VP_AXLE;}
             if((out.features&NCMM_VP_LIGHT)&&part.info().location.str()=="on_ceiling"){out.features|=NCMM_VP_LIGHT_CEILING;}
@@ -341,8 +342,9 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
         }
         graphics_vehicle_hash_value(scene.revision,row.entity_id);
         graphics_vehicle_hash_value(scene.revision,row.legacy_group);
+        graphics_vehicle_hash_value(scene.revision,row.flags);
         graphics_vehicle_hash_value(scene.revision,row.structure_revision);graphics_vehicle_hash_value(scene.revision,row.state_revision);
-        for(float value:{row.origin_x,row.origin_y,row.origin_z,row.yaw,row.steering})graphics_vehicle_hash_value(scene.revision,value);
+        for(float value:{row.origin_x,row.origin_y,row.origin_z,row.yaw,row.pivot_x,row.pivot_y,row.steering,row.native_velocity})graphics_vehicle_hash_value(scene.revision,value);
         graphics_vehicle_rows.push_back(row);
     }
     scene.vehicle_count=uint32_t(graphics_vehicle_rows.size());scene.part_count=uint32_t(graphics_vehicle_parts.size());

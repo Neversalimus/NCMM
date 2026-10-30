@@ -72,8 +72,10 @@ their cyan operational map symbol; custom part IDs retain their authored colour.
 This chooses one canonical colour without averaging sprite pixels. Paint/material
 changes invalidate the related topology and component recipe.
 
-Native electronic controls (`CTRL_ELECTRONIC`) are instrument panels, including
-unknown mod definitions. Their dome-light flag does not put the display on the
+Native electronic controls with their own instrument light (`CTRL_ELECTRONIC`
+and `DOME_LIGHT`) are instrument panels, including unknown mod definitions.
+Electronically controlled heaters/coolers do not become dashboards. The
+instrument dome-light flag does not put the display on the
 roof or add another steering wheel. Narrow vehicles use a compact display at
 the controls. Powered lenses/displays use a matching CPU/GPU emissive material;
 Native still controls their power state and surrounding light propagation.
@@ -144,7 +146,7 @@ comparable inputs, and explicitly does not grant aesthetic acceptance.
 Every family with seats also supplies occupied views. Before/after interior
 captures pin the same actual Native seat eye for both implementations; the
 production Legacy camera is unchanged. Red/blue cases temporarily change actual
-Native part-definition colours under a restoration guard, rather than tinting
+installed Native body/roof part-definition colours under a restoration guard, rather than tinting
 the module's input independently. Full angle and interior review pages retain
 the original full-resolution captures in the Native artifact.
 
@@ -154,6 +156,20 @@ per pair. A cold sample means the first frame after a renderer switch and Native
 cache refresh; device resources may remain resident. A separate 900-second real
 Native loop changes poses and doors, alternates CPU/GPU, saves/reloads and checks
 bounded owned memory. Its completion must be verified in the emitted record.
+
+An occupied driving sequence starts a fueled real Native engine and calls the
+same `pldrive()` command used by CDDA, followed by `map::vehmove()`. It verifies
+actual movement and turning, the driver's Native seat position and stable
+camera/part ownership across eight ticks, with matched CPU/GPU captures. It does
+not inject desktop input, replace physics or constitute a manual playthrough.
+
+Reload qualification follows Native's actual quickload lifecycle: set
+`QUIT_NOSAVED`, run the ordinary quit cleanup through `do_turn()`, then call
+`setup()` and `load(save)`. Directly calling `load(save)` on a live game is not
+that lifecycle: Native appends saved global EOCs to the existing live queue,
+while normal setup clears the queue first. The report retains the actual queue
+size as well as process RAM; neither memory limit nor the required soak duration
+is reduced. A changed test lifecycle still needs a complete fresh Native run.
 
 Vehicle exteriors use separate outside-surface permissions at their actual
 source cells. Roofs retain their own permission; boundary panels/doors/windows

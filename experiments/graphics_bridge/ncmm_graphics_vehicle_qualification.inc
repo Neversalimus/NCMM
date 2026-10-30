@@ -82,6 +82,40 @@
     require(!stale_activity.is_null(),"vehicle_stale_activity_was_never_started");
     door_car->remove_part(door_car->part(door_index));door_car->part_removal_cleanup(get_map());
     stale_actor.finish(stale_activity,get_avatar());require(stale_activity.is_null(),"vehicle_stale_activity_not_cancelled");
+    clear_cars();
+    // Exercise Native driving, not a render-only pose or an OS input injection.
+    // The real driver command, engine start and vehmove() own speed, collision,
+    // steering and passenger relocation. The module only observes their result.
+    vehicle *driven=get_map().add_vehicle(vproto_id("car"),get_map().get_bub(street),0_degrees,100,veh_spawn_status::UNDAMAGED,false);
+    require(driven!=nullptr,"vehicle_driving_create_failed");cars.push_back(driven);int driver_seat=-1;
+    for(const vpart_reference &p:driven->get_all_parts())if(p.has_feature("SEAT")&&driven->part_with_feature(p.part().mount,"CONTROLS",true)>=0){driver_seat=int(p.part_index());break;}
+    require(driver_seat>=0,"vehicle_driving_controls_missing");
+    const auto driver_position=driven->bub_part_pos(get_map(),driver_seat);
+    get_avatar().setpos(get_map(),driver_position,false);get_map().board_vehicle(driver_position,&get_avatar());
+    require(get_avatar().in_vehicle,"vehicle_driving_board_failed");
+    bool started_engine=false;
+    for(const vpart_reference &p:driven->get_all_parts())if(p.has_feature("ENGINE")){p.part().enabled=true;started_engine|=driven->start_engine(get_map(),p.part());}
+    require(started_engine,"vehicle_driving_native_engine_start_failed");driven->engine_on=true;
+    // This scenario tests driving, not random spawn locks or hotwiring menus.
+    // Native's ordinary control_vehicle() must still grant control itself.
+    driven->set_owner(get_avatar());driven->is_locked=false;driven->is_alarm_on=false;get_avatar().set_wielded_item(item());
+    g->ncmm_graphics_smoke_controls(get_avatar().pos_bub());require(get_avatar().controlling_vehicle,"vehicle_driving_native_controls_failed");
+    const auto start_position=driven->pos_abs();const auto start_heading=driven->face.dir();bool changed_heading=false;
+    for(unsigned step=0;step<8;++step){
+        get_avatar().set_moves(100);driven->pldrive(get_map(),get_avatar(),step>=4?1:0,step==0?-1:0);get_map().vehmove();
+        require(get_avatar().in_vehicle&&get_avatar().controlling_vehicle,"vehicle_driving_lost_driver");
+        require(get_avatar().pos_bub()==driven->bub_part_pos(get_map(),driver_seat),"vehicle_driving_passenger_left_actual_seat");
+        changed_heading|=driven->face.dir()!=start_heading;g->ter_view_p=get_avatar().pos_bub();
+        look(float(units::to_radians(driven->face.dir())),-.04f);
+        draw("driving-prime","car","gpu","modular",false,true,false);
+        require(!graphics_world_transition_active,"vehicle_driving_used_avatar_walking_interpolation");
+        require(graphics_vehicle_scene.eye_valid&&graphics_vehicle_scene.occupied_vehicle==driven->ncmm_graphics_vehicle_id()&&
+            graphics_vehicle_scene.occupied_part==driven->part(driver_seat).ncmm_graphics_part_id(),"vehicle_driving_camera_lost_actual_seat");
+        graphics_smoke_vehicle_eye=graphics_vehicle_scene.eye_z;pair("driving-"+std::to_string(step),"car");verify_car(*driven);
+    }
+    require(driven->pos_abs()!=start_position&&changed_heading,"vehicle_native_driving_did_not_move_and_turn");
+    driven->stop(get_map());driven->stop_engines(get_map());get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();
+    require(!get_avatar().in_vehicle&&!get_avatar().controlling_vehicle,"vehicle_driving_exit_failed");
     clear_cars();for(int n=0;n<3;++n){create(n%2?"suv":"car",n*9-9,0);}subject=street;camera(0,14,-.1f);
     const int requested_seconds=std::getenv("NCMM_FP_VEHICLE_SOAK_SECONDS")?std::clamp(std::atoi(std::getenv("NCMM_FP_VEHICLE_SOAK_SECONDS")),0,1800):0;
     const auto started=std::chrono::steady_clock::now();unsigned iteration=0,saves=0,loads=0,mutations=0;
