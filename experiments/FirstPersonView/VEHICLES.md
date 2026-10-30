@@ -228,10 +228,10 @@ that baseline (at least 1 GiB headroom). Lifecycle cleanup drains SDL's pending
 deletions after releasing device children, as well as draining queued draws
 before release; ordinary frame submission does not wait for device idle.
 
-Remaining qualification before enabling the new default or publishing a final
-installer: inspect the actual Native images; complete custom-construction,
-lighting/turning, tileset/Z/restart and long-run cases; compare complete frame
-samples and resource behavior; pass both Windows installers and lifecycle gates.
+Release qualification before enabling the new default or publishing a final
+installer requires inspecting the actual Native images; completing custom-construction,
+lighting/turning, tileset/Z/restart and long-run cases; comparing complete frame
+samples and resource behavior; and passing both Windows installers and lifecycle gates.
 Hosted software-adapter timings do not establish RTX 4090 FPS or the approximately
 15 ms hardware target. No local game/input/device tests or manual playthrough
 have been performed for this integration.
