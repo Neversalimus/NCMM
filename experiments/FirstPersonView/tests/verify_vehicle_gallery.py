@@ -10,14 +10,37 @@ import json
 import math
 from pathlib import Path
 
-from PIL import Image, ImageDraw
-
 PROTOTYPES = {'car','suv','cube_van','semi_truck','bus','pickup','motorcycle','bicycle',
               'quad_bike','apc','truck_trailer','flatbed_truck','shopping_cart','canoe'}
 VIEWS = {'front','rear','left','right','front-three-quarter','rear-three-quarter','top-oblique'}
 
 
+def verify_memory(path, source, engine, module):
+    from statistics import median
+    report=json.loads(Path(path).read_text(encoding='utf-8-sig'))
+    assert report['schema']==1 and report['actual_native']
+    assert (report['source_commit'],report['engine_commit'],report['module_sha256'])==(source,engine,module)
+    samples=report['samples'];assert len(samples)>=15 and samples[-1]['elapsed_seconds']>=900
+    windows='working_set_bytes' in samples[0]
+    rss_name,peak_name=('working_set_bytes','peak_working_set_bytes') if windows else ('rss_bytes','peak_rss_bytes')
+    rss=[];peaks=[];previous=-1
+    for sample in samples:
+        at=sample['elapsed_seconds'];assert math.isfinite(at) and at>previous;previous=at
+        value,peak=sample[rss_name],sample[peak_name]
+        assert type(value) is int and type(peak) is int and 0<value<=peak
+        rss.append(value);peaks.append(peak)
+    span=max(1,len(samples)//3);baseline=median(rss[:span]);tail=median(rss[-span:])
+    # Allow bounded allocator/driver warmup, while rejecting multi-GiB growth
+    # hidden by the much smaller module/GPU resource counters.
+    tail_limit=baseline+max(256*1024**2,baseline*.5)
+    peak_limit=max(baseline*2,baseline+1024**3)
+    assert tail<=tail_limit,('Native process resident memory grows after warmup',baseline,tail,tail_limit)
+    assert max(peaks)<=peak_limit,('Native process transient memory exceeds the warmed budget',max(peaks),peak_limit)
+    return dict(samples=len(samples),baseline_bytes=baseline,tail_bytes=tail,peak_bytes=max(peaks),tail_limit_bytes=tail_limit,peak_limit_bytes=peak_limit)
+
+
 def verify(root, output, source, engine, module=None):
+    from PIL import Image, ImageDraw
     root, output = Path(root), Path(output)
     report = json.loads((root/'first-person-vehicles.json').read_text(encoding='utf-8-sig'))
     assert report['schema']==1 and report['success'] and report['actual_cdda'] and report['native_parts_verified']
@@ -25,14 +48,18 @@ def verify(root, output, source, engine, module=None):
     assert (report['width'],report['height'],report['horizon_radius'])==(640,480,48)
     assert len(source)==40 and len(engine)==40
     assert module is not None and len(module)==64 and all(c in '0123456789abcdef' for c in module)
+    memory=verify_memory(root/'first-person-process-memory.json',source,engine,module)
     groups=defaultdict(dict)
-    captures=[];benchmarks=defaultdict(list);soak=None
+    captures=[];benchmarks=defaultdict(list);soak=None;records=set()
     for r in report['frames']:
         if r['label']=='soak-summary':
             assert soak is None;soak=r
-            assert 0<=r['requested_seconds']<=1800 and r['elapsed_seconds']>=r['requested_seconds']
-            if r['requested_seconds']>=900:assert r['iterations']>=256 and r['saves']==r['loads']>=2 and r['mutations']>=4
+            assert 900<=r['requested_seconds']<=1800 and r['elapsed_seconds']>=r['requested_seconds']
+            assert r['iterations']>=512 and r['saves']==r['loads']>=2 and r['mutations']>=4
             continue
+        identity=r['prototype'],r['label'],r['backend'],r['renderer']
+        assert identity not in records,('duplicate vehicle record',identity)
+        records.add(identity)
         assert r['backend'] in {'cpu','gpu'} and r['renderer'] in {'legacy','modular'}
         assert r['actual_gpu']==(r['backend']=='gpu')
         for name in ['yaw','pitch','eye_height','full_frame_ms']:
@@ -57,9 +84,11 @@ def verify(root, output, source, engine, module=None):
             captures.append(dict(file=name,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
     for prototype in PROTOTYPES:
         assert {(prototype,v) for v in VIEWS} <= groups.keys(),prototype
+        if prototype not in {'shopping_cart','truck_trailer'}:assert (prototype,'driver') in groups,(prototype,'missing Native occupied view')
     assert {('car',v) for v in ['driver','passenger','open-door','damaged','broken-door','broken-wheel','removed-wheel',
-                               'installed-armor','night','rain','fog']} <= groups.keys()
+                               'installed-armor','night','rain','fog','paint-red','paint-blue']} <= groups.keys()
     assert {('mixed','parking'),('mixed','after-motion'),('mixed','save-reload')} <= groups.keys()
+    assert benchmarks and soak is not None,'Full-frame series and completed 900-second Native soak are mandatory'
     if benchmarks:
         for scene in ['empty','one','multiple','parking','large']:
             for backend in ['cpu','gpu']:
@@ -70,14 +99,14 @@ def verify(root, output, source, engine, module=None):
     for (prototype,label),variants in groups.items():
         if label.startswith('moving-') or label.startswith('activity-'):continue
         assert set(variants)=={(b,m) for b in ['cpu','gpu'] for m in ['legacy','modular']}
-        inputs={(tuple(r['camera_xyz']),r['yaw'],r['pitch']) for r in variants.values()}
+        inputs={(tuple(r['camera_xyz']),r['yaw'],r['pitch'],r['eye_height']) for r in variants.values()}
         assert len(inputs)==1,(prototype,label,'comparison camera differs')
         for r in variants.values():
             if r['renderer']=='modular' and label not in {'night','night-headlights'}:assert r['snapshot_vehicles'] and r['snapshot_parts']
     output.mkdir(parents=True,exist_ok=False)
     inventory={}
-    def sheet(name,keys):
-        w,h=240,180;row_h=h+34
+    def sheet(name,keys,w=240,h=180):
+        row_h=h+34
         page=Image.new('RGB',(w*4,row_h*len(keys)),(22,24,28));draw=ImageDraw.Draw(page)
         for row,key in enumerate(keys):
             for column,variant in enumerate((('cpu','legacy'),('cpu','modular'),('gpu','legacy'),('gpu','modular'))):
@@ -90,6 +119,9 @@ def verify(root, output, source, engine, module=None):
         assert path.stat().st_size<=4*1024*1024
         inventory[name]=dict(bytes=path.stat().st_size,sha256=hashlib.sha256(path.read_bytes()).hexdigest(),width=page.width,height=page.height)
     sheet('vehicle-exteriors.png',[(p,'front-three-quarter') for p in sorted(PROTOTYPES)])
+    angle_keys=[(p,v) for p in sorted(PROTOTYPES) for v in sorted(VIEWS)]
+    for offset in range(0,len(angle_keys),12):sheet('vehicle-angles-'+str(offset//12)+'.png',angle_keys[offset:offset+12],200,150)
+    sheet('vehicle-interiors.png',sorted(k for k in groups if k[1] in {'driver','passenger'}))
     car_keys=sorted(k for k in groups if k[0]=='car' and not k[1].startswith(('moving-','activity-')))
     for offset in range(0,len(car_keys),12):sheet('vehicle-details-'+str(offset//12)+'.png',car_keys[offset:offset+12])
     sheet('vehicle-parking.png',[k for k in sorted(groups) if k[0]=='mixed' and not k[1].startswith('moving-')])
@@ -105,10 +137,10 @@ def verify(root, output, source, engine, module=None):
                 actual_cdda=True,manual_playthrough=False,visual_acceptance=False,hardware_performance_qualified=False,
                 comparable_configurations=len(groups),captured_frames=len(captures),
                 capture_inventory=captures,review_inventory=inventory,
-                performance=performance,soak=soak,cold_definition='Native cache refresh and first frame after switching the vehicle renderer; device resources may be retained',
+                performance=performance,soak=soak,process_memory=memory,cold_definition='Native cache refresh and first frame after switching the vehicle renderer; device resources may be retained',
                 limitations=['Automated Native capture integrity does not establish visual acceptance.',
                              '640x480 visual captures and 1280x800 full-frame timings on CI adapters do not establish hardware FPS.',
-                             'Interior camera intentionally changes from Legacy clamp to actual seat.'])
+                             'Interior comparisons pin the same actual Native seat eye across both renderers.'])
     (output/'vehicle-review.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     return result
 

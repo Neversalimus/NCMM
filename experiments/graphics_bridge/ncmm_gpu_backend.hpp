@@ -156,11 +156,17 @@ public:
         // and a software D3D12 worker may still execute the last native frame.
         // Drain only at lifecycle boundaries, before releasing any borrowed-
         // device children. Ordinary submit()/walking never waits for GPU idle.
-        if(context_.device()){
+        auto *device=context_.device();
+        if(device){
             if(context_.renderer())SDL_FlushRenderer(context_.renderer());
             SDL_WaitForGPUIdle(context_.device());
         }
         resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
+        // SDL queues Release* calls in a pending-destroy list. The preceding
+        // drain protects queued draws, but cannot retire objects released
+        // afterwards. Finish disposal at this lifecycle boundary, including
+        // when the next mode is CPU and no further 3D submission will occur.
+        if(device)SDL_WaitForGPUIdle(device);
     }
     void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;}
     bool bind(SDL_Renderer *renderer,uint64_t generation){if(generation_&&generation_!=generation)abandon();generation_=generation;

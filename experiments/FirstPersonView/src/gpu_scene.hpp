@@ -202,7 +202,7 @@ class scene_cache {
                     for(const auto &source:draw.geometry->triangles){const auto &appearance=draw.geometry->materials[source.material];
                         if(uint32_t(appearance.color[3]<.99f)!=pass)continue;
                         ncmm_gpu_material_v1 material{};std::copy(appearance.color.begin(),appearance.color.end(),material.color);
-                        material.flags=NCMM_GPU_SMOOTH;material.finish=uint32_t(hybrid::vehicle_finish(appearance.kind));
+                        material.flags=NCMM_GPU_SMOOTH|(appearance.emissive?uint32_t(NCMM_GPU_EMISSIVE):0u);material.finish=uint32_t(hybrid::vehicle_finish(appearance.kind));
                         const uint32_t slot=builder.material(material);
                         for(const auto &value:source.vertices){ncmm_gpu_vertex_v1 v{};
                             v.position[0]=value.position.x;v.position[1]=value.position.y;v.position[2]=value.position.z;

@@ -165,7 +165,8 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
             const auto at=ref.pos_bub(here);const auto body=permitted.find(at),floor=floor_surfaces.find(at);
             const bool roof=ref.has_feature("ROOF")&&floor!=floor_surfaces.end();
             uint32_t faces=0;
-            if(body==permitted.end()&&floor!=floor_surfaces.end()&&(ref.has_feature("OBSTACLE")||ref.has_feature("DOOR")||ref.has_feature("WINDOW"))){
+            const bool directional_light=ref.has_feature("CONE_LIGHT")||ref.has_feature("WIDE_CONE_LIGHT")||ref.has_feature("HALF_CIRCLE_LIGHT");
+            if(body==permitted.end()&&floor!=floor_surfaces.end()&&(ref.has_feature("OBSTACLE")||ref.has_feature("DOOR")||ref.has_feature("WINDOW")||ref.has_feature("WHEEL")||directional_light)){
                 for(unsigned side=0;side<4;++side){const auto adjacent=ref.part().mount+point_rel_ms(side==0?1:side==2?-1:0,side==1?1:side==3?-1:0);
                     if(!structural_mounts.count(adjacent)&&permitted.count(v.mount_to_tripoint(&here,adjacent))){faces|=1u<<side;}}
             }
@@ -241,7 +242,7 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
                 {"CONE_LIGHT",NCMM_VP_LIGHT},{"WIDE_CONE_LIGHT",NCMM_VP_LIGHT},{"HALF_CIRCLE_LIGHT",NCMM_VP_LIGHT},
                 {"CIRCLE_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},{"DOME_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},
                 {"AISLE_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI},{"ATOMIC_LIGHT",NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI|NCMM_VP_LIGHT_SELF_POWERED},
-                {"CONTROLS",NCMM_VP_CONTROLS},
+                {"CONTROLS",NCMM_VP_CONTROLS},{"CTRL_ELECTRONIC",NCMM_VP_CONTROL_PANEL},
                 {"ARMOR",NCMM_VP_ARMOR},{"SOLAR_PANEL",NCMM_VP_SOLAR},{"TURRET",NCMM_VP_TURRET},
                 {"BOARDABLE",NCMM_VP_FLOOR},{"STEERABLE",NCMM_VP_STEERABLE},{"FLOATS",NCMM_VP_FLOAT},
                 {"AISLE",NCMM_VP_AISLE},{"BATTERY",NCMM_VP_BATTERY},{"FUEL_TANK",NCMM_VP_FUEL_TANK},
@@ -317,16 +318,16 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
             continue; // Unrepresentable cars retain the intact Legacy route.
         }
         if(scene.occupied_vehicle==row.entity_id&&scene.occupied_part){
-            std::vector<float> radii;const ncmm_graphics_vehicle_part_v1 *seat=nullptr;std::array<unsigned,27> counts{};unsigned cargo=0;
+            std::vector<float> radii;const ncmm_graphics_vehicle_part_v1 *seat=nullptr;std::array<unsigned,32> counts{};unsigned cargo=0;
             for(uint32_t n=0;n<row.part_count;++n){const auto &part=graphics_vehicle_parts[row.first_part+n];
-                for(unsigned bit=0;bit<27;++bit){if(part.features&(1u<<bit)){++counts[bit];}}
-                if((part.features&NCMM_VP_CARGO)&&!(part.features&(NCMM_VP_SEAT|NCMM_VP_DOOR|NCMM_VP_CONTROLS|NCMM_VP_ENGINE|NCMM_VP_PANEL))){++cargo;}
+                for(unsigned bit=0;bit<32;++bit){if(part.features&(1u<<bit)){++counts[bit];}}
+                if((part.features&NCMM_VP_CARGO)&&!(part.features&(NCMM_VP_SEAT|NCMM_VP_DOOR|NCMM_VP_CONTROLS|NCMM_VP_CONTROL_PANEL|NCMM_VP_ENGINE|NCMM_VP_PANEL))){++cargo;}
                 if(part.features&NCMM_VP_WHEEL)radii.push_back(part.wheel_radius);
                 if(part.part_id==scene.occupied_part)seat=&part;}
             if(seat){const float floor=ncmm_graphics_vehicle_policy::chassis(radii);
                 std::sort(radii.begin(),radii.end());
                 const auto profile=ncmm_graphics_vehicle_policy::shape(row.min_y==row.max_y,row.max_x-row.min_x,unsigned(radii.size()),
-                    counts[6],counts[1],cargo,counts[10],counts[11],counts[16],counts[8],counts[17],radii.empty()?0:radii[radii.size()/2]);
+                    counts[6],counts[1],cargo,counts[10]+counts[31],counts[11],counts[16],counts[8],counts[17],radii.empty()?0:radii[radii.size()/2]);
                 // A seat's actual mount is the camera anchor even when Native
                 // rounds the avatar to another grid centre during a turn.
                 scene.eye_x=row.origin_x+seat->mount_x*co-seat->mount_y*si;

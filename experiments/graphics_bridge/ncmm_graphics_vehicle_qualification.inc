@@ -108,7 +108,7 @@
         require(++iteration<65536,"vehicle_soak_iteration_bound_exceeded");
     }
     // Continue the outer frame array with a compact, explicit long-run record.
-    evidence.start_object();evidence.member("label","soak-summary");evidence.member("prototype","mixed");evidence.member("backend","gpu");evidence.member("renderer","modular");
+    evidence.start_object();evidence.member("label","soak-summary");evidence.member("prototype","mixed");evidence.member("backend",graphics_gpu_frame?"gpu":"cpu");evidence.member("renderer","modular");
     evidence.member("actual_gpu",graphics_gpu_frame);evidence.member("requested_seconds",requested_seconds);
     evidence.member("elapsed_seconds",std::chrono::duration<double>(std::chrono::steady_clock::now()-started).count());
     evidence.member("iterations",iteration);evidence.member("saves",saves);evidence.member("loads",loads);evidence.member("mutations",mutations);evidence.end_object();

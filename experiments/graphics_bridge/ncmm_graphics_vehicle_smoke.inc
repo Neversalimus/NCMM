@@ -9,7 +9,7 @@
     int frame_width=640,frame_height=480;
     require(canvas!=nullptr,"vehicle_canvas_failed");
     struct vehicle_fixture_guard {SDL_Renderer *renderer;SDL_Texture *previous,*canvas;std::string mode,backend;
-        ~vehicle_fixture_guard(){graphics_smoke_seconds.reset();SDL_SetRenderTarget(renderer,previous);SDL_DestroyTexture(canvas);
+        ~vehicle_fixture_guard(){graphics_smoke_seconds.reset();graphics_smoke_vehicle_eye.reset();SDL_SetRenderTarget(renderer,previous);SDL_DestroyTexture(canvas);
             get_options().get_option("NCMM_FIRST_PERSON_VEHICLES").setValue(mode);
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(backend);}
     } vehicle_guard{renderer,previous,canvas,old_mode,old_renderer};
@@ -68,12 +68,15 @@
         evidence.member("vehicle_owned_bytes",graphics_vehicle_metrics.owned_bytes);evidence.member("vehicle_generated",graphics_vehicle_metrics.generated);
         evidence.member("vehicle_reused",graphics_vehicle_metrics.reused);evidence.member("vehicle_topology_builds",graphics_vehicle_metrics.topology_builds);
         evidence.member("vehicle_submitted_parts",graphics_vehicle_metrics.submitted_parts);
+        evidence.member("host_world_snapshot_bytes",graphics_world_snapshot_storage_bytes());
+        evidence.member("host_sprite_cache_bytes",graphics_hybrid_sprite_bytes);evidence.member("cpu_renderer_cache_bytes",graphics_cpu_metrics.cache_bytes);
         evidence.member("native_lights_on",std::count_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return (p.state&NCMM_VP_LIGHT_ON)!=0;}));
         evidence.member("full_frame_ms",frame_ms);
         if(graphics_gpu_engine){const auto metrics=graphics_gpu_engine->metrics();
             evidence.member("device",std::string(metrics.device));evidence.member("software_device",bool(metrics.software_device));
             evidence.member("gpu_draw_calls",metrics.draw_calls);evidence.member("gpu_triangles",metrics.triangles);
-            evidence.member("gpu_upload_bytes",metrics.upload_bytes);evidence.member("gpu_resource_bytes",metrics.resource_bytes);}
+            evidence.member("gpu_upload_bytes",metrics.upload_bytes);evidence.member("gpu_resource_bytes",metrics.resource_bytes);
+            evidence.member("gpu_producer_cache_bytes",metrics.producer_cache_bytes);evidence.member("gpu_frame_staging_bytes",graphics_gpu_engine->recording().frame_upload_capacity_bytes);}
         if(capture){const auto name="vehicle-"+prototype+"-"+label+"-"+backend+"-"+mode+".bmp";
             SDL_Surface *image=SDL_RenderReadPixels(renderer,nullptr);require(image!=nullptr,"vehicle_capture_failed");
             const bool saved=SDL_SaveBMP(image,(game_root()/"ncmm"/name).string().c_str());SDL_DestroySurface(image);require(saved,"vehicle_capture_write_failed");evidence.member("file",name);}
@@ -94,6 +97,8 @@
             for(const vpart_reference &ref:v.get_all_parts())if(ref.part().ncmm_graphics_part_id()==p.part_id){
                 require(bool(p.features&NCMM_VP_FRAME)==(ref.info().location.str()=="structure"),"vehicle_native_structure_location_not_mapped");
                 require(p.mount_x==ref.part().mount.x()&&p.mount_y==ref.part().mount.y(),"vehicle_native_mount_changed");
+                const auto color=curses_color_to_SDL(ref.info().color);
+                require(std::abs(p.color[0]-color.r/255.f)<.00001f&&std::abs(p.color[1]-color.g/255.f)<.00001f&&std::abs(p.color[2]-color.b/255.f)<.00001f,"vehicle_native_definition_colour_changed");
             }
             require((p.state&NCMM_VP_TOPOLOGY_ONLY)?p.cell_index==-1:p.cell_index>=0,"vehicle_hidden_part_gained_geometry");}
         require(ids.empty(),"vehicle_snapshot_lost_mount_layer");
@@ -116,8 +121,21 @@
         for(const auto &v:views){const bool upper=std::strcmp(v.name,"top-oblique")==0;
             const float pitch=upper?-std::atan2(NCMM_WORLD_LEVEL_HEIGHT+graphics_eye_height()-1.f,float(radius)*std::sqrt(2.f)):v.pitch;
             camera(v.x? (v.x>0?radius:-radius):0,v.y? (v.y>0?radius:-radius):0,pitch,upper?1:0);pair(v.name,prototype);verify_car(*car);
-            if(upper&&std::strcmp(prototype,"truck_trailer")==0){require(std::any_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return bool(p.state&NCMM_VP_EXTERIOR_SURFACE);}),"vehicle_upper_view_lost_native_exterior_shell");}}
+            if(upper&&std::strcmp(prototype,"truck_trailer")==0){require(std::any_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return bool(p.state&NCMM_VP_EXTERIOR_SURFACE);}),"vehicle_upper_view_lost_native_exterior_shell");
+                require(std::any_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return (p.features&NCMM_VP_WHEEL)&&!(p.state&NCMM_VP_TOPOLOGY_ONLY);}),"vehicle_upper_view_lost_exposed_native_wheels");}}
         camera(0,8,-.08f);
+        if(std::strcmp(prototype,"car")!=0){
+            std::vector<int> seats;for(const vpart_reference &p:car->get_all_parts())if(p.has_feature("SEAT")){seats.push_back(int(p.part_index()));}
+            std::stable_sort(seats.begin(),seats.end(),[&](int a,int b){return (car->part_with_feature(car->part(a).mount,"CONTROLS",true)>=0)>(car->part_with_feature(car->part(b).mount,"CONTROLS",true)>=0);});
+            for(size_t n=0;n<std::min(size_t(2),seats.size());++n){const auto pos=car->bub_part_pos(get_map(),seats[n]);
+                get_avatar().setpos(get_map(),pos,false);get_map().board_vehicle(pos,&get_avatar());require(get_avatar().in_vehicle,"vehicle_family_board_failed");
+                look(float(units::to_radians(car->face.dir())),-.04f);
+                draw("seat-prime",prototype,"gpu","modular",false,true,false);
+                require(graphics_vehicle_scene.occupied_part&&graphics_vehicle_scene.eye_valid,"vehicle_family_seat_camera_missing");graphics_smoke_vehicle_eye=graphics_vehicle_scene.eye_z;
+                pair(n==0?"driver":"passenger",prototype);
+                get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();require(!get_avatar().in_vehicle,"vehicle_family_exit_failed");}
+            camera(0,8,-.08f);
+        }
         if(std::strcmp(prototype,"car")==0){
             int door_index=-1,wheel_index=-1,roof_index=-1;std::vector<int> seats;
             for(const vpart_reference &p:car->get_all_parts()){
@@ -137,9 +155,11 @@
                 get_avatar().setpos(get_map(),pos,false);get_map().board_vehicle(pos,&get_avatar());
                 require(get_avatar().in_vehicle,"vehicle_board_failed");
                 look(float(units::to_radians(car->face.dir())),-.04f);
+                draw("seat-prime",prototype,"gpu","modular",false,true,false);
+                require(graphics_vehicle_scene.eye_valid,"vehicle_seat_prime_missing");graphics_smoke_vehicle_eye=graphics_vehicle_scene.eye_z;
                 pair(n==0?"driver":"passenger",prototype);
                 require(graphics_vehicle_scene.occupied_part&&graphics_vehicle_scene.eye_valid,"vehicle_seat_camera_missing");
-                get_map().unboard_vehicle(get_avatar().pos_bub());camera(0,8,-.08f);require(!get_avatar().in_vehicle,"vehicle_exit_failed");}
+                get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();camera(0,8,-.08f);require(!get_avatar().in_vehicle,"vehicle_exit_failed");}
             const auto hp=car->part(door_index).hp();car->set_hp(car->part(door_index),std::max(1,hp/3),true);
             pair("damaged",prototype);car->set_hp(car->part(door_index),0,true);pair("broken-door",prototype);
             const auto wheel_hp=car->part(wheel_index).hp();car->set_hp(car->part(wheel_index),0,true);pair("broken-wheel",prototype);
@@ -163,12 +183,21 @@
             require(std::any_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return (p.features&NCMM_VP_LIGHT)&&!(p.features&NCMM_VP_LIGHT_OMNI)&&(p.state&NCMM_VP_LIGHT_ON);}),"vehicle_powered_headlight_missing");
             calendar::turn=calendar::turn_zero;
             if(get_avatar().has_trait(trait_id("DEBUG_NIGHTVISION"))){get_avatar().toggle_trait(trait_id("DEBUG_NIGHTVISION"));}
-            camera(5,3,-.12f);pair("night-headlights",prototype);
+            camera(6,0,-.12f);pair("night-headlights",prototype);
             for(const vpart_reference &p:car->get_all_parts())if(p.has_feature("CONE_LIGHT")){p.part().enabled=false;}
             get_map().set_lightmap_cache_dirty(get_avatar().posz());pair("night",prototype);
             calendar::turn=calendar::turn_zero+12_hours;get_avatar().toggle_trait(trait_id("DEBUG_NIGHTVISION"));camera(0,8,-.08f);
             get_weather().weather_id=weather_type_id("rain");pair("rain",prototype);
             get_weather().weather_id=weather_type_id("fog");pair("fog",prototype);get_weather().weather_id=weather_type_id("sunny");
+            {
+                // Exercise actual Native definition colours, as authored mod
+                // parts do. Both renderers see the same temporary definitions.
+                auto &board=const_cast<vpart_info &>(vpart_id("board").obj());auto &roof=const_cast<vpart_info &>(vpart_id("roof").obj());
+                struct native_paint_restore {vpart_info &board,&roof;nc_color board_color,roof_color;
+                    ~native_paint_restore(){board.color=board_color;roof.color=roof_color;}} restore{board,roof,board.color,roof.color};
+                board.color=roof.color=c_red;pair("paint-red",prototype);verify_car(*car);
+                board.color=roof.color=c_blue;pair("paint-blue",prototype);verify_car(*car);
+            }
         }
         get_map().destroy_vehicle(car);cars.clear();subject=street;camera(0,10,-.06f);draw("deleted",prototype,"gpu","modular",false);
         require(graphics_vehicle_rows.empty()&&graphics_vehicle_parts.empty(),"vehicle_delete_retained_snapshot");

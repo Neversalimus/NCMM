@@ -72,6 +72,12 @@ their cyan operational map symbol; custom part IDs retain their authored colour.
 This chooses one canonical colour without averaging sprite pixels. Paint/material
 changes invalidate the related topology and component recipe.
 
+Native electronic controls (`CTRL_ELECTRONIC`) are instrument panels, including
+unknown mod definitions. Their dome-light flag does not put the display on the
+roof or add another steering wheel. Narrow vehicles use a compact display at
+the controls. Powered lenses/displays use a matching CPU/GPU emissive material;
+Native still controls their power state and surrounding light propagation.
+
 Confirmed Native state drives doors and shutters. A damaged part affects its
 own surface; broken glass/door leaves and removed parts do not remain as intact
 ghost geometry. Wheel angle comes from real absolute component displacement;
@@ -135,6 +141,13 @@ deletion and save/reload. Exact source-bound review sheets are a separate bounde
 artifact; full captures remain in CI. The capture verifier checks provenance and
 comparable inputs, and explicitly does not grant aesthetic acceptance.
 
+Every family with seats also supplies occupied views. Before/after interior
+captures pin the same actual Native seat eye for both implementations; the
+production Legacy camera is unchanged. Red/blue cases temporarily change actual
+Native part-definition colours under a restoration guard, rather than tinting
+the module's input independently. Full angle and interior review pages retain
+the original full-resolution captures in the Native artifact.
+
 The extended fixture records seven alternating Legacy/Modular pairs for empty,
 one-car, multiple-car, parking and bus scenes at 1280x800, with seven warm frames
 per pair. A cold sample means the first frame after a renderer switch and Native
@@ -145,6 +158,8 @@ bounded owned memory. Its completion must be verified in the emitted record.
 Vehicle exteriors use separate outside-surface permissions at their actual
 source cells. Roofs retain their own permission; boundary panels/doors/windows
 carry a four-bit outward-face proof. No permission exposes the hidden interior.
+Real boundary wheels and directional lamps use the same proof, so an upper
+view does not lose visible outer hardware beneath an opaque vehicle cell.
 Surface-only cells use Native RGB sampled above the real roof rather than the
 unlit cabin below it. Outside shading follows Native's outside classification.
 The terrain underneath stays present. Discovery enumerates actual loaded vehicles
@@ -158,6 +173,13 @@ actual mounting family. Emission requires the Native enabled/available/power
 state, including power-deficit suppression and self-powered light parts. Broken
 wheels show rims/remnants, and broken roofs have local apertures. Neither gives
 permission to reveal hidden occupants or container contents.
+
+The long-run gate also validates source-bound process RAM samples, not just
+module/GPU accounting. It rejects a late resident median more than 50 percent
+(at least 256 MiB) above the warmed baseline, or a transient peak above twice
+that baseline (at least 1 GiB headroom). Lifecycle cleanup drains SDL's pending
+deletions after releasing device children, as well as draining queued draws
+before release; ordinary frame submission does not wait for device idle.
 
 Remaining qualification before enabling the new default or publishing a final
 installer: inspect the actual Native images; complete custom-construction,

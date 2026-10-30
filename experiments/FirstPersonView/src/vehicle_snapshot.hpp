@@ -40,14 +40,15 @@ inline bool valid(const snapshot &input,size_t cells){
         if(s.occupied_vehicle==v.entity_id)occupied=true;
         for(uint32_t k=0;k<v.part_count;++k){const auto &p=input.parts[offset+k];
             const bool topology_only=(p.state&NCMM_VP_TOPOLOGY_ONLY)!=0;
+            const bool exterior_kind=(p.features&(NCMM_VP_PANEL|NCMM_VP_DOOR|NCMM_VP_WINDOW|NCMM_VP_WHEEL))||((p.features&NCMM_VP_LIGHT)&&!(p.features&NCMM_VP_LIGHT_OMNI));
             if(!p.part_id||!parts.insert(p.part_id).second||p.vehicle_index!=n||
                (topology_only?p.cell_index!=-1:(p.cell_index<0||size_t(p.cell_index)>=cells))||p.mount_x<v.min_x||p.mount_x>v.max_x||
                p.mount_y<v.min_y||p.mount_y>v.max_y||p.mount_z<-16||p.mount_z>16||
                !(p.state&NCMM_VP_EXISTS)||(p.state&~1023u)||p.surface_faces>31u||
                ((p.state&NCMM_VP_ROOF_SURFACE)&&(!(p.features&NCMM_VP_ROOF)||topology_only))||
-               ((p.state&NCMM_VP_EXTERIOR_SURFACE)&&(!(p.features&(NCMM_VP_PANEL|NCMM_VP_DOOR|NCMM_VP_WINDOW))||!(p.surface_faces&15u)||topology_only))||
+               ((p.state&NCMM_VP_EXTERIOR_SURFACE)&&(!exterior_kind||!(p.surface_faces&15u)||topology_only))||
                (p.surface_faces&&!(p.state&(NCMM_VP_ROOF_SURFACE|NCMM_VP_EXTERIOR_SURFACE)))||
-               (p.features&~2147483647u)||p.material>=NCMM_VM_COUNT||
+               p.material>=NCMM_VM_COUNT||
                !p.id[0]||!terminated(p.id)||!terminated(p.variant)||!terminated(p.material_id))return false;
             for(float f:{p.health,p.wheel_radius,p.wheel_width,p.direction})if(!finite(f))return false;
             if(p.health<0||p.health>1||p.wheel_radius<0||p.wheel_radius>4||p.wheel_width<0||p.wheel_width>3||std::abs(p.direction)>32)return false;

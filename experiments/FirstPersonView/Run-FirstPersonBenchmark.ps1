@@ -241,7 +241,7 @@ try {
         if($line -and $line -ne $lastProgress){$lastProgress=[string]$line;$lastAdvance=[DateTime]::UtcNow}
         try {
             $process.Refresh()
-            if($VehicleGallery){$vehicleMemory.Add([ordered]@{elapsed_seconds=([DateTime]::UtcNow-$vehicleMemoryStart).TotalSeconds;working_set_bytes=$process.WorkingSet64;peak_working_set_bytes=$process.PeakWorkingSet64})}
+            if($VehicleGallery){$vehicleMemory.Add([ordered]@{elapsed_seconds=([DateTime]::UtcNow-$vehicleMemoryStart).TotalSeconds;working_set_bytes=$process.WorkingSet64;peak_working_set_bytes=$process.PeakWorkingSet64;phase=$lastProgress})}
             Write-Host ('Native SDL audit: {0}; process_cpu_seconds={1:F2}; working_set_mib={2:F1}' -f $lastProgress,$process.TotalProcessorTime.TotalSeconds,($process.WorkingSet64/1MB))
         } catch {Write-Host "Native SDL audit: $lastProgress"}
         if(([DateTime]::UtcNow-$lastAdvance).TotalSeconds -gt 180){

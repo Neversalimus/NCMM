@@ -10,7 +10,7 @@ inline profile shape(bool narrow,int length,unsigned wheels,unsigned seats,unsig
     unsigned armor,unsigned floats,unsigned engines,unsigned bicycle,float radius){
     if(floats&&!wheels)return {archetype::boat,1.28f};
     if(narrow&&wheels)return {bicycle?archetype::bicycle:engines?archetype::motorcycle:archetype::utility,1.28f};
-    if(!controls&&!seats&&cargo)return {wheels?archetype::trailer:archetype::platform,1.28f};
+    if(!controls&&!seats&&cargo)return {wheels?archetype::trailer:archetype::platform,roofs?2.1f:1.28f};
     if(armor>=3)return {archetype::armored,1.48f};
     if((seats>=6&&length>=6)||(roofs>=18&&length>=8))return {archetype::bus,1.9f};
     if(wheels>=6&&length>=6)return {archetype::truck,1.7f};

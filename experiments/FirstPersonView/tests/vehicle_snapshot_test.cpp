@@ -131,6 +131,15 @@ int main(){
         auto dash=original.parts[0];std::strcpy(dash.id,"dashboard");dash.features=NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI;
         const auto display=first_person::vehicle::generate(original,topology,dash,0);
         require(display->kind==first_person::vehicle::component::dashboard,"actual dashboard is not an unknown cube or extra steering wheel");
+        std::strcpy(dash.id,"modded_control_display");dash.features=NCMM_VP_CONTROL_PANEL|NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI;
+        const auto console=first_person::vehicle::generate(original,topology,dash,0);
+        require(console->kind==first_person::vehicle::component::dashboard,"Native electronic-control semantics identify unknown mod consoles");
+        for(const auto &triangle:console->triangles)for(const auto &vertex:triangle.vertices)
+            require(vertex.position.z<topology.chassis+1,"a motorcycle instrument cluster cannot float at roof-light height");
+        require(std::none_of(console->materials.begin(),console->materials.end(),[](const auto &m){return m.emissive;}),"unpowered control display does not invent emission");
+        dash.state|=NCMM_VP_LIGHT_ON;const auto lit_console=first_person::vehicle::generate(original,topology,dash,0);
+        require(std::any_of(lit_console->materials.begin(),lit_console->materials.end(),[](const auto &m){return m.emissive;}),"Native-powered instrument display emits at its real controls mount");
+        require(ncmm_graphics_vehicle_policy::shape(false,10,8,0,50,30,0,0,0,0,0,.5f).cabin>1.9f,"an enclosed cargo trailer has a full-height cargo shell");
     }
     moving.input.vehicles[0].origin_x+=.2f;moving.input.scene.seconds+=.1;moving.observe({0,0,1.5f});
     require(moving.generated==initial_builds&&find_draw(moving,103).geometry==wheel_mesh,"translation only changes instance transforms");

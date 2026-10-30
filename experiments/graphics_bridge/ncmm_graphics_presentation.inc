@@ -119,6 +119,7 @@ std::array<float,3> graphics_sample_rgb(const tripoint_bub_ms &p)
 float graphics_vehicle_eye_height(float fallback);
 float graphics_eye_height()
 {
+    if(graphics_smoke_vehicle_eye){return *graphics_smoke_vehicle_eye;}
     avatar &you=get_avatar();float height=std::clamp(you.height()*.00885f,.5f,3.5f);
     if(you.is_crouching())height*=.72f;
     if(you.is_prone())height*=.25f;

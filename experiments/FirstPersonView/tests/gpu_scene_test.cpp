@@ -692,6 +692,26 @@ int main(int argc,char **argv){
         submit_focus();
         require(engine.focus_cell()==1&&engine.metrics().target_cell==1,"held overlays never steal the world interaction target");
     }
+    {
+        // Device test only: a real emitting lens must remain bright in an
+        // unlit scene while the identical unpowered material stays dark.
+        ncmm_gpu_scene_v1 lamp{};lamp.struct_size=sizeof(lamp);lamp.width=640;lamp.height=480;lamp.mode=NCMM_GPU_FORCE;lamp.frame_serial=1970;
+        lamp.camera.right[0]=1;lamp.camera.up[2]=1;lamp.camera.forward[1]=1;
+        lamp.camera.projection[0]=640;lamp.camera.projection[1]=480;lamp.camera.projection[2]=457;lamp.camera.projection[3]=512;
+        lamp.camera.grid[0]=lamp.camera.grid[1]=lamp.camera.grid[2]=1;
+        ncmm_gpu_cell_v1 dark{};dark.flags=NCMM_GFX_VISIBLE|NCMM_GFX_CEILING;lamp.cells=&dark;lamp.cell_count=1;
+        std::array<ncmm_gpu_vertex_v1,3> points{};
+        for(unsigned n=0;n<3;++n){points[n].position[0]=n==0?-1.f:n==1?1.f:0.f;points[n].position[1]=2;points[n].position[2]=n==2?1.f:-1.f;points[n].normal[1]=points[n].face_normal[1]=-1;}
+        ncmm_gpu_material_v1 lens{};lens.color[0]=.95f;lens.color[1]=.85f;lens.color[2]=.60f;lens.color[3]=1;
+        ncmm_gpu_mesh_v1 lamp_mesh{0x4c414d50,points.data(),indices,&lens,3,3,1,0};lamp.meshes=&lamp_mesh;lamp.mesh_count=1;
+        const auto identity=first_person::gpu::identity();lamp.bones=&identity;lamp.bone_count=1;
+        ncmm_gpu_draw_v1 command{};command.mesh_key=lamp_mesh.key;command.transform=identity;command.bone_count=1;lamp.draws=&command;lamp.draw_count=1;
+        require(engine.submit(lamp),engine.metrics().reason);const auto unpowered=capture("-lamp-off");
+        require((unpowered>>24)<20&&((unpowered>>16)&255)<20,"unpowered lens stays dark at zero ambient");
+        lens.flags=NCMM_GPU_EMISSIVE;++lamp_mesh.key;command.mesh_key=lamp_mesh.key;++lamp.frame_serial;
+        require(engine.submit(lamp),engine.metrics().reason);const auto powered=capture("-lamp-on");
+        require((powered>>24)>180&&((powered>>16)&255)>150,"emitting lens stays bright at zero ambient without inventing surrounding illumination");
+    }
     // Leave work and an SDL composition queued while replacing the backend.
     // No read-pixels or explicit fence wait may accidentally serialize this path.
     scene.meshes=&mesh;scene.mesh_count=1;scene.draws=&draw;scene.draw_count=1;scene.textures=nullptr;scene.texture_count=0;

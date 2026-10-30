@@ -100,7 +100,7 @@ public:
     }
 };
 inline component classify(const ncmm_graphics_vehicle_part_v1 &p){const auto f=p.features;
-    if(std::string_view(p.id)=="dashboard")return component::dashboard;
+    if((f&NCMM_VP_CONTROL_PANEL)||std::string_view(p.id)=="dashboard")return component::dashboard;
     if(f&NCMM_VP_CURTAIN)return component::curtain;
     if(f&NCMM_VP_DOOR)return component::door;if(f&NCMM_VP_WINDOW)return component::glass;
     if(f&NCMM_VP_WHEEL)return component::wheel;if(f&NCMM_VP_SEAT)return component::seat;
@@ -310,6 +310,13 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             b.torus(center,{0,1,0},{.25f,0,.97f},.17f,.016f,.016f,b.dark,segments,6);
             for(unsigned n=0;n<3;++n){const float a=2*pi*n/3;b.beam(center,center+point{.25f*std::sin(a)*.16f,std::cos(a)*.16f,.97f*std::sin(a)*.16f},.022f,.022f,b.steel,6);}}
     }else if(kind==component::dashboard){
+        if(layout.narrow){
+            b.beam({.10f,0,chassis+.62f},{.36f,0,chassis+.68f},.028f,.028f,b.steel);
+            b.cushion({.36f,0,chassis+.71f},{.17f,.24f,.11f},.025f,b.dark);
+            const bool on=(p.state&NCMM_VP_LIGHT_ON)!=0;const auto screen=b.add({{on?.18f:.07f,on?.30f:.08f,on?.21f:.08f,1},NCMM_VM_GLASS,on});
+            b.face({.27f,-.09f,chassis+.68f},{.27f,.09f,chassis+.68f},{.27f,.09f,chassis+.75f},{.27f,-.09f,chassis+.75f},screen);
+            return std::make_shared<model>(std::move(b.output));
+        }
         b.cushion({.61f,0,chassis+.64f},{.22f,.94f,.23f},.045f,b.dark);
         const bool on=(p.state&NCMM_VP_LIGHT_ON)!=0;
         const auto display=b.add({{on?.18f:.07f,on?.30f:.08f,on?.21f:.08f,1},NCMM_VM_GLASS,on});

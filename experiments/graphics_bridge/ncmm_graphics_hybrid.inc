@@ -21,6 +21,9 @@ ncmm_graphics_environment_v2 graphics_hybrid_last_environment = {};
 // Only the isolated qualification fixture assigns an override. Gameplay uses
 // the monotonic SDL presentation clock independently of simulation turns.
 std::optional<double> graphics_smoke_seconds;
+// CI-only matched captures can use one actual occupied-seat eye for both
+// geometry implementations, without changing Legacy's gameplay camera.
+std::optional<float> graphics_smoke_vehicle_eye;
 bool graphics_smoke_gpu_gallery = false;
 double graphics_presentation_seconds()
 {

@@ -19,6 +19,7 @@ layout(location=6) flat in float pose_yaw;
 layout(location=0) out vec4 out_color;
 layout(location=1) out uint out_id;
 vec3 lighting(vec3 n,uint flags){
+    if((flags&16384u)!=0u)return vec3(1);
     if((flags&8192u)!=0u){float light=(.035+.82*sat(camera.sun.w))*(.72+.20*max(n.z,0.0)+.08*max(0.0,dot(n,camera.sun.xyz)));return vec3(light);}
     if(cell>=uint(camera.grid.z)){
     int at=world_cell_index(camera.eye.xyz);vec3 value=at>=0?cells[at].light.xyz:vec3(.06);
