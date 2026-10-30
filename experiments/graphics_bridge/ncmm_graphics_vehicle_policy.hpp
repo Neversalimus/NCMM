@@ -1,9 +1,43 @@
 #pragma once
 #include <algorithm>
+#include <array>
 #include <vector>
 #include <string_view>
 // Shared pure geometry policy; no Native objects or graphics devices.
 namespace ncmm_graphics_vehicle_policy {
+// Rebuilt from this frame's exact Native permissions, without a persistent
+// lifetime cache or Native pointers. Duplicate cells keep the first body and
+// floor index independently, just as the original two ordered maps did.
+class permission_index {
+public:
+    struct permission {int body=-1,floor=-1;};
+private:
+    struct row {std::array<int,3> position;permission value;};
+    std::vector<row> rows;
+    size_t bodies=0,floors=0;
+public:
+    void reserve(size_t count){rows.reserve(count);}
+    void add(int x,int y,int z,int body,int floor){if(body>=0||floor>=0)rows.push_back({{{x,y,z}},{body,floor}});}
+    void finish(){
+        std::sort(rows.begin(),rows.end(),[](const row &a,const row &b){return a.position<b.position;});
+        size_t written=0;
+        const auto first=[](int a,int b){return a<0?b:b<0?a:std::min(a,b);};
+        for(size_t i=0;i<rows.size();++i){const row value=rows[i];
+            if(written&&rows[written-1].position==value.position){auto &p=rows[written-1].value;
+                p.body=first(p.body,value.value.body);p.floor=first(p.floor,value.value.floor);}
+            else rows[written++]=value;
+        }
+        rows.resize(written);bodies=floors=0;
+        for(const auto &r:rows){bodies+=r.value.body>=0;floors+=r.value.floor>=0;}
+    }
+    permission find(int x,int y,int z)const{
+        const std::array<int,3> key{{x,y,z}};
+        const auto found=std::lower_bound(rows.begin(),rows.end(),key,[](const row &a,const auto &b){return a.position<b;});
+        return found!=rows.end()&&found->position==key?found->value:permission{};
+    }
+    size_t body_count()const{return bodies;}
+    size_t floor_count()const{return floors;}
+};
 enum class archetype {utility,bicycle,motorcycle,buggy,car,suv,van,truck,bus,pickup,armored,trailer,platform,boat};
 struct profile {archetype kind=archetype::utility;float cabin=1.28f;};
 inline profile shape(bool narrow,int length,unsigned wheels,unsigned seats,unsigned roofs,unsigned cargo,unsigned controls,

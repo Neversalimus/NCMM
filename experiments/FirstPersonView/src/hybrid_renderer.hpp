@@ -1472,8 +1472,12 @@ class renderer {
     }
     void modular_vehicles(){
         if(!metadata||!metadata->vehicles)return;
+        struct prepared_vertex {vec position{},lit{};uint8_t ready=0;};
+        std::vector<prepared_vertex> prepared;
         for(const auto &draw:metadata->vehicles->draws){
             if(!draw.geometry||!visible(draw.cell)||(world_data&&!(world_flags(draw.cell)&((draw.roof_surface||draw.exterior_surface)?NCMM_WORLD_FLOOR_TOP:NCMM_WORLD_BODY_VISIBLE))))continue;
+            if(!gpu_sink&&options.cull_geometry){const auto bounds=draw.placement.bounds(draw.geometry->minimum,draw.geometry->maximum);
+                if(!in_view({bounds[0].x,bounds[0].y,bounds[0].z},{bounds[1].x,bounds[1].y,bounds[1].z}))continue;}
             ++f.vehicle_parts;f.triangles+=uint32_t(draw.geometry->triangles.size());
             if(gpu_sink&&gpu_sink->vehicle_component(draw))continue;
             const first_person::vehicle::point to_eye{eye.x-draw.placement.origin.x,eye.y-draw.placement.origin.y,eye.z-draw.placement.origin.z};
@@ -1482,14 +1486,24 @@ class renderer {
             // have invisible back faces. Thin panels/glass and an inside eye
             // keep both sides; Native visibility and the GPU path are intact.
             const bool cull=options.cull_geometry&&!gpu_sink&&draw.geometry->closed_shell&&!draw.geometry->contains(local_eye);
-            for(const auto &source:draw.geometry->triangles){
+            const bool indexed=!gpu_sink&&draw.geometry->vertex_indices.size()==draw.geometry->triangles.size();
+            if(indexed)prepared.assign(draw.geometry->shared_vertices.size(),{});
+            for(size_t index=0;index<draw.geometry->triangles.size();++index){const auto &source=draw.geometry->triangles[index];
                 if(cull&&!first_person::vehicle::model::front_facing(source,local_eye))continue;
                 const auto &appearance=draw.geometry->materials[source.material];triangle t{};
                 t.m={nullptr,{appearance.color[0],appearance.color[1],appearance.color[2]},appearance.color[3],false,false,false,draw.cell,vehicle_finish(appearance.kind)};
                 t.m.smooth=true;
-                for(size_t n=0;n<3;++n){const auto &v=source.vertices[n];const auto position=draw.placement.position(v.position),normal=draw.placement.normal(v.normal);
-                    const vec lit=appearance.emissive?vec{1,1,1}:light(draw.cell,{normal.x,normal.y,normal.z},false,draw.surface_outside);
-                    t.v[n]={{position.x,position.y,position.z},v.u,v.v,lit};}
+                for(size_t n=0;n<3;++n){const auto &v=source.vertices[n];vec position,lit{1,1,1};
+                    if(indexed){const auto vertex_index=draw.geometry->vertex_indices[index][n];auto &cached=prepared[vertex_index];
+                        const auto &shared=draw.geometry->shared_vertices[vertex_index];
+                        if(!(cached.ready&1u)){const auto p=draw.placement.position(shared.position);cached.position={p.x,p.y,p.z};cached.ready|=1u;}
+                        position=cached.position;
+                        if(!appearance.emissive){if(!(cached.ready&2u)){const auto normal=draw.placement.normal(shared.normal);
+                                cached.lit=light(draw.cell,{normal.x,normal.y,normal.z},false,draw.surface_outside);cached.ready|=2u;}
+                            lit=cached.lit;}
+                    }else{const auto p=draw.placement.position(v.position),normal=draw.placement.normal(v.normal);position={p.x,p.y,p.z};
+                        if(!appearance.emissive)lit=light(draw.cell,{normal.x,normal.y,normal.z},false,draw.surface_outside);}
+                    t.v[n]={position,v.u,v.v,lit};}
                 t.normal=normalize(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p));
                 if(gpu_sink)gpu_sink->emit(t);else if(t.m.alpha<.99f)transparent.push_back(t);else opaque.push_back(t);
             }

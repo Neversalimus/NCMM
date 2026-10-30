@@ -103,6 +103,24 @@ int main(){
     require(ncmm_graphics_vehicle_policy::control_panel(true,true),"Native instrument-light electronics identify an actual control panel");
     require(!ncmm_graphics_vehicle_policy::control_panel(true,false),"electronically controlled Native heaters/coolers are not invented dashboards");
     require(!ncmm_graphics_vehicle_policy::control_panel(false,true),"an actual cabin lamp remains a lamp rather than a control panel");
+    {
+        ncmm_graphics_vehicle_policy::permission_index permissions;permissions.reserve(5000);
+        std::map<std::array<int,3>,int> bodies,floors;
+        for(int n=0;n<5000;++n){const std::array<int,3> p{{n%17-8,(n/9)%13-6,(n/17)%5-2}};
+            const int body=n%3?n:-1,floor=n%5?n:-1;
+            permissions.add(p[0],p[1],p[2],body,floor);
+            if(body>=0)bodies.emplace(p,body);if(floor>=0)floors.emplace(p,floor);
+        }
+        permissions.finish();
+        require(permissions.body_count()==bodies.size()&&permissions.floor_count()==floors.size(),"flat visibility index preserves both original map counts");
+        for(int x=-9;x<=9;++x)for(int y=-7;y<=7;++y)for(int z=-3;z<=3;++z){
+            const std::array<int,3> key{{x,y,z}};const auto found=permissions.find(x,y,z);
+            const auto body=bodies.find(key),floor=floors.find(key);
+            require(found.body==(body==bodies.end()?-1:body->second)&&found.floor==(floor==floors.end()?-1:floor->second),"flat permissions exactly match independent original maps, including duplicates and hidden cells");
+        }
+        ncmm_graphics_vehicle_policy::permission_index empty;empty.finish();
+        require(empty.find(0,0,0).body<0&&empty.find(0,0,0).floor<0,"a new frame cannot retain old visibility permissions");
+    }
     invalid([](auto &s){s.scene.occupied_vehicle=7;s.scene.occupied_part=100;},"driver mount must identify an actual seat");
     auto seated=original;seated.scene.occupied_vehicle=7;seated.scene.occupied_part=101;
     require(first_person::vehicle::valid(seated,16),"actual occupied seat preserved");
@@ -186,7 +204,18 @@ int main(){
         for(unsigned lod=0;lod<3;++lod){const auto mesh=first_person::vehicle::generate(original,topology,p,lod);
             require(mesh&&!mesh->triangles.empty(),"component library generates every supported semantic type");
             verify_closed_surface(*mesh);
-            for(const auto &t:mesh->triangles){require(t.material<mesh->materials.size(),"component material range");
+            for(unsigned pose=0;pose<8;++pose){const auto placement=first_person::vehicle::rigid({2,3,1},float(pose)*.73f,float(pose)*.21f);
+                const auto box=placement.bounds(mesh->minimum,mesh->maximum);
+                for(const auto &t:mesh->triangles)for(const auto &v:t.vertices){const auto p=placement.position(v.position);
+                    require(p.x>=box[0].x&&p.x<=box[1].x&&p.y>=box[0].y&&p.y<=box[1].y&&p.z>=box[0].z&&p.z<=box[1].z,
+                        "conservative world bounds contain every actual vertex through rigid yaw and wheel/hinge rotation");}}
+            require(mesh->vertex_indices.size()==mesh->triangles.size(),"every original triangle keeps its shared-vertex indices");
+            for(size_t index=0;index<mesh->triangles.size();++index){const auto &t=mesh->triangles[index];require(t.material<mesh->materials.size(),"component material range");
+                for(size_t n=0;n<3;++n){const auto shared=mesh->vertex_indices[index][n];require(shared<mesh->shared_vertices.size(),"shared vehicle vertex index is bounded");
+                    const auto &a=t.vertices[n],&b=mesh->shared_vertices[shared];
+                    const std::array<float,6> source{{a.position.x,a.position.y,a.position.z,a.normal.x,a.normal.y,a.normal.z}},
+                        cached{{b.position.x,b.position.y,b.position.z,b.normal.x,b.normal.y,b.normal.z}};
+                    require(std::memcmp(source.data(),cached.data(),sizeof(source))==0,"shared CPU transform/light input preserves all original position and normal bits");}
                 for(const auto &v:t.vertices)require(std::isfinite(v.position.x)&&std::isfinite(v.position.y)&&std::isfinite(v.position.z)&&
                     std::abs(first_person::vehicle::dot(v.normal,v.normal)-1)<.005f,"finite manufactured surface and unit normal");}
         }
@@ -197,6 +226,7 @@ int main(){
         const auto found=std::find_if(state.draws.begin(),state.draws.end(),[&](const auto &d){return d.part_id==id;});
         require(found!=state.draws.end(),"real part submission exists");return *found;};
     const auto wheel_mesh=find_draw(moving,103).geometry;
+    require(wheel_mesh->shared_vertices.size()*2<wheel_mesh->triangles.size()*3,"shared wheel vertices remove at least half of repeated CPU transform/light work");
     for(const auto &face:wheel_mesh->triangles)for(const auto &v:face.vertices){
         require(std::hypot(v.position.x,v.position.z)<=.32001f&&std::abs(v.position.y)<=.09001f,"licensed wheel respects actual Native radius and width");}
     {

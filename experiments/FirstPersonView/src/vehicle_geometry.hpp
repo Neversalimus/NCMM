@@ -3,6 +3,7 @@
 #include "vehicle_components.generated.hpp"
 #include <array>
 #include <memory>
+#include <unordered_map>
 
 namespace first_person::vehicle {
 constexpr float pi=3.14159265358979323846f;
@@ -23,6 +24,10 @@ enum class component {frame,roof,panel,door,glass,wheel,seat,controls,engine,car
 struct model {
     std::vector<triangle> triangles;
     std::vector<material> materials;
+    // Exact position/normal identity only. Original per-corner UVs and triangle
+    // order remain in triangles; the CPU can share rigid/light computations.
+    std::vector<vertex> shared_vertices;
+    std::vector<std::array<uint32_t,3>> vertex_indices;
     point pivot{};
     component kind=component::other;
     uint64_t recipe=0;
@@ -40,7 +45,8 @@ struct model {
         if(orientation<0)n=n*-1;
         return dot(n,eye-t.vertices[0].position)>=-1e-6f;
     }
-    size_t bytes()const{return sizeof(*this)+triangles.capacity()*sizeof(triangle)+materials.capacity()*sizeof(material);}
+    size_t bytes()const{return sizeof(*this)+triangles.capacity()*sizeof(triangle)+materials.capacity()*sizeof(material)+
+        shared_vertices.capacity()*sizeof(vertex)+vertex_indices.capacity()*sizeof(std::array<uint32_t,3>);}
 };
 class builder {
 public:
@@ -55,10 +61,23 @@ public:
     }
     std::shared_ptr<const model> finish(){
         if(!output.triangles.empty()){
+            using key=std::array<uint32_t,6>;
+            struct hash {size_t operator()(const key &v)const{size_t result=2166136261u;for(uint32_t n:v)result=(result^n)*16777619u;return result;}};
+            std::unordered_map<key,uint32_t,hash> unique;unique.reserve(output.triangles.size());
+            output.vertex_indices.reserve(output.triangles.size());
             output.minimum=output.maximum=output.triangles.front().vertices[0].position;
-            for(const auto &t:output.triangles)for(const auto &v:t.vertices){const auto p=v.position;
-                output.minimum={std::min(output.minimum.x,p.x),std::min(output.minimum.y,p.y),std::min(output.minimum.z,p.z)};
-                output.maximum={std::max(output.maximum.x,p.x),std::max(output.maximum.y,p.y),std::max(output.maximum.z,p.z)};}
+            for(const auto &t:output.triangles){std::array<uint32_t,3> indices{};
+                for(size_t n=0;n<3;++n){const auto &v=t.vertices[n];const auto p=v.position;
+                    output.minimum={std::min(output.minimum.x,p.x),std::min(output.minimum.y,p.y),std::min(output.minimum.z,p.z)};
+                    output.maximum={std::max(output.maximum.x,p.x),std::max(output.maximum.y,p.y),std::max(output.maximum.z,p.z)};
+                    const std::array<float,6> values{{p.x,p.y,p.z,v.normal.x,v.normal.y,v.normal.z}};
+                    key identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
+                    const auto inserted=unique.emplace(identity,uint32_t(output.shared_vertices.size()));
+                    if(inserted.second)output.shared_vertices.push_back(v);
+                    indices[n]=inserted.first->second;
+                }
+                output.vertex_indices.push_back(indices);
+            }
         }
         return std::make_shared<model>(std::move(output));
     }

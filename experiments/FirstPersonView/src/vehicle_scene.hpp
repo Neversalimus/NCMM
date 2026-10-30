@@ -8,6 +8,14 @@ struct transform {
     point origin{},x{1,0,0},y{0,1,0},z{0,0,1};
     point position(point p)const{return origin+x*p.x+y*p.y+z*p.z;}
     point normal(point p)const{return x*p.x+y*p.y+z*p.z;}
+    std::array<point,2> bounds(point low,point high)const{
+        const auto center=position((low+high)*.5f),half=(high-low)*.5f;
+        // Exact rigid-box extent, enlarged for float boundary round-off.
+        const point radius{std::abs(x.x)*half.x+std::abs(y.x)*half.y+std::abs(z.x)*half.z+.001f,
+            std::abs(x.y)*half.x+std::abs(y.y)*half.y+std::abs(z.y)*half.z+.001f,
+            std::abs(x.z)*half.x+std::abs(y.z)*half.y+std::abs(z.z)*half.z+.001f};
+        return {{center-radius,center+radius}};
+    }
 };
 inline transform rigid(point origin,float yaw,float roll=0){
     return {origin,rotate({std::cos(roll),0,-std::sin(roll)},yaw),rotate({0,1,0},yaw),rotate({std::sin(roll),0,std::cos(roll)},yaw)};

@@ -150,6 +150,20 @@ that the nearest actual surface is unchanged. This does not reduce the horizon,
 LOD detail or the GPU component meshes, and still requires full Native frame
 timing and image qualification.
 
+CPU components use conservative transformed bounds with the renderer's existing
+view planes before preparing individual triangles. Every original vertex is
+checked against those bounds through rigid yaw/roll poses. Shared position and
+normal bit patterns reuse only rigid transforms and per-cell lighting within
+that component's current draw; triangle order, per-corner UVs, material and
+emission remain unchanged. The immutable vertex index is counted in the same
+32 MiB model budget. This is not cross-frame lighting reuse.
+
+Native BODY/FLOOR permissions use one frame-local sorted array rather than two
+node-allocated maps. An independent comparison retains the earliest source-cell
+index for each permission, including duplicate coordinates and hidden cells.
+The array is rebuilt from current Native visibility on every extraction, so it
+does not introduce an invalidation cache or retain a previous world's access.
+
 The opt-in `VehicleGallery` Native fixture creates fourteen real prototype
 families on each pinned 1040/1807 Host. It records matched Legacy/Modular CPU/GPU
 captures, Native identities and full presented-frame durations. Functional
