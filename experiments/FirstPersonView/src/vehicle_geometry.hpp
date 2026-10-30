@@ -127,6 +127,8 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
     const unsigned segments=lod==0?32u:lod==1?24u:16u;
     if((p.state&NCMM_VP_BROKEN)&&(kind==component::glass||kind==component::door))return std::make_shared<model>(std::move(b.output));
     unsigned active_side=layout.part_edge(p);
+    const auto exposed=[&](unsigned side){return !(p.state&NCMM_VP_EXTERIOR_SURFACE)||(p.surface_faces&(1u<<side));};
+    if((kind==component::door||kind==component::glass)&&!exposed(active_side))return std::make_shared<model>(std::move(b.output));
     auto side_point=[&](float u,float outward,float z){const unsigned side=active_side;
         point result=side==1?point{u,outward,z}:side==3?point{-u,-outward,z}:side==0?point{outward,-u,z}:point{-outward,u,z};
         if(kind==component::panel||kind==component::armor){
@@ -265,8 +267,8 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         const float high=chassis+(layout.has(at,NCMM_VP_HALF_PANEL)? .66f:layout.cabin);
         if(wall){
             bool boundary=false;
-            for(unsigned side=0;side<4;++side)if(layout.outer(at,side)){active_side=side;panel(chassis-.15f,high,kind==component::armor?b.steel:b.paint,true);boundary=true;}
-            if(!boundary){active_side=layout.part_edge(p);panel(chassis-.15f,high,kind==component::armor?b.steel:b.paint,false);}
+            for(unsigned side=0;side<4;++side)if(layout.outer(at,side)&&exposed(side)){active_side=side;panel(chassis-.15f,high,kind==component::armor?b.steel:b.paint,true);boundary=true;}
+            if(!boundary&&!(p.state&NCMM_VP_EXTERIOR_SURFACE)){active_side=layout.part_edge(p);panel(chassis-.15f,high,kind==component::armor?b.steel:b.paint,false);}
         }else b.cushion({0,0,chassis-.06f},{.96f,.96f,.055f},.025f,b.steel);
         if(kind==component::panel&&(std::string_view(p.variant).find("cover")!=std::string_view::npos||layout.hood(p))){
             const float z=chassis+.66f;
@@ -284,9 +286,14 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         b.shift_pivot(side_point(hinge,.47f,chassis));
     }else if(kind==component::glass){window(chassis+.67f,chassis+layout.cabin-.08f);
     }else if(kind==component::seat){
-        if(std::string_view(p.id).find("saddle")!=std::string_view::npos){
+        if(ncmm_graphics_vehicle_policy::compact_seat(layout.kind,p.id)){
             b.beam({0,0,chassis+.12f},{-.08f,0,chassis+.44f},.034f,.034f,b.steel);
             b.cushion({-.03f,0,chassis+.47f},{.43f,.27f,.09f},.07f,b.fabric);
+            return std::make_shared<model>(std::move(b.output));
+        }
+        if(layout.kind==archetype::boat){
+            for(float y:{-.27f,.27f})b.beam({0,y,chassis-.06f},{0,y,chassis+.23f},.045f,.045f,b.steel);
+            b.cushion({0,0,chassis+.235f},{.40f,.75f,.09f},.035f,p.material==NCMM_VM_WOOD?b.paint:b.fabric);
             return std::make_shared<model>(std::move(b.output));
         }
         b.beam({-.2f,-.22f,chassis},{.22f,-.22f,chassis},.045f,.055f,b.steel);

@@ -719,6 +719,9 @@ public:
                 vec color=image.valid()?image.average:extra.gas==NCMM_GAS_TOXIC?vec{.34f,.49f,.20f}:extra.gas==NCMM_GAS_FIRE?vec{.95f,.38f,.08f}:vec{.50f,.52f,.54f};
                 cell.volume[0]=.055f+.09f*extra.field_intensity;cell.volume[1]=extra.gas==NCMM_GAS_FIRE?1.25f:2.7f;
                 set(cell.volume_color,{color.x*(.10f+.9f*d.light_r),color.y*(.10f+.9f*d.light_g),color.z*(.10f+.9f*d.light_b)});}}
+        // Surface-only cells contain no interior submissions. Their Native
+        // sample was taken outside the roof, so do not shade it as a cabin.
+        if(metadata&&metadata->vehicles)for(const auto &draw:metadata->vehicles->draws)if(draw.surface_outside&&draw.cell>=0&&size_t(draw.cell)<out.cells.size())out.cells[size_t(draw.cell)].flags&=~NCMM_GFX_CEILING;
         camera.wind[2]=float(std::min(12u,sources));camera.wind[3]=float(gases);out.scene.geometry_ms=geometry_ms;out.scene.generated_cells=generated_cells;out.scene.producer_cache_bytes=bytes();
         // A failed texture/mesh may have left an incomplete chunk with a current
         // signature. Never accept it as a warm complete world on the next frame.

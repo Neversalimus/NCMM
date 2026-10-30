@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <vector>
+#include <string_view>
 // Shared pure geometry policy; no Native objects or graphics devices.
 namespace ncmm_graphics_vehicle_policy {
 enum class archetype {utility,bicycle,motorcycle,buggy,car,suv,van,truck,bus,pickup,armored,trailer,platform,boat};
@@ -27,4 +28,8 @@ inline float chassis(std::vector<float> radii){
 inline float seated_eye(float floor,float body_scale,float roof,float seat_surface=.28f){
     return std::clamp(std::min(floor+seat_surface+.75f*body_scale,roof-.12f),.35f,3.85f);
 }
+inline bool compact_seat(archetype kind,std::string_view id){
+    return kind==archetype::bicycle||kind==archetype::motorcycle||id.find("saddle")!=id.npos;
+}
+inline float seat_surface(archetype kind,std::string_view id){return compact_seat(kind,id)?.515f:.28f;}
 }

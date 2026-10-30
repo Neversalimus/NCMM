@@ -18,6 +18,7 @@ struct submission {
     uint64_t vehicle_id=0,part_id=0;
     int cell=-1;
     bool roof_surface=false;
+    bool exterior_surface=false,surface_outside=false;
 };
 class presentation {
     struct entry {std::shared_ptr<const model> geometry;uint64_t touched=0;};
@@ -52,7 +53,7 @@ public:
         // Restrict intersections to the Native cell selected by the actual
         // displayed depth/picking pass. This cannot select through a wall or
         // choose an unperceived part from the topology-only construction.
-        for(const auto &draw:draws)if(draw.cell==cell&&!draw.roof_surface)for(const auto &triangle:draw.geometry->triangles){
+        for(const auto &draw:draws)if(draw.cell==cell&&!draw.roof_surface&&!draw.exterior_surface)for(const auto &triangle:draw.geometry->triangles){
             const auto a=draw.placement.position(triangle.vertices[0].position),
                 b=draw.placement.position(triangle.vertices[1].position),c=draw.placement.position(triangle.vertices[2].position);
             const auto e1=b-a,e2=c-a,h=cross(direction,e2);const float determinant=dot(e1,h);
@@ -145,7 +146,7 @@ public:
                 if(kind==component::axle&&t.narrow&&(p.features&NCMM_VP_STEERABLE)&&(v.flags&NCMM_VEHICLE_STEERING_KNOWN))yaw+=std::clamp(v.steering,-.8f,.8f);
                 const point placed=origin+rotate(local,v.yaw);
                 const auto placement=rigid(placed,yaw,roll);
-                vehicle_draws.push_back({geometry,placement,v.entity_id,p.part_id,p.cell_index,bool(p.state&NCMM_VP_ROOF_SURFACE)});
+                vehicle_draws.push_back({geometry,placement,v.entity_id,p.part_id,p.cell_index,bool(p.state&NCMM_VP_ROOF_SURFACE),bool(p.state&NCMM_VP_EXTERIOR_SURFACE),bool(p.surface_faces&16u)});
                 revision=(revision^geometry->recipe)*1099511628211ull;
                 // CPU cache invalidation is based on real pose changes and
                 // confirmed state interpolation, not a redraw-driven windup.

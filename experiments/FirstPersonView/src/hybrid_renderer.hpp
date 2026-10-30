@@ -392,14 +392,14 @@ class renderer {
         // Atlas pixels are callback-scoped. Reuse analyses only within this frame.
         image *result=&cached->second;if(prepare&&result->valid()&&result->filtered.empty())result->analyse();*ref=result;return result;
     }
-    vec light(int i,vec normal,bool slab_lower=false)const{
+    vec light(int i,vec normal,bool slab_lower=false,bool exterior=false)const{
         if(!visible(i))return{0.008f,0.01f,0.014f};
         const auto &d=s.details[i];
         vec value{d.light_r,d.light_g,d.light_b};if(world_data&&slab_lower){const auto &rgb=world_data->coordinates[i].lower_light;value={rgb[0],rgb[1],rgb[2]};}
         float face=0.69f+0.19f*std::max(normal.z,0.0f);
-        if(outside(i)&&!(world_data&&slab_lower)){float sun=std::max(0.0f,dot(normal,{s.environment.sun_x,s.environment.sun_y,s.environment.sun_z}));
+        if((outside(i)||exterior)&&!(world_data&&slab_lower)){float sun=std::max(0.0f,dot(normal,{s.environment.sun_x,s.environment.sun_y,s.environment.sun_z}));
             face+=sun*0.20f*s.environment.daylight*shadows[i];if(normal.z>0.5f)face*=0.56f+0.44f*shadows[i];}
-        if(s.environment.lightning&&outside(i)&&!(world_data&&slab_lower))value=value*1.6f;
+        if(s.environment.lightning&&(outside(i)||exterior)&&!(world_data&&slab_lower))value=value*1.6f;
         return{clamp(value.x*face),clamp(value.y*face),clamp(value.z*face)};}
     vec view(vec p)const{vec d=p-eye;float forward=d.x*cy+d.y*sy;
         return{-d.x*sy+d.y*cy,d.z*cp-forward*sp,forward*cp+d.z*sp};}
@@ -1473,7 +1473,7 @@ class renderer {
     void modular_vehicles(){
         if(!metadata||!metadata->vehicles)return;
         for(const auto &draw:metadata->vehicles->draws){
-            if(!draw.geometry||!visible(draw.cell)||(world_data&&!(world_flags(draw.cell)&(draw.roof_surface?(NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM):NCMM_WORLD_BODY_VISIBLE))))continue;
+            if(!draw.geometry||!visible(draw.cell)||(world_data&&!(world_flags(draw.cell)&((draw.roof_surface||draw.exterior_surface)?NCMM_WORLD_FLOOR_TOP:NCMM_WORLD_BODY_VISIBLE))))continue;
             ++f.vehicle_parts;f.triangles+=uint32_t(draw.geometry->triangles.size());
             if(gpu_sink&&gpu_sink->vehicle_component(draw))continue;
             for(const auto &source:draw.geometry->triangles){
@@ -1481,7 +1481,7 @@ class renderer {
                 t.m={nullptr,{appearance.color[0],appearance.color[1],appearance.color[2]},appearance.color[3],false,false,false,draw.cell,vehicle_finish(appearance.kind)};
                 t.m.smooth=true;
                 for(size_t n=0;n<3;++n){const auto &v=source.vertices[n];const auto position=draw.placement.position(v.position),normal=draw.placement.normal(v.normal);
-                    const vec lit=appearance.emissive?vec{1,1,1}:light(draw.cell,{normal.x,normal.y,normal.z});
+                    const vec lit=appearance.emissive?vec{1,1,1}:light(draw.cell,{normal.x,normal.y,normal.z},false,draw.surface_outside);
                     t.v[n]={{position.x,position.y,position.z},v.u,v.v,lit};}
                 t.normal=normalize(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p));
                 if(gpu_sink)gpu_sink->emit(t);else if(t.m.alpha<.99f)transparent.push_back(t);else opaque.push_back(t);

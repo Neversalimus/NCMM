@@ -31,11 +31,13 @@ must receive fresh identities. The frame revision covers every copied payload
 value; presentation seconds are separate. The module can reuse a validated owned
 copy when that payload remains unchanged.
 
-Only Native-permitted visible BODY cells can emit geometry. A real installed
-part outside that permission set is explicitly `TOPOLOGY_ONLY` with cell -1:
-it may describe construction adjacency but cannot emit geometry or a label, or
-be selected. Cargo contents, fuel contents, ammunition and hidden occupants are
-not copied into the extension.
+Native-permitted visible BODY cells emit their installed parts. Outside that
+set, a published floor-top surface may expose the real roof and outward shell
+faces proven by an adjacent Native-visible cell outside the structural frame.
+These surface-only parts cannot be selected, and cannot expose hidden seats,
+frames, cargo or equipment. All other parts are `TOPOLOGY_ONLY` with cell -1:
+they describe construction adjacency but emit no geometry or labels. Container
+contents, ammunition and hidden occupants are never copied into the extension.
 
 ## Geometry and state
 
@@ -140,9 +142,11 @@ cache refresh; device resources may remain resident. A separate 900-second real
 Native loop changes poses and doors, alternates CPU/GPU, saves/reloads and checks
 bounded owned memory. Its completion must be verified in the emitted record.
 
-Vehicle roofs use a separate outside-surface permission where Native exposes the
-bounded architectural surface at the actual source cell. That permission emits
-only the installed roof, without granting visibility to the hidden interior.
+Vehicle exteriors use separate outside-surface permissions at their actual
+source cells. Roofs retain their own permission; boundary panels/doors/windows
+carry a four-bit outward-face proof. No permission exposes the hidden interior.
+Surface-only cells use Native RGB sampled above the real roof rather than the
+unlit cabin below it. Outside shading follows Native's outside classification.
 The terrain underneath stays present. Discovery enumerates actual loaded vehicles
 and parts rather than treating a 2D sprite or `veh_at` display cache as the source
 of a 3D vehicle's existence. Cached GPU cell keys include Legacy/Modular ownership;

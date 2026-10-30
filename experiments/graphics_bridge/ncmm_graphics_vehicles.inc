@@ -49,7 +49,7 @@ int graphics_vehicle_set_focus(uint64_t entity,uint64_t part,uint64_t revision)
     if(revision!=graphics_vehicle_scene.revision){return 0;}
     const auto p=std::find_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[&](const auto &p){return p.part_id==part;});
     if(p==graphics_vehicle_parts.end()||p->vehicle_index>=graphics_vehicle_rows.size()||p->cell_index!=graphics_vehicle_focus_cell||
-        (p->state&NCMM_VP_TOPOLOGY_ONLY)||graphics_vehicle_rows[p->vehicle_index].entity_id!=entity){return 0;}
+        (p->state&(NCMM_VP_TOPOLOGY_ONLY|NCMM_VP_ROOF_SURFACE|NCMM_VP_EXTERIOR_SURFACE))||graphics_vehicle_rows[p->vehicle_index].entity_id!=entity){return 0;}
     graphics_vehicle_focus_entity=entity;graphics_vehicle_focus_part=part;return 1;
 }
 int graphics_vehicle_submit_metrics(const ncmm_graphics_vehicle_metrics_v1 *value)
@@ -134,11 +134,14 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
     if(world){scene.origin_x=world->origin_x;scene.origin_y=world->origin_y;scene.origin_z=world->origin_z;}
     else if(!positions.empty()){const auto p=here.get_abs(positions[0]);scene.origin_x=p.x();scene.origin_y=p.y();scene.origin_z=p.z();}
     std::map<tripoint_bub_ms,int> permitted,floor_surfaces,roof_surfaces;
+    std::map<uint64_t,uint32_t> exterior_faces;
+    std::map<tripoint_bub_ms,std::pair<std::array<float,3>,bool>> surface_lights;
     std::map<const vehicle *,uint32_t> groups;
     // Native can hide a roofed cell's contents from an upper-storey viewer
     // while the bounded static surface pass still exposes its outside. Publish
-    // only that installed roof at its actual source cell. A visible outside
-    // surface never grants BODY permission to seats, cargo or hidden layers.
+    // installed roofs at actual source cells and boundary faces backed by a
+    // visible Native outside neighbour. No BODY permission is granted to the
+    // seats, cargo, frame or hidden layers under those exterior surfaces.
     for(size_t i=0;i<positions.size();++i){
         if(!(base.cells[i].flags&NCMM_GFX_VISIBLE))continue;
         if(world&&(world->coordinates[i].flags&NCMM_WORLD_FLOOR_TOP)){floor_surfaces.emplace(positions[i],int(i));}
@@ -151,15 +154,35 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
     for(const auto &entry:here.get_vehicles()){
         if(++graphics_vehicle_discovery.vehicles>1024)break;
         const vehicle &v=*entry.v;unsigned tested=0;
+        std::set<point_rel_ms> structural_mounts;unsigned mapped=0;
+        for(const vpart_reference &ref:v.get_all_parts()){
+            if(++mapped>NCMM_VEHICLE_MAX_PARTS_PER_VEHICLE)break;
+            if(!ref.part().removed&&!ref.part().is_fake&&ref.info().location.str()=="structure"){structural_mounts.insert(ref.part().mount);}
+        }
         for(const vpart_reference &ref:v.get_all_parts()){
             if(++tested>NCMM_VEHICLE_MAX_PARTS_PER_VEHICLE||++graphics_vehicle_discovery.parts>65536)break;
             if(ref.part().removed||ref.part().is_fake)continue;
             const auto at=ref.pos_bub(here);const auto body=permitted.find(at),floor=floor_surfaces.find(at);
             const bool roof=ref.has_feature("ROOF")&&floor!=floor_surfaces.end();
-            if(body==permitted.end()&&!roof)continue;
+            uint32_t faces=0;
+            if(body==permitted.end()&&floor!=floor_surfaces.end()&&(ref.has_feature("OBSTACLE")||ref.has_feature("DOOR")||ref.has_feature("WINDOW"))){
+                for(unsigned side=0;side<4;++side){const auto adjacent=ref.part().mount+point_rel_ms(side==0?1:side==2?-1:0,side==1?1:side==3?-1:0);
+                    if(!structural_mounts.count(adjacent)&&permitted.count(v.mount_to_tripoint(&here,adjacent))){faces|=1u<<side;}}
+            }
+            if(body==permitted.end()&&!roof&&!faces)continue;
             const auto group=groups.emplace(&v,uint32_t(groups.size()+1)).first->second;
             if(body!=permitted.end()){details[size_t(body->second)].vehicle_group=group;}
             if(roof){roof_surfaces.emplace(at,floor->second);}
+            if(faces){exterior_faces.emplace(ref.part().ncmm_graphics_part_id(),faces);}
+            if(body==permitted.end()&&(roof||faces)&&!surface_lights.count(at)){
+                // A roof's outside must not inherit the unlit cabin beneath it.
+                // Sample Native RGB above the real roof; never invent daylight.
+                const auto above=at+tripoint_rel_ms(0,0,1);
+                const bool loaded=here.ncmm_graphics_loaded(above);
+                const auto rgb=graphics_sample_rgb(loaded?above:at);
+                surface_lights.emplace(at,std::make_pair(rgb,loaded&&here.is_outside(above)));
+                auto &detail=details[size_t(floor->second)];detail.light_r=rgb[0];detail.light_g=rgb[1];detail.light_b=rgb[2];
+            }
         }
         if(graphics_vehicle_discovery.parts>65536)break;
     }
@@ -231,6 +254,14 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
                 const auto surface=roof_surfaces.find(pos);
                 if(surface!=roof_surfaces.end()){out.cell_index=surface->second;out.state&=~NCMM_VP_TOPOLOGY_ONLY;out.state|=NCMM_VP_ROOF_SURFACE;}
             }
+            if((out.state&NCMM_VP_TOPOLOGY_ONLY)&&cell==permitted.end()){
+                const auto exterior=exterior_faces.find(out.part_id);const auto surface=floor_surfaces.find(pos);
+                if(exterior!=exterior_faces.end()&&surface!=floor_surfaces.end()){
+                    out.cell_index=surface->second;out.state&=~NCMM_VP_TOPOLOGY_ONLY;out.state|=NCMM_VP_EXTERIOR_SURFACE;out.surface_faces=exterior->second;}
+            }
+            if(out.state&(NCMM_VP_ROOF_SURFACE|NCMM_VP_EXTERIOR_SURFACE)){
+                const auto light=surface_lights.find(pos);if(light!=surface_lights.end()&&light->second.second){out.surface_faces|=16u;}
+            }
             const auto &info=part.info();const auto &item=part.get_base();
             graphics_vehicle_copy(out.id,info.id.str());graphics_vehicle_copy(out.variant,part.variant);
             out.material=(out.features&NCMM_VP_DOOR)?NCMM_VM_PAINT:(out.features&NCMM_VP_WINDOW)?NCMM_VM_GLASS:
@@ -271,6 +302,7 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
             graphics_vehicle_hash_value(row.state_revision,out.part_id);graphics_vehicle_hash_value(row.state_revision,out.state);
             graphics_vehicle_hash_value(row.state_revision,out.health);graphics_vehicle_hash_value(row.state_revision,out.direction);
             graphics_vehicle_hash_value(row.state_revision,out.cell_index);graphics_vehicle_hash_value(row.state_revision,out.material);
+            graphics_vehicle_hash_value(row.state_revision,out.surface_faces);
             for(float value:out.color)graphics_vehicle_hash_value(row.state_revision,value);
             graphics_vehicle_hash_value(row.structure_revision,out.material);
             for(float value:out.color)graphics_vehicle_hash_value(row.structure_revision,value);
@@ -302,8 +334,7 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
                 bool roof_here=false;
                 for(uint32_t n=0;n<row.part_count;++n){const auto &p=graphics_vehicle_parts[row.first_part+n];
                     if((p.features&NCMM_VP_ROOF)&&!(p.state&NCMM_VP_BROKEN)&&p.mount_x==seat->mount_x&&p.mount_y==seat->mount_y){roof_here=true;break;}}
-                const bool saddle=std::string(seat->id).find("saddle")!=std::string::npos;
-                scene.eye_z=ncmm_graphics_vehicle_policy::seated_eye(floor,std::clamp(you.height()/175.f,.45f,2.f),roof_here?floor+profile.cabin:4.f,saddle?.515f:.28f);
+                scene.eye_z=ncmm_graphics_vehicle_policy::seated_eye(floor,std::clamp(you.height()/175.f,.45f,2.f),roof_here?floor+profile.cabin:4.f,ncmm_graphics_vehicle_policy::seat_surface(profile.kind,seat->id));
                 scene.eye_valid=1;
             }
         }

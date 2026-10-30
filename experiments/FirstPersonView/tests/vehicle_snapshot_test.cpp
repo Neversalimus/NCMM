@@ -126,6 +126,8 @@ int main(){
         require(damaged->triangles.size()<whole->triangles.size(),"broken roof has a local aperture instead of an intact slab");
         require(ncmm_graphics_vehicle_policy::seated_eye(.4f,1,4,.515f)>ncmm_graphics_vehicle_policy::seated_eye(.4f,1,4),"actual saddle surface raises the seated eye");
         require(ncmm_graphics_vehicle_policy::seated_eye(.4f,1,1.5f,.515f)<=1.38f,"only an actual local roof clamps saddle headroom");
+        require(ncmm_graphics_vehicle_policy::compact_seat(first_person::vehicle::archetype::motorcycle,"seat"),"generic Native seat on a narrow motorcycle uses a saddle rather than a car headrest");
+        require(ncmm_graphics_vehicle_policy::seat_surface(first_person::vehicle::archetype::motorcycle,"seat")==.515f,"Native camera and component share the actual compact seat height");
         auto dash=original.parts[0];std::strcpy(dash.id,"dashboard");dash.features=NCMM_VP_LIGHT|NCMM_VP_LIGHT_OMNI;
         const auto display=first_person::vehicle::generate(original,topology,dash,0);
         require(display->kind==first_person::vehicle::component::dashboard,"actual dashboard is not an unknown cube or extra steering wheel");
@@ -181,5 +183,19 @@ int main(){
     upper.observe({0,0,5});require(upper.draws.size()==1&&upper.draws[0].roof_surface&&upper.handles_roof(4),"upper roof visibility never emits hidden interior layers");
     upper.input.parts[0].state=NCMM_VP_EXISTS|NCMM_VP_ROOF_SURFACE;upper.input.parts[0].cell_index=4;
     require(!first_person::vehicle::valid(upper.input,8),"roof-surface permission cannot be assigned to a non-roof part");
+    {
+        auto outside=original;for(auto &p:outside.parts){p.state=NCMM_VP_EXISTS|NCMM_VP_TOPOLOGY_ONLY;p.cell_index=-1;}
+        auto &wall=outside.parts[0];wall.features=NCMM_VP_PANEL;wall.state=NCMM_VP_EXISTS|NCMM_VP_EXTERIOR_SURFACE;
+        wall.cell_index=4;wall.surface_faces=(1u<<3)|16u;
+        require(first_person::vehicle::valid(outside,8),"Native exterior face proof has bounded surface-only permission");
+        first_person::vehicle::presentation facade;facade.input=outside;facade.input.enabled=true;facade.observe({0,0,5});
+        require(facade.draws.size()==1&&facade.draws[0].exterior_surface&&facade.draws[0].surface_outside,"exterior shell never submits hidden seat, frame or wheel");
+        for(const auto &triangle:facade.draws[0].geometry->triangles)for(const auto &vertex:triangle.vertices)
+            require(vertex.position.y<-.3f,"surface-only panel emits only the Native-proven outward side");
+        require(!facade.pick(4,{0,0,5},{0,0,-1}).part,"surface-only facade cannot become an interactive hidden target");
+        wall.features=NCMM_VP_SEAT;require(!first_person::vehicle::valid(outside,8),"exterior permission cannot expose a hidden seat");
+        wall.features=NCMM_VP_PANEL;wall.surface_faces=16u;require(!first_person::vehicle::valid(outside,8),"an exterior panel needs a real outward face proof");
+        wall.surface_faces=32u;require(!first_person::vehicle::valid(outside,8),"unrecognized exterior face bits fail closed");
+    }
     std::printf("vehicle snapshot: %d checks passed\n",checks);
 }

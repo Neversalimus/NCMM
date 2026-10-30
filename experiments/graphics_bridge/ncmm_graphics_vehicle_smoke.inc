@@ -64,6 +64,7 @@
         evidence.member("vehicle_discovery_body_cells",graphics_vehicle_discovery.body_cells);evidence.member("vehicle_discovery_floor_cells",graphics_vehicle_discovery.floor_cells);
         evidence.member("vehicle_discovery_vehicles",graphics_vehicle_discovery.vehicles);evidence.member("vehicle_discovery_parts",graphics_vehicle_discovery.parts);
         evidence.member("vehicle_discovery_roof_cells",graphics_vehicle_discovery.roof_cells);evidence.member("vehicle_discovery_groups",graphics_vehicle_discovery.groups);
+        evidence.member("vehicle_exterior_surface_parts",std::count_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return bool(p.state&NCMM_VP_EXTERIOR_SURFACE);}));
         evidence.member("vehicle_owned_bytes",graphics_vehicle_metrics.owned_bytes);evidence.member("vehicle_generated",graphics_vehicle_metrics.generated);
         evidence.member("vehicle_reused",graphics_vehicle_metrics.reused);evidence.member("vehicle_topology_builds",graphics_vehicle_metrics.topology_builds);
         evidence.member("vehicle_submitted_parts",graphics_vehicle_metrics.submitted_parts);
@@ -114,7 +115,8 @@
             {"front-three-quarter",9,9,-.10f},{"rear-three-quarter",-9,9,-.10f},{"top-oblique",5,5,-.58f}};
         for(const auto &v:views){const bool upper=std::strcmp(v.name,"top-oblique")==0;
             const float pitch=upper?-std::atan2(NCMM_WORLD_LEVEL_HEIGHT+graphics_eye_height()-1.f,float(radius)*std::sqrt(2.f)):v.pitch;
-            camera(v.x? (v.x>0?radius:-radius):0,v.y? (v.y>0?radius:-radius):0,pitch,upper?1:0);pair(v.name,prototype);verify_car(*car);}
+            camera(v.x? (v.x>0?radius:-radius):0,v.y? (v.y>0?radius:-radius):0,pitch,upper?1:0);pair(v.name,prototype);verify_car(*car);
+            if(upper&&std::strcmp(prototype,"truck_trailer")==0){require(std::any_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return bool(p.state&NCMM_VP_EXTERIOR_SURFACE);}),"vehicle_upper_view_lost_native_exterior_shell");}}
         camera(0,8,-.08f);
         if(std::strcmp(prototype,"car")==0){
             int door_index=-1,wheel_index=-1,roof_index=-1;std::vector<int> seats;
@@ -184,7 +186,7 @@
     pair("after-motion","mixed");
     // A still-live vehicle may remain in CDDA's mapbuffer across load. Test
     // dead identity reuse with an object that Native actually destroys first.
-    vehicle *retired=get_map().add_vehicle(vproto_id("bicycle"),get_map().get_bub(tripoint_abs_ms(street.x(),street.y()+20,street.z())),0_degrees,0,veh_spawn_status::UNDAMAGED,false);
+    vehicle *retired=get_map().add_vehicle(vproto_id("bicycle"),get_map().get_bub(tripoint_abs_ms(street.x(),street.y()+5,street.z())),0_degrees,0,veh_spawn_status::UNDAMAGED,false);
     require(retired!=nullptr,"vehicle_retired_fixture_create_failed");
     const auto retired_identity=retired->ncmm_graphics_vehicle_id();
     draw("before-retire","mixed","gpu","modular",false);verify_car(*retired);
