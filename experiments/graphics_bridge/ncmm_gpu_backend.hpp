@@ -185,12 +185,23 @@ public:
         if(scene.mode==NCMM_GPU_CPU){reason("CPU renderer selected");return false;}if(!available()){reason(context_.reason());return false;}
         if(!programs_.create(context_)||!targets(scene.width,scene.height)){reason(context_.reason());return false;}
         // Submit the queued Native 2D work while CPU scene preparation runs.
-        // The existing completed-fence cleanup below can then reclaim finished
-        // SDL submissions before this frame starts cycling its own resources.
+        // Retire already completed SDL submissions before allocating this
+        // frame's buffers or preparing new static geometry resources.
         // This submits commands without presenting or waiting for GPU work.
         const auto renderer_flush_begin=clock::now();
         if(!SDL_FlushRenderer(context_.renderer())){context_.fail("flush SDL GPU state");reason(context_.reason());return false;}
         const double renderer_flush_ms=ms(renderer_flush_begin);
+        poll();if(retirement_failed_)return false;
+        if(completed_retirement_){
+            const auto begin=profiling_?clock::now():clock::time_point{};
+            // This owned fence was already signalled before poll retained it.
+            // Retire completed command resources here, inside frame recording,
+            // before cycling buffers/textures. Never wait for unfinished work.
+            const bool ok=SDL_QueryGPUFence(context_.device(),completed_retirement_)&&SDL_WaitForGPUFences(context_.device(),true,&completed_retirement_,1);
+            if(profiling_){recording_.retirement_ms+=ms(begin);++recording_.retirement_calls;}
+            // Keep the signalled fence; never wait on an unfinished fence.
+            if(!ok){SDL_ReleaseGPUFence(context_.device(),completed_retirement_);completed_retirement_=nullptr;
+                context_.fail("completed GPU resource retirement");reason(context_.reason());metrics_.active=0;retirement_failed_=true;return false;}}
         if(!cells_||cell_size_<scene.cell_count*sizeof(gpu_cell))cells_ready_=false;
         if(!buffer(instances_,instance_size_,uint32_t(scene.draw_count*sizeof(instance)),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
            !buffer(bones_,bone_size_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
@@ -246,17 +257,6 @@ public:
         pick_zone.stop();
         if(profiling_)recording_.batching_pick_ms=ms(batching_start);
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}
-        poll();if(retirement_failed_)return false;
-        if(completed_retirement_){
-            const auto begin=profiling_?clock::now():clock::time_point{};
-            // This owned fence was already signalled before poll retained it.
-            // Retire completed command resources here, inside frame recording,
-            // before cycling buffers/textures. Never wait for unfinished work.
-            const bool ok=SDL_QueryGPUFence(context_.device(),completed_retirement_)&&SDL_WaitForGPUFences(context_.device(),true,&completed_retirement_,1);
-            if(profiling_){recording_.retirement_ms+=ms(begin);++recording_.retirement_calls;}
-            // Keep the signalled fence; never wait on an unfinished fence.
-            if(!ok){SDL_ReleaseGPUFence(context_.device(),completed_retirement_);completed_retirement_=nullptr;
-                context_.fail("completed GPU resource retirement");reason(context_.reason());metrics_.active=0;retirement_failed_=true;return false;}}
         readback *read=nullptr;for(auto &r:readbacks_)if(!r.fence){read=&r;break;}
         if(read&&!read->transfer){SDL_GPUTransferBufferCreateInfo info{};info.usage=SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;info.size=64;read->transfer=SDL_CreateGPUTransferBuffer(context_.device(),&info);if(!read->transfer)read=nullptr;}
         const bool initialize_white=!white_ready_;

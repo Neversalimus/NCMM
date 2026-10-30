@@ -33,5 +33,18 @@ int main(){
     require(!camera.begin({0,0,INFINITY},4000),"infinite motion rejected");
     require(!camera.begin({std::numeric_limits<float>::quiet_NaN(),0,0},4000),"NaN motion rejected");
     camera.begin({0,0,2.5f},5000);camera.presented(5000);require(near(camera.sample(4999).z,2.5f),"clock rollback cannot reverse or overflow easing");
+    // Different render/driver delays must not consume the measured first
+    // frame's offset. A real 200ms wait after its presentation reaches the
+    // same endpoint for every ordinary 140/180ms transition duration.
+    for(uint64_t presented:{uint64_t(100),uint64_t(1000),uint64_t(100000)}){
+        for(offset initial:{offset{-1,0,0},offset{0,0,-2.5f},offset{0,0,2.5f}}){
+            motion paired;require(paired.begin(initial,1),"paired initial motion accepted");
+            const auto first=paired.sample(presented);
+            require(near(first.x,initial.x)&&near(first.z,initial.z),"paired measured first frame keeps full offset despite latency");
+            paired.presented(presented);
+            const auto endpoint=paired.sample(presented+200);
+            require(near(endpoint.x,0)&&near(endpoint.y,0)&&near(endpoint.z,0)&&!paired.active(presented+200),"post-presentation settle reaches a deterministic real-clock endpoint");
+        }
+    }
     std::cout<<"Camera motion: "<<checks<<" checks PASS\n";
 }

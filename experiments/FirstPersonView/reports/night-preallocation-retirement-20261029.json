@@ -1,0 +1,60 @@
+{
+  "source_parent": "75850a31d244ebdca085ab09fa328ec5fa6d526e",
+  "candidate": "Completed-fence retirement before mesh allocation",
+  "status": "Unqualified experiment; full CI and paired end-to-end timing pending",
+  "trigger": "Current source244 Windows software-D3D12 staircase resource spans include69.7328ms over5vertex creates during71.3769ms1040descent and77.6806ms over3vertex creates during79.2622ms1807return. These are wall intervals including driver scheduling/waits, not GPU execution or measured on-core work.",
+  "evidence": {
+    "runtime": "512a6e8ea30e83b8c52d27474854626afc8c62d2",
+    "run": 40872717673,
+    "source_verifier_sha256": "6e70d6e921b2edac5bda144d875673011cebf158221a03f23c2fa20f1e9ca5db",
+    "strict_1040_sha256": "80983ae544de02ff2039548f92c8b7df3d35bbf41d6a395a7e6c3042b30fbe5a",
+    "strict_1807_sha256": "65ff6d4e7931847cbcf6b5f5266357a48ac144e8f6a20539ffd1eae0bc447652",
+    "first1040_parent_wall_ms": 71.3769,
+    "first1040_vertex_create_wall_ms": 69.7328,
+    "first1807_parent_wall_ms": 79.2622,
+    "first1807_vertex_create_wall_ms": 77.6806,
+    "source_inputs": 107,
+    "frozen_sources": 173,
+    "controlled_turns": 52,
+    "CPU_GPU_stairs": 16,
+    "device": "Microsoft Basic Render Driver",
+    "hardware_FPS_qualified": false
+  },
+  "implementation": "Move the exact existing poll/signalled-fence cleanup block to immediately after the existing successful Native SDL flush, before per-frame dynamic buffers and static mesh resource preparation. Program/target setup remains before that flush. No new GPU calls, fences or waits for unfinished work.",
+  "source_sha256": {
+    "original_backend": "2c6a31754b82c6b1bec8b03efaffc97603132107d16b604b0ad60265bcc4f6d4",
+    "candidate_backend": "d8d349dd27588bdc3e1d0f0d466ac8777fd74d925dfc49d7a991025a49c97489"
+  },
+  "preserved": {
+    "original_completed_retirement_block": true,
+    "all_102_GPU_call_arguments_and_multiplicities": true,
+    "query_guard_before_wait": true,
+    "all_failure_returns": true,
+    "resource_upload_bytes_and_order": true,
+    "cache_policy": true,
+    "buffer_creation_policy": true,
+    "all_memory_limits": true,
+    "shader_and_pipeline_code": true,
+    "Native_gameplay_and_inputs": true,
+    "diagnostic_schemas_and_parser": true,
+    "all_173_frozen_source_names": true,
+    "all_original_CI_Gates": true
+  },
+  "local_validation": {
+    "actual_backend_syntax_compilers": [
+      "MSVC",
+      "Clang"
+    ],
+    "local_Native_game": false,
+    "SDL_Init": false,
+    "device_or_GPU_test": false,
+    "mouse_or_focus": false
+  },
+  "required_qualification": "All original full8/all12 source/renderer/Native/image/sanitizer/resource/package gates. A lower resource-child interval after reordering is not an end-to-end gain. Require source-bound same-run paired first-correct frame and Native first-ready timing, identical scene inputs and existing limits/thresholds before accepting performance improvement.",
+  "gain_proven": false,
+  "player_freeze_fixed": false,
+  "ordinary_RTX_FPS": false,
+  "main_merged": false,
+  "installer_published": false,
+  "new_Native_source_body_bytes": 0
+}

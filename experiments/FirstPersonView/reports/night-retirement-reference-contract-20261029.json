@@ -1,0 +1,36 @@
+{
+  "source_parent": "b4d6072afb2ac7b511dd5fc26ff3c84e121d76ad",
+  "failed_PR": 245,
+  "failed_head": "b4d6072afb2ac7b511dd5fc26ff3c84e121d76ad",
+  "status": "Exact reference checksum updated; full CI pending",
+  "observed_failure": "Linux3GPU unit tests andClang4sanitizer GPU unit tests pass; scratch comparison stops at Unreviewed reference reconstruction before its paired image builds/runs. The recorded old checksum described the earlier backend call order.",
+  "review": {
+    "original_reference_sha256": "a0dd1aa83c05e1a51ac33854dedb54696e85616857d9da1f68bb30ee7fe9662a",
+    "new_reference_sha256": "c1acd15efe6ab55a895c32867c88e653f5b70054d9e9fade2454da7b2d589b6a",
+    "original_reference_reconstructed_from_source244": true,
+    "new_reference_reconstructed_from_source245": true,
+    "reference_diff_only_same_existing_retirement_block_and_comment": true,
+    "all_original_assertions_identical": 12,
+    "positive_exact_hash_cases": 2,
+    "wrong_or_altered_reference_cases_rejected": 3,
+    "numeric_manifest_tests": 13
+  },
+  "runtime_backend_sha256": "d8d349dd27588bdc3e1d0f0d466ac8777fd74d925dfc49d7a991025a49c97489",
+  "runtime_or_shader_changed_by_this_commit": false,
+  "validation_contract": "Only the one exact reviewed reference checksum and its one frozen test-script binding change. The reconstruction statements, all12assertions, exact normalized-image equality, device descriptors and sanitizer settings remain. No pixel tolerance/suppression or new readbacks.",
+  "previous_failure_logs": {
+    "linux": {
+      "job": 123520846061,
+      "complete": true
+    },
+    "sanitizer": {
+      "job": 123520846645,
+      "explicitly_truncated": true
+    }
+  },
+  "qualification": "Rerun the unchanged full8/all12 Native/renderer/GPU/image/sanitizer/source/package gates on this source. Retirement ordering is still a performance hypothesis; acceptance needs source-bound same-run paired end-to-end first-correct-frame/first-ready data. A repaired checksum is not a pixel/performance/freeze fix.",
+  "gain_proven": false,
+  "player_freeze_fixed": false,
+  "ordinary_RTX_FPS": false,
+  "Native_source_body_bytes": 0
+}

@@ -14,6 +14,10 @@ on:
         description: 'CI-only same-Host pre-71 terrain include ablation (seven alternating pairs)'
         type: boolean
         default: false
+      retirement_pair:
+        description: 'CI-only same-run parent/current GPU retirement backend ablation (seven alternating pairs)'
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -38,6 +42,11 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.terrain_pair && inputs.qualification == 'quick' }}
         run: |
           echo 'Terrain ablation requires integration or full qualification.'
+          exit 1
+      - name: Require full qualification for the optional retirement backend pair
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.retirement_pair && (inputs.qualification != 'full' || inputs.terrain_pair) }}
+        run: |
+          echo 'Retirement backend pairs require full qualification and a separate terrain experiment.'
           exit 1
       - uses: actions/github-script@v7
         with:
@@ -90,6 +99,8 @@ jobs:
         run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_movement_phases.py -v
       - name: Reject stale sources, partial terrain pairs, fallback phases and changed captures
         run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_terrain_pair.py -v
+      - name: Reject local launches, stale retirement pairs and cost relocation presented as a gain
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_retirement_pair.py -v
       - name: Reject incomplete or mismatched packaged hardware evidence
         run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_compare_movement_runs.py -v
       - name: Reject mismatched ordinary four-mode hardware comparisons
@@ -488,6 +499,28 @@ jobs:
             ${{ runner.temp }}/fp-fps-input/evidence/*.log
             ${{ runner.temp }}/fp-fps-input/evidence/*.txt
           if-no-files-found: ignore
+          retention-days: 7
+      - name: Same-run Native retirement backend ablation without another checkout or game copy
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.retirement_pair }}
+        timeout-minutes: 150
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          python -B ncmmrepo/experiments/FirstPersonView/tests/run_retirement_pair.py --repository (Join-Path $PWD 'ncmmrepo') --upstream (Join-Path $PWD 'upstream') --game (Join-Path $env:RUNNER_TEMP 'fp-fps-input/game') --payload (Join-Path $PWD 'installer-result/_first_person_installer/payload') --output (Join-Path $env:RUNNER_TEMP 'fp-retirement-pair')
+          if($LASTEXITCODE -ne 0){throw 'Controlled Native retirement backend ablation failed.'}
+      - name: Preserve source-bound Native retirement pair program reports
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.retirement_pair }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-person-retirement-pair-${{ matrix.build }}
+          path: |
+            ${{ runner.temp }}/fp-retirement-pair/pair.json
+            ${{ runner.temp }}/fp-retirement-pair/verified.json
+            ${{ runner.temp }}/fp-retirement-pair/native-inputs.json
+            ${{ runner.temp }}/fp-retirement-pair/fixture-files.json
+            ${{ runner.temp }}/fp-retirement-pair/pair-*/process.json
+            ${{ runner.temp }}/fp-retirement-pair/pair-*/gameplay.json
+          if-no-files-found: error
           retention-days: 7
       - name: Same-Host Native terrain include ablation without another game copy
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.terrain_pair }}

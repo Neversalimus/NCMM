@@ -11,6 +11,14 @@
     const auto native_ui=g->create_or_get_main_ui_adaptor();ui_manager::redraw();
     SDL_Renderer *renderer=get_sdl_renderer().get();SDL_Texture *previous_target=SDL_GetRenderTarget(renderer);
     const bool viewmodel_gallery=std::getenv("NCMM_FP_VIEWMODEL_GALLERY")!=nullptr;
+    const bool retirement_pair_only=std::getenv("NCMM_FP_RETIREMENT_PAIR_ONLY")!=nullptr;
+    if(retirement_pair_only){
+        const auto exact_env=[](const char *key,const char *value){const char *actual=std::getenv(key);return actual&&std::string(actual)==value;};
+        require(exact_env("NCMM_FP_RETIREMENT_PAIR_ONLY","1")&&exact_env("GITHUB_ACTIONS","true")&&
+            exact_env("RUNNER_OS","Windows")&&exact_env("GITHUB_REPOSITORY","Neversalimus/NCMM")&&
+            !viewmodel_gallery&&!std::getenv("NCMM_FP_UDP")&&!std::getenv("NCMM_FP_FPS_INPUT_ONLY")&&
+            !std::getenv("NCMM_FP_TARGET_HUD_ONLY"),"audit_retirement_pair_requires_owned_CI");
+    }
     point audit_viewport=viewmodel_gallery?point(1280,800):point(640,480);
     SDL_Texture *canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,audit_viewport.x,audit_viewport.y);
     require(canvas!=nullptr,"audit_canvas_failed");
@@ -50,6 +58,8 @@
     auto f12=[&](){press_view_key(SDLK_F12);};
     std::ofstream stream(game_root()/"ncmm"/"first-person-gameplay-audit.json");JsonOut report(stream);
     report.start_object();report.member("schema",1);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);report.member("gpu_execution_timestamps_available",false);
+    report.member("retirement_pair_only",retirement_pair_only);report.member("full_gameplay_coverage",!retirement_pair_only);
+    report.member("retirement_pair_settle_delay_ms",retirement_pair_only?200:0);
     report.member("fixture","controlled native actions in an isolated generated smoke world");report.member("width",audit_viewport.x);report.member("height",audit_viewport.y);
     auto write_stages=[&](const std::map<std::string,std::vector<double>> &measurements){report.start_object();for(const auto &[name,samples]:measurements){if(samples.empty())continue;report.member(name);report.start_object();report.member("samples",samples.size());report.member("median",percentile(samples,.5));report.member("p95",percentile(samples,.95));report.member("p99",percentile(samples,.99));report.member("max",*std::max_element(samples.begin(),samples.end()));report.end_object();}report.end_object();};
     std::map<std::string,std::vector<double>> stages;bool audit_measurements=true;
@@ -95,7 +105,13 @@
         for(int n=0;n<180;++n){render();ready=std::string(mode)=="cpu"||graphics_gpu_frame;if(ready&&!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback)break;SDL_Delay(2);}
         require(ready&&!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback,"audit_models_or_gpu_never_ready");return milliseconds(begin);};
     auto capture=[&](const std::string &name){capture_name="first-person-audit-"+name+".bmp";render();};
-    auto settle=[&](){for(int n=0;n<100&&graphics_world_transition_active;++n){SDL_Delay(5);render();}require(!graphics_world_transition_active,"audit_camera_never_settled");};
+    auto settle=[&](){
+        // The paired fixture controls unmeasured cache history, not the first
+        // Native frame. Its eager/late retirement variants can finish earlier
+        // frames at different camera-easing positions despite equal draw counts.
+        // Use the real clock and retain the original loop and all its guards.
+        if(retirement_pair_only&&graphics_world_transition_active)SDL_Delay(200);
+        for(int n=0;n<100&&graphics_world_transition_active;++n){SDL_Delay(5);render();}require(!graphics_world_transition_active,"audit_camera_never_settled");};
     // The scope covers only the real turn. Setup, reporting and the explicit
     // render after an empty turn stay outside it. Callback wall time is an
     // inclusive outermost union; the remainder is not a pure AI measurement.
@@ -155,12 +171,16 @@
         report.member("success",true);report.end_object();stream.close();
         require(bool(stream),"fps_input_only_report_write");return;
     }
-    action("native_held_assets_and_shared_psx_contacts",[&](){graphics_run_held_gallery(you,here,require,frames);floor();warm("cpu");});
-    action("native_firing_ui_context_and_presented_frames",[&](){
-        #include "ncmm_graphics_fire_audit.inc"
-    });
-    action("native_fps_input_and_actions",fps_cases);
-    action("native_target_health_identity_visibility_and_font",target_cases);
+    // The separate paired fixture keeps every turn, stair, scene and soak
+    // gate below. Full qualification still executes these four costly audits.
+    if(!retirement_pair_only){
+        action("native_held_assets_and_shared_psx_contacts",[&](){graphics_run_held_gallery(you,here,require,frames);floor();warm("cpu");});
+        action("native_firing_ui_context_and_presented_frames",[&](){
+            #include "ncmm_graphics_fire_audit.inc"
+        });
+        action("native_fps_input_and_actions",fps_cases);
+        action("native_target_health_identity_visibility_and_font",target_cases);
+    }
     action("native_walk_and_visual_continuity",[&](){
         for(const tripoint_rel_ms step:{tripoint_rel_ms(1,0,0),tripoint_rel_ms(0,-1,0),tripoint_rel_ms(-1,0,0),tripoint_rel_ms(0,1,0)}){
             const auto before=you.pos_abs();const int moves=you.get_moves();require(avatar_action::move(you,here,step),"audit_native_walk_failed");const auto after=you.pos_abs();const int spent=moves-you.get_moves();
