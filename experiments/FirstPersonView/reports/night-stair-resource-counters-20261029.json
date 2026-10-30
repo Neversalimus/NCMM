@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "source_parent": "f42fe6b9becdcf162c8a4b862a6f7af2bb69a1b9",
+  "purpose": "Identify resource allocation/upload work in the first successful stair frame before choosing another optimization. This diagnostic change does not claim to repair a freeze.",
+  "evidence": {
+    "source": "d5ece2b66558bcb5d27e2d44f8f8808d2cf4251e",
+    "run": 40800076129,
+    "pin": "1040",
+    "first_gpu_ascent_resource_preparation_ms": 133.1423,
+    "first_gpu_ascent_full_frame_ms": 282.2474,
+    "scope": "Controlled Windows software CI stair fixture. Nested CPU scopes overlap; not ordinary RTX4090 FPS or a causal A/B improvement."
+  },
+  "change": {
+    "stair_schema": 4,
+    "fields": [
+      "static_vertex_buffer_creations",
+      "static_vertex_buffer_reuses",
+      "static_vertex_pool_bytes",
+      "static_index_buffer_creations",
+      "static_index_buffer_reuses",
+      "static_index_pool_bytes",
+      "static_upload_bytes",
+      "frame_upload_bytes",
+      "gpu_resource_bytes",
+      "host_cpu_cache_bytes",
+      "frame_upload_capacity_bytes",
+      "frame_upload_creations_total",
+      "cell_upload_bytes",
+      "cell_cache_bytes",
+      "dynamic_geometry_bytes",
+      "mesh_triangles"
+    ],
+    "scope": "fresh counters from this first successful GPU frame; buffer creations/reuses/uploads are per submit, memory/pool bytes are current, frame_upload_creations_total is cumulative within backend lifetime; logical counts, not GPU execution or VRAM",
+    "freshness": "Capture monotonic report ordinal immediately before/after the first render. Exactly one new GPU report, or none for CPU, is required; setup, warm-up and settling cannot supply the values.",
+    "storage": "A bounded 16-counter array per stair sample, eight samples total. Copy existing metrics only; no extra GPU readback, API call, allocation policy or timer."
+  },
+  "guards": {
+    "original_native_assertions_unchanged": 88,
+    "original_parser_require_calls_preserved": 50,
+    "four_CPU_and_four_GPU_transitions_required": true,
+    "memory_budget_and_stage_bounds_unchanged": true,
+    "unknown_missing_boolean_negative_nonfinite_stale_and_wrong_backend_counters_rejected": true,
+    "frame_upload_creation_count_explicitly_cumulative": true
+  },
+  "local_checks": {
+    "parser_tests": 24,
+    "MSVC_pure_counter_snippet_checks": 26,
+    "Clang_pure_counter_snippet_checks": 26,
+    "Native_game_or_device_run": false,
+    "full_CI_pending": true
+  },
+  "reader_diagnostic": "The private preservation checker first normalized both schema-3 fields. Restricting normalization to the staircase function proved all 50 original parser require calls preserved; no source conditions were weakened. Original failed check and diagnostic retained.",
+  "held_experiments": {
+    "material_counts137": "Not applied: all heap guards passed, but four timing controls failed and zero required cold gains.",
+    "material_repeat131": "Not applied; no variant, retiming or threshold override.",
+    "older_held_candidates": "Remain unapplied."
+  },
+  "ordinary_performance_measurement": false,
+  "stair_freeze_fixed": false,
+  "local_game": false,
+  "local_device": false,
+  "mouse_or_focus": false,
+  "UAC": false,
+  "subagents": false,
+  "new_Native_source_body_bytes": 0
+}

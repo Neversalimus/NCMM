@@ -159,14 +159,51 @@ STAIR_COMMON_STAGES = ('full_frame_wall_ms', 'native_cache_cpu_ms', 'native_tile
 STAIR_CPU_STAGES = ('cpu_geometry_ms', 'cpu_raster_ms', 'cpu_effects_ms')
 STAIR_GPU_STAGES = ('gpu_geometry_prepare_cpu_ms', 'gpu_resource_update_cpu_ms', 'gpu_upload_record_cpu_ms', 'gpu_commands_record_cpu_ms', 'gpu_submit_cpu_ms', 'gpu_batching_pick_cpu_ms', 'gpu_shadow_commands_cpu_ms', 'gpu_world_draw_commands_cpu_ms', 'gpu_creature_draw_commands_cpu_ms', 'gpu_held_draw_commands_cpu_ms', 'gpu_volume_commands_cpu_ms', 'gpu_compose_commands_cpu_ms')
 
+STAIR_GPU_RESOURCE_KEYS = ('static_vertex_buffer_creations', 'static_vertex_buffer_reuses', 'static_vertex_pool_bytes', 'static_index_buffer_creations', 'static_index_buffer_reuses', 'static_index_pool_bytes', 'static_upload_bytes', 'frame_upload_bytes', 'gpu_resource_bytes', 'host_cpu_cache_bytes', 'frame_upload_capacity_bytes', 'frame_upload_creations_total', 'cell_upload_bytes', 'cell_cache_bytes', 'dynamic_geometry_bytes', 'mesh_triangles')
+STAIR_RESOURCE_SCOPE = 'fresh counters from this first successful GPU frame; buffer creations/reuses/uploads are per submit, memory/pool bytes are current, frame_upload_creations_total is cumulative within backend lifetime; logical counts, not GPU execution or VRAM'
+STAIR_RESOURCE_PREPARATION_SCOPE = 'one fresh successful resource prepare in this first GPU stair frame only; exclusive wall partitions include diagnostic clock overhead; thread accounting is optional, coarse on Windows, may exceed a short wall interval and is not GPU execution or a measured wait'
+STAIR_RESOURCE_PHASES = ('other_cpu', 'mesh_data_cpu', 'texture_create', 'vertex_create', 'index_create', 'transfer_create', 'transfer_map', 'transfer_copy_cpu', 'transfer_unmap', 'upload_acquire', 'upload_record', 'upload_submit_release')
+
+def verify_resource_preparation(value, available, stages, counts):
+    require(type(value) is dict, 'resource preparation packet missing')
+    if not available:
+        require(value == {}, 'CPU frame cannot contain resource preparation')
+        return value
+    require(value.keys() == {'captures','complete','valid','wall_ns','thread_available','thread_ns','phases'}, 'resource preparation packet shape differs')
+    require(integer(value['captures'], 2**64-1, 'resource captures') == 1 and
+            value['complete'] is True and value['valid'] is True, 'resource preparation is partial or not fresh')
+    wall=integer(value['wall_ns'], 2**63-1, 'resource wall')
+    thread=integer(value['thread_ns'], 2**63-1, 'resource thread')
+    require(wall > 0 and wall/1e6 <= stages['gpu_resource_update_cpu_ms'] + .003, 'resource preparation exceeds parent')
+    require(type(value['thread_available']) is bool and (value['thread_available'] or thread == 0), 'invalid thread availability')
+    phases=value['phases']
+    require(type(phases) is dict and phases.keys() == set(STAIR_RESOURCE_PHASES), 'resource preparation phases differ')
+    for key,part in phases.items():
+        require(type(part) is dict and part.keys() == {'wall_ns','thread_ns','segments'}, 'resource phase shape differs')
+        for field in part: integer(part[field], 2**63-1, key+' '+field)
+        require(part['segments'] > 0 or part['wall_ns'] == part['thread_ns'] == 0, 'absent resource phase has time')
+        require(value['thread_available'] or part['thread_ns'] == 0, 'unavailable thread phase has time')
+    require(sum(p['wall_ns'] for p in phases.values()) == wall and
+            sum(p['thread_ns'] for p in phases.values()) == thread and phases['other_cpu']['segments'] > 0,
+            'resource exclusive partition inconsistent')
+    for kind in ('vertex','index'):
+        require(phases[kind+'_create']['segments'] >= counts['static_'+kind+'_buffer_creations'], 'resource creation interval missing')
+    transfer=phases['transfer_create']['segments']
+    require(transfer in (0,1) and (counts['static_upload_bytes'] == 0 or transfer == 1), 'resource transfer creation differs')
+    for key in STAIR_RESOURCE_PHASES[6:]:
+        require(phases[key]['segments'] == transfer, 'resource transfer phase missing or duplicated')
+    return value
+
 def verify_stair_transitions(report):
     require(report.get('actual_cdda_sdl') is True and report.get('manual_playthrough') is False,
             'controlled real Native stair report required')
     data = report.get('stair_transition_diagnostics')
-    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 3 and
+    require(type(data) is dict and type(data.get('schema')) is int and data['schema'] == 5 and
             data.get('scope') == STAIR_SCOPE and data.get('ordinary_performance_measurement') is False and
             data.get('gpu_execution_measured') is False, 'stair timing scope differs')
     require(data.get('component_scope') == STAIR_COMPONENT_SCOPE, 'stair component timing scope differs')
+    require(data.get('resource_counter_scope') == STAIR_RESOURCE_SCOPE, 'stair resource counter scope differs')
+    require(data.get('resource_preparation_scope') == STAIR_RESOURCE_PREPARATION_SCOPE, 'resource preparation timing scope differs')
     rows = data.get('samples')
     require(type(rows) is list and len(rows) == 8, 'four CPU and four GPU stair transitions required')
     totals = []
@@ -207,7 +244,20 @@ def verify_stair_transitions(report):
         for key, value in stages.items():
             require(type(value) in (int,float) and math.isfinite(value) and 0 <= value <= frame['wall_ns']/1e6 + .003,
                     'invalid stair '+key)
-        detail.update(from_z=row['from_z'],to_z=row['to_z'],delta=row['delta'],frame_stages=stages)
+        available = row.get('gpu_resources_available')
+        require(type(available) is bool and available == (expected_mode == 'gpu'), 'stair GPU resource availability differs')
+        before = integer(row.get('gpu_reports_before'), 2**64-1, 'GPU reports before')
+        after = integer(row.get('gpu_reports_after'), 2**64-1, 'GPU reports after')
+        require(after == before + (1 if available else 0), 'stale or duplicate stair GPU resource report')
+        counts = row.get('gpu_resource_counts')
+        require(type(counts) is dict and counts.keys() == (set(STAIR_GPU_RESOURCE_KEYS) if available else set()), 'stair GPU resource counters missing or unexpected')
+        for key,value in counts.items():
+            integer(value, 2**64-1, key)
+        if available:
+            require(counts['mesh_triangles'] > 0 and counts['gpu_resource_bytes'] > 0 and counts['frame_upload_capacity_bytes'] > 0, 'empty first-frame GPU resource snapshot')
+        preparation=verify_resource_preparation(row.get('resource_preparation'),available,stages,counts)
+        detail.update(from_z=row['from_z'],to_z=row['to_z'],delta=row['delta'],frame_stages=stages,gpu_resources_available=available,gpu_resource_counts=counts,gpu_reports_before=before,gpu_reports_after=after)
+        detail['resource_preparation']=preparation
         totals.append(detail)
     require(rows[-1]['to_z'] == rows[0]['from_z'], 'stair sequence does not return to its source')
-    return dict(success=True,transitions=8,renderers=['cpu','gpu'],ordinary_performance_measurement=False,gpu_execution_measured=False,component_scope=STAIR_COMPONENT_SCOPE,stage_components_adjacent=False,samples=totals)
+    return dict(success=True,transitions=8,renderers=['cpu','gpu'],ordinary_performance_measurement=False,gpu_execution_measured=False,component_scope=STAIR_COMPONENT_SCOPE,resource_counter_scope=STAIR_RESOURCE_SCOPE,stage_components_adjacent=False,samples=totals)

@@ -1473,3 +1473,63 @@ single-channel/alpha differences, malformed shapes, missing files and devices.
 The underlying unequal-pixel cause remains unproven.241head331e1a4 and240head
 30c8926 stay preserved. A separate branch receives fullCI; no localdevice,
 game,input,mouse,focus,UAC or subagents are used. Published238 stays unchanged.
+
+
+## 139–140 — CI admission and first-stair-frame resource counters
+
+Source240 retains its exact30c8926 head. Three private installer validators and
+an admission gate are ready: all8full jobs/all12checks, complete ownCodeReview
+plan/required logs and exact source-bound final artifact IDs must pass before
+any package or primary-report body transfer. Its1040Windows baseline benchmark
+is still running; no candidate package is accepted as a final installer.
+
+The new stair schema4 records16 existing resource counters for the exact first
+successful frame, with a bounded per-sample array and checked before/after report
+ordinals. It distinguishes per-submit buffer creations/reuses/upload bytes,
+current pools/logical memory and the explicitly cumulative staging creation
+count. CPU frames cannot borrow a GPU packet. Setup, warm-up and settle remain
+outside the first-frame capture. No extra GPU readback, renderer/API/resource
+policy, gameplay, input, delay, memory budget or performance threshold changes.
+
+All88original Native require calls and50parser require calls are preserved;
+only the stair schema becomes4 and new resource evidence is required.24pureCPU
+parser tests and26extracted counter-snippet checks on each of MSVC andClang pass.
+The private proof reader initially normalized the unrelated native-turn schema
+too; the diagnostic and original check are retained, and its scope was corrected
+without changing source guards. Actual Native/GPU qualification remains pending.
+
+137's bounded material-count array remains HELD after four timing failures and
+zero required cold gains. No held experiment is applied or retimed.238 remains
+the published fully qualified TEST source;242's earlier328exact readback result
+does not establish the cause of241's pixel mismatch. No ordinary RTX/FPS or
+stair-freeze repair is claimed. No localgame/device/input/mouse/focus/UAC or
+subagents; the Native body ledger stays unchanged.
+
+
+## 159 — First-stair-frame resource preparation partitions
+
+Own243Windows1040 primary schema4 evidence shows resource preparation parents
+of40.3156/84.0932ms while static uploads contain2160/9936bytes and create5/8
+vertex buffers. The software device and nonadjacent parent scopes do not prove
+which operation is expensive, a causal improvement, or that the player freeze
+is fixed. The two currentLinux pins have their own verified schema4 evidence;
+their different timings are not an A/B comparison.
+
+Stair schema5 adds12exclusive resource preparation wall partitions and optional
+current-thread CPU accounting only during each first GPU stair frame. They
+separate mesh CPU data, texture/vertex/index creation, static transfer creation,
+mapping/copying/unmapping, command acquisition/recording/submission and remaining
+CPU work. Diagnostic clock overhead is included. Windows thread accounting is
+coarse and may exceed short wall intervals; wall minus thread is not a measured
+wait. No ordinary diagnostic clock calls, extra GPU calls/readbacks, resource
+policy, memory budget, input or gameplay changes are introduced.
+
+A bounded scoped TLS binding restores on every exit. The existing exact report
+ordinal and emptyCPU packet gates remain; one complete valid resource prepare
+is additionally required. Every original34SDL call with its arguments and order,
+90Native assertions and55parser require conditions is preserved.26parser tests,
+2819pure partition checks on bothMSVC andClang, and syntax-only resource-cache
+compilation pass. Actual Native/device tests remain required in fullCI. All171
+old frozen source bindings are retained and the two new source files are added.
+No local game, device, focus, mouse, UAC, profiler or subagent was used. No held
+optimization is applied or retimed. QualifiedTEST30c8926 remains current.
