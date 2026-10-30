@@ -188,7 +188,7 @@ bool graphics_process_mouse( uint32_t kind, float x, float y, float dx, float dy
 uint32_t graphics_redraw_interval(uint64_t now){
     const double age=now/1000.0-graphics_attack_started;
     const bool attack=graphics_attack_serial&&age>=0&&age<(graphics_attack_kind==2?.95:.53);
-    return graphics_mouse_dirty||attack||graphics_input_router.walking_held()||graphics_projectiles_active(now)||graphics_fps_ads_animating_impl()||graphics_world_needs_redraw()?16u:graphics_grass_active?33u:90u;
+    return graphics_mouse_dirty||attack||graphics_input_router.walking_held()||graphics_projectiles_active(now)||graphics_fps_ads_animating_impl()||graphics_world_needs_redraw()||graphics_vehicle_needs_redraw()?16u:graphics_grass_active?33u:90u;
 }
 int graphics_input_wait_limit(int native_ms){
 #if defined(TILES)

@@ -35,6 +35,19 @@ const ncmm_host_graphics_presentation_v1 *presentation=nullptr;
 const ncmm_host_graphics_vehicles_v1 *vehicles_api=nullptr;
 first_person::vehicle::presentation vehicle_state;
 bool modular_vehicles=false;
+struct vehicle_metrics_guard {
+    double preparation_ms=0;
+    ~vehicle_metrics_guard(){if(!vehicles_api||!vehicles_api->submit_metrics)return;
+        ncmm_graphics_vehicle_metrics_v1 stats{};stats.struct_size=sizeof(stats);stats.version=1;
+        if(modular_vehicles&&metadata_vehicle_ready()){
+            stats.active_animation=vehicle_state.active_animation?1u:0u;stats.submitted_parts=uint32_t(vehicle_state.draws.size());
+            stats.generated=vehicle_state.generated;stats.reused=vehicle_state.reused;stats.evicted=vehicle_state.evicted;
+            stats.topology_builds=vehicle_state.topology_builds;stats.owned_bytes=vehicle_state.bytes();stats.preparation_ms=preparation_ms;
+        }
+        vehicles_api->submit_metrics(&stats);
+    }
+    static bool metadata_vehicle_ready(){return vehicle_state.input.enabled;}
+};
 const ncmm_host_graphics_gpu_v1 *gpu=nullptr;
 const ncmm_host_api_v2_core *settings=nullptr;
 void (*diagnostic_log)(ncmm_log_level_v1,const char *)=nullptr;
@@ -124,11 +137,14 @@ ncmm_graphics_control_state_v1 control_state(){
 }
 int render_hybrid(const ncmm_graphics_scene_v2 *source_scene,void *) {
     if(!source_scene)return 0;
-    auto adjusted_scene=*source_scene;const auto *scene=&adjusted_scene;
+    const auto *scene=source_scene;ncmm_graphics_scene_v2 adjusted_scene{};
+    ncmm_graphics_multilevel_scene_v1 adjusted_world{};
+    struct restore_world {const ncmm_graphics_multilevel_scene_v1 *previous;~restore_world(){active_world=previous;}} vehicle_world_guard{active_world};
     const auto frame_begun=std::chrono::steady_clock::now();bool cpu_built=false;
     if(!hybrid||!scene||!first_person::hybrid::valid_scene(*scene,float(yaw),pitch,active_world))return 0;
     last_scene_seconds=scene->environment.animation_seconds;
     const auto now=std::chrono::steady_clock::now();const auto state=control_state();
+    vehicle_metrics_guard vehicle_metrics;const auto vehicle_started=std::chrono::steady_clock::now();
     bool has_metadata=false;
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
         has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());
@@ -142,13 +158,25 @@ int render_hybrid(const ncmm_graphics_scene_v2 *source_scene,void *) {
        (!active_world||vehicle_state.input.scene.world_epoch==active_world->world_epoch)){
         const auto &vehicle_view=vehicle_state.input.scene;
         if(vehicle_view.eye_valid){
-            adjusted_scene.base.camera_x=vehicle_view.eye_x-(active_world?active_world->camera_dx:0);
-            adjusted_scene.base.camera_y=vehicle_view.eye_y-(active_world?active_world->camera_dy:0);
+            auto *adjusted=&adjusted_scene;
+            if(active_world){adjusted_world=*active_world;adjusted=&adjusted_world.appearance;active_world=&adjusted_world;}
+            else adjusted_scene=*source_scene;
+            adjusted->base.camera_x=vehicle_view.eye_x-(active_world?active_world->camera_dx:0);
+            adjusted->base.camera_y=vehicle_view.eye_y-(active_world?active_world->camera_dy:0);scene=adjusted;
             metadata.view.eye_height=vehicle_view.eye_z;
         }
         vehicle_state.observe({scene->base.camera_x+(active_world?active_world->camera_dx:0),scene->base.camera_y+(active_world?active_world->camera_dy:0),
             metadata.view.eye_height+(active_world?active_world->camera_dz:0)});metadata.vehicles=&vehicle_state;
     }
+    vehicle_metrics.preparation_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-vehicle_started).count();
+    auto submit_vehicle_focus=[&](){if(!vehicles_api||!vehicles_api->set_focus||!vehicles_api->get_focus_cell)return;
+        first_person::vehicle::presentation::selection selected;
+        if(metadata.vehicles){const float cp=std::cos(pitch);
+            selected=vehicle_state.pick(vehicles_api->get_focus_cell(),
+                {scene->base.camera_x+(active_world?active_world->camera_dx:0),scene->base.camera_y+(active_world?active_world->camera_dy:0),metadata.view.eye_height+(active_world?active_world->camera_dz:0)},
+                {float(std::cos(yaw))*cp,float(std::sin(yaw))*cp,std::sin(pitch)});}
+        vehicles_api->set_focus(selected.vehicle,selected.part,vehicle_state.input.scene.revision);
+    };
     metadata.horizon.clear();metadata.skyline.clear();metadata.horizon_revision=0;metadata.horizon_enabled=false;
     bool replacement_horizon=false;
     if(active_world&&multilevel&&multilevel->minor>=2&&
@@ -276,6 +304,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *source_scene,void *) {
                 ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);
                 const bool current_pick=gpu->metrics(&result)&&result.active&&result.frame_serial==packet.scene.frame_serial;
                 if(presentation)presentation->set_target(current_pick?result.target_cell:-1,result.label_x,result.label_y);
+                submit_vehicle_focus();
                 if(has_creatures)submit_creature_metrics(statistics,result.visible_creature_pixels);
                 frame_valid=false;last_gpu_reason.clear();return 1;
             }
@@ -337,6 +366,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *source_scene,void *) {
     }
     if(has_creatures)submit_creature_metrics(pixels,std::count_if(pixels.creatures.begin(),pixels.creatures.end(),[](int32_t cell){return cell!=-1;}));
     if(focus)focus->set_focus(pixels.focus);
+    submit_vehicle_focus();
     if(presentation){presentation->set_target(pixels.aimed,pixels.label_x,pixels.label_y);
         if(!pixels.effects.empty()&&!presentation->submit_effects(pixels.effects.data(),pixels.effect_width,pixels.effect_height,pixels.effect_width)){
             ncmm_graphics_composite::blend(pixels.pixels,pixels.width,pixels.height,pixels.effects,pixels.effect_width,pixels.effect_height);frame_valid=false;}}

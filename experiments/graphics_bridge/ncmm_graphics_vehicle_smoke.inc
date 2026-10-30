@@ -18,18 +18,20 @@
         get_map().furn_set(tripoint_bub_ms(p.x(),p.y(),1),furn_id("f_null"));get_map().ter_set(tripoint_bub_ms(p.x(),p.y(),1),ter_id("t_open_air"));}
     // Keep CDDA's data, perception, actual part API and SDL submission. No mesh
     // preview, fixture collision replacement, or changed quality setting.
-    const auto street=get_map().get_abs(center);std::vector<vehicle *> cars;
+    const auto street=get_map().get_abs(center);auto subject=street;std::vector<vehicle *> cars;
     std::ofstream stream(game_root()/"ncmm"/"first-person-vehicles.json");JsonOut evidence(stream);
     evidence.start_object();evidence.member("schema",1);evidence.member("actual_cdda",true);evidence.member("manual_playthrough",false);
     evidence.member("width",640);evidence.member("height",480);evidence.member("horizon_radius",NCMM_GRAPHICS_V2_RADIUS);
     evidence.member("frames");evidence.start_array();
-    auto camera=[&](int dx,int dy,float pitch){
-        const auto p=get_map().get_bub(tripoint_abs_ms(street.x()+dx,street.y()+dy,street.z()));
-        get_avatar().setpos(get_map(),p,false);g->ter_view_p=p;
-        const float wanted=std::atan2(float(-dy),float(-dx));
+    auto look=[&](float wanted,float pitch){
         graphics_mouse_dx=std::remainder(wanted-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
         graphics_mouse_dy=(graphics_camera_pitch-pitch)/.003f;
         require(graphics_action("ncmm.view.mouse_look"),"vehicle_camera_action_failed");graphics_mouse_dx=graphics_mouse_dy=0;
+    };
+    auto camera=[&](int dx,int dy,float pitch,int elevation=0){
+        const int z=subject.z()+elevation;if(get_map().get_abs_sub().z()!=z){g->vertical_shift(z);}
+        const auto p=get_map().get_bub(tripoint_abs_ms(subject.x()+dx,subject.y()+dy,z));
+        get_avatar().setpos(get_map(),p,false);g->ter_view_p=p;look(std::atan2(float(-dy),float(-dx)),pitch);
     };
     auto draw=[&](const std::string &label,const std::string &prototype,const char *backend,const char *mode,bool capture){
         const auto begun=std::chrono::steady_clock::now();
@@ -50,6 +52,10 @@
         evidence.member("camera_xyz",std::array<int,3>{get_avatar().pos_abs().x(),get_avatar().pos_abs().y(),get_avatar().pos_abs().z()});
         evidence.member("yaw",graphics_camera_yaw);evidence.member("pitch",graphics_camera_pitch);evidence.member("eye_height",graphics_presentation.eye_height);
         evidence.member("actual_gpu",graphics_gpu_frame);evidence.member("snapshot_vehicles",graphics_vehicle_rows.size());evidence.member("snapshot_parts",graphics_vehicle_parts.size());
+        evidence.member("vehicle_extraction_ms",graphics_vehicle_extraction_ms);evidence.member("vehicle_preparation_ms",graphics_vehicle_metrics.preparation_ms);
+        evidence.member("vehicle_owned_bytes",graphics_vehicle_metrics.owned_bytes);evidence.member("vehicle_generated",graphics_vehicle_metrics.generated);
+        evidence.member("vehicle_reused",graphics_vehicle_metrics.reused);evidence.member("vehicle_topology_builds",graphics_vehicle_metrics.topology_builds);
+        evidence.member("vehicle_submitted_parts",graphics_vehicle_metrics.submitted_parts);
         evidence.member("full_frame_ms",std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count());
         if(capture){const auto name="vehicle-"+prototype+"-"+label+"-"+backend+"-"+mode+".bmp";
             SDL_Surface *image=SDL_RenderReadPixels(renderer,nullptr);require(image!=nullptr,"vehicle_capture_failed");
@@ -78,10 +84,16 @@
     for(const char *prototype:prototypes){
         vehicle *car=get_map().add_vehicle(vproto_id(prototype),get_map().get_bub(street),0_degrees,0,veh_spawn_status::UNDAMAGED,false);
         require(car!=nullptr,"vehicle_gallery_prototype_not_created");cars.push_back(car);
+        int min_x=1000000,max_x=-1000000,min_y=1000000,max_y=-1000000;
+        for(const vpart_reference &p:car->get_all_parts())if(!p.part().removed&&!p.part().is_fake){const auto at=get_map().get_abs(p.pos_bub(get_map()));
+            min_x=std::min(min_x,at.x());max_x=std::max(max_x,at.x());min_y=std::min(min_y,at.y());max_y=std::max(max_y,at.y());}
+        subject=tripoint_abs_ms((min_x+max_x)/2,(min_y+max_y)/2,street.z());
+        const int radius=std::max(max_x-min_x,max_y-min_y)/2+6;
         const struct view {const char *name;int x,y;float pitch;} views[]={
             {"front",10,0,-.05f},{"rear",-10,0,-.05f},{"left",0,-10,-.05f},{"right",0,10,-.05f},
             {"front-three-quarter",9,9,-.10f},{"rear-three-quarter",-9,9,-.10f},{"top-oblique",5,5,-.58f}};
-        for(const auto &v:views){camera(v.x,v.y,v.pitch);pair(v.name,prototype);verify_car(*car);}
+        for(const auto &v:views){camera(v.x? (v.x>0?radius:-radius):0,v.y? (v.y>0?radius:-radius):0,v.pitch,std::strcmp(v.name,"top-oblique")==0?1:0);pair(v.name,prototype);verify_car(*car);}
+        camera(0,8,-.08f);
         if(std::strcmp(prototype,"car")==0){
             int door_index=-1,wheel_index=-1,roof_index=-1;std::vector<int> seats;
             for(const vpart_reference &p:car->get_all_parts()){
@@ -90,6 +102,8 @@
                 if(p.has_feature("ROOF")&&roof_index<0)roof_index=int(p.part_index());
                 if(p.has_feature("SEAT"))seats.push_back(int(p.part_index()));}
             require(door_index>=0&&wheel_index>=0&&roof_index>=0&&seats.size()>=2,"vehicle_real_fixture_parts_missing");
+            std::stable_sort(seats.begin(),seats.end(),[&](int a,int b){
+                return (car->part_with_feature(car->part(a).mount,"CONTROLS",true)>=0)>(car->part_with_feature(car->part(b).mount,"CONTROLS",true)>=0);});
             camera(0,8,-.08f);car->open(get_map(),door_index);pair("open-door",prototype);
             const uint64_t opened=car->part(door_index).ncmm_graphics_part_id();
             const auto door=std::find_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[&](const auto &p){return p.part_id==opened;});
@@ -98,13 +112,18 @@
             for(size_t n=0;n<2;++n){const auto pos=car->bub_part_pos(get_map(),seats[n]);
                 get_avatar().setpos(get_map(),pos,false);get_map().board_vehicle(pos,&get_avatar());
                 require(get_avatar().in_vehicle,"vehicle_board_failed");
+                look(float(units::to_radians(car->face.dir())),-.04f);
                 pair(n==0?"driver":"passenger",prototype);
                 require(graphics_vehicle_scene.occupied_part&&graphics_vehicle_scene.eye_valid,"vehicle_seat_camera_missing");
                 get_map().unboard_vehicle(get_avatar().pos_bub());camera(0,8,-.08f);require(!get_avatar().in_vehicle,"vehicle_exit_failed");}
             const auto hp=car->part(door_index).hp();car->set_hp(car->part(door_index),std::max(1,hp/3),true);
             pair("damaged",prototype);car->set_hp(car->part(door_index),0,true);pair("broken-door",prototype);
             const uint64_t removed=car->part(wheel_index).ncmm_graphics_part_id();
+            std::set<uint64_t> remaining;
+            for(const vpart_reference &p:car->get_all_parts())if(!p.part().removed&&!p.part().is_fake&&p.part().ncmm_graphics_part_id()!=removed){remaining.insert(p.part().ncmm_graphics_part_id());}
             car->remove_part(car->part(wheel_index));require(car->part(wheel_index).removed,"vehicle_wheel_remove_failed");car->part_removal_cleanup(get_map());
+            for(const vpart_reference &p:car->get_all_parts())if(!p.part().removed&&!p.part().is_fake){require(remaining.erase(p.part().ncmm_graphics_part_id())==1,"vehicle_vector_relocation_changed_part_identity");}
+            require(remaining.empty(),"vehicle_cleanup_lost_unrelated_part_identity");
             pair("removed-wheel",prototype);verify_car(*car);
             require(std::none_of(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[&](const auto &p){return p.part_id==removed;}),"vehicle_ghost_removed_wheel");
             const int added=car->install_part(get_map(),point_rel_ms(0,0),vpart_id("rebar_plate"));
@@ -113,12 +132,12 @@
             get_weather().weather_id=weather_type_id("rain");pair("rain",prototype);
             get_weather().weather_id=weather_type_id("fog");pair("fog",prototype);get_weather().weather_id=weather_type_id("sunny");
         }
-        get_map().destroy_vehicle(car);cars.clear();camera(0,10,-.06f);draw("deleted",prototype,"gpu","modular",false);
+        get_map().destroy_vehicle(car);cars.clear();subject=street;camera(0,10,-.06f);draw("deleted",prototype,"gpu","modular",false);
         require(graphics_vehicle_rows.empty()&&graphics_vehicle_parts.empty(),"vehicle_delete_retained_snapshot");
     }
     // Mixed parking and repeated dynamic observations; actual Native moves,
     // not camera motion pretending to be vehicle travel.
-    for(int n=0;n<5;++n){auto *v=get_map().add_vehicle(vproto_id(n%2?"suv":"car"),get_map().get_bub(tripoint_abs_ms(street.x()+n*6-12,street.y()-6,street.z())),0_degrees,0,veh_spawn_status::UNDAMAGED,false);
+    for(int n=0;n<5;++n){auto *v=get_map().add_vehicle(vproto_id(n%2?"suv":"car"),get_map().get_bub(tripoint_abs_ms(street.x()+n*8-16,street.y()-6,street.z())),0_degrees,0,veh_spawn_status::UNDAMAGED,false);
         require(v!=nullptr,"vehicle_parking_create_failed");cars.push_back(v);}
     camera(0,12,-.10f);pair("parking","mixed");
     for(unsigned n=0;n<128;++n){const int sign=n%2?-1:1;

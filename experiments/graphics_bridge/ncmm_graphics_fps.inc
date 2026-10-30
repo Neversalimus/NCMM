@@ -60,6 +60,7 @@ void graphics_fps_reset() {
     graphics_fps_ads_active=graphics_fps_gunshot_pending=false;graphics_fps_ads_since=graphics_fps_ads_changed=0;
     graphics_input_router.reset();
     graphics_fps_focus = {};
+    graphics_vehicle_focus_cell=-1;graphics_vehicle_focus_entity=graphics_vehicle_focus_part=0;
     graphics_fps_dispatch_target.reset();
     graphics_fps_open_target.reset();
     graphics_fps_move_origin.reset();
@@ -342,6 +343,7 @@ int graphics_set_focus(int32_t cell) {
         active_module_id != graphics_view.owner)
         return 0;
     graphics_fps_focus = {};
+    graphics_vehicle_focus_cell=-1;graphics_vehicle_focus_entity=graphics_vehicle_focus_part=0;
     if (cell < 0)
         return 1;
     if (size_t(cell) >= graphics_hybrid_positions->size() ||
@@ -353,6 +355,7 @@ int graphics_set_focus(int32_t cell) {
     if (!(graphics_hybrid_frame->base.cells[cell].flags & NCMM_GFX_VISIBLE))
         return 0;
     graphics_fps_focus.target = get_map().get_abs((*graphics_hybrid_positions)[cell]);
+    graphics_vehicle_focus_cell=cell;
     graphics_fps_focus.origin = get_map().get_abs(get_avatar().pos_bub());
     graphics_fps_focus.yaw = graphics_camera_yaw;
     graphics_fps_focus.pitch = graphics_camera_pitch;
@@ -584,7 +587,10 @@ const std::string *graphics_fps_take_action_impl(const std::string &category) {
         graphics_mouse_dx=graphics_mouse_dy=0;graphics_fps_action="ncmm.view.mouse_look";
     } else if (value.action == command::interact) {
         const auto target = graphics_fps_target(true);
-        if (target && !graphics_fps_interactions(*target).empty()) {
+        const auto vehicle_action=graphics_vehicle_focused_action();
+        if(target&&!vehicle_action.empty()){
+            graphics_fps_action=vehicle_action;graphics_fps_dispatch_target=get_map().get_abs(*target);
+        }else if (target && !graphics_fps_interactions(*target).empty()) {
             graphics_fps_action = "interact";
             graphics_fps_dispatch_target = get_map().get_abs(*target);
         }
@@ -625,8 +631,12 @@ std::optional<tripoint_bub_ms> graphics_take_fps_target_impl(const std::string &
     const auto current = graphics_fps_target(true);
     if (!current || get_map().get_abs(*current) != *target)
         return std::nullopt;
-    if (action == "interact")
+    if (action == "interact" || action == "open")
         graphics_fps_open_target = target;
+    if((action=="open"||action=="close")&&graphics_vehicle_focus_entity&&graphics_vehicle_focus_part){
+        graphics_vehicle_activity_request={true,action=="open",graphics_vehicle_focus_entity,graphics_vehicle_focus_part,
+            graphics_vehicle_scene.world_epoch,target->x(),target->y(),target->z()};
+    }
     return current;
 }
 std::optional<tripoint_bub_ms>

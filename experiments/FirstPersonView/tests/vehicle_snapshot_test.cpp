@@ -29,9 +29,10 @@ snapshot fixture(){
 }
 snapshot native;
 bool fail_parts=false;
+unsigned part_reads=0;
 int get_scene(ncmm_graphics_vehicle_scene_v1 *out){*out=native.scene;return 1;}
 int get_vehicles(ncmm_graphics_vehicle_v1 *out,size_t n){if(n!=native.vehicles.size())return 0;std::copy(native.vehicles.begin(),native.vehicles.end(),out);return 1;}
-int get_parts(ncmm_graphics_vehicle_part_v1 *out,size_t n){if(fail_parts||n!=native.parts.size())return 0;std::copy(native.parts.begin(),native.parts.end(),out);return 1;}
+int get_parts(ncmm_graphics_vehicle_part_v1 *out,size_t n){++part_reads;if(fail_parts||n!=native.parts.size())return 0;std::copy(native.parts.begin(),native.parts.end(),out);return 1;}
 }
 int main(){
     static_assert(std::is_trivially_copyable<ncmm_graphics_vehicle_part_v1>::value,"ABI contains only copied values");
@@ -69,13 +70,15 @@ int main(){
     auto copy=components;for(size_t i=0;i<copy.size();++i)require(copy[i].id.value()!=components[i].id.value(),"copied parts receive distinct identities");
     native=original;ncmm_host_graphics_vehicles_v1 api{1,sizeof(api),1,0,get_scene,get_vehicles,get_parts};
     snapshot owned;require(first_person::vehicle::acquire(owned,&api,16)&&owned.enabled,"bounded copy acquisition");
+    native.scene.seconds+=.1;
+    require(first_person::vehicle::acquire(owned,&api,16)&&part_reads==1&&owned.scene.seconds==native.scene.seconds,"unchanged payload reuses owned copy and updates only presentation clock");
     native.parts[0].health=.2f;require(owned.parts[0].health==1,"snapshot never borrows a Native part");
-    fail_parts=true;require(!first_person::vehicle::acquire(owned,&api,16)&&!owned.enabled&&owned.parts.empty(),"failed acquisition cannot retain ghost body parts");
+    ++native.scene.revision;fail_parts=true;require(!first_person::vehicle::acquire(owned,&api,16)&&!owned.enabled&&owned.parts.empty(),"failed acquisition cannot retain ghost body parts");
     const first_person::vehicle::topology topology(original,original.vehicles[0]);
     require(topology.mounts.size()==2&&topology.mounts.begin()->second.parts.size()==3,"whole topology retains all mount layers");
     require(topology.wheels.size()==1,"topology cannot manufacture four wheels");
-    for(uint32_t feature:std::array<uint32_t,17>{{NCMM_VP_FRAME,NCMM_VP_ROOF,NCMM_VP_PANEL,NCMM_VP_DOOR,NCMM_VP_WINDOW,NCMM_VP_WHEEL,
-        NCMM_VP_SEAT,NCMM_VP_CONTROLS,NCMM_VP_ENGINE,NCMM_VP_CARGO,NCMM_VP_ARMOR,NCMM_VP_SOLAR,NCMM_VP_TURRET,NCMM_VP_LIGHT,NCMM_VP_RACK,NCMM_VP_FUEL_TANK,0u}}){
+    for(uint32_t feature:std::array<uint32_t,18>{{NCMM_VP_FRAME,NCMM_VP_ROOF,NCMM_VP_PANEL,NCMM_VP_DOOR,NCMM_VP_WINDOW,NCMM_VP_WHEEL,
+        NCMM_VP_SEAT,NCMM_VP_CONTROLS,NCMM_VP_ENGINE,NCMM_VP_CARGO,NCMM_VP_ARMOR,NCMM_VP_SOLAR,NCMM_VP_TURRET,NCMM_VP_LIGHT,NCMM_VP_RACK,NCMM_VP_FUEL_TANK,NCMM_VP_CURTAIN,0u}}){
         auto p=original.parts[0];p.features=feature;p.wheel_radius=.32f;p.wheel_width=.18f;
         for(unsigned lod=0;lod<3;++lod){const auto mesh=first_person::vehicle::generate(original,topology,p,lod);
             require(mesh&&!mesh->triangles.empty(),"component library generates every supported semantic type");
@@ -90,10 +93,13 @@ int main(){
         const auto found=std::find_if(state.draws.begin(),state.draws.end(),[&](const auto &d){return d.part_id==id;});
         require(found!=state.draws.end(),"real part submission exists");return *found;};
     const auto wheel_mesh=find_draw(moving,103).geometry;
+    for(const auto &face:wheel_mesh->triangles)for(const auto &v:face.vertices){
+        require(std::hypot(v.position.x,v.position.z)<=.32001f&&std::abs(v.position.y)<=.09001f,"licensed wheel respects actual Native radius and width");}
     moving.input.vehicles[0].origin_x+=.2f;moving.input.scene.seconds+=.1;moving.observe({0,0,1.5f});
     require(moving.generated==initial_builds&&find_draw(moving,103).geometry==wheel_mesh,"translation only changes instance transforms");
     moving.input.vehicles[0].yaw+=.2f;moving.input.scene.seconds+=.1;moving.observe({0,0,1.5f});
     require(moving.generated==initial_builds,"whole vehicle rotation never rebuilds component meshes");
+    require(moving.topology_builds==1,"translation and rotation retain whole construction analysis");
     const auto wheel_axis=find_draw(moving,103).placement.x;
     moving.input.scene.origin_x-=10;moving.input.vehicles[0].origin_x+=10;
     moving.input.scene.seconds+=.1;moving.observe({10,0,1.5f});
@@ -105,6 +111,15 @@ int main(){
     first_person::vehicle::presentation doors;doors.input=original;doors.input.enabled=true;
     doors.input.parts[0].features=NCMM_VP_DOOR|NCMM_VP_WINDOW;doors.observe({0,0,1.5f});
     const auto door_mesh=find_draw(doors,100).geometry,unmoved_wheel=find_draw(doors,103).geometry;
+    {
+        first_person::vehicle::presentation exact;exact.draws.push_back(find_draw(doors,100));const auto &draw=exact.draws[0];
+        const auto &face=draw.geometry->triangles[0];first_person::vehicle::point center{};
+        for(const auto &v:face.vertices)center=center+draw.placement.position(v.position)*(1.f/3);
+        const auto normal=draw.placement.normal(face.vertices[0].normal),origin=center+normal*.5f;
+        const auto selected=exact.pick(draw.cell,origin,normal*-1);
+        require(selected.vehicle==draw.vehicle_id&&selected.part==100,"visible surface selects its precise installed part");
+        require(!exact.pick(draw.cell+1,origin,normal*-1).part,"part picking cannot cross Native depth-selected cells");
+    }
     const auto closed_axis=find_draw(doors,100).placement.x;const auto before_door_builds=doors.generated;
     doors.input.parts[0].state|=NCMM_VP_OPEN;doors.input.scene.seconds+=.09;doors.observe({0,0,1.5f});
     require(doors.generated==before_door_builds&&find_draw(doors,100).geometry==door_mesh,"opening confirmed door animates hinge without rebuilding");

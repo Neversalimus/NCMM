@@ -5,13 +5,19 @@ ncmm_graphics_vehicle_scene_v1 graphics_vehicle_scene{};
 bool graphics_vehicles_requested=false;
 std::vector<ncmm_graphics_vehicle_v1> graphics_vehicle_rows;
 std::vector<ncmm_graphics_vehicle_part_v1> graphics_vehicle_parts;
+ncmm_graphics_vehicle_metrics_v1 graphics_vehicle_metrics{};
+int graphics_vehicle_focus_cell=-1;
+uint64_t graphics_vehicle_focus_entity=0,graphics_vehicle_focus_part=0;
+double graphics_vehicle_extraction_ms=0;
+struct {bool valid=false,opening=false;uint64_t entity=0,part=0,world=0;int x=0,y=0,z=0;} graphics_vehicle_activity_request;
 extern uint64_t graphics_world_epoch;
 
 void graphics_clear_vehicles()
 {
-    graphics_vehicle_scene={};graphics_vehicle_rows.clear();graphics_vehicle_parts.clear();
+    graphics_vehicle_scene={};graphics_vehicle_rows.clear();graphics_vehicle_parts.clear();graphics_vehicle_metrics={};
+    graphics_vehicle_focus_cell=-1;graphics_vehicle_focus_entity=graphics_vehicle_focus_part=0;
 }
-void graphics_forget_vehicle_client(){graphics_clear_vehicles();graphics_vehicles_requested=false;}
+void graphics_forget_vehicle_client(){graphics_clear_vehicles();graphics_vehicles_requested=false;graphics_vehicle_activity_request={};}
 int graphics_vehicle_get_scene(ncmm_graphics_vehicle_scene_v1 *out)
 {
     if(!graphics_hybrid_frame||active_module_id!=graphics_view.owner||!out||out->struct_size<sizeof(*out))return 0;
@@ -20,21 +26,80 @@ int graphics_vehicle_get_scene(ncmm_graphics_vehicle_scene_v1 *out)
 int graphics_vehicle_get_rows(ncmm_graphics_vehicle_v1 *out,size_t count)
 {
     if(!graphics_hybrid_frame||active_module_id!=graphics_view.owner||count!=graphics_vehicle_rows.size()||(!out&&count))return 0;
-    if(count)std::copy(graphics_vehicle_rows.begin(),graphics_vehicle_rows.end(),out);return 1;
+    if(count){std::copy(graphics_vehicle_rows.begin(),graphics_vehicle_rows.end(),out);}
+    return 1;
 }
 int graphics_vehicle_get_parts(ncmm_graphics_vehicle_part_v1 *out,size_t count)
 {
     if(!graphics_hybrid_frame||active_module_id!=graphics_view.owner||count!=graphics_vehicle_parts.size()||(!out&&count))return 0;
-    if(count)std::copy(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),out);return 1;
+    if(count){std::copy(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),out);}
+    return 1;
+}
+int graphics_vehicle_get_focus_cell()
+{
+    return graphics_hybrid_frame&&active_module_id==graphics_view.owner?graphics_vehicle_focus_cell:-1;
+}
+int graphics_vehicle_set_focus(uint64_t entity,uint64_t part,uint64_t revision)
+{
+    if(!graphics_hybrid_frame||active_module_id!=graphics_view.owner){return 0;}
+    graphics_vehicle_focus_entity=graphics_vehicle_focus_part=0;
+    if(!entity&&!part){return 1;}
+    if(revision!=graphics_vehicle_scene.revision){return 0;}
+    const auto p=std::find_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[&](const auto &p){return p.part_id==part;});
+    if(p==graphics_vehicle_parts.end()||p->vehicle_index>=graphics_vehicle_rows.size()||p->cell_index!=graphics_vehicle_focus_cell||
+        (p->state&NCMM_VP_TOPOLOGY_ONLY)||graphics_vehicle_rows[p->vehicle_index].entity_id!=entity){return 0;}
+    graphics_vehicle_focus_entity=entity;graphics_vehicle_focus_part=part;return 1;
+}
+int graphics_vehicle_submit_metrics(const ncmm_graphics_vehicle_metrics_v1 *value)
+{
+    if(!graphics_hybrid_frame||active_module_id!=graphics_view.owner||!value||value->struct_size<sizeof(*value)||value->version!=1||
+        value->active_animation>1||value->submitted_parts>NCMM_VEHICLE_MAX_PARTS||!std::isfinite(value->preparation_ms)||value->preparation_ms<0){return 0;}
+    graphics_vehicle_metrics=*value;return 1;
 }
 const ncmm_host_graphics_vehicles_v1 graphics_vehicles_api={1,sizeof(ncmm_host_graphics_vehicles_v1),1,0,
-    graphics_vehicle_get_scene,graphics_vehicle_get_rows,graphics_vehicle_get_parts};
+    graphics_vehicle_get_scene,graphics_vehicle_get_rows,graphics_vehicle_get_parts,
+    graphics_vehicle_get_focus_cell,graphics_vehicle_set_focus,graphics_vehicle_submit_metrics};
+bool graphics_vehicle_needs_redraw(){return graphics_vehicle_metrics.active_animation!=0;}
 float graphics_vehicle_eye_height(float fallback)
 {
     return graphics_vehicle_scene.eye_valid?graphics_vehicle_scene.eye_z:fallback;
 }
 
 #if defined(TILES)
+int graphics_vehicle_activity_validate_impl(vehicle &v,uint64_t entity,uint64_t id,bool opening)
+{
+    if(!entity||!id||v.ncmm_graphics_vehicle_id()!=entity){return -1;}
+    map &here=get_map();avatar &you=get_avatar();
+    for(const vpart_reference &ref:v.get_all_parts()){
+        const auto &p=ref.part();
+        if(p.ncmm_graphics_part_id()!=id){continue;}
+        const int index=int(ref.part_index());const auto at=ref.pos_bub(here);
+        if(p.removed||p.is_fake||!p.is_available()||!ref.has_feature("OPENABLE")||bool(p.open)==opening||
+            at.z()!=you.posz()||rl_dist(at,you.pos_bub())>1||!you.sees(here,at)){return -1;}
+        const auto occupied=here.veh_at(you.pos_bub());
+        const bool outside=!occupied||&occupied->vehicle()!=&v;
+        if(outside&&p.info().has_flag("OPENCLOSE_INSIDE")){return -1;}
+        if(opening&&p.locked&&v.part_has_lock(index)){return -1;}
+        return index;
+    }
+    return -1;
+}
+std::optional<int> graphics_vehicle_activity_part_impl(vehicle &v,const tripoint_bub_ms &at,bool opening,uint64_t &entity,uint64_t &part)
+{
+    const auto request=graphics_vehicle_activity_request;graphics_vehicle_activity_request={};
+    if(!request.valid){return std::nullopt;}
+    const auto absolute=get_map().get_abs(at);
+    if(request.opening!=opening||request.world!=graphics_vehicle_scene.world_epoch||absolute.x()!=request.x||absolute.y()!=request.y||absolute.z()!=request.z){return -1;}
+    entity=request.entity;part=request.part;
+    return graphics_vehicle_activity_validate_impl(v,entity,part,opening);
+}
+std::string graphics_vehicle_focused_action()
+{
+    if(!graphics_vehicle_focus_entity||!graphics_vehicle_focus_part){return {};}
+    const auto found=std::find_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[&](const auto &p){return p.part_id==graphics_vehicle_focus_part;});
+    if(found==graphics_vehicle_parts.end()||!(found->features&NCMM_VP_OPENABLE)||(found->state&(NCMM_VP_BROKEN|NCMM_VP_TOPOLOGY_ONLY))){return {};}
+    return (found->state&NCMM_VP_OPEN)?"close":"open";
+}
 uint64_t graphics_vehicle_hash(uint64_t value,const void *data,size_t size)
 {
     const auto *bytes=static_cast<const unsigned char *>(data);
@@ -53,6 +118,8 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
     const std::vector<tripoint_bub_ms> &positions,std::vector<ncmm_graphics_cell_v2> &details,
     const ncmm_graphics_multilevel_scene_v1 *world)
 {
+    const auto begun=std::chrono::steady_clock::now();
+    struct record_time {std::chrono::steady_clock::time_point begun;~record_time(){graphics_vehicle_extraction_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();}} timer{begun};
     graphics_clear_vehicles();
     auto &scene=graphics_vehicle_scene;scene.struct_size=sizeof(scene);scene.version=1;
     scene.world_epoch=world?world->world_epoch:graphics_world_epoch;
@@ -115,12 +182,16 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
             out.vehicle_index=uint32_t(graphics_vehicle_rows.size());out.cell_index=cell==permitted.end()?-1:cell->second;
             out.mount_x=part.mount.x();out.mount_y=part.mount.y();out.mount_z=part.precalc[0].z();
             out.health=std::clamp(float(part.health_percent()),0.f,1.f);
-            out.state=NCMM_VP_EXISTS|(part.is_broken()?NCMM_VP_BROKEN:0u)|(part.open?NCMM_VP_OPEN:0u)|(part.enabled?NCMM_VP_ENABLED:0u);
+            out.state=NCMM_VP_EXISTS;
+            if(part.is_broken()){out.state|=NCMM_VP_BROKEN;}
+            if(part.open){out.state|=NCMM_VP_OPEN;}
+            if(part.enabled){out.state|=NCMM_VP_ENABLED;}
             if(cell==permitted.end())out.state|=NCMM_VP_TOPOLOGY_ONLY;
             out.direction=float(units::to_radians(part.direction));out.state|=NCMM_VP_DIRECTION_KNOWN;
             const std::pair<const char *,uint32_t> features[]={
                 {"STRUCTURE",NCMM_VP_FRAME},{"ROOF",NCMM_VP_ROOF},{"OBSTACLE",NCMM_VP_PANEL},
-                {"WINDOW",NCMM_VP_WINDOW},{"OPENABLE",NCMM_VP_DOOR},{"WHEEL",NCMM_VP_WHEEL},
+                {"WINDOW",NCMM_VP_WINDOW},{"DOOR",NCMM_VP_DOOR},{"OPENABLE",NCMM_VP_OPENABLE},{"WHEEL",NCMM_VP_WHEEL},
+                {"HALF_BOARD",NCMM_VP_HALF_PANEL},{"WINDSHIELD",NCMM_VP_WINDSHIELD},{"CURTAIN",NCMM_VP_CURTAIN},
                 {"SEAT",NCMM_VP_SEAT},{"CARGO",NCMM_VP_CARGO},{"ENGINE",NCMM_VP_ENGINE},
                 {"CONE_LIGHT",NCMM_VP_LIGHT},{"CIRCLE_LIGHT",NCMM_VP_LIGHT},{"CONTROLS",NCMM_VP_CONTROLS},
                 {"ARMOR",NCMM_VP_ARMOR},{"SOLAR_PANEL",NCMM_VP_SOLAR},{"TURRET",NCMM_VP_TURRET},
@@ -153,6 +224,7 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
                 if(*electrical_power)out.state|=NCMM_VP_LIGHT_ON;
             }
             if(out.features&NCMM_VP_WHEEL){out.wheel_radius=.34f;out.wheel_width=.18f;
+                if(v.part_with_feature(part.mount,"STEERABLE",true)>=0){out.features|=NCMM_VP_STEERABLE;}
                 if(item.type&&item.type->wheel){const auto &wheel=*item.type->wheel;
                     if(wheel.diameter>0&&wheel.width>0){out.wheel_radius=std::clamp(wheel.diameter*.0127f,.04f,4.f);
                         out.wheel_width=std::clamp(wheel.width*.0254f,.01f,3.f);out.state|=NCMM_VP_WHEEL_SIZE_KNOWN;}}
@@ -179,16 +251,21 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
             continue; // Unrepresentable cars retain the intact Legacy route.
         }
         if(scene.occupied_vehicle==row.entity_id&&scene.occupied_part){
-            std::vector<float> radii;const ncmm_graphics_vehicle_part_v1 *seat=nullptr;
+            std::vector<float> radii;const ncmm_graphics_vehicle_part_v1 *seat=nullptr;std::array<unsigned,27> counts{};unsigned cargo=0;
             for(uint32_t n=0;n<row.part_count;++n){const auto &part=graphics_vehicle_parts[row.first_part+n];
+                for(unsigned bit=0;bit<27;++bit){if(part.features&(1u<<bit)){++counts[bit];}}
+                if((part.features&NCMM_VP_CARGO)&&!(part.features&(NCMM_VP_SEAT|NCMM_VP_DOOR|NCMM_VP_CONTROLS|NCMM_VP_ENGINE|NCMM_VP_PANEL))){++cargo;}
                 if(part.features&NCMM_VP_WHEEL)radii.push_back(part.wheel_radius);
                 if(part.part_id==scene.occupied_part)seat=&part;}
-            if(seat){const float floor=ncmm_graphics_vehicle_policy::chassis(std::move(radii));
+            if(seat){const float floor=ncmm_graphics_vehicle_policy::chassis(radii);
+                std::sort(radii.begin(),radii.end());
+                const auto profile=ncmm_graphics_vehicle_policy::shape(row.min_y==row.max_y,row.max_x-row.min_x,unsigned(radii.size()),
+                    counts[6],counts[1],cargo,counts[10],counts[11],counts[16],counts[8],counts[17],radii.empty()?0:radii[radii.size()/2]);
                 // A seat's actual mount is the camera anchor even when Native
                 // rounds the avatar to another grid centre during a turn.
                 scene.eye_x=row.origin_x+seat->mount_x*co-seat->mount_y*si;
                 scene.eye_y=row.origin_y+seat->mount_x*si+seat->mount_y*co;
-                scene.eye_z=ncmm_graphics_vehicle_policy::seated_eye(floor,std::clamp(you.height()/175.f,.45f,2.f),floor+1.28f);
+                scene.eye_z=ncmm_graphics_vehicle_policy::seated_eye(floor,std::clamp(you.height()/175.f,.45f,2.f),floor+profile.cabin);
                 scene.eye_valid=1;
             }
         }

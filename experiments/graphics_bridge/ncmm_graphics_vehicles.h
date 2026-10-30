@@ -22,7 +22,9 @@ enum {
     NCMM_VP_STEERABLE=32768u, NCMM_VP_FLOAT=65536u,
     NCMM_VP_BICYCLE=131072u, NCMM_VP_MOTORCYCLE=262144u,
     NCMM_VP_AISLE=524288u, NCMM_VP_BATTERY=1048576u,
-    NCMM_VP_FUEL_TANK=2097152u, NCMM_VP_RACK=4194304u
+    NCMM_VP_FUEL_TANK=2097152u, NCMM_VP_RACK=4194304u,
+    NCMM_VP_OPENABLE=8388608u, NCMM_VP_HALF_PANEL=16777216u,
+    NCMM_VP_WINDSHIELD=33554432u, NCMM_VP_CURTAIN=67108864u
 };
 enum {
     NCMM_VP_EXISTS=1u, NCMM_VP_BROKEN=2u, NCMM_VP_OPEN=4u,
@@ -72,11 +74,20 @@ typedef struct ncmm_graphics_vehicle_scene_v1 {
     uint32_t eye_valid;
 } ncmm_graphics_vehicle_scene_v1;
 
+typedef struct ncmm_graphics_vehicle_metrics_v1 {
+    uint32_t struct_size, version, active_animation, submitted_parts;
+    uint64_t generated, reused, evicted, topology_builds, owned_bytes;
+    double preparation_ms;
+} ncmm_graphics_vehicle_metrics_v1;
+
 typedef struct ncmm_host_graphics_vehicles_v1 {
     uint32_t abi_version, struct_size, major, minor;
     int (*get_scene)(ncmm_graphics_vehicle_scene_v1 *);
     int (*get_vehicles)(ncmm_graphics_vehicle_v1 *, size_t);
     int (*get_parts)(ncmm_graphics_vehicle_part_v1 *, size_t);
+    int (*get_focus_cell)(void);
+    int (*set_focus)(uint64_t vehicle_id, uint64_t part_id, uint64_t revision);
+    int (*submit_metrics)(const ncmm_graphics_vehicle_metrics_v1 *);
 } ncmm_host_graphics_vehicles_v1;
 #ifdef __cplusplus
 }

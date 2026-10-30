@@ -1,5 +1,6 @@
 """Prepare optional vehicle snapshots at the two pinned Native versions."""
 from pathlib import Path
+from vehicle_interactions import prepare as prepare_interactions
 
 
 def replace_once(text, before, after):
@@ -41,6 +42,7 @@ def prepare(root, updates, bridge):
         '        graphics_vehicles_requested = true; return &graphics_vehicles_api;\n'
         '    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {')
     updates['ncmm_loader.cpp'] = loader
+    prepare_interactions(root,updates)
     for name in ('ncmm_graphics_vehicles.h','ncmm_graphics_vehicle_identity.hpp','ncmm_graphics_vehicles.inc','ncmm_graphics_vehicle_policy.hpp','ncmm_graphics_vehicle_smoke.inc'):
         if (root / 'src' / name).exists():
             raise ValueError('Experimental vehicle source already exists: ' + name)

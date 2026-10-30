@@ -19,7 +19,7 @@ inline point rotate(point p,float yaw){const float c=std::cos(yaw),s=std::sin(ya
 struct vertex {point position,normal;float u=0,v=0;};
 struct material {std::array<float,4> color{};uint32_t kind=NCMM_VM_METAL;bool emissive=false;};
 struct triangle {std::array<vertex,3> vertices;uint16_t material=0;};
-enum class component {frame,roof,panel,door,glass,wheel,seat,controls,engine,cargo,armor,solar,turret,light,rack,tank,other};
+enum class component {frame,roof,panel,door,glass,wheel,seat,controls,engine,cargo,armor,solar,turret,light,rack,tank,curtain,other};
 struct model {
     std::vector<triangle> triangles;
     std::vector<material> materials;
@@ -100,6 +100,7 @@ public:
     }
 };
 inline component classify(const ncmm_graphics_vehicle_part_v1 &p){const auto f=p.features;
+    if(f&NCMM_VP_CURTAIN)return component::curtain;
     if(f&NCMM_VP_DOOR)return component::door;if(f&NCMM_VP_WINDOW)return component::glass;
     if(f&NCMM_VP_WHEEL)return component::wheel;if(f&NCMM_VP_SEAT)return component::seat;
     if(f&NCMM_VP_CONTROLS)return component::controls;if(f&NCMM_VP_SOLAR)return component::solar;
@@ -118,12 +119,25 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
     const float chassis=layout.chassis;
     const unsigned segments=lod==0?32u:lod==1?24u:16u;
     if((p.state&NCMM_VP_BROKEN)&&(kind==component::glass||kind==component::door))return std::make_shared<model>(std::move(b.output));
-    auto side_point=[&](float u,float outward,float z){const unsigned side=layout.edge(at);
-        return side==1?point{u,outward,z}:side==3?point{-u,-outward,z}:side==0?point{outward,-u,z}:point{-outward,u,z};};
+    unsigned active_side=layout.part_edge(p);
+    auto side_point=[&](float u,float outward,float z){const unsigned side=active_side;
+        point result=side==1?point{u,outward,z}:side==3?point{-u,-outward,z}:side==0?point{outward,-u,z}:point{-outward,u,z};
+        if(kind==component::panel||kind==component::armor){
+            const int sx=result.x>0?1:-1,sy=result.y>0?1:-1;
+            if(std::abs(result.x)>.32f&&std::abs(result.y)>.32f&&layout.outer(at,sx>0?0:2)&&layout.outer(at,sy>0?1:3)){
+                const float x=std::abs(result.x)-.32f,y=std::abs(result.y)-.32f,n=std::hypot(x,y),r=outward-.32f;
+                if(n>.0001f&&r>0){result.x=sx*(.32f+x*r/n);result.y=sy*(.32f+y*r/n);}}
+            // Local dents taper to zero at part boundaries, retaining the
+            // actual continuous neighbouring panels and wheel cut-outs.
+            const float dent=(1-p.health)*.055f*std::max(0.f,1-4*u*u);
+            if(side==1)result.y-=dent;else if(side==3)result.y+=dent;else if(side==0)result.x-=dent;else result.x+=dent;
+        }
+        return result;
+    };
     auto panel=[&](float low,float high,uint16_t material,bool arch){
         const unsigned count=lod==0?12:lod==1?8:6;
         auto bottom=[&](float x){float z=low;
-            if(arch&&(layout.edge(at)==1||layout.edge(at)==3))for(uint32_t n:layout.wheels){const auto &wheel=s.parts[n];
+            if(arch&&(active_side==1||active_side==3))for(uint32_t n:layout.wheels){const auto &wheel=s.parts[n];
                 if(wheel.mount_z!=p.mount_z||std::abs(wheel.mount_y-p.mount_y)>0)continue;
                 const float dx=float(p.mount_x-wheel.mount_x)+x,r=wheel.wheel_radius+.055f;
                 if(std::abs(dx)<r)z=std::max(z,wheel.wheel_radius+.018f+std::sqrt(r*r-dx*dx));}
@@ -138,11 +152,19 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         }
     };
     auto window=[&](float low,float high){
-        const auto a=side_point(-.44f,.455f,low),d=side_point(.44f,.455f,low),
-            c=side_point(.35f,.36f,high),q=side_point(-.35f,.36f,high);
+        const unsigned before=active_side==0?1:active_side==1?2:active_side==2?3:0,after=(before+2)%4;
+        const bool shared_before=kind==component::glass&&layout.has(topology::adjacent(at,before),NCMM_VP_WINDSHIELD),
+            shared_after=kind==component::glass&&layout.has(topology::adjacent(at,after),NCMM_VP_WINDSHIELD);
+        const float u0=shared_before?-.5f:-.46f,u1=shared_after?.5f:.46f;
+        const float top=(p.features&NCMM_VP_WINDSHIELD)?-.48f:.36f;
+        const auto a=side_point(u0,.455f,low),d=side_point(u1,.455f,low),
+            c=side_point(u1,top,high),q=side_point(u0,top,high);
         b.face(a,q,c,d,b.glass);
-        b.beam(a,d,.028f,.028f,b.dark);b.beam(d,c,.025f,.025f,b.dark);
-        b.beam(c,q,.028f,.028f,b.dark);b.beam(q,a,.025f,.025f,b.dark);
+        b.beam(a,d,.028f,.028f,b.dark);if(!shared_after)b.beam(d,c,.025f,.025f,b.dark);
+        b.beam(c,q,.028f,.028f,b.dark);if(!shared_before)b.beam(q,a,.025f,.025f,b.dark);
+        if(p.health<.85f&&lod<2){const auto crack=b.add({{.55f,.63f,.65f,.68f},NCMM_VM_GLASS});
+            const point center=(a+d+c+q)*.25f;
+            for(const auto &edge:std::array<point,3>{{a,c,q}})b.beam(center,center+(edge-center)*(.45f+.3f*(1-p.health)),.009f,.009f,crack,4);}
     };
     if(kind==component::wheel){
         const float r=p.wheel_radius,w=p.wheel_width;const bool bicycle=(p.features&NCMM_VP_BICYCLE)!=0;
@@ -173,10 +195,9 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             b.beam({-.5f,.31f,chassis},{.5f,.31f,chassis},.075f,.10f,b.steel);
             b.beam({0,-.4f,chassis},{0,.4f,chassis},.06f,.09f,b.steel);
         }
-        if(p.features&(NCMM_VP_FLOOR|NCMM_VP_AISLE))b.cushion({0,0,chassis+.035f},{1,.92f,.055f},.025f,b.dark);
+        if(layout.has(at,NCMM_VP_FLOOR|NCMM_VP_AISLE))b.cushion({0,0,chassis+.035f},{1,1,.055f},.025f,b.dark);
     }else if(kind==component::roof){
-        const bool hood=layout.has(at,NCMM_VP_ENGINE)&&!layout.has(at,NCMM_VP_SEAT|NCMM_VP_CONTROLS);
-        const float height=chassis+(hood?.46f:layout.cabin);
+        const float height=chassis+layout.cabin;
         const unsigned nx=lod==0?6:3,ny=lod==0?8:4;
         auto roof=[&](float x,float y){const float span=std::max(1.f,float(layout.max_y-layout.min_y+1));
             const float center=(layout.max_y+layout.min_y)*.5f;
@@ -192,13 +213,23 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             const auto a=roof(side==0?.5f:-.5f,side==1?.5f:-.5f),c=roof(side==2?-.5f:.5f,side==3?-.5f:.5f);
             b.beam(a,c,.028f,.045f,b.dark);}
     }else if(kind==component::panel||kind==component::armor){
-        panel(chassis-.15f,chassis+.66f,kind==component::armor?b.steel:b.paint,true);
+        const bool wall=kind==component::panel||layout.has(at,NCMM_VP_PANEL|NCMM_VP_DOOR);
+        const float high=chassis+(layout.has(at,NCMM_VP_HALF_PANEL)? .66f:layout.cabin);
+        if(wall){
+            bool boundary=false;
+            for(unsigned side=0;side<4;++side)if(layout.outer(at,side)){active_side=side;panel(chassis-.15f,high,kind==component::armor?b.steel:b.paint,true);boundary=true;}
+            if(!boundary){active_side=layout.part_edge(p);panel(chassis-.15f,high,kind==component::armor?b.steel:b.paint,false);}
+        }else b.cushion({0,0,chassis-.06f},{.96f,.96f,.055f},.025f,b.steel);
+        if(kind==component::panel&&(std::string_view(p.variant).find("cover")!=std::string_view::npos||layout.hood(p))){
+            const float z=chassis+.66f;
+            b.face({-.5f,-.5f,z},{.5f,-.5f,z},{.5f,.5f,z},{-.5f,.5f,z},b.paint);
+        }
         if(kind==component::armor&&lod<2){for(float u:{-.36f,.36f})for(float z:{chassis,chassis+.5f}){
             const auto bolt=side_point(u,.52f,z);b.cushion(bolt,{.035f,.035f,.035f},.01f,b.dark);}}
     }else if(kind==component::door){
         panel(chassis-.12f,chassis+.64f,b.paint,false);
         if(p.features&NCMM_VP_WINDOW)window(chassis+.69f,chassis+layout.cabin-.08f);
-        else panel(chassis+.64f,chassis+layout.cabin-.08f,b.paint,false);
+        else if(!(p.features&NCMM_VP_HALF_PANEL))panel(chassis+.64f,chassis+layout.cabin-.08f,b.paint,false);
         const auto handle=side_point(-.28f,.523f,chassis+.59f);
         b.beam(handle+point{-.075f,0,0},handle+point{.075f,0,0},.032f,.026f,b.steel,6);
         b.shift_pivot(side_point(.48f,.47f,chassis));
@@ -245,6 +276,12 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         for(float y:{-.35f,.35f})b.beam({-.45f,y,chassis+.15f},{.45f,y,chassis+.15f},.04f,.04f,b.steel);
     }else if(kind==component::tank){
         b.cushion({0,0,chassis+.19f},{.62f,.61f,.34f},.12f,b.steel);
+    }else if(kind==component::curtain){
+        if(!(p.state&NCMM_VP_OPEN)){const auto cloth=b.add({{.21f,.23f,.25f,1},NCMM_VM_CLOTH});
+            for(unsigned n=0;n<12;++n){const float x=-.46f+n*.077f,y=x+.077f;
+                const float fold=n%2?.425f:.445f;
+                b.face(side_point(x,fold,chassis+.68f),side_point(y,fold,chassis+.68f),
+                    side_point(y,fold,chassis+layout.cabin-.09f),side_point(x,fold,chassis+layout.cabin-.09f),cloth);}}
     }else{
         // Unknown installed equipment remains a neutral rounded component at
         // its true mount. It cannot manufacture a cabin, glass or spare wheels.

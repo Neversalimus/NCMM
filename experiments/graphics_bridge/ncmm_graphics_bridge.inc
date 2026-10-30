@@ -199,6 +199,7 @@ bool graphics_action( const std::string &action )
 }
 
 bool graphics_world_needs_redraw();
+bool graphics_vehicle_needs_redraw();
 #include "ncmm_graphics_controls.inc"
 #include "ncmm_graphics_held.inc"
 #include "ncmm_graphics_hybrid.inc"

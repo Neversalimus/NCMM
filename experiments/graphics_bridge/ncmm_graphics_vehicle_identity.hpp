@@ -23,10 +23,12 @@ public:
     vehicle_part_lifetime(const vehicle_part_lifetime &) noexcept:vehicle_part_lifetime(){}
     vehicle_part_lifetime(vehicle_part_lifetime &&other) noexcept:value_(std::exchange(other.value_,0)){}
     vehicle_part_lifetime &operator=(const vehicle_part_lifetime &other) noexcept {
-        if(this!=&other)value_=allocate();return *this;
+        if(this!=&other){value_=allocate();}
+        return *this;
     }
     vehicle_part_lifetime &operator=(vehicle_part_lifetime &&other) noexcept {
-        if(this!=&other)value_=std::exchange(other.value_,0);return *this;
+        if(this!=&other){value_=std::exchange(other.value_,0);}
+        return *this;
     }
     uint64_t value()const noexcept{return value_;}
 };

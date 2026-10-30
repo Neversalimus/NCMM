@@ -42,7 +42,7 @@ inline bool valid(const snapshot &input,size_t cells){
             if(!p.part_id||!parts.insert(p.part_id).second||p.vehicle_index!=n||
                (topology_only?p.cell_index!=-1:(p.cell_index<0||size_t(p.cell_index)>=cells))||p.mount_x<v.min_x||p.mount_x>v.max_x||
                p.mount_y<v.min_y||p.mount_y>v.max_y||p.mount_z<-16||p.mount_z>16||
-               !(p.state&NCMM_VP_EXISTS)||(p.state&~255u)||(p.features&~8388607u)||p.material>=NCMM_VM_COUNT||
+               !(p.state&NCMM_VP_EXISTS)||(p.state&~255u)||(p.features&~134217727u)||p.material>=NCMM_VM_COUNT||
                !p.id[0]||!terminated(p.id)||!terminated(p.variant)||!terminated(p.material_id))return false;
             for(float f:{p.health,p.wheel_radius,p.wheel_width,p.direction})if(!finite(f))return false;
             if(p.health<0||p.health>1||p.wheel_radius<0||p.wheel_radius>4||p.wheel_width<0||p.wheel_width>3||std::abs(p.direction)>32)return false;
@@ -56,13 +56,24 @@ inline bool valid(const snapshot &input,size_t cells){
 }
 // Fetch into temporary ownership. A failed or malformed optional extension
 // never leaves a half-new car mixed with old parts: caller uses Legacy.
+inline bool same_payload(const ncmm_graphics_vehicle_scene_v1 &a,const ncmm_graphics_vehicle_scene_v1 &b){
+    return a.struct_size==b.struct_size&&a.version==b.version&&a.world_epoch==b.world_epoch&&a.revision==b.revision&&
+        a.occupied_vehicle==b.occupied_vehicle&&a.occupied_part==b.occupied_part&&a.vehicle_count==b.vehicle_count&&
+        a.part_count==b.part_count&&a.level_height==b.level_height&&a.reserved==b.reserved&&a.reserved_position==b.reserved_position&&
+        a.origin_x==b.origin_x&&a.origin_y==b.origin_y&&a.origin_z==b.origin_z&&a.eye_valid==b.eye_valid&&
+        a.eye_x==b.eye_x&&a.eye_y==b.eye_y&&a.eye_z==b.eye_z;
+}
 inline bool acquire(snapshot &out,const ncmm_host_graphics_vehicles_v1 *api,size_t cells){
-    out.enabled=false;
     if(!api||api->abi_version!=1||api->struct_size<sizeof(*api)||api->major!=1||
        !api->get_scene||!api->get_vehicles||!api->get_parts){out.clear();return false;}
     snapshot next;next.scene.struct_size=sizeof(next.scene);
     if(!api->get_scene(&next.scene)||next.scene.vehicle_count>NCMM_VEHICLE_MAX_VEHICLES||
        next.scene.part_count>NCMM_VEHICLE_MAX_PARTS){out.clear();return false;}
+    // The owned-copy API revision covers all vehicle/part payload values.
+    // Monotonic presentation time is intentionally separate from that payload.
+    if(out.enabled&&same_payload(out.scene,next.scene)&&std::isfinite(next.scene.seconds)&&next.scene.seconds>=0){
+        out.scene.seconds=next.scene.seconds;return true;
+    }
     next.vehicles.resize(next.scene.vehicle_count);next.parts.resize(next.scene.part_count);
     if(!api->get_vehicles(next.vehicles.data(),next.vehicles.size())||!api->get_parts(next.parts.data(),next.parts.size())||!valid(next,cells)){
         out.clear();return false;

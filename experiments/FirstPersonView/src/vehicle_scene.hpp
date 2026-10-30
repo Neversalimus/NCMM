@@ -26,6 +26,8 @@ class presentation {
     };
     std::unordered_map<uint64_t,entry> models;
     std::unordered_map<uint64_t,pose_state> poses;
+    struct construction {uint64_t revision=0,touched=0;uint32_t first=0,count=0;std::unique_ptr<topology> shape;};
+    std::unordered_map<uint64_t,construction> layouts;
     std::unordered_set<uint32_t> groups;
     uint64_t frame=0,world=0;
     size_t model_bytes=0;
@@ -42,23 +44,52 @@ class presentation {
         model_bytes+=needed;models.emplace(key,entry{result,frame});++generated;return result;
     }
 public:
+    struct selection {uint64_t vehicle=0,part=0;float distance=std::numeric_limits<float>::infinity();};
+    selection pick(int cell,point origin,point direction)const{
+        selection result;if(cell<0)return result;
+        // Restrict intersections to the Native cell selected by the actual
+        // displayed depth/picking pass. This cannot select through a wall or
+        // choose an unperceived part from the topology-only construction.
+        for(const auto &draw:draws)if(draw.cell==cell)for(const auto &triangle:draw.geometry->triangles){
+            const auto a=draw.placement.position(triangle.vertices[0].position),
+                b=draw.placement.position(triangle.vertices[1].position),c=draw.placement.position(triangle.vertices[2].position);
+            const auto e1=b-a,e2=c-a,h=cross(direction,e2);const float determinant=dot(e1,h);
+            if(std::abs(determinant)<1e-7f)continue;
+            const float inverse=1/determinant;const auto s=origin-a;const float u=inverse*dot(s,h);if(u<0||u>1)continue;
+            const auto q=cross(s,e1);const float v=inverse*dot(direction,q);if(v<0||u+v>1)continue;
+            const float distance=inverse*dot(e2,q);
+            if(distance>.025f&&distance<result.distance)result={draw.vehicle_id,draw.part_id,distance};
+        }
+        return result;
+    }
     static constexpr size_t cache_limit=32u*1024u*1024u;
     snapshot input;
     std::vector<submission> draws;
-    uint64_t generated=0,reused=0,evicted=0,revision=0,coverage_revision=0;
+    uint64_t generated=0,reused=0,evicted=0,revision=0,coverage_revision=0,topology_builds=0;
     bool active_animation=false;
-    void reset(){input.clear();models.clear();poses.clear();groups.clear();draws.clear();
-        frame=world=generated=reused=evicted=revision=coverage_revision=0;model_bytes=0;active_animation=false;}
+    void reset(){input.clear();models.clear();poses.clear();layouts.clear();groups.clear();draws.clear();
+        frame=world=generated=reused=evicted=revision=coverage_revision=topology_builds=0;model_bytes=0;active_animation=false;}
     bool handles(uint32_t group)const{return input.enabled&&groups.count(group)!=0;}
     size_t bytes()const{return input.bytes()+model_bytes+draws.capacity()*sizeof(submission)+
-        models.size()*(sizeof(entry)+sizeof(uint64_t)+3*sizeof(void *))+poses.size()*(sizeof(pose_state)+sizeof(uint64_t)+3*sizeof(void *));}
+        models.size()*(sizeof(entry)+sizeof(uint64_t)+3*sizeof(void *))+poses.size()*(sizeof(pose_state)+sizeof(uint64_t)+3*sizeof(void *))+layout_bytes();}
+    size_t layout_bytes()const{size_t result=layouts.size()*(sizeof(construction)+sizeof(uint64_t)+3*sizeof(void *));
+        for(const auto &row:layouts)if(row.second.shape){const auto &t=*row.second.shape;result+=sizeof(t)+t.wheels.capacity()*sizeof(uint32_t)+
+            t.sizes.size()*(sizeof(uint32_t)+sizeof(topology::wheel_size)+3*sizeof(void *));
+            for(const auto &node:t.mounts)result+=sizeof(mount)+sizeof(station)+3*sizeof(void *)+node.second.parts.capacity()*sizeof(uint32_t);}
+        return result;
+    }
     void observe(point eye){
         draws.clear();groups.clear();active_animation=false;coverage_revision=1469598103934665603ull;
         if(!input.enabled)return;
-        if(world!=input.scene.world_epoch){models.clear();poses.clear();model_bytes=0;world=input.scene.world_epoch;}
+        if(world!=input.scene.world_epoch){models.clear();poses.clear();layouts.clear();model_bytes=0;world=input.scene.world_epoch;}
         ++frame;revision=input.scene.revision;
         for(const auto &v:input.vehicles){
-            const topology t(input,v);std::vector<submission> vehicle_draws;bool complete=true;
+            auto &construction=layouts[v.entity_id];
+            if(!construction.shape||construction.revision!=v.structure_revision||construction.first!=v.first_part||construction.count!=v.part_count){
+                construction.shape=std::make_unique<topology>(input,v);construction.revision=v.structure_revision;
+                construction.first=v.first_part;construction.count=v.part_count;++topology_builds;
+            }
+            construction.touched=frame;const auto &t=*construction.shape;std::vector<submission> vehicle_draws;bool complete=true;
             const point origin{v.origin_x,v.origin_y,v.origin_z};
             for(uint32_t k=0;k<v.part_count;++k){const auto &p=input.parts[v.first_part+k];
                 if(p.state&NCMM_VP_TOPOLOGY_ONLY)continue;
@@ -77,7 +108,7 @@ public:
                     const float desired=(p.state&NCMM_VP_OPEN)?1.f:0.f;
                     if(fresh)pose.open=desired;
                     else pose.open+=std::clamp(desired-pose.open,-float(dt)/.18f,float(dt)/.18f);
-                    const unsigned side=t.edge({p.mount_x,p.mount_y,p.mount_z});
+                    const unsigned side=t.part_edge(p);
                     const float direction=side==1||side==2?-1.f:1.f;
                     yaw+=pose.open*1.36f*direction;local=local+geometry->pivot;
                     active_animation|=std::abs(desired-pose.open)>.0001f;
@@ -117,6 +148,7 @@ public:
             if(complete){groups.insert(v.legacy_group);coverage_revision=(coverage_revision^v.legacy_group)*1099511628211ull;draws.insert(draws.end(),vehicle_draws.begin(),vehicle_draws.end());}
         }
         for(auto it=poses.begin();it!=poses.end();)if(it->second.touched!=frame)it=poses.erase(it);else ++it;
+        for(auto it=layouts.begin();it!=layouts.end();)if(it->second.touched!=frame)it=layouts.erase(it);else ++it;
     }
 };
 }
