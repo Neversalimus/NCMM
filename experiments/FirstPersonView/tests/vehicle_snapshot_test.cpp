@@ -189,6 +189,23 @@ int main(){
                 if(reference){mask|=1u<<lane;require(colors[lane]==reference,"four-lane color matches independently rounded scalar arithmetic exactly");
                     require(std::memcmp(&z[lane],&reference_depth,sizeof(float))==0,"four-lane perspective depth retains exact scalar bits");}}
             require(actual.active==mask,"four-lane rejection preserves scalar reciprocal/depth/epsilon decisions");
+            unsigned called=0;
+            const auto detail=[&](unsigned lane,float a,float b,float c,float z){
+                called|=1u<<lane;
+                return rgb{color.x+a*.03125f-float(lane)*.125f,color.y+b*.0625f+z*.0009765625f,color.z+c*.125f};
+            };
+            const auto detailed=first_person::vehicle_pixels::shade_detail4(weights0,weights1,inverse,depths,vertices,fog,density,detail);
+            _mm_storeu_si128(reinterpret_cast<__m128i *>(colors),detailed.color);_mm_storeu_ps(z,detailed.depth);
+            require(detailed.active==mask&&called==mask,"detail is evaluated exactly once only for scalar-visible samples");
+            for(unsigned lane=0;lane<4;++lane)if(mask&(1u<<lane)){
+                volatile float w2a=1-weights0[lane],w2=w2a-weights1[lane];
+                volatile float r0=weights0[lane]*inverse[0],r1=weights1[lane]*inverse[1],r2=w2*inverse[2],r01=r0+r1,reciprocal=r01+r2;
+                volatile float depth=1/reciprocal,a=r0*depth,b=r1*depth,c=r2*depth;
+                const rgb lane_color{color.x+a*.03125f-float(lane)*.125f,color.y+b*.0625f+depth*.0009765625f,color.z+c*.125f};
+                float reference_depth=0;const auto reference=scalar(weights0[lane],weights1[lane],inverse,vertices,lane_color,fog,density,depths[lane],reference_depth);
+                require(colors[lane]==reference,"independent varying per-lane detail retains exact scalar RGB packing");
+                require(std::memcmp(&z[lane],&reference_depth,sizeof(float))==0,"detailed path retains exact perspective depth bits");
+            }
         }
     }
 #endif

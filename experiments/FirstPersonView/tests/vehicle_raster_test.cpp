@@ -61,6 +61,12 @@ struct fixture {
         // picking owner or appearance storage across these component draws.
         auto neighbor=vehicles.draws[3];neighbor.cell=313;neighbor.part_id=160;neighbor.placement.origin.y+=.35f;
         vehicles.draws.push_back(neighbor);details[313].light_r=.2f;details[313].light_g=.9f;details[313].light_b=.3f;
+        // Broad cloth/rubber surfaces force visible fine-detail samples rather
+        // than relying only on small imported wheel or cockpit fragments.
+        v::builder detailed(input.parts[0]);
+        detailed.face({0,-.7f,0},{0,.7f,0},{0,.7f,1.1f},{0,-.7f,1.1f},detailed.rubber);
+        detailed.face({.06f,-.6f,0},{.06f,.6f,0},{.06f,.6f,.9f},{.06f,-.6f,.9f},detailed.fabric);
+        vehicles.draws.push_back({detailed.finish(),v::rigid({7,12.5f,.1f},0),7,170,312,false,false,true});
     }
     h::frame render(int dispatch,float yaw,float pitch,const h::frame *cache=nullptr,h::frame *world=nullptr){
         const bool compose=dispatch>=9,borrow=dispatch==7||dispatch==8||(compose&&dispatch!=10),optimized=borrow||compose;

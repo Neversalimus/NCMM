@@ -17,7 +17,7 @@ def reference_backend(candidate):
     # Candidate-only fixed-function face rejection must not also optimize the
     # frozen baseline. Its original backend digest stays exactly unchanged.
     winding_replacements=[
-        ('    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false;};',
+        ('    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false,translated=false;};',
          '    struct batch {uint64_t key;uint32_t pass,first,count;};'),
         ('        unsigned opaque_policy=0;\n',''),
         ('''                // Proven static roots may skip identity skin arithmetic.
@@ -25,14 +25,17 @@ def reference_backend(candidate):
                 // unproved skins, held items and poses keep both old stages.
                 const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
                 const bool rigid=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.rigid_vertices;
-                const unsigned policy=unsigned(winding)|(unsigned(rigid)<<1);
-                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,rigid?
+                const bool translated=rigid&&b.translated;
+                const unsigned policy=unsigned(winding)|(unsigned(rigid)<<1)|(unsigned(translated)<<2);
+                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,translated?
+                    (winding?programs_.opaque_translated_culled:programs_.opaque_translated):rigid?
                     (winding?programs_.opaque_rigid_culled:programs_.opaque_rigid):(winding?programs_.opaque_culled:programs_.opaque));opaque_policy=policy;}
 ''',''),
         ('''        for(const auto &[key,list]:groups){
             const bool winding=key.first==NCMM_GPU_OPAQUE&&winding_camera(scene.camera)&&std::all_of(list.begin(),list.end(),[&](const instance &i){
                 return i.bone_count==1&&i.bone_offset<scene.bone_count&&winding_bone(scene.bones[i.bone_offset])&&winding_pose(i.world);});
-            batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size()),winding});instances.insert(instances.end(),list.begin(),list.end());}
+            const bool translated=winding&&std::all_of(list.begin(),list.end(),[](const instance &i){return translation_pose(i.world);});
+            batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size()),winding,translated});instances.insert(instances.end(),list.begin(),list.end());}
 ''','        for(const auto &[key,list]:groups){batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size())});instances.insert(instances.end(),list.begin(),list.end());}\n')]
     for before,after in winding_replacements:
         assert reference.count(before)==1,'Unreviewed winding reconstruction'

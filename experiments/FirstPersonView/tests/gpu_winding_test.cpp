@@ -14,6 +14,13 @@ ncmm_gpu_matrix_v1 identity(){ncmm_gpu_matrix_v1 m{};for(unsigned n=0;n<4;++n)m.
 int main(){
     auto pose=identity();require(ncmm_gpu::winding_pose(pose),"identity is a proper rigid pose");
     require(ncmm_gpu::winding_bone(pose),"the exact static root bone is accepted");
+    require(ncmm_gpu::translation_pose(pose),"exact identity is also a translation-only pose");
+    for(unsigned at=0;at<16;++at){auto changed=identity();
+        changed.columns[at]=std::nextafter(changed.columns[at],2.f);
+        require(ncmm_gpu::translation_pose(changed)==(at>=12&&at<15),"every non-translation matrix element must equal identity exactly");
+        changed.columns[at]=std::numeric_limits<float>::quiet_NaN();
+        require(!ncmm_gpu::translation_pose(changed),"nonfinite pose values never enter the translation-only shader");
+    }
     for(unsigned n=0;n<20000;++n){const float yaw=float(n)*.037f,pitch=float(n%101)*.013f;
         const float cy=std::cos(yaw),sy=std::sin(yaw),cp=std::cos(pitch),sp=std::sin(pitch);
         pose=identity();pose.columns[0]=cy;pose.columns[1]=sy;pose.columns[4]=-sy;pose.columns[5]=cy;pose.columns[12]=float(n%300)-150;
@@ -29,6 +36,10 @@ int main(){
         camera.up[2]+=1.f;require(!ncmm_gpu::winding_camera(camera),"unproved projection basis falls back");
         auto animated=identity();animated.columns[12]=.01f;
         require(!ncmm_gpu::winding_bone(animated),"animated bones cannot use the static proof");
+        auto translated=identity();translated.columns[12]=float(n%300)-150;
+        translated.columns[13]=float(n%511)*.125f;translated.columns[14]=-float(n%47)*3.2f;
+        require(ncmm_gpu::translation_pose(translated),"finite world translations preserve the exact identity linear basis");
+        translated.columns[1]=.0000001f;require(!ncmm_gpu::translation_pose(translated),"a small but real rotation cannot use translation arithmetic");
     }
     std::array<ncmm_gpu_vertex_v1,3> vertices{};vertices[1].position[0]=1.5f;vertices[2].position[1]=1.5f;
     for(auto &v:vertices)v.face_normal[2]=1;
@@ -84,6 +95,7 @@ int main(){
             require(ncmm_gpu::rigid_opaque_range(depth.mesh,1,3,3)&&!ncmm_gpu::rigid_opaque_range(depth.mesh,0,0,3),"mixed-depth fixture proves exactly its intended ordinary range");
             require(ncmm_gpu::winding_camera(depth.scene.camera)&&ncmm_gpu::winding_pose(depth.draw.transform),"fixture camera and pose qualify the actual specialized draw");
             require(depth.draw.bone_count==1&&ncmm_gpu::winding_bone(depth.bone),"the mixed-depth specialized draw has exactly the required identity root");
+            require(ncmm_gpu::translation_pose(depth.draw.transform),"the complete mixed-depth fixture also proves translation-only vertices");
             require(depth.scene.camera.grid[3]==1&&(depth.cell.flags&NCMM_GFX_CEILING),"world ceiling semantics disable outdoor distance fog in the strict color control");
         }
     }

@@ -9,6 +9,7 @@
             const auto reason=ncmm_gpu::validate(fixture.scene,&fixture.world);require(!reason,reason?reason:"complete mixed-depth fixture contract");
             require(ncmm_gpu::rigid_opaque_range(fixture.mesh,1,3,3)&&!ncmm_gpu::rigid_opaque_range(fixture.mesh,0,0,3),"mixed depth fixture exercises both proven and general ranges");
             require(ncmm_gpu::winding_camera(fixture.scene.camera)&&ncmm_gpu::winding_pose(fixture.draw.transform),"mixed depth fixture uses the actual proven camera and rigid pose");
+            require(ncmm_gpu::translation_pose(fixture.draw.transform),"all original mixed-depth readbacks also exercise the translation-only vertex proof");
             require(engine.submit(fixture.scene,&fixture.world),engine.metrics().reason);
             const auto center=capture(("-ordinary-depth-"+std::to_string(observations++)).c_str());
             if(!coplanar&&((center>>24)<=220||((center>>8)&255)>=20))

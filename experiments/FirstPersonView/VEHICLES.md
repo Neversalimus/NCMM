@@ -397,6 +397,22 @@ eight near-plane, distant and exactly coplanar mixed-depth cases. These are
 candidate correctness controls; frame-time and final image admission remain
 mandatory.
 
+Detailed CPU component materials use four-lane perspective, smooth-light, fog
+and packing arithmetic too. Their existing grain/noise/material function still
+runs separately for each visible sample with the original scalar arguments;
+no material detail is approximated or omitted. The independent numeric controls
+retain all original samples and add varying per-lane colours and rejected-lane
+checks. Complete colour/depth/ownership CI comparisons retain the original
+scalar path, including broad rubber and cloth surfaces and camera interiors.
+
+A second vertex specialization also omits identity world-matrix arithmetic
+when every instance in the batch has an exactly identity linear basis and
+finite translation, as well as the proven static root and material above.
+Even a one-bit scale or rotation change falls back. Original fragment programs,
+depth writes, source geometry, ordering, and all prior shader binaries remain.
+These two arithmetic changes still require actual Native complete-frame
+performance and all 422 frozen-reference device readbacks before admission.
+
 The long-run gate also validates source-bound process RAM samples, not just
 module/GPU accounting. It rejects a late resident median more than 50 percent
 (at least 256 MiB) above the warmed baseline, or a transient peak above twice

@@ -40,7 +40,7 @@ class backend {
     struct gpu_cell {ncmm_gpu_cell_v1 appearance;float origin[4],lower_light[4];};
     static_assert(sizeof(gpu_cell)==112,"owned std430 world cell layout");
     std::vector<gpu_cell> cell_snapshot_;
-    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false;};
+    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false,translated=false;};
     using clock=std::chrono::steady_clock;
     static double ms(clock::time_point begin){return std::chrono::duration<double,std::milli>(clock::now()-begin).count();}
     void reason(const std::string &value){std::strncpy(metrics_.reason,value.c_str(),sizeof(metrics_.reason)-1);metrics_.reason[sizeof(metrics_.reason)-1]=0;}
@@ -127,8 +127,10 @@ class backend {
                 // unproved skins, held items and poses keep both old stages.
                 const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
                 const bool rigid=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.rigid_vertices;
-                const unsigned policy=unsigned(winding)|(unsigned(rigid)<<1);
-                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,rigid?
+                const bool translated=rigid&&b.translated;
+                const unsigned policy=unsigned(winding)|(unsigned(rigid)<<1)|(unsigned(translated)<<2);
+                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,translated?
+                    (winding?programs_.opaque_translated_culled:programs_.opaque_translated):rigid?
                     (winding?programs_.opaque_rigid_culled:programs_.opaque_rigid):(winding?programs_.opaque_culled:programs_.opaque));opaque_policy=policy;}
                 const bool creature_zone=ncmm_graphics_trace::enabled()&&selected!=NCMM_GPU_HELD&&(m.flags&NCMM_GPU_CREATURE_VISUAL);
                 if(creature_zone){nvtxRangePushA("Creatures");SDL_PushGPUDebugGroup(commands,"Creatures");}
@@ -256,7 +258,8 @@ public:
         for(const auto &[key,list]:groups){
             const bool winding=key.first==NCMM_GPU_OPAQUE&&winding_camera(scene.camera)&&std::all_of(list.begin(),list.end(),[&](const instance &i){
                 return i.bone_count==1&&i.bone_offset<scene.bone_count&&winding_bone(scene.bones[i.bone_offset])&&winding_pose(i.world);});
-            batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size()),winding});instances.insert(instances.end(),list.begin(),list.end());}
+            const bool translated=winding&&std::all_of(list.begin(),list.end(),[](const instance &i){return translation_pose(i.world);});
+            batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size()),winding,translated});instances.insert(instances.end(),list.begin(),list.end());}
         std::stable_sort(transparent.begin(),transparent.end(),[](const auto &a,const auto &b){return a.distance>b.distance;});
         for(const auto &t:transparent){const auto &d=scene.draws[t.index];auto *mesh=resources_.mesh(d.mesh_key);if(mesh&&mesh->joint_count<=d.bone_count&&!in_frustum(posed_bounds[t.index],scene.camera))continue;
             uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}

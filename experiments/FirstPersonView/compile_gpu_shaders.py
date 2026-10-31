@@ -26,6 +26,14 @@ rigid='vec3 p=position*bone[3][3],n=normal*bone[3][3],face=face_normal*bone[3][3
 if ordinary.count(skin)!=1:p.error('Unreviewed rigid vertex specialization')
 if (a.source/'geometry_rigid.vert').read_text(encoding='utf-8')!=ordinary.replace(skin,rigid):
     p.error('Rigid specialization changed more than proven identity skin arithmetic')
+translated=ordinary.replace(skin,rigid)
+for before,after in [('world_position=(instance.world*vec4(p,1)).xyz;','world_position=p+instance.world[3].xyz;'),
+                     ('world_normal=normalize(world*(n/max(inverse_scale,vec3(.000001))));','world_normal=normalize(n);'),
+                     ('flat_normal=normalize(world*(face/max(inverse_scale,vec3(.000001))));','flat_normal=normalize(face);')]:
+    if translated.count(before)!=1:p.error('Unreviewed translation-only vertex specialization')
+    translated=translated.replace(before,after)
+if (a.source/'geometry_translated.vert').read_text(encoding='utf-8')!=translated:
+    p.error('Translation specialization changed more than proven identity world/skin arithmetic')
 lines=['#pragma once','#include <cstddef>','namespace ncmm_gpu::shaders {']
 source_hash=hashlib.sha256()
 for source in sorted(a.source.glob('*')):

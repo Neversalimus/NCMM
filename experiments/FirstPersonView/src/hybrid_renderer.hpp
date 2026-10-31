@@ -598,7 +598,7 @@ class renderer {
         const bool vector_solid=raster_vectors(t)&&options.vector_vehicle_pixels&&
             appearance.smooth&&appearance.alpha==1.f&&!appearance.texture&&!appearance.impostor&&!appearance.overlay&&
             !appearance.spill&&!appearance.cutout&&!appearance.silhouette&&!appearance.grass&&!appearance.creature&&!appearance.creature_visual&&
-            appearance.cell>=0&&appearance.finish!=surface::contact&&!detailed;
+            appearance.cell>=0&&appearance.finish!=surface::contact&&appearance.finish!=surface::water;
         const float vector_fog=vector_solid?fog_density(appearance.cell):0;
 #endif
         const vec grass_color{flat_color.x*flat_light.x,flat_color.y*flat_light.y,flat_color.z*flat_light.z};
@@ -647,7 +647,12 @@ class renderer {
                     // increments belonging to samples rejected by depth.
                     for(unsigned lane=0;lane<4;++lane){weights0[lane]=w0;weights1[lane]=w1;w0+=dw0;w1+=dw1;}
                     const size_t k=size_t(y)*f.width+x;
-                    const auto values=vehicle_pixels::shade4(weights0,weights1,iz.data(),f.depth.data()+k,v,flat_color,fog_color,vector_fog);
+                    const auto values=detailed?vehicle_pixels::shade_detail4(weights0,weights1,iz.data(),f.depth.data()+k,v,fog_color,vector_fog,
+                        [&](unsigned,float a,float b,float cw,float z){
+                            const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
+                            return surface_color(flat_color,appearance,pos,normal,z,
+                                fine[0]*a+fine[1]*b+fine[2]*cw,medium[0]*a+medium[1]*b+medium[2]*cw);
+                        }):vehicle_pixels::shade4(weights0,weights1,iz.data(),f.depth.data()+k,v,flat_color,fog_color,vector_fog);
                     ++vector_groups;if(!values.active)continue;
                     if(values.active==15){
                         _mm_storeu_si128(reinterpret_cast<__m128i *>(f.pixels.data()+k),values.color);
