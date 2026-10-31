@@ -149,7 +149,8 @@ class backend {
                 if(profiling_&&glass)++recording_.glass_draws;
                 if(profiling_&&plain)++recording_.plain_draws;
                 if(profiling_||policy_counts_){
-                    if(plain)++recording_.counted_plain_draws;if(glass)++recording_.counted_glass_draws;
+                    if(plain){++recording_.counted_plain_draws;}
+                    if(glass){++recording_.counted_glass_draws;}
                     if(selected==NCMM_GPU_OPAQUE){
                         recording_.opaque_component_draws+=component;recording_.opaque_winding_draws+=winding;
                         recording_.opaque_requested_winding_draws+=bool(m.flags&NCMM_GPU_CULL_BACK);
