@@ -4,6 +4,7 @@
 #include "gpu_packet.hpp"
 #include "gpu_input_fingerprint.hpp"
 #include "raster_dispatch.hpp"
+#include "vehicle_pixel_math.hpp"
 #include "ncmm_graphics_vehicle_identity.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -139,6 +140,70 @@ void verify_sampled_surface(const first_person::vehicle::model &actual,const fir
 }
 }
 int main(){
+#if NCMM_VEHICLE_PIXEL_SSE2
+    {
+        // Independent scalar arithmetic over plain numeric arrays. This does
+        // not instantiate or execute a rasterizer, framebuffer, SDL or device.
+        struct rgb {float x,y,z;};struct sample_vertex {rgb light;};
+        uint32_t seed=0x71ab94u;
+        const auto random=[&](){seed=seed*1664525u+1013904223u;return float(seed>>8)/16777215.f;};
+        const auto scalar=[&](float w0,float w1,const float *iz,const sample_vertex *v,rgb color,rgb fog_color,float density,float old_depth,float &depth){
+            volatile float w2a=1-w0,w2=w2a-w1;
+            volatile float r0=w0*iz[0],r1=w1*iz[1],r2=w2*iz[2],r01=r0+r1,reciprocal=r01+r2;
+            if(reciprocal<=0)return uint32_t(0);
+            depth=1/reciprocal;if(depth>old_depth+.0002f)return uint32_t(0);
+            volatile float a=r0*depth,b=r1*depth,c=r2*depth;
+            volatile float distance=depth-2,amount=distance*density;
+            const float fog=std::clamp(float(amount),0.f,1.f);volatile float clear=1-fog;
+            const auto channel=[&](float base,float l0,float l1,float l2,float sky){
+                volatile float x=l0*a,y=l1*b,z=l2*c,xy=x+y,light=xy+z,lit=base*light,
+                    front=lit*clear,back=sky*fog,mixed=front+back,scaled=std::clamp(float(mixed),0.f,1.f)*255;
+                return uint32_t(scaled);
+            };
+            return (channel(color.x,v[0].light.x,v[1].light.x,v[2].light.x,fog_color.x)<<24)|
+                (channel(color.y,v[0].light.y,v[1].light.y,v[2].light.y,fog_color.y)<<16)|
+                (channel(color.z,v[0].light.z,v[1].light.z,v[2].light.z,fog_color.z)<<8)|255u;
+        };
+        for(unsigned test=0;test<30000;++test){float weights0[4],weights1[4],inverse[3],depths[4];sample_vertex vertices[3];
+            for(unsigned n=0;n<3;++n){inverse[n]=.0001f+random()*12.5f;vertices[n].light={random()*1.6f,random()*1.6f,random()*1.6f};}
+            for(unsigned n=0;n<4;++n){weights0[n]=random()*1.2f-.1f;weights1[n]=random()*1.2f-.1f;
+                depths[n]=(test+n)%5?random()*100:std::numeric_limits<float>::infinity();}
+            rgb color{random()*2-.5f,random()*2-.5f,random()*2-.5f},fog{random(),random(),random()};
+            float density=random()*.5f;
+            if(test%7==0){for(float &i:inverse)i=1;for(auto &v:vertices)v.light={1,1,1};density=0;
+                const float boundary=float(test%256)/255;const float adjacent=std::nextafter(boundary,test%2?0.f:2.f);color={boundary,adjacent,boundary};
+                for(unsigned n=0;n<4;++n)depths[n]=n==0?1.f-.0002f:n==1?std::nextafter(1.f-.0002f,0.f):n==2?0.f:2.f;}
+            const auto actual=first_person::vehicle_pixels::shade4(weights0,weights1,inverse,depths,vertices,color,fog,density);
+            uint32_t colors[4];float z[4];_mm_storeu_si128(reinterpret_cast<__m128i *>(colors),actual.color);_mm_storeu_ps(z,actual.depth);
+            unsigned mask=0;
+            for(unsigned lane=0;lane<4;++lane){float reference_depth=0;const auto reference=scalar(weights0[lane],weights1[lane],inverse,vertices,color,fog,density,depths[lane],reference_depth);
+                if(reference){mask|=1u<<lane;require(colors[lane]==reference,"four-lane color matches independently rounded scalar arithmetic exactly");
+                    require(std::memcmp(&z[lane],&reference_depth,sizeof(float))==0,"four-lane perspective depth retains exact scalar bits");}}
+            require(actual.active==mask,"four-lane rejection preserves scalar reciprocal/depth/epsilon decisions");
+        }
+    }
+#endif
+    {
+        using namespace first_person::vehicle;triangle plane{};
+        plane.vertices[0].position={0,0,0};plane.vertices[1].position={1,0,0};plane.vertices[2].position={0,1,0};
+        plane.vertices[0].normal={-1,0,.2f};plane.vertices[1].normal={0,1,.2f};plane.vertices[2].normal={1,0,.2f};
+        point n;bool reversed=true;require(model::outward_face(plane,n,&reversed)&&n.z>0&&!reversed,"smooth corner normals retain the geometric plane's authored outward side");
+        const point eye{-1,0,.1f};require(dot(n,eye)>0&&dot(plane.vertices[2].normal,eye-plane.vertices[2].position)<0,
+            "grazing smooth normal cannot replace a closed triangle's face-orientation proof");
+        std::swap(plane.vertices[0],plane.vertices[1]);require(model::outward_face(plane,n,&reversed)&&n.z>0&&reversed,"reversed imported winding retains the same outward geometric plane");
+        for(auto &v:plane.vertices)v.normal={};require(!model::outward_face(plane,n),"ambiguous geometric orientation must remain two-sided");
+        model box;box.minimum={-1,-1,-1};box.maximum={1,1,1};
+        require(box.ahead_of_near_plane({-2,0,0},{1,0,0}),"whole distant shell is beyond the view near plane");
+        require(!box.ahead_of_near_plane({-1.015f,0,0},{1,0,0}),"outside eye near a clipped front wall keeps inner surfaces");
+        require(!box.ahead_of_near_plane({-2,0,0},{0,1,0}),"distant eye alone does not prove an uncut shell at an oblique view");
+        uint32_t seed=8913;const auto random=[&](){seed=seed*1664525u+1013904223u;return float(int(seed%20001)-10000)/1777.f;};
+        for(unsigned test=0;test<4000;++test){box.minimum={random(),random(),random()};box.maximum=box.minimum+point{std::abs(random()),std::abs(random()),std::abs(random())};
+            const point eye{random(),random(),random()},forward=unit({random(),random(),random()});
+            if(box.ahead_of_near_plane(eye,forward))for(unsigned corner=0;corner<8;++corner){
+                const point p{corner&1?box.maximum.x:box.minimum.x,corner&2?box.maximum.y:box.minimum.y,corner&4?box.maximum.z:box.minimum.z};
+                require(dot(p-eye,forward)>.08f,"outside closed-shell clipping proof conservatively contains every independent box corner");}
+        }
+    }
     {struct sample_point {float x,y;};
         const std::array<std::array<sample_point,3>,4> shapes{{
             {{{.1f,.1f},{.2f,.1f},{.1f,.2f}}},

@@ -50,13 +50,14 @@ struct fixture {
     h::frame render(int dispatch,float yaw,float pitch,const h::frame *cache=nullptr,h::frame *world=nullptr){
         h::render_options options;options.stream_vehicle_raster=dispatch==2;options.prune_vehicle_workers=dispatch==1||dispatch==3;
         options.prune_empty_vehicle_samples=dispatch==3;options.prune_unused_vehicle_bands=dispatch==3||dispatch==4;
-        options.compact_vehicle_records=dispatch==3||dispatch==5;h::frame result;
+        options.compact_vehicle_records=dispatch==3||dispatch==5||dispatch==6;
+        options.vector_vehicle_pixels=dispatch!=6;h::frame result;
         h::renderer painter(scene,yaw,pitch,{},result,{},&metadata,options);painter.run(1280,800,cache,world);return result;
     }
 };
 }
 int main(){
-    fixture f;uint32_t skipped=0,empty=0,bands=0,compact=0,clipped=0;uint64_t compact_bytes=0,full_bytes=0;
+    fixture f;uint32_t skipped=0,empty=0,bands=0,compact=0,clipped=0;uint64_t compact_bytes=0,full_bytes=0,vector_groups=0;
     for(float yaw:{-.17f,0.f,.17f})for(float pitch:{-.15f,0.f,.12f}){
         h::frame old_world,new_world;const auto before=f.render(0,yaw,pitch,nullptr,&old_world),after=f.render(1,yaw,pitch,nullptr,&new_world);
         compare(before,after);skipped+=after.vehicle_worker_skips;
@@ -67,6 +68,9 @@ int main(){
         compare(cached_before,f.render(3,yaw,pitch,&old_world));
         const auto bandless=f.render(4,yaw,pitch);compare(before,bandless);bands+=bandless.vehicle_band_skips;
         const auto packed=f.render(5,yaw,pitch);compare(before,packed);compare(cached_before,f.render(5,yaw,pitch,&old_world));
+        const auto scalar_packed=f.render(6,yaw,pitch);compare(before,scalar_packed);compare(packed,scalar_packed);
+        require(scalar_packed.vehicle_vector_groups==0&&before.vehicle_vector_groups==0,"both original and compact scalar references remain scalar");
+        vector_groups+=packed.vehicle_vector_groups;
         compact+=packed.vehicle_compact_records;compact_bytes+=packed.vehicle_projection_bytes;full_bytes+=packed.vehicle_reference_projection_bytes;
         require(packed.triangles==before.triangles,"compact storage retains every participating triangle visit");
     }
@@ -74,6 +78,9 @@ int main(){
     require(empty>0,"exact sample pruning actually rejects projected zero-fragment triangles without dropping source geometry");
     require(bands>0,"unused band pruning actually avoids per-corner calculations while preserving reflective colour and all pixels");
     require(compact>0&&compact_bytes<full_bytes,"compact equivalence actually reduces logical projected-record bytes");
+#if NCMM_VEHICLE_PIXEL_SSE2
+    require(vector_groups>0,"full colour/depth/picking equivalence actually executes four-lane vehicle arithmetic");
+#endif
     const auto reference=f.render(0,0,0),streamed=f.render(2,0,0);compare(reference,streamed);
     require(streamed.vehicle_streamed_triangles>0,"disabled streaming experiment remains an explicit correctness reference");
     f.scene.base.camera_x=12.5f;
@@ -83,6 +90,7 @@ int main(){
     for(float yaw:{0.f,1.2f,3.1f}){const auto before=f.render(0,yaw,-.12f),after=f.render(1,yaw,-.12f);compare(before,after);
         compare(before,f.render(3,yaw,-.12f));
         const auto packed=f.render(5,yaw,-.12f);compare(before,packed);clipped+=packed.vehicle_clipped_records;
+        compare(before,f.render(6,yaw,-.12f));
         require(after.vehicle_streamed_triangles==0,"near-plane/inside component conservatively keeps parallel path");}
     f.scene.base.camera_x=1.5f;f.cells[312].flags=0;
     require(clipped>=2,"clipped-vertex ownership is exercised across pool growth near and inside geometry");

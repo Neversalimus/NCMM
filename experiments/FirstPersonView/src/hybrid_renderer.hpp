@@ -19,6 +19,7 @@
 #include "ncmm_graphics_presentation_policy.hpp"
 #include "vehicle_scene.hpp"
 #include "raster_dispatch.hpp"
+#include "vehicle_pixel_math.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -81,6 +82,7 @@ struct frame {
     uint64_t volume_samples=0;
     uint32_t viewmodel_draws=0,viewmodel_errors=0,vehicle_streamed_triangles=0,vehicle_worker_skips=0,vehicle_empty_triangles=0,vehicle_band_skips=0;
     uint32_t vehicle_compact_records=0,vehicle_clipped_records=0;
+    uint64_t vehicle_vector_groups=0;
     uint64_t vehicle_projection_bytes=0,vehicle_reference_projection_bytes=0; // Logical record bytes, not process RAM.
 };
 // Internal reference switches used by correctness tests and the manual
@@ -90,6 +92,7 @@ struct render_options {
     // Sequential streaming remains a correctness reference: actual Native
     // measurements rejected its performance, so ordinary frames retain workers.
     bool stream_vehicle_raster=false,prune_vehicle_workers=true,prune_empty_vehicle_samples=true,prune_unused_vehicle_bands=true,compact_vehicle_records=true;
+    bool vector_vehicle_pixels=true,cull_gpu_vehicle_shells=true;
 };
 using sprite_provider=std::function<bool(uint32_t,uint32_t,ncmm_graphics_sprite_v2 &)>;
 struct image {
@@ -562,7 +565,8 @@ class renderer {
         for(int piece=1;piece<count-1;++piece)
             project_piece(t,{poly[0],poly[piece],poly[piece+1]},nullptr,output,reject_empty,skip_unused_bands);
     }
-    template<class Record>void raster(const Record &t,int worker,int workers,uint32_t &triangles){
+    template<class Record>void raster(const Record &t,int worker,int workers,uint32_t &triangles,uint64_t &vector_groups){
+        (void)vector_groups;
         const auto &v=raster_vertices(t);const auto &appearance=raster_material(t);const auto normal=raster_normal(t);
         const auto &p=t.p;const auto &iz=t.iz;const auto &uu=t.uu;const auto &vv=t.vv;
         const auto &fine=t.fine;const auto &medium=t.medium;
@@ -570,6 +574,13 @@ class renderer {
         const int xmin=t.xmin,xmax=t.xmax,ymin=t.ymin,ymax=t.ymax;
         const float inv=t.inv,dw0=t.dw0,dw1=t.dw1;const bool coarse=t.coarse,detailed=t.detailed;
         const bool solid_grass=appearance.grass&&!appearance.overlay&&!appearance.texture&&!appearance.smooth&&appearance.alpha>=.99f&&appearance.finish==surface::none;
+#if NCMM_VEHICLE_PIXEL_SSE2
+        const bool vector_solid=std::is_same_v<Record,compact_projected_triangle>&&options.vector_vehicle_pixels&&
+            appearance.smooth&&appearance.alpha==1.f&&!appearance.texture&&!appearance.impostor&&!appearance.overlay&&
+            !appearance.spill&&!appearance.cutout&&!appearance.silhouette&&!appearance.grass&&!appearance.creature&&!appearance.creature_visual&&
+            appearance.cell>=0&&appearance.finish!=surface::contact&&!detailed;
+        const float vector_fog=vector_solid?fog_density(appearance.cell):0;
+#endif
         const vec grass_color{flat_color.x*flat_light.x,flat_color.y*flat_light.y,flat_color.z*flat_light.z};
         float dux=0,duy=0,dvx=0,dvy=0,dzx=0,dzy=0;
         if(appearance.impostor||(appearance.texture&&appearance.texture->creature_skin)){
@@ -607,7 +618,32 @@ class renderer {
             const int begin=std::max(xmin,int(std::ceil(std::clamp(left-.5001f,-1.0f,float(f.width)))));
             const int end=std::min(xmax,int(std::floor(std::clamp(right-.4999f,-1.0f,float(f.width)))));
             float w0=edge(p[1],p[2],begin+.5f,py)*inv,w1=edge(p[2],p[0],begin+.5f,py)*inv;
-            for(int x=begin;x<=end;++x,w0+=dw0,w1+=dw1){
+            int x=begin;
+#if NCMM_VEHICLE_PIXEL_SSE2
+            if constexpr(std::is_same_v<Record,compact_projected_triangle>){if(vector_solid){
+                for(;x+3<=end;x+=4){
+                    float weights0[4],weights1[4];
+                    // Preserve the scalar recurrence, including rounding and
+                    // increments belonging to samples rejected by depth.
+                    for(unsigned lane=0;lane<4;++lane){weights0[lane]=w0;weights1[lane]=w1;w0+=dw0;w1+=dw1;}
+                    const size_t k=size_t(y)*f.width+x;
+                    const auto values=vehicle_pixels::shade4(weights0,weights1,iz.data(),f.depth.data()+k,v,flat_color,fog_color,vector_fog);
+                    ++vector_groups;if(!values.active)continue;
+                    if(values.active==15){
+                        _mm_storeu_si128(reinterpret_cast<__m128i *>(f.pixels.data()+k),values.color);
+                        _mm_storeu_ps(f.depth.data()+k,values.depth);
+                        std::fill_n(f.owners.data()+k,4,appearance.cell);std::fill_n(f.creatures.data()+k,4,-1);
+                    }else{
+                        uint32_t colors[4];float depths[4];_mm_storeu_si128(reinterpret_cast<__m128i *>(colors),values.color);_mm_storeu_ps(depths,values.depth);
+                        for(unsigned lane=0;lane<4;++lane)if(values.active&(1u<<lane)){
+                            f.pixels[k+lane]=colors[lane];f.depth[k+lane]=depths[lane];f.owners[k+lane]=appearance.cell;f.creatures[k+lane]=-1;}
+                    }
+                    if(y==f.height/2&&x<=f.width/2&&f.width/2<x+4){const unsigned lane=unsigned(f.width/2-x);
+                        if(values.active&(1u<<lane)){const float z=f.depth[k+lane];if(z<f.focus_depth){f.focus_depth=z;f.focus=appearance.cell;}}}
+                }
+            }}
+#endif
+            for(;x<=end;++x,w0+=dw0,w1+=dw1){
                 const float w2=1-w0-w1;
                 float recip=w0*iz[0]+w1*iz[1]+w2*iz[2];if(recip<=0)continue;float z=1/recip;size_t k=size_t(y)*f.width+x;
                 if(!appearance.impostor&&z>(appearance.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
@@ -685,9 +721,9 @@ class renderer {
             // Small on-screen cars need no viewport-wide thread dispatch or
             // full projected-triangle copy. Keep source order and the exact
             // same scanline rasterizer, including clipping, depth and picking.
-            std::vector<projected_triangle> scratch;scratch.reserve(2);uint32_t total=0;
+            std::vector<projected_triangle> scratch;scratch.reserve(2);uint32_t total=0;uint64_t vector_groups=0;
             auto submit=[&](const auto &values){for(const auto &t:values){scratch.clear();project(t,scratch);
-                for(const auto &piece:scratch){raster(piece,0,1,total);++f.vehicle_streamed_triangles;}}};
+                for(const auto &piece:scratch){raster(piece,0,1,total,vector_groups);++f.vehicle_streamed_triangles;}}};
             submit(queue);if(last)submit(*last);f.triangles+=total;
             f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();return;
         }
@@ -706,19 +742,20 @@ class renderer {
             if(projected.empty())return;
             const bool prune=prune_workers&&count>1;
             if(prune)for(auto &t:projected)t.worker_mask=uint8_t(raster_worker_mask(t.ymin,t.ymax,count));
-            std::array<uint32_t,4> totals{},skipped{};std::array<std::thread,3> threads;
-            auto band=[&](int n){for(const auto &t:projected){
+            std::array<uint32_t,4> totals{},skipped{};std::array<uint64_t,4> vector_totals{};std::array<std::thread,3> threads;
+            auto band=[&](int n){uint64_t vector_groups=0;for(const auto &t:projected){
                 // Tiny component triangles often occupy just one worker's strip.
                 // Reject the other workers before material/derivative preparation;
                 // each participating worker still executes the original rasterizer.
                 if(prune&&!(t.worker_mask&(1u<<n))){++skipped[n];continue;}
-                raster(t,n,count,totals[n]);}};
+                raster(t,n,count,totals[n],vector_groups);}vector_totals[n]=vector_groups;};
             // Sprites/geometry are resolved on the callback thread. Workers only
             // read owned analyses and write disjoint pixel/depth rows, then join.
             for(int n=1;n<count;++n){try{threads[n-1]=std::thread(band,n);}catch(const std::system_error &){band(n);}}
             band(0);for(auto &t:threads)if(t.joinable())t.join();
             for(auto total:totals)f.triangles+=total;
             for(auto total:skipped)f.vehicle_worker_skips+=total;
+            for(auto total:vector_totals)f.vehicle_vector_groups+=total;
         };
         if(compact){
             vehicle_clipped_vertices.clear();std::vector<compact_projected_triangle> projected;parallel(projected);
@@ -1618,6 +1655,7 @@ public:
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
+        f.vehicle_vector_groups=0;
         modular_vehicles();if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
     }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
@@ -1643,6 +1681,7 @@ public:
             if(world_output)*world_output=f;
         }
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
+        f.vehicle_vector_groups=0;
         // Animate only these near-field blades. The floor, walls and distant
         // world remain in the CPU cache; animation never changes Native time.
         opaque.clear();transparent.clear();

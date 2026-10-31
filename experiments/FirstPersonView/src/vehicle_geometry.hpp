@@ -35,14 +35,26 @@ struct model {
     bool closed_shell=false;
     bool contains(point p)const{return p.x>=minimum.x-.001f&&p.x<=maximum.x+.001f&&
         p.y>=minimum.y-.001f&&p.y<=maximum.y+.001f&&p.z>=minimum.z-.001f&&p.z<=maximum.z+.001f;}
-    static bool front_facing(const triangle &t,point eye){
-        auto n=cross(t.vertices[1].position-t.vertices[0].position,t.vertices[2].position-t.vertices[0].position);
+    bool ahead_of_near_plane(point eye,point forward)const{
+        const auto center=(minimum+maximum)*.5f-eye,radius=(maximum-minimum)*.5f;
+        const float nearest=dot(center,forward)-(std::abs(forward.x)*radius.x+std::abs(forward.y)*radius.y+std::abs(forward.z)*radius.z);
+        // A clipped front wall can expose a shell's inner back wall even when
+        // the eye is outside. Keep the entire shell two-sided near that plane.
+        return nearest>.081f;
+    }
+    static bool outward_face(const triangle &t,point &normal,bool *reversed=nullptr){
+        normal=cross(t.vertices[1].position-t.vertices[0].position,t.vertices[2].position-t.vertices[0].position);
         const auto hint=t.vertices[0].normal+t.vertices[1].normal+t.vertices[2].normal;
-        const float orientation=dot(n,hint);
+        const float orientation=dot(normal,hint);
+        if(std::abs(orientation)<1e-10f)return false;
+        if(reversed)*reversed=orientation<0;
+        if(orientation<0)normal=normal*-1;
+        return true;
+    }
+    static bool front_facing(const triangle &t,point eye){
         // Imported/smooth primitives may use reversed triangle winding. The
         // authored outward normal is the orientation proof; keep ambiguity.
-        if(std::abs(orientation)<1e-10f)return true;
-        if(orientation<0)n=n*-1;
+        point n;if(!outward_face(t,n))return true;
         return dot(n,eye-t.vertices[0].position)>=-1e-6f;
     }
     size_t bytes()const{return sizeof(*this)+triangles.capacity()*sizeof(triangle)+materials.capacity()*sizeof(material)+

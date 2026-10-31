@@ -734,6 +734,7 @@ int main(int argc,char **argv){
             require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"queue SDL sampling before teardown");}
         engine.clear();require(!engine.metrics().active&&engine.resources().bytes()==0&&engine.recording().frame_upload_capacity_bytes==0&&engine.recording().cell_cache_bytes==0,"in-flight teardown drains and clears resources including staging and source cells");
     }
+    #include "vehicle_closed_gpu_test.inc"
     #include "world_visual_gpu_test.inc"
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();

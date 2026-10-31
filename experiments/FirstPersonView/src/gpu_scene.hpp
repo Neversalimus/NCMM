@@ -94,10 +94,13 @@ class scene_cache {
     std::map<std::tuple<uint64_t,int,bool,bool>,std::weak_ptr<const owned_mesh>> skins;
     std::map<std::tuple<uint64_t,int,int,bool>,std::weak_ptr<const owned_mesh>> impostors;
     struct vehicle_template {
-        std::array<std::weak_ptr<const owned_mesh>,2> meshes;
+        // Opaque, transparent, and outside-closed-shell opaque. The latter
+        // uses an existing shader flag, never a different surface or order.
+        std::array<std::weak_ptr<const owned_mesh>,3> meshes;
         // Recipes are immutable. An absent alpha pass is different from a
         // resource owner that expired and must be rebuilt after eviction.
         uint8_t empty_passes=0;
+        int8_t opaque_cull_safe=-1;
     };
     std::map<uint64_t,vehicle_template> vehicle_templates;
     resources assets;
@@ -149,7 +152,7 @@ class scene_cache {
         // Renderer images are immutable and owned for this collect() call.
         // Hash/copy each observed atlas image once, not once per triangle.
         std::map<const hybrid::image *,std::shared_ptr<const owned_texture>> prepared_textures;
-        bool world=true;
+        bool world=true,cull_vehicle_shells=true;
         std::array<vec,5> grass_planes{};vec grass_eye{};
         bool grass_visible(vec at,float height)const{
             const vec center=at+vec{.5f,.5f,height*.675f+.012f}-grass_eye,radius{.51f,.51f,height*.675f+.02f};
@@ -172,8 +175,8 @@ class scene_cache {
     public:
         bool failed=false,warming=false;uint32_t generated_cells=0;
         void fail(const char *reason){failed=true;if(cache.last_reason.empty())cache.last_reason=reason;}
-        collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel,const ncmm_world::coordinates &indexed):
-            cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(indexed),signatures(hashes),dirty_cells(s.base.cell_count,false){
+        collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel,const ncmm_world::coordinates &indexed,bool cull_shells):
+            cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(indexed),signatures(hashes),dirty_cells(s.base.cell_count,false),cull_vehicle_shells(cull_shells){
             const auto &c=frame.scene.camera;grass_eye={c.eye[0],c.eye[1],c.eye[2]};
             const vec forward{c.forward[0],c.forward[1],c.forward[2]},right{c.right[0],c.right[1],c.right[2]},up{c.up[0],c.up[1],c.up[2]};
             const float h=c.projection[0]*.5f/c.projection[2],v=c.projection[1]*.5f/c.projection[2];
@@ -201,10 +204,28 @@ class scene_cache {
         }
         bool vehicle_component(const vehicle::submission &draw)override{
             if(!draw.geometry||draw.cell<0||size_t(draw.cell)>=scene.base.cell_count)return true;
+            // Use the exact published GPU camera, including sub-tile/multi-Z
+            // offsets. A renderer-side approximation cannot prove GPU faces
+            // invisible for every valid eye height or optional camera pose.
+            const auto &camera=frame.scene.camera;
+            const vehicle::point to_eye{camera.eye[0]-draw.placement.origin.x,camera.eye[1]-draw.placement.origin.y,camera.eye[2]-draw.placement.origin.z},
+                forward{camera.forward[0],camera.forward[1],camera.forward[2]};
+            const vehicle::point local_eye{vehicle::dot(to_eye,draw.placement.x),vehicle::dot(to_eye,draw.placement.y),vehicle::dot(to_eye,draw.placement.z)},
+                local_forward{vehicle::dot(forward,draw.placement.x),vehicle::dot(forward,draw.placement.y),vehicle::dot(forward,draw.placement.z)};
+            const bool cull_closed=cull_vehicle_shells&&draw.geometry->closed_shell&&!draw.geometry->contains(local_eye)&&draw.geometry->ahead_of_near_plane(local_eye,local_forward);
             if(cache.vehicle_templates.size()>=2048)cache.vehicle_templates.clear();
             auto &entry=cache.vehicle_templates[draw.geometry->recipe];
+            if(entry.opaque_cull_safe<0){
+                bool safe=draw.geometry->closed_shell,opaque=false;
+                for(const auto &t:draw.geometry->triangles){const auto alpha=draw.geometry->materials[t.material].color[3];
+                    if(alpha<.99f)continue;opaque=true;vehicle::point normal;
+                    if(alpha!=1.f||!vehicle::model::outward_face(t,normal)){safe=false;break;}}
+                entry.opaque_cull_safe=int8_t(safe&&opaque);
+            }
             for(uint32_t pass=0;pass<2;++pass){if(entry.empty_passes&(1u<<pass))continue;
-                auto mesh=entry.meshes[pass].lock();
+                const bool closed=cull_closed&&pass==0&&entry.opaque_cull_safe>0;
+                const unsigned variant=closed?2:pass;
+                auto mesh=entry.meshes[variant].lock();
                 if(!mesh){
                     ++cache.vehicle_pass_scans;
                     const auto first=std::find_if(draw.geometry->triangles.begin(),draw.geometry->triangles.end(),[&](const auto &source){
@@ -214,18 +235,32 @@ class scene_cache {
                     for(auto source_at=first;source_at!=draw.geometry->triangles.end();++source_at){const auto &source=*source_at;const auto &appearance=draw.geometry->materials[source.material];
                         if(uint32_t(appearance.color[3]<.99f)!=pass)continue;
                         ncmm_gpu_material_v1 material{};std::copy(appearance.color.begin(),appearance.color.end(),material.color);
-                        material.flags=NCMM_GPU_SMOOTH|(appearance.emissive?uint32_t(NCMM_GPU_EMISSIVE):0u);material.finish=uint32_t(hybrid::vehicle_finish(appearance.kind));
+                        material.flags=NCMM_GPU_SMOOTH|(appearance.emissive?uint32_t(NCMM_GPU_EMISSIVE):0u)|(closed?uint32_t(NCMM_GPU_CULL_BACK):0u);material.finish=uint32_t(hybrid::vehicle_finish(appearance.kind));
                         const uint32_t slot=builder.material(material);
-                        for(const auto &value:source.vertices){ncmm_gpu_vertex_v1 v{};
+                        vehicle::point outward;bool reversed=false;
+                        const bool oriented=draw.geometry->closed_shell&&vehicle::model::outward_face(source,outward,&reversed);
+                        // Normal hints historically allowed imported/beam
+                        // corners with reversed winding. Normalize only their
+                        // corner order, with every attribute attached, in BOTH
+                        // GPU variants. Triangle/material/draw order stays put;
+                        // GPU ray picking and the existing material flag then
+                        // agree on the same authored outward geometric plane.
+                        const unsigned order[]={0u,oriented&&reversed?2u:1u,oriented&&reversed?1u:2u};
+                        for(unsigned corner:order){const auto &value=source.vertices[corner];ncmm_gpu_vertex_v1 v{};
                             v.position[0]=value.position.x;v.position[1]=value.position.y;v.position[2]=value.position.z;
                             v.normal[0]=v.face_normal[0]=value.normal.x;v.normal[1]=v.face_normal[1]=value.normal.y;v.normal[2]=v.face_normal[2]=value.normal.z;
+                            // Smooth vertex normals are not face-orientation
+                            // proofs at a wheel's silhouette. Keep them for
+                            // lighting; only the oriented geometric plane may
+                            // reject a closed shell's invisible back face.
+                            if(closed){v.face_normal[0]=outward.x;v.face_normal[1]=outward.y;v.face_normal[2]=outward.z;}
                             v.uv[0]=value.u;v.uv[1]=value.v;v.material=slot;
                             builder.mesh.indices.push_back(corners.add(builder.mesh,v));}
                     }
                     if(builder.mesh.indices.empty())continue;
                     mesh=cache.assets.mesh(std::move(builder.mesh));
                     if(!mesh){fail("GPU modular vehicle component exceeds resource cache budget");return true;}
-                    entry.meshes[pass]=mesh;
+                    entry.meshes[variant]=mesh;
                 }
                 auto transform=identity();const auto &p=draw.placement;
                 const vehicle::point basis[]={p.x,p.y,p.z,p.origin};
@@ -683,7 +718,7 @@ public:
         signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;}
     size_t bytes()const{return assets.bytes()+vehicle_templates.size()*(sizeof(uint64_t)+sizeof(vehicle_template)+3*sizeof(void *))+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+prop_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(prop_templates.empty()?0:prop_templates.bucket_count()*sizeof(void *))+floor_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(floor_templates.empty()?0:floor_templates.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes()+coordinate_index.bytes();}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
-               hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr){
+               hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr,hybrid::render_options options={}){
         last_reason.clear();
         if(!hybrid::valid_scene(s,yaw,pitch,levels)||(metadata&&!hybrid::valid_presentation(*metadata,s.base.cell_count))||(creatures&&!creature::valid(creatures->input,s.base.cell_count))){last_reason="invalid GPU source scene or optional presentation";return false;}
         const uint64_t world=levels?levels->world_epoch:creatures?creatures->input.view.world_epoch:uint64_t(host.world_origin_z)+1,tileset=creatures?creatures->input.view.tileset_epoch:host.resource_epoch;
@@ -707,8 +742,8 @@ public:
         // current Host scene pointer remains inside this adapter's lifetime.
         ncmm_graphics_trace::cpu_zone geometry_zone("Geometry");
         const auto start=std::chrono::steady_clock::now();ncmm_world::coordinates indexed(levels,coordinate_index);
-        auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed);
-        hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures,levels,&indexed).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
+        auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed,options.cull_geometry&&options.cull_gpu_vehicle_shells);
+        hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,options,creatures,levels,&indexed).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
         if(statistics.viewmodel_errors){last_reason="PSX viewmodel grip could not be attached safely";return false;}
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);
         camera.time[2]=float(statistics.sky_kind);

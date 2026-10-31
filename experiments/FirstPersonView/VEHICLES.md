@@ -184,6 +184,27 @@ internal reference subdivision switch is used only by pure surface tests;
 the scene cache always uses the production geometry. Independent intersections,
 materials, bounds and normals are checked against the original sampled surface.
 
+On SSE2 platforms, eligible opaque smooth vehicle samples use four-lane
+perspective/light/fog/packing arithmetic. Scan coverage and scalar weight
+increments retain their original order; unsupported materials, clipped row
+tails and other architectures keep the scalar path. Worker-local counters
+confirm that CI's complete colour/depth/picking comparisons actually exercise
+the vector path. Independent numeric controls retain scalar rounding and
+depth-epsilon decisions. Both compact-scalar and full-field references remain.
+
+Closed component shells can use the existing GPU material backface flag only
+when the camera is outside their bounds, the entire shell is beyond the view
+near plane, and every opaque triangle has an
+unambiguous authored orientation. Reversed corner winding is normalized, with
+all vertex attributes attached, in both GPU variants; triangle, material and
+draw order remain unchanged. The geometric face plane is separate from smooth
+lighting normals. Thin/glass parts, ambiguous geometry, fractional alpha and
+inside cameras retain the original two-sided path. Opaque culled/unculled
+templates have separate bounded weak owners. Forty-two CI image pairs compare
+all pixels, opaque occlusion and picking through outside, angled, overhead,
+near-plane and inside views, including smooth wheels and cached mode changes.
+Public GPU structures, validators, shaders and pipeline state are unchanged.
+
 Native vehicle reports retain the GPU backend's existing CPU-side geometry,
 resource, upload, command-recording and submit timers with the most recent
 submission serial. These timers
