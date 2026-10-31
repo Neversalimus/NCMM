@@ -424,6 +424,15 @@ Models without these optional tables retain the original calculations. The
 existing 32 MiB model budget includes every auxiliary table. Wide frame beams
 share a model only when their actual optional floor plates are identical.
 CPU geometry telemetry includes modular source conversion before rasterization.
+The joint CPU queue can shade proved flat-lit opaque world faces four pixels
+at a time. Flat lighting has its own exact kernel; it never substitutes an
+interpolated equal-corner value. Eligible opaque textures retain their original
+per-pixel UV/filter/RGBA sampling and fallback-colour mix before SIMD light/fog.
+Detailed, fractional, cutout, liquid, contact, creature, smooth textured and
+overlay paths retain scalar arithmetic and all bands.
+General GPU opaque ranges retain source-over blending. Only the four existing
+strict alpha-one component/reflective variants use equivalent overwrite state;
+their original fragment programs, explicit depth writes and bindings are intact.
 Intact roof patches retain their original upper/inner samples and now seal the
 35 mm rim along every actual patch boundary. This permits the existing proved
 closed-shell culling path. Broken apertures retain two-sided rendering. Twelve

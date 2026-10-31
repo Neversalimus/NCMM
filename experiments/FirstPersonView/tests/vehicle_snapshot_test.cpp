@@ -259,6 +259,44 @@ int main(){
             require(actual.active==mask,"four-lane rejection preserves scalar reciprocal/depth/epsilon decisions");
         }
     }
+    {
+        using namespace first_person::vehicle_pixels;
+        struct rgb {float x=0,y=0,z=0;};
+        uint32_t seed=0x49ac32u;const auto random=[&](){seed=seed*1664525u+1013904223u;return float(seed&0xffffffu)/16777215.f;};
+        const auto scalar=[](float w0,float w1,const float *inverse,rgb light,rgb color,rgb sky,float density,float old,float &depth){
+            volatile float w2=(1-w0)-w1,r0=w0*inverse[0],r1=w1*inverse[1],r2=w2*inverse[2],sum=r0+r1,reciprocal=sum+r2;
+            if(reciprocal<=0)return uint32_t(0);depth=1/reciprocal;if(depth>old+.0002f)return uint32_t(0);
+            volatile float distance=depth-2,amount=distance*density;
+            const float fog=std::clamp(float(amount),0.f,1.f);volatile float clear=1-fog;
+            const auto channel=[&](float base,float illumination,float horizon){
+                volatile float lit=base*illumination,front=lit*clear,back=horizon*fog,mixed=front+back,scaled=std::clamp(float(mixed),0.f,1.f)*255;
+                return uint32_t(scaled);
+            };
+            return (channel(color.x,light.x,sky.x)<<24)|(channel(color.y,light.y,sky.y)<<16)|(channel(color.z,light.z,sky.z)<<8)|255u;
+        };
+        for(unsigned test=0;test<30000;++test){float w0[4],w1[4],inverse[3],depth[4];
+            for(float &v:inverse)v=.0001f+random()*12.5f;
+            for(unsigned n=0;n<4;++n){w0[n]=random()*1.2f-.1f;w1[n]=random()*1.2f-.1f;depth[n]=(test+n)%5?random()*100:std::numeric_limits<float>::infinity();}
+            rgb light{random()*1.6f,random()*1.6f,random()*1.6f},color{random()*2-.5f,random()*2-.5f,random()*2-.5f},sky{random(),random(),random()};float density=random()*.5f;
+            if(test%7==0){for(float &v:inverse)v=1;light={1,1,1};density=0;const float boundary=float(test%256)/255;
+                color={boundary,std::nextafter(boundary,test%2?0.f:2.f),boundary};
+                depth[0]=1.f-.0002f;depth[1]=std::nextafter(depth[0],0.f);depth[2]=0;depth[3]=2;}
+            if(test%29==0)for(float &v:inverse)v=0;
+            const auto actual=shade4_flat(w0,w1,inverse,depth,light,color,sky,density);
+            uint32_t colors[4];float z[4];_mm_storeu_si128(reinterpret_cast<__m128i *>(colors),actual.color);_mm_storeu_ps(z,actual.depth);unsigned mask=0;
+            for(unsigned lane=0;lane<4;++lane){float expected_depth=0;const auto expected=scalar(w0[lane],w1[lane],inverse,light,color,sky,density,depth[lane],expected_depth);
+                if(expected){mask|=1u<<lane;require(colors[lane]==expected,"flat-lit SIMD retains independently rounded scalar RGB, fog and packing bits");
+                    require(std::memcmp(&z[lane],&expected_depth,sizeof(float))==0,"flat-lit SIMD retains exact perspective depth and epsilon decisions");}}
+            require(actual.active==mask,"flat-lit SIMD retains every scalar rejection, including mixed zero/nonpositive reciprocal lanes");
+            rgb samples[4];for(auto &sample:samples)sample={random()*2-.5f,random()*2-.5f,random()*2-.5f};
+            unsigned called=0;const auto sampled=shade4_flat_sampled(w0,w1,inverse,depth,light,sky,density,[&](unsigned lane,float distance){
+                called|=1u<<lane;require(std::memcmp(&distance,&z[lane],sizeof(float))==0,"sample callbacks receive the exact depth used by the original pixel");return samples[lane];});
+            uint32_t sampled_colors[4];_mm_storeu_si128(reinterpret_cast<__m128i *>(sampled_colors),sampled.color);
+            require(sampled.active==mask&&called==mask,"RGBA sampling executes only original depth-visible lanes, never rejected fragments");
+            for(unsigned lane=0;lane<4;++lane){float expected_depth=0;const auto expected=scalar(w0[lane],w1[lane],inverse,light,samples[lane],sky,density,depth[lane],expected_depth);
+                if(expected)require(sampled_colors[lane]==expected,"variable sampled RGB retains independent scalar light, fog, clamp and quantization bits");}
+        }
+    }
 #endif
     {
         using namespace first_person::vehicle;triangle plane{};

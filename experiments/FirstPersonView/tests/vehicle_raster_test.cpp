@@ -33,6 +33,10 @@ struct fixture {
     std::vector<ncmm_graphics_cell_v1> cells=std::vector<ncmm_graphics_cell_v1>(625);
     std::vector<ncmm_graphics_cell_v2> details=std::vector<ncmm_graphics_cell_v2>(625);
     ncmm_graphics_scene_v2 scene{};h::presentation_data metadata;v::presentation vehicles;
+    bool textured_ground=false;
+    const std::array<uint32_t,16> ground_texture{{0x917b61ff,0x315a2900,0x47a12280,0x8580b4ff,
+        0x20d04540,0x704b23ff,0x172331ff,0x556e2690,0xf0b87aff,0x12427a20,0x316a31ff,0x409060ff,
+        0x442a19ff,0x49a52a80,0x91357200,0x376451ff}};
     fixture(){
         for(size_t i=0;i<cells.size();++i){cells[i].flags=NCMM_GFX_VISIBLE;cells[i].light=1;
             std::strcpy(cells[i].terrain,"t_floor");std::strcpy(details[i].ground,"t_floor");
@@ -76,7 +80,10 @@ struct fixture {
         options.prune_empty_vehicle_samples=dispatch==3||optimized;options.prune_unused_vehicle_bands=dispatch==3||dispatch==4||optimized;
         options.compact_vehicle_records=dispatch==3||dispatch==5||dispatch==6||optimized;
         options.vector_vehicle_pixels=dispatch!=6&&dispatch!=8&&dispatch!=11;options.borrow_vehicle_materials=borrow;options.cache_static_vehicles=compose;h::frame result;
-        h::renderer painter(scene,yaw,pitch,{},result,{},&metadata,options);painter.run(1280,800,cache,world);return result;
+        const h::sprite_provider provider=[&](uint32_t cell,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){
+            if(!textured_ground||cell>=cells.size()||layer!=NCMM_GFX_GROUND)return false;
+            sprite={sizeof(sprite),4,4,4,ground_texture.data()};return true;};
+        h::renderer painter(scene,yaw,pitch,provider,result,{},&metadata,options);painter.run(1280,800,cache,world);return result;
     }
     h::frame render_without_local_reuse(float yaw,float pitch){
         const auto original=vehicles.draws;
@@ -87,7 +94,7 @@ struct fixture {
 };
 }
 int main(){
-    fixture f;uint32_t skipped=0,empty=0,bands=0,compact=0,clipped=0;uint64_t compact_bytes=0,full_bytes=0,vector_groups=0,source_bytes=0,full_source_bytes=0;
+    fixture f;uint32_t skipped=0,empty=0,bands=0,compact=0,clipped=0;uint64_t compact_bytes=0,full_bytes=0,vector_groups=0,world_vectors=0,texture_vectors=0,source_bytes=0,full_source_bytes=0;
     for(float yaw:{-.17f,0.f,.17f})for(float pitch:{-.15f,0.f,.12f}){
         h::frame old_world,new_world;const auto before=f.render(0,yaw,pitch,nullptr,&old_world),after=f.render(1,yaw,pitch,nullptr,&new_world);
         compare(before,f.render_without_local_reuse(yaw,pitch));
@@ -111,6 +118,8 @@ int main(){
         require(before.vehicle_source_bytes==0&&packed.vehicle_source_bytes==0,"both full-field and compact source-copy references are retained");
         source_bytes+=borrowed.vehicle_source_bytes;full_source_bytes+=borrowed.vehicle_reference_source_bytes;
         h::frame composite_world;const auto composite=f.render(9,yaw,pitch,nullptr,&composite_world);
+        world_vectors+=composite.world_vector_groups;
+        texture_vectors+=composite.world_texture_vector_groups;
         compare(before,composite);compare(before,f.render(10,yaw,pitch));compare(before,f.render(11,yaw,pitch));
         const auto reused=f.render(9,yaw,pitch,&composite_world);compare_cached(cached_before,reused);
         require(reused.vehicle_composite&&reused.vehicle_visual_revision==f.vehicles.visual_revision(),"warm frame actually reuses a source-bound vehicle composite");
@@ -125,6 +134,19 @@ int main(){
 #if NCMM_VEHICLE_PIXEL_SSE2
     require(vector_groups>0,"full colour/depth/picking equivalence actually executes four-lane vehicle arithmetic");
 #endif
+    {
+        // Retain all original texture-free scenes above. Add RGBA-filtered
+        // ground and an independent flat-lit wall under the same exact checks.
+        constexpr size_t wall=10*25+6;const auto old_cell=f.cells[wall];const auto old_detail=f.details[wall];
+        f.textured_ground=true;std::strcpy(f.cells[wall].terrain,"t_wall");f.details[wall].terrain_shape=NCMM_SHAPE_WALL;
+        for(float yaw:{-.17f,0.f,.17f}){const auto before=f.render(0,yaw,0),after=f.render(9,yaw,0);compare(before,after);
+            compare(before,f.render(11,yaw,0));world_vectors+=after.world_vector_groups;texture_vectors+=after.world_texture_vector_groups;}
+#if NCMM_VEHICLE_PIXEL_SSE2
+        require(world_vectors>0,"complete scalar-reference comparisons actually execute flat-lit SIMD on world faces");
+        require(texture_vectors>0,"full scalar-reference colour/depth/picking checks execute original RGBA sampling before SIMD light/fog");
+#endif
+        f.textured_ground=false;f.cells[wall]=old_cell;f.details[wall]=old_detail;
+    }
     const auto reference=f.render(0,0,0),streamed=f.render(2,0,0);compare(reference,streamed);
     require(streamed.vehicle_streamed_triangles>0,"disabled streaming experiment remains an explicit correctness reference");
     f.scene.base.camera_x=12.5f;

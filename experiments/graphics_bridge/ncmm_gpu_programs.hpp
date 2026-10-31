@@ -59,10 +59,14 @@ public:
         const SDL_GPUTextureFormat effects[]={SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT,SDL_GPU_TEXTUREFORMAT_R32_FLOAT};
         opaque=make(gv,gf,true,world,2,true,true,true,true);
         opaque_culled=make(gv,gf,true,world,2,true,true,true,true,true);
-        opaque_component=make(gv,of,true,world,2,true,true,true,true);
-        opaque_component_culled=make(gv,of,true,world,2,true,true,true,true,true);
-        opaque_reflective=make(gv,rf,true,world,2,true,true,true,true);
-        opaque_reflective_culled=make(gv,rf,true,world,2,true,true,true,true,true);
+        // The existing component proof requires exact alpha one, no texture
+        // or coverage modifiers, and the component fragment writes alpha one.
+        // Its source-over blend is therefore an exact overwrite. General and
+        // fractional opaque ranges retain their original blending pipelines.
+        opaque_component=make(gv,of,true,world,2,true,true,false,true);
+        opaque_component_culled=make(gv,of,true,world,2,true,true,false,true,true);
+        opaque_reflective=make(gv,rf,true,world,2,true,true,false,true);
+        opaque_reflective_culled=make(gv,rf,true,world,2,true,true,false,true,true);
         transparent=make(gv,gf,true,world,2,true,false,true,false);held=make(gv,gf,true,world,2,true,true,true,false);
         // The imported optic lens uses the existing shader/blend contract.
         // Draw it after all opaque hands/items without hiding geometry behind it.
