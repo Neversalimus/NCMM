@@ -17,23 +17,32 @@ p.add_argument('--output',required=True,type=Path)
 p.add_argument('--source',type=Path,default=Path(__file__).parent/'shaders')
 p.add_argument('--verify',action='store_true',help='Verify the shipping source identity and embedded SPIR-V/DXIL without invoking a compiler')
 a=p.parse_args()
-# Host proofs require an exact identity root. Retain its scalar one (and the
-# original descriptor layout), while omitting only its zero matrix terms.
-# Every fragment program, including its explicit depth, remains unchanged.
-ordinary=(a.source/'geometry.vert').read_text(encoding='utf-8')
-skin='vec3 p=(bone*vec4(position,1)).xyz,n=mat3(bone)*normal,face=mat3(bone)*face_normal;'
-rigid='vec3 p=position*bone[3][3],n=normal*bone[3][3],face=face_normal*bone[3][3];'
-if ordinary.count(skin)!=1:p.error('Unreviewed rigid vertex specialization')
-if (a.source/'geometry_rigid.vert').read_text(encoding='utf-8')!=ordinary.replace(skin,rigid):
-    p.error('Rigid specialization changed more than proven identity skin arithmetic')
-translated=ordinary.replace(skin,rigid)
-for before,after in [('world_position=(instance.world*vec4(p,1)).xyz;','world_position=p+instance.world[3].xyz;'),
-                     ('world_normal=normalize(world*(n/max(inverse_scale,vec3(.000001))));','world_normal=normalize(n);'),
-                     ('flat_normal=normalize(world*(face/max(inverse_scale,vec3(.000001))));','flat_normal=normalize(face);')]:
-    if translated.count(before)!=1:p.error('Unreviewed translation-only vertex specialization')
-    translated=translated.replace(before,after)
-if (a.source/'geometry_translated.vert').read_text(encoding='utf-8')!=translated:
-    p.error('Translation specialization changed more than proven identity world/skin arithmetic')
+# The optional component program deletes only branches excluded by the Host's
+# exact material/vertex/cell proof. Keep all used detail and depth expressions.
+ordinary=(a.source/'geometry.frag').read_text(encoding='utf-8')
+component=ordinary
+distance='    if((flags&8192u)!=0u){float light=(.035+.82*sat(camera.sun.w))*(.72+.20*max(n.z,0.0)+.08*max(0.0,dot(n,camera.sun.xyz)));return vec3(light);}\n'
+if component.count(distance)!=1:p.error('Unreviewed component distance branch')
+component=component.replace(distance,'')
+begin=component.index('    if(cell>=uint(camera.grid.z)){');end=component.index('    Cell c=cells[cell];',begin)
+component=component[:begin]+component[end:]
+begin=component.index('    if((flags&64u)!=0u){ivec2 size=textureSize(');end=component.index('    color=material_detail(',begin)
+removed=component[begin:end]
+if not all(term in removed for term in ['flags&1u','flags&32u','material.state.y==16u','if(alpha<.01)discard;']):
+    p.error('Unreviewed component coverage branches')
+component=component[:begin]+component[end:]
+for before,after in [('#include "material.glsl"','#include "material_component.glsl"'),
+                     ('uint flags=material.state.x|vertex_flags;','uint flags=(material.state.x&(512u|16384u))|8u;'),
+                     ('bool lower=(material.state.x&4096u)!=0u;','bool lower=false;'),
+                     ('float z=view_point(p).z,alpha=material.color.a;','float z=view_point(p).z,alpha=1.0;')]:
+    if component.count(before)!=1:p.error('Unreviewed component constant proof')
+    component=component.replace(before,after)
+if (a.source/'geometry_component.frag').read_text(encoding='utf-8')!=component:
+    p.error('Component fragment changed an expression outside its proved branches/constants')
+detail=(a.source/'material.glsl').read_text(encoding='utf-8')
+begin=detail.index('    if(finish==12u){float scale=');end=detail.index('    vec2 q=abs(n.z)>.5?',begin)
+if (a.source/'material_component.glsl').read_text(encoding='utf-8')!=detail[:begin]+detail[end:]:
+    p.error('Component material changed ordinary detail or reflection arithmetic')
 lines=['#pragma once','#include <cstddef>','namespace ncmm_gpu::shaders {']
 source_hash=hashlib.sha256()
 for source in sorted(a.source.glob('*')):

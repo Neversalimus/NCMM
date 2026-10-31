@@ -14,13 +14,6 @@ ncmm_gpu_matrix_v1 identity(){ncmm_gpu_matrix_v1 m{};for(unsigned n=0;n<4;++n)m.
 int main(){
     auto pose=identity();require(ncmm_gpu::winding_pose(pose),"identity is a proper rigid pose");
     require(ncmm_gpu::winding_bone(pose),"the exact static root bone is accepted");
-    require(ncmm_gpu::translation_pose(pose),"exact identity is also a translation-only pose");
-    for(unsigned at=0;at<16;++at){auto changed=identity();
-        changed.columns[at]=std::nextafter(changed.columns[at],2.f);
-        require(ncmm_gpu::translation_pose(changed)==(at>=12&&at<15),"every non-translation matrix element must equal identity exactly");
-        changed.columns[at]=std::numeric_limits<float>::quiet_NaN();
-        require(!ncmm_gpu::translation_pose(changed),"nonfinite pose values never enter the translation-only shader");
-    }
     for(unsigned n=0;n<20000;++n){const float yaw=float(n)*.037f,pitch=float(n%101)*.013f;
         const float cy=std::cos(yaw),sy=std::sin(yaw),cp=std::cos(pitch),sp=std::sin(pitch);
         pose=identity();pose.columns[0]=cy;pose.columns[1]=sy;pose.columns[4]=-sy;pose.columns[5]=cy;pose.columns[12]=float(n%300)-150;
@@ -36,10 +29,6 @@ int main(){
         camera.up[2]+=1.f;require(!ncmm_gpu::winding_camera(camera),"unproved projection basis falls back");
         auto animated=identity();animated.columns[12]=.01f;
         require(!ncmm_gpu::winding_bone(animated),"animated bones cannot use the static proof");
-        auto translated=identity();translated.columns[12]=float(n%300)-150;
-        translated.columns[13]=float(n%511)*.125f;translated.columns[14]=-float(n%47)*3.2f;
-        require(ncmm_gpu::translation_pose(translated),"finite world translations preserve the exact identity linear basis");
-        translated.columns[1]=.0000001f;require(!ncmm_gpu::translation_pose(translated),"a small but real rotation cannot use translation arithmetic");
     }
     std::array<ncmm_gpu_vertex_v1,3> vertices{};vertices[1].position[0]=1.5f;vertices[2].position[1]=1.5f;
     for(auto &v:vertices)v.face_normal[2]=1;
@@ -60,7 +49,7 @@ int main(){
     {
         const auto saved=vertices;const auto old_material=material;
         auto depth=[&]{return ncmm_gpu::rigid_opaque_range(mesh,0,0,3);};
-        require(depth(),"the ordinary static opaque model can omit only its proven identity skin terms");
+        require(depth(),"the ordinary fully opaque model proves the component fragment coverage and flag branches");
         for(uint32_t flag:{uint32_t(NCMM_GPU_TEXTURED),uint32_t(NCMM_GPU_CUTOUT),uint32_t(NCMM_GPU_IMPOSTOR),
             uint32_t(NCMM_GPU_SPILL),uint32_t(NCMM_GPU_HELD_MATERIAL),uint32_t(NCMM_GPU_CREATURE_VISUAL),uint32_t(NCMM_GPU_BILLBOARD)}){
             material.flags|=flag;require(!depth(),"coverage/depth-altering and held materials retain the general depth shader");material=old_material;}
@@ -68,6 +57,15 @@ int main(){
         material.finish=16;require(!depth(),"contact alpha falloff keeps the general shader");material=old_material;
         material.color[3]=.995f;require(!depth(),"fractional opaque alpha keeps the general shader");material=old_material;
         material.texture_key=9;require(!depth(),"texture ownership cannot be omitted from the proof");material=old_material;
+        material.normal_key=9;require(!depth(),"normal-texture ownership retains the general fragment program");material=old_material;
+        material.depth_key=9;require(!depth(),"depth-texture ownership retains the general fragment program");material=old_material;
+        constexpr uint32_t allowed=NCMM_GPU_CULL_BACK|NCMM_GPU_SMOOTH|NCMM_GPU_EMISSIVE;
+        for(unsigned bit=0;bit<32;++bit){material.flags=old_material.flags|(uint32_t(1)<<bit);
+            require(depth()==((material.flags&~allowed)==0),"every unproved flag bit keeps its original fragment branch");material=old_material;}
+        for(uint32_t extra:{0u,uint32_t(NCMM_GPU_CULL_BACK),uint32_t(NCMM_GPU_EMISSIVE),uint32_t(NCMM_GPU_CULL_BACK|NCMM_GPU_EMISSIVE)}){
+            material.flags=NCMM_GPU_SMOOTH|extra;
+            require(depth()&&((material.flags&(512u|16384u))|8u)==material.flags&&material.color[3]==1.f,
+                "all specialized integer flags and alpha constants equal their proved original values");material=old_material;}
         vertices[2].joint=1;require(!depth(),"skinned depth remains unchanged");vertices=saved;
         vertices[2].flags=NCMM_GPU_BILLBOARD;require(!depth(),"billboard depth remains unchanged");vertices=saved;
         vertices[2].position[0]=std::numeric_limits<float>::infinity();require(!depth(),"nonfinite corners fail closed");vertices=saved;
@@ -95,8 +93,13 @@ int main(){
             require(ncmm_gpu::rigid_opaque_range(depth.mesh,1,3,3)&&!ncmm_gpu::rigid_opaque_range(depth.mesh,0,0,3),"mixed-depth fixture proves exactly its intended ordinary range");
             require(ncmm_gpu::winding_camera(depth.scene.camera)&&ncmm_gpu::winding_pose(depth.draw.transform),"fixture camera and pose qualify the actual specialized draw");
             require(depth.draw.bone_count==1&&ncmm_gpu::winding_bone(depth.bone),"the mixed-depth specialized draw has exactly the required identity root");
-            require(ncmm_gpu::translation_pose(depth.draw.transform),"the complete mixed-depth fixture also proves translation-only vertices");
             require(depth.scene.camera.grid[3]==1&&(depth.cell.flags&NCMM_GFX_CEILING),"world ceiling semantics disable outdoor distance fog in the strict color control");
+        }
+        for(unsigned which=0;which<4;++which){
+            depth.component_case(which);const auto reason=ncmm_gpu::validate(depth.scene,&depth.world);
+            require(!reason,reason?reason:"component guard source contracts are valid without a device");
+            require(ncmm_gpu::rigid_opaque_range(depth.mesh,1,3,3)==(which<2),"lower and fractional materials fail the immutable range proof");
+            require((depth.draw.cell<depth.scene.cell_count)==(which!=0),"valid opaque sentinel cells separately fail the batch world-cell proof");
         }
     }
     std::printf("GPU winding: %u pure data/math checks passed; no SDL/device execution\n",checks);

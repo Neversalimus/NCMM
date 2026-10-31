@@ -28,19 +28,11 @@ inline bool winding_bone(const ncmm_gpu_matrix_v1 &m){
     for(unsigned n=0;n<16;++n)if(m.columns[n]!=(n%5==0?1.f:0.f))return false;
     return true;
 }
-inline bool translation_pose(const ncmm_gpu_matrix_v1 &m){
-    // Exact equality, including the affine bottom row. A tiny rotation/scale
-    // still needs the general transform; only finite translations are free.
-    for(unsigned n=0;n<16;++n){
-        if(n>=12&&n<15){if(!std::isfinite(m.columns[n]))return false;}
-        else if(m.columns[n]!=(n%5==0?1.f:0.f))return false;
-    }
-    return true;
-}
 inline bool rigid_opaque_range(const ncmm_gpu_mesh_v1 &mesh,uint32_t material,uint32_t first,uint32_t count){
-    // Ordinary component corners use only the batch's proven identity root.
-    // Keep the general vertex shader for every unproved skin, billboard,
-    // material or corner. Fragment shading and depth are always unchanged.
+    // Ordinary component coverage and flags exclude textures, billboards,
+    // liquids, contact effects and fractional opacity. The separate batch
+    // proof also requires actual world cells. Vertex and fragment depth math
+    // stay general; only unreachable fragment branches may be specialized.
     if(!mesh.vertices||!mesh.indices||!mesh.materials||material>=mesh.material_count||!count||count%3||
        count>mesh.index_count||first>mesh.index_count-count)return false;
     const auto &m=mesh.materials[material];

@@ -385,33 +385,31 @@ transparent vehicle glass still joins the original transparent ordering.
 Complete color, depth, cell/creature ownership and crosshair comparisons cover
 both cold composition and warm reuse, including invalidation after mutations.
 
-An additional GPU vertex program lets proven smooth, untextured, fully opaque
-rigid components omit the zero terms of their exact identity skin root. The
-root's scalar one and original buffer descriptors remain. The build verifies
-that all other vertex operations equal the general program. Every original
-fragment program and explicit depth write stays unchanged; all 14 original
-program binaries remain. Unproved poses, alpha, skinning, billboards, liquids,
-contact effects, textures and held items retain the general vertex path. The
-complete frozen-backend comparison retains all 414 original readbacks and adds
-eight near-plane, distant and exactly coplanar mixed-depth cases. These are
-candidate correctness controls; frame-time and final image admission remain
-mandatory.
+Equivalent roof mounts reuse one local model when their exact transverse
+profile, real roof neighbours, material, health and state agree. Each installed
+part keeps its own pose, identity, Native cell and permission. Longitudinal
+mount/cockpit bounds that do not affect generated roof data are absent from
+that recipe. Pure controls compare every generated position, normal, UV,
+material, shared index and bound bit, including damaged roofs and eaves.
 
-Detailed CPU component materials use four-lane perspective, smooth-light, fog
-and packing arithmetic too. Their existing grain/noise/material function still
-runs separately for each visible sample with the original scalar arguments;
-no material detail is approximated or omitted. The independent numeric controls
-retain all original samples and add varying per-lane colours and rejected-lane
-checks. Complete colour/depth/ownership CI comparisons retain the original
-scalar path, including broad rubber and cloth surfaces and camera interiors.
+An optional component fragment program excludes only branches disproved by
+strict immutable material/corner and batch proofs: exact opacity, smooth
+untextured surfaces, no coverage/creature/billboard flags, no liquid/contact
+finish, an actual world cell, and the existing static-root/proper-basis checks.
+Its selected ordinary detail, reflections, lighting, projection and explicit
+fragment-depth expressions are retained. Proven flag bits, lower-light state
+and opacity equal the specialized constants. Every other material/cell uses
+the original program. All fourteen original program binaries and the general
+vertex shader remain; sampler/storage/uniform layouts remain 3/2/2. Earlier
+vertex-only and detailed-SIMD experiments lacked a complete-frame win and were
+removed. Their measurements remain in the review evidence.
 
-A second vertex specialization also omits identity world-matrix arithmetic
-when every instance in the batch has an exactly identity linear basis and
-finite translation, as well as the proven static root and material above.
-Even a one-bit scale or rotation change falls back. Original fragment programs,
-depth writes, source geometry, ordering, and all prior shader binaries remain.
-These two arithmetic changes still require actual Native complete-frame
-performance and all 422 frozen-reference device readbacks before admission.
+The frozen comparison keeps all 414 original readbacks and eight mixed-depth
+near-plane/distant/coplanar cases. Four further source-validated readbacks cover
+ordinary world lighting, the valid opaque sentinel cell, lower-slab lighting
+and fractional opaque alpha. These 426 complete readbacks and actual Native
+frame/resource/image qualification are required; source or compiler instruction
+counts never establish a game performance win.
 
 The long-run gate also validates source-bound process RAM samples, not just
 module/GPU accounting. It rejects a late resident median more than 50 percent

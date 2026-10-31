@@ -39,4 +39,11 @@ struct opaque_depth_fixture {
             v.position[2]=(corner==2?1.f:-1.f)*distance*.5f;v.normal[1]=v.face_normal[1]=-1;}
         draw.mesh_key=++mesh.key;++scene.frame_serial;world.base=scene;
     }
+    void component_case(unsigned which){
+        materials[0].flags=0;materials[0].color[0]=materials[0].color[3]=1;
+        materials[1].flags=NCMM_GPU_SMOOTH|(which==2?4096u:0u);materials[1].color[2]=1;
+        materials[1].color[3]=which==3?.991f:1.f;
+        cell.light[0]=1;cell.light[1]=.8f;cell.light[2]=.65f;
+        draw.cell=which==0?UINT32_MAX:0;observe(1.f,true);
+    }
 };

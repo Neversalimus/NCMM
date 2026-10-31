@@ -19,6 +19,23 @@ int traced_submissions=0;
 struct data_backend {bool submit(const ncmm_gpu_scene_v1 &s,const ncmm_gpu_multilevel_scene_v1 *){return s.mode!=NCMM_GPU_CPU;}};
 void trace_data(const ncmm_gpu_scene_v1 &,const ncmm_gpu_multilevel_scene_v1 *){++traced_submissions;}
 void require(bool value,const char *message){++checks;if(!value){std::fprintf(stderr,"vehicle snapshot: %s\n",message);std::exit(1);}}
+void identical_model_data(const first_person::vehicle::model &a,const first_person::vehicle::model &b){
+    const auto vertex=[](const auto &v){return std::array<float,8>{v.position.x,v.position.y,v.position.z,v.normal.x,v.normal.y,v.normal.z,v.u,v.v};};
+    const std::array<float,9> bounds_a{a.pivot.x,a.pivot.y,a.pivot.z,a.minimum.x,a.minimum.y,a.minimum.z,a.maximum.x,a.maximum.y,a.maximum.z},
+        bounds_b{b.pivot.x,b.pivot.y,b.pivot.z,b.minimum.x,b.minimum.y,b.minimum.z,b.maximum.x,b.maximum.y,b.maximum.z};
+    require(a.kind==b.kind&&a.closed_shell==b.closed_shell&&std::memcmp(bounds_a.data(),bounds_b.data(),sizeof(bounds_a))==0,
+        "shared recipes preserve exact component role, shell, pivot and bounds");
+    require(a.materials.size()==b.materials.size()&&a.triangles.size()==b.triangles.size()&&a.shared_vertices.size()==b.shared_vertices.size()&&a.vertex_indices==b.vertex_indices,
+        "shared recipes preserve all material/corner/triangle counts and every shared index");
+    for(size_t n=0;n<a.materials.size();++n){const auto &x=a.materials[n],&y=b.materials[n];
+        require(x.kind==y.kind&&x.emissive==y.emissive&&std::memcmp(x.color.data(),y.color.data(),sizeof(x.color))==0,
+            "shared geometry has bit-identical material colours, roles and emission");}
+    for(size_t n=0;n<a.triangles.size();++n){require(a.triangles[n].material==b.triangles[n].material,"shared geometry retains original triangle material order");
+        for(unsigned corner=0;corner<3;++corner){const auto x=vertex(a.triangles[n].vertices[corner]),y=vertex(b.triangles[n].vertices[corner]);
+            require(std::memcmp(x.data(),y.data(),sizeof(x))==0,"every local position, smooth normal and UV bit remains identical");}}
+    for(size_t n=0;n<a.shared_vertices.size();++n){const auto x=vertex(a.shared_vertices[n]),y=vertex(b.shared_vertices[n]);
+        require(std::memcmp(x.data(),y.data(),sizeof(x))==0,"shared rigid/light input vertices retain all original bits");}
+}
 void verify_gpu_vertices(const first_person::vehicle::model &model){
     first_person::gpu::owned_mesh mesh;first_person::gpu::vertex_index indexed(model.triangles.size()*3);
     std::map<std::array<uint32_t,18>,uint32_t> reference;
@@ -189,23 +206,6 @@ int main(){
                 if(reference){mask|=1u<<lane;require(colors[lane]==reference,"four-lane color matches independently rounded scalar arithmetic exactly");
                     require(std::memcmp(&z[lane],&reference_depth,sizeof(float))==0,"four-lane perspective depth retains exact scalar bits");}}
             require(actual.active==mask,"four-lane rejection preserves scalar reciprocal/depth/epsilon decisions");
-            unsigned called=0;
-            const auto detail=[&](unsigned lane,float a,float b,float c,float z){
-                called|=1u<<lane;
-                return rgb{color.x+a*.03125f-float(lane)*.125f,color.y+b*.0625f+z*.0009765625f,color.z+c*.125f};
-            };
-            const auto detailed=first_person::vehicle_pixels::shade_detail4(weights0,weights1,inverse,depths,vertices,fog,density,detail);
-            _mm_storeu_si128(reinterpret_cast<__m128i *>(colors),detailed.color);_mm_storeu_ps(z,detailed.depth);
-            require(detailed.active==mask&&called==mask,"detail is evaluated exactly once only for scalar-visible samples");
-            for(unsigned lane=0;lane<4;++lane)if(mask&(1u<<lane)){
-                volatile float w2a=1-weights0[lane],w2=w2a-weights1[lane];
-                volatile float r0=weights0[lane]*inverse[0],r1=weights1[lane]*inverse[1],r2=w2*inverse[2],r01=r0+r1,reciprocal=r01+r2;
-                volatile float depth=1/reciprocal,a=r0*depth,b=r1*depth,c=r2*depth;
-                const rgb lane_color{color.x+a*.03125f-float(lane)*.125f,color.y+b*.0625f+depth*.0009765625f,color.z+c*.125f};
-                float reference_depth=0;const auto reference=scalar(weights0[lane],weights1[lane],inverse,vertices,lane_color,fog,density,depths[lane],reference_depth);
-                require(colors[lane]==reference,"independent varying per-lane detail retains exact scalar RGB packing");
-                require(std::memcmp(&z[lane],&reference_depth,sizeof(float))==0,"detailed path retains exact perspective depth bits");
-            }
         }
     }
 #endif
@@ -444,6 +444,35 @@ int main(){
         canopy.scene.part_count=canopy.vehicles[0].part_count=uint32_t(canopy.parts.size());
         require(valid(canopy,64),"roof surface fixture is a bounded installed construction");
         const first_person::vehicle::topology layout(canopy,canopy.vehicles[0]);
+        for(int y:{-1,0,1})for(unsigned lod=0;lod<3;++lod)for(float health:{1.f,.7f,0.f})for(bool broken:{false,true}){
+            auto a=*std::find_if(canopy.parts.begin(),canopy.parts.end(),[&](const auto &p){return p.mount_x==-1&&p.mount_y==y&&p.features==NCMM_VP_ROOF;});
+            a.health=health;if(broken)a.state|=NCMM_VP_BROKEN;
+            auto b=a;b.mount_x=1;++b.part_id;
+            require(layout.recipe(a,lod)==layout.recipe(b,lod),"equivalent longitudinal roof mounts share a local model recipe");
+            identical_model_data(*generate(canopy,layout,a,lod),*generate(canopy,layout,b,lod));
+            auto unrelated=layout;unrelated.min_x-=17;unrelated.max_x+=9;unrelated.cabin_min_x=-100;unrelated.cabin_max_x=100;
+            require(layout.recipe(a,lod)==unrelated.recipe(b,lod),"unrelated longitudinal/cockpit bounds do not rebuild equal roof data");
+            identical_model_data(*generate(canopy,layout,a,lod),*generate(canopy,unrelated,b,lod));
+            b.mount_x=2;require(layout.recipe(a,lod)!=layout.recipe(b,lod),"a real longitudinal eave keeps a distinct dependent roof recipe");
+        }
+        {
+            auto a=*std::find_if(canopy.parts.begin(),canopy.parts.end(),[](const auto &p){return p.mount_x==-1&&p.mount_y==0&&p.features==NCMM_VP_ROOF;});
+            auto b=a;b.mount_x=1;
+            for(const auto feature:{uint32_t(NCMM_VP_SOLAR),uint32_t(NCMM_VP_CONTROL_PANEL)}){
+                a.features=NCMM_VP_ROOF|feature;b.features=a.features;
+                require(layout.recipe(a,0)!=layout.recipe(b,0),"higher-priority non-roof roles retain their original full topology recipe");}
+            a.features=b.features=NCMM_VP_ROOF;std::strcpy(a.id,"dashboard");std::strcpy(b.id,"dashboard");
+            require(layout.recipe(a,0)!=layout.recipe(b,0),"canonical dashboard override cannot enter roof sharing");
+            first_person::vehicle::presentation shared;shared.input=canopy;shared.input.enabled=true;shared.observe({0,0,1.5f});
+            const auto find=[&](int x){
+                const auto part=std::find_if(canopy.parts.begin(),canopy.parts.end(),[&](const auto &p){return p.mount_x==x&&p.mount_y==0&&p.features==NCMM_VP_ROOF;});
+                require(part!=canopy.parts.end(),"shared-roof presentation lookup uses an installed Native part identity");
+                return std::find_if(shared.draws.begin(),shared.draws.end(),[&](const auto &d){return d.geometry->kind==component::roof&&d.part_id==part->part_id;});
+            };
+            const auto left=find(-1),right=find(1);
+            require(left!=shared.draws.end()&&right!=shared.draws.end()&&left->geometry==right->geometry,"production presentation actually reuses one equivalent roof model");
+            require(left->part_id!=right->part_id&&left->placement.origin.x!=right->placement.origin.x,"shared local geometry never combines real Native identities or placements");
+        }
         for(int x:{0,2})for(int y:{0,1})for(unsigned lod=0;lod<3;++lod)for(float health:{1.f,.7f,0.f})for(bool broken:{false,true}){
             auto p=*std::find_if(canopy.parts.begin(),canopy.parts.end(),[&](const auto &v){return v.mount_x==x&&v.mount_y==y&&v.features==NCMM_VP_ROOF;});
             p.health=health;if(broken)p.state|=NCMM_VP_BROKEN;

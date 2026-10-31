@@ -144,6 +144,17 @@ public:
             add(p.wheel_radius);add(p.wheel_width);return h?h:1;
         }
         add(chassis);
+        constexpr uint32_t earlier_roof_roles=NCMM_VP_CONTROL_PANEL|NCMM_VP_CURTAIN|NCMM_VP_DOOR|NCMM_VP_WINDOW|
+            NCMM_VP_WHEEL|NCMM_VP_SEAT|NCMM_VP_AXLE|NCMM_VP_FLOAT|NCMM_VP_CONTROLS|NCMM_VP_SOLAR;
+        if((p.features&NCMM_VP_ROOF)&&!(p.features&earlier_roof_roles)&&std::string_view(p.id)!="dashboard"){
+            // Roof vertices use this transverse profile and four actual roof
+            // neighbours. Longitudinal mount/world position and unrelated
+            // equipment cannot change their local generated data. Share that
+            // data while every part keeps its own identity, pose and cell.
+            add(cabin);add(p.mount_y);add(min_y);add(max_y);
+            for(unsigned side=0;side<4;++side)add(has(adjacent(at,side),NCMM_VP_ROOF));
+            return h?h:1;
+        }
         if((p.features&NCMM_VP_CONTROL_PANEL)||std::string_view(p.id)=="dashboard")add(narrow);
         if(p.features&(NCMM_VP_SEAT|NCMM_VP_FRAME))add(uint32_t(kind));
         if((p.features&NCMM_VP_LIGHT)&&(p.features&NCMM_VP_LIGHT_OMNI))add(cabin);
