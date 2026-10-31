@@ -22,6 +22,15 @@ void require(bool value,const char *message){++checks;if(!value){std::fprintf(st
 void verify_gpu_vertices(const first_person::vehicle::model &model){
     first_person::gpu::owned_mesh mesh;first_person::gpu::vertex_index indexed(model.triangles.size()*3);
     std::map<std::array<uint32_t,18>,uint32_t> reference;
+    if(model.closed_shell)for(const auto &triangle:model.triangles){first_person::vehicle::point normal,raw;
+        if(!first_person::vehicle::model::unit_outward_face(triangle,normal))continue;
+        require(std::isfinite(normal.x)&&std::isfinite(normal.y)&&std::isfinite(normal.z)&&
+            std::abs(normal.x)<=1.000001f&&std::abs(normal.y)<=1.000001f&&std::abs(normal.z)<=1.000001f,
+            "published closed-face directions satisfy the unchanged GPU normal bounds");
+        require(std::abs(first_person::vehicle::dot(normal,normal)-1.f)<1e-5f,"published closed-face directions are unit vectors");
+        require(first_person::vehicle::model::outward_face(triangle,raw)&&first_person::vehicle::dot(raw,normal)>0,
+            "normalizing GPU face data retains the independent authored geometric side");
+    }
     for(const auto &triangle:model.triangles)for(const auto &corner:triangle.vertices){
         ncmm_gpu_vertex_v1 v{};v.position[0]=corner.position.x;v.position[1]=corner.position.y;v.position[2]=corner.position.z;
         v.normal[0]=v.face_normal[0]=corner.normal.x;v.normal[1]=v.face_normal[1]=corner.normal.y;v.normal[2]=v.face_normal[2]=corner.normal.z;
@@ -192,6 +201,14 @@ int main(){
             "grazing smooth normal cannot replace a closed triangle's face-orientation proof");
         std::swap(plane.vertices[0],plane.vertices[1]);require(model::outward_face(plane,n,&reversed)&&n.z>0&&reversed,"reversed imported winding retains the same outward geometric plane");
         for(auto &v:plane.vertices)v.normal={};require(!model::outward_face(plane,n),"ambiguous geometric orientation must remain two-sided");
+        for(float scale:{.0001f,.5f,1.5f,1000.f}){triangle scaled{};
+            scaled.vertices[1].position={scale,0,scale};scaled.vertices[2].position={0,scale,0};
+            for(auto &v:scaled.vertices)v.normal={-1,0,1};point direction;
+            require(model::unit_outward_face(scaled,direction),"small and large face areas publish valid unit directions without a size fallback");
+            require(std::abs(direction.x+.70710678f)<1e-6f&&std::abs(direction.y)<1e-6f&&std::abs(direction.z-.70710678f)<1e-6f,
+                "face-area normalization preserves direction independently of triangle scale");
+            require(std::abs(direction.x)<=1&&std::abs(direction.y)<=1&&std::abs(direction.z)<=1,"scaled face cannot exceed the original GPU validator normal range");
+        }
         model box;box.minimum={-1,-1,-1};box.maximum={1,1,1};
         require(box.ahead_of_near_plane({-2,0,0},{1,0,0}),"whole distant shell is beyond the view near plane");
         require(!box.ahead_of_near_plane({-1.015f,0,0},{1,0,0}),"outside eye near a clipped front wall keeps inner surfaces");

@@ -197,7 +197,7 @@ when the camera is outside their bounds, the entire shell is beyond the view
 near plane, and every opaque triangle has an
 unambiguous authored orientation. Reversed corner winding is normalized, with
 all vertex attributes attached, in both GPU variants; triangle, material and
-draw order remain unchanged. The geometric face plane is separate from smooth
+draw order remain unchanged. The unit geometric face plane is separate from smooth
 lighting normals. Thin/glass parts, ambiguous geometry, fractional alpha and
 inside cameras retain the original two-sided path. Opaque culled/unculled
 templates have separate bounded weak owners. Forty-two CI image pairs compare

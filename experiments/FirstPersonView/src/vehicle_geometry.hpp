@@ -57,6 +57,12 @@ struct model {
         point n;if(!outward_face(t,n))return true;
         return dot(n,eye-t.vertices[0].position)>=-1e-6f;
     }
+    static bool unit_outward_face(const triangle &t,point &normal,bool *reversed=nullptr){
+        if(!outward_face(t,normal,reversed))return false;
+        const float length=std::sqrt(dot(normal,normal));
+        if(!std::isfinite(length)||length<=0)return false;
+        normal=normal*(1/length);return true;
+    }
     size_t bytes()const{return sizeof(*this)+triangles.capacity()*sizeof(triangle)+materials.capacity()*sizeof(material)+
         shared_vertices.capacity()*sizeof(vertex)+vertex_indices.capacity()*sizeof(std::array<uint32_t,3>);}
 };

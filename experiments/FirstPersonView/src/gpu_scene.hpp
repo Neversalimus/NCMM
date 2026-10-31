@@ -219,7 +219,7 @@ class scene_cache {
                 bool safe=draw.geometry->closed_shell,opaque=false;
                 for(const auto &t:draw.geometry->triangles){const auto alpha=draw.geometry->materials[t.material].color[3];
                     if(alpha<.99f)continue;opaque=true;vehicle::point normal;
-                    if(alpha!=1.f||!vehicle::model::outward_face(t,normal)){safe=false;break;}}
+                    if(alpha!=1.f||!vehicle::model::unit_outward_face(t,normal)){safe=false;break;}}
                 entry.opaque_cull_safe=int8_t(safe&&opaque);
             }
             for(uint32_t pass=0;pass<2;++pass){if(entry.empty_passes&(1u<<pass))continue;
@@ -238,7 +238,7 @@ class scene_cache {
                         material.flags=NCMM_GPU_SMOOTH|(appearance.emissive?uint32_t(NCMM_GPU_EMISSIVE):0u)|(closed?uint32_t(NCMM_GPU_CULL_BACK):0u);material.finish=uint32_t(hybrid::vehicle_finish(appearance.kind));
                         const uint32_t slot=builder.material(material);
                         vehicle::point outward;bool reversed=false;
-                        const bool oriented=draw.geometry->closed_shell&&vehicle::model::outward_face(source,outward,&reversed);
+                        const bool oriented=draw.geometry->closed_shell&&vehicle::model::unit_outward_face(source,outward,&reversed);
                         // Normal hints historically allowed imported/beam
                         // corners with reversed winding. Normalize only their
                         // corner order, with every attribute attached, in BOTH

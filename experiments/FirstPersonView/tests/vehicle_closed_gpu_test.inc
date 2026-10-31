@@ -47,7 +47,8 @@
                 const fp::vehicle::point local{fp::vehicle::dot(to_eye,placement.x),fp::vehicle::dot(to_eye,placement.y),fp::vehicle::dot(to_eye,placement.z)};
                 const bool outside=geometry->closed_shell&&!geometry->contains(local);
                 const auto submit=[&](bool cull){fp::gpu::packet packet;fp::hybrid::render_options options;options.cull_gpu_vehicle_shells=cull;
-                    require(cache.build(source,views[view].yaw,views[view].pitch,{},packet,statistics,engine.metrics(),{},&metadata,nullptr,640,480,NCMM_GPU_FORCE,nullptr,options),cache.last_reason.c_str());
+                    const bool built=cache.build(source,views[view].yaw,views[view].pitch,{},packet,statistics,engine.metrics(),{},&metadata,nullptr,640,480,NCMM_GPU_FORCE,nullptr,options);
+                    require(built,cache.last_reason.c_str());
                     const auto &submission=packet.finish(nullptr);
                     unsigned marked=0;for(uint32_t n=0;n<submission.draw_count;++n){const auto &draw=submission.draws[n];
                         if(draw.cell!=vehicle_cell||draw.transform.columns[14]!=placement.origin.z)continue;
@@ -80,7 +81,8 @@
             else for(auto &m:geometry->materials)m.color[3]=.995f;
             vehicles.draws={{geometry,fp::vehicle::rigid({4.5f,4.5f,1.f},0),7,999,int(vehicle_cell),false,false,true}};
             source.base.camera_x=4.5f;source.base.camera_y=8.5f;metadata.view.eye_height=1.8f;
-            fp::gpu::packet packet;require(cache.build(source,-fp::hybrid::pi*.5f,-.1f,{},packet,statistics,engine.metrics(),{},&metadata,nullptr,640,480,NCMM_GPU_FORCE),cache.last_reason.c_str());
+            fp::gpu::packet packet;const bool built=cache.build(source,-fp::hybrid::pi*.5f,-.1f,{},packet,statistics,engine.metrics(),{},&metadata,nullptr,640,480,NCMM_GPU_FORCE);
+            require(built,cache.last_reason.c_str());
             const auto &submission=packet.finish(nullptr);unsigned marked=0;
             for(uint32_t n=0;n<submission.draw_count;++n){const auto &draw=submission.draws[n];if(draw.cell!=vehicle_cell||draw.transform.columns[14]!=1.f)continue;
                 for(uint32_t m=0;m<submission.mesh_count;++m)if(submission.meshes[m].key==draw.mesh_key)
