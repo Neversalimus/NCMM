@@ -399,7 +399,10 @@ finish, an actual world cell, and the existing static-root/proper-basis checks.
 Its selected ordinary detail, reflections, lighting, projection and explicit
 fragment-depth expressions are retained. Proven flag bits, lower-light state
 and opacity equal the specialized constants. Every other material/cell uses
-the original program. All fourteen original program binaries and the general
+the original program. Paint and metal additionally share one exact finish
+specialization: both select the same original reflection expressions, with no
+other arithmetic change. Other finishes keep their original component program.
+All fourteen original program binaries and the general
 vertex shader remain; sampler/storage/uniform layouts remain 3/2/2. Earlier
 vertex-only and detailed-SIMD experiments lacked a complete-frame win and were
 removed. Their measurements remain in the review evidence.
@@ -407,9 +410,27 @@ removed. Their measurements remain in the review evidence.
 The frozen comparison keeps all 414 original readbacks and eight mixed-depth
 near-plane/distant/coplanar cases. Four further source-validated readbacks cover
 ordinary world lighting, the valid opaque sentinel cell, lower-slab lighting
-and fractional opaque alpha. These 426 complete readbacks and actual Native
+and fractional opaque alpha. Three more compare paint, metal and the independent
+non-reflective material path. These 429 complete readbacks and actual Native
 frame/resource/image qualification are required; source or compiler instruction
 counts never establish a game performance win.
+
+The CPU vehicle path can defer colour for strictly opaque, smooth, untextured
+ordinary component samples. It first applies the original ordered coverage and
+depth recurrence, then shades each pixel's final owner. Every accepted centre
+sample still participates in the minimum picking depth, including epsilon
+chains. World geometry keeps its original scalar order; fractional opacity,
+coverage effects, liquids and unproved materials keep the original painter.
+All source triangles, projection, detail, lighting and display dimensions stay
+unchanged. Private owner storage is bounded to 16 MiB; larger viewports or an
+allocation failure use the original path. Full colour/depth/owner/creature/focus
+buffers are compared against all retained scalar and SIMD controls in CI.
+
+Native permissions are rebuilt from the current published cells every frame.
+Compact coordinate bounds use an exact direct index of at most 2 MiB; sparse
+or extreme coordinates keep the original ordered fallback. Duplicate body and
+floor identities retain their independent original minima. No installed state,
+visibility, Native pointer or gameplay object is cached by this lookup.
 
 The long-run gate also validates source-bound process RAM samples, not just
 module/GPU accounting. It rejects a late resident median more than 50 percent

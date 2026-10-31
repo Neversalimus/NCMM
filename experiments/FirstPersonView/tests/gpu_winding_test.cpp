@@ -12,6 +12,8 @@ void require(bool value,const char *why){++checks;if(!value){std::fprintf(stderr
 ncmm_gpu_matrix_v1 identity(){ncmm_gpu_matrix_v1 m{};for(unsigned n=0;n<4;++n)m.columns[n*5]=1;return m;}
 }
 int main(){
+    for(uint32_t finish=0;finish<32;++finish)require(ncmm_gpu::reflective_component_finish(finish)==(finish==7||finish==8),"only the original shared paint/metal reflection branch admits the exact constant");
+    require(!ncmm_gpu::reflective_component_finish(UINT32_MAX),"unknown finish values keep the general component program");
     auto pose=identity();require(ncmm_gpu::winding_pose(pose),"identity is a proper rigid pose");
     require(ncmm_gpu::winding_bone(pose),"the exact static root bone is accepted");
     for(unsigned n=0;n<20000;++n){const float yaw=float(n)*.037f,pitch=float(n%101)*.013f;
@@ -101,6 +103,10 @@ int main(){
             require(ncmm_gpu::rigid_opaque_range(depth.mesh,1,3,3)==(which<2),"lower and fractional materials fail the immutable range proof");
             require((depth.draw.cell<depth.scene.cell_count)==(which!=0),"valid opaque sentinel cells separately fail the batch world-cell proof");
         }
+        for(unsigned which=0;which<3;++which){depth.reflective_case(which);const auto reason=ncmm_gpu::validate(depth.scene,&depth.world);
+            require(!reason,reason?reason:"reflective controls retain a valid owned world contract without a device");
+            require(ncmm_gpu::rigid_opaque_range(depth.mesh,1,3,3)&&depth.draw.cell<depth.scene.cell_count,"all finish controls independently qualify ordinary component coverage");
+            require(ncmm_gpu::reflective_component_finish(depth.materials[1].finish)==(which<2),"the ordinary non-reflective control cannot enter the new program");}
     }
     std::printf("GPU winding: %u pure data/math checks passed; no SDL/device execution\n",checks);
 }

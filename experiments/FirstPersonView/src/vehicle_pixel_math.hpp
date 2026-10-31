@@ -12,6 +12,14 @@
 // accessed here. The caller retains scan coverage, scalar weight increments,
 // row ownership, material guards and the original one-to-three-sample tail.
 namespace first_person::vehicle_pixels {
+struct depth_sample {float z=0;bool accepted=false;};
+inline depth_sample opaque_depth(float w0,float w1,const float *inverse,float previous){
+    const float w2=1-w0-w1;
+    const float reciprocal=w0*inverse[0]+w1*inverse[1]+w2*inverse[2];
+    if(reciprocal<=0)return {};
+    const float z=1/reciprocal;
+    return {z,!(z>previous+.0002f)};
+}
 #if NCMM_VEHICLE_PIXEL_SSE2
 struct result4 {__m128 depth;__m128i color;unsigned active=0;};
 template<class Vertices,class RGB>

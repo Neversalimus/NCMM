@@ -210,6 +210,38 @@ int main(){
     }
 #endif
     {
+        uint32_t seed=0x183AB91u;const auto random=[&](){seed=seed*1664525u+1013904223u;return float(seed&0xffffffu)/16777215.f;};
+        unsigned epsilon_chains=0;
+        for(unsigned test=0;test<5000;++test){
+            float inverse[21][3],weights0[21],weights1[21];uint32_t colours[21];
+            const float initial=test%5?random()*100+.08f:std::numeric_limits<float>::infinity();
+            float reference_depth=initial,reference_focus=initial,staged_depth=initial,staged_focus=initial;
+            uint32_t reference_colour=37,reference_owner=23,focus_owner=23,staged_focus_owner=23,selected=UINT32_MAX;
+            for(unsigned n=0;n<21;++n){
+                weights0[n]=random()*1.2f-.1f;weights1[n]=random()*1.2f-.1f;colours[n]=seed;
+                for(float &v:inverse[n])v=.0001f+random()*12.5f;
+                if(test%4==0){const float z=(std::isfinite(initial)?initial:1.f)+float(n)*.00011f;
+                    weights0[n]=1;weights1[n]=0;for(float &v:inverse[n])v=1/z;}
+                volatile float w2=1-weights0[n];w2=w2-weights1[n];
+                volatile float a=weights0[n]*inverse[n][0],b=weights1[n]*inverse[n][1],c=w2*inverse[n][2],ab=a+b,reciprocal=ab+c;
+                bool accepted=false;float z=0;
+                if(reciprocal>0){z=1/reciprocal;volatile float limit=reference_depth+.0002f;accepted=!(z>limit);}
+                if(accepted){reference_depth=z;reference_colour=colours[n];reference_owner=n;
+                    if(z<reference_focus){reference_focus=z;focus_owner=n;}}
+                const auto actual=first_person::vehicle_pixels::opaque_depth(weights0[n],weights1[n],inverse[n],staged_depth);
+                require(actual.accepted==accepted,"opaque prepass preserves independently rounded reciprocal/depth/epsilon acceptance");
+                if(actual.accepted){require(std::memcmp(&actual.z,&z,sizeof(z))==0,"prepass depth retains every original float bit");
+                    staged_depth=actual.z;selected=n;if(actual.z<staged_focus){staged_focus=actual.z;staged_focus_owner=n;}}
+            }
+            const uint32_t staged_colour=selected==UINT32_MAX?37:colours[selected],staged_owner=selected==UINT32_MAX?23:selected;
+            require(staged_colour==reference_colour&&staged_owner==reference_owner&&staged_focus_owner==focus_owner&&
+                std::memcmp(&staged_depth,&reference_depth,sizeof(float))==0&&std::memcmp(&staged_focus,&reference_focus,sizeof(float))==0,
+                "final opaque owner colour, exact depth, Native owner and minimum centre focus equal the complete original sequence");
+            epsilon_chains+=reference_depth>initial+.0002f;
+        }
+        require(epsilon_chains>500,"ordered depth proof includes accepted epsilon chains beyond the initial world depth");
+    }
+    {
         using namespace first_person::vehicle;triangle plane{};
         plane.vertices[0].position={0,0,0};plane.vertices[1].position={1,0,0};plane.vertices[2].position={0,1,0};
         plane.vertices[0].normal={-1,0,.2f};plane.vertices[1].normal={0,1,.2f};plane.vertices[2].normal={1,0,.2f};
@@ -318,6 +350,7 @@ int main(){
             if(body>=0)bodies.emplace(p,body);if(floor>=0)floors.emplace(p,floor);
         }
         permissions.finish();
+        require(permissions.dense_storage(),"ordinary compact multi-level Native permissions use a bounded direct index");
         require(permissions.body_count()==bodies.size()&&permissions.floor_count()==floors.size(),"flat visibility index preserves both original map counts");
         for(int x=-9;x<=9;++x)for(int y=-7;y<=7;++y)for(int z=-3;z<=3;++z){
             const std::array<int,3> key{{x,y,z}};const auto found=permissions.find(x,y,z);
@@ -326,6 +359,21 @@ int main(){
         }
         ncmm_graphics_vehicle_policy::permission_index empty;empty.finish();
         require(empty.find(0,0,0).body<0&&empty.find(0,0,0).floor<0,"a new frame cannot retain old visibility permissions");
+        permissions.finish();
+        require(permissions.body_count()==bodies.size()&&permissions.floor_count()==floors.size(),"finishing a compact index twice preserves exact permissions");
+        for(int axis=0;axis<3;++axis)for(int extreme:{std::numeric_limits<int>::min(),std::numeric_limits<int>::max()}){
+            std::array<int,3> key{};key[axis]=extreme;const auto found=permissions.find(key[0],key[1],key[2]);
+            require(found.body<0&&found.floor<0,"extreme missing queries cannot overflow a compact permission offset");}
+        ncmm_graphics_vehicle_policy::permission_index sparse;
+        sparse.add(std::numeric_limits<int>::min(),0,0,7,-1);sparse.add(std::numeric_limits<int>::max(),0,0,-1,9);
+        sparse.add(std::numeric_limits<int>::min(),0,0,3,11);sparse.add(0,0,0,-1,-1);sparse.finish();
+        require(!sparse.dense_storage(),"extreme sparse coordinates retain the exact ordered fallback without a huge allocation");
+        require(sparse.find(std::numeric_limits<int>::min(),0,0).body==3&&sparse.find(std::numeric_limits<int>::min(),0,0).floor==11&&
+            sparse.find(std::numeric_limits<int>::max(),0,0).floor==9&&sparse.find(0,0,0).body<0&&sparse.body_count()==1&&sparse.floor_count()==2,
+            "ordered sparse fallback preserves independent minimum body/floor identities and absent cells");
+        ncmm_graphics_vehicle_policy::permission_index wide;
+        wide.add(0,0,0,0,0);wide.add(1000,1000,1000,1,1);wide.finish();
+        require(!wide.dense_storage()&&wide.find(1000,1000,1000).body==1,"large sparse volume keeps bounded storage and all published cells");
     }
     invalid([](auto &s){s.scene.occupied_vehicle=7;s.scene.occupied_part=100;},"driver mount must identify an actual seat");
     auto seated=original;seated.scene.occupied_vehicle=7;seated.scene.occupied_part=101;

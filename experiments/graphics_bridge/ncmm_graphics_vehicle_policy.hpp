@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <new>
 // Shared pure geometry policy; no Native objects or graphics devices.
 namespace ncmm_graphics_vehicle_policy {
 // Own canonical definition IDs and copied flag bits only. Definitions are
@@ -39,14 +40,38 @@ public:
 private:
     struct row {std::array<int,3> position;permission value;};
     std::vector<row> rows;
+    std::vector<permission> dense;
+    std::array<int,3> dense_origin{};
+    std::array<size_t,3> dense_span{};
     size_t bodies=0,floors=0;
 public:
+    // At most 2 MiB, rebuilt from the current frame's published permissions.
+    // Sparse or extreme mod coordinates retain the original ordered lookup.
+    static constexpr size_t dense_limit=262144;
     void reserve(size_t count){rows.reserve(count);}
     void add(int x,int y,int z,int body,int floor){if(body>=0||floor>=0)rows.push_back({{{x,y,z}},{body,floor}});}
     void finish(){
+        dense.clear();bodies=floors=0;
+        const auto first=[](int a,int b){return a<0?b:b<0?a:std::min(a,b);};
+        if(!rows.empty()){
+            auto low=rows.front().position,high=low;
+            for(const auto &r:rows)for(unsigned axis=0;axis<3;++axis){low[axis]=std::min(low[axis],r.position[axis]);high[axis]=std::max(high[axis],r.position[axis]);}
+            const size_t limit=rows.size()>=dense_limit/4?dense_limit:rows.size()*4;
+            size_t count=1;bool compact=true;std::array<size_t,3> span{};
+            for(unsigned axis=0;axis<3;++axis){const uint64_t width=uint64_t(int64_t(high[axis])-int64_t(low[axis]))+1;
+                if(width>limit/count){compact=false;break;}span[axis]=size_t(width);count*=span[axis];}
+            if(compact){try{dense.resize(count);}catch(const std::bad_alloc &){dense.clear();compact=false;}}
+            if(compact){
+                dense_origin=low;dense_span=span;
+                for(const auto &r:rows){const size_t x=size_t(int64_t(r.position[0])-low[0]),y=size_t(int64_t(r.position[1])-low[1]),z=size_t(int64_t(r.position[2])-low[2]);
+                    auto &p=dense[(z*span[1]+y)*span[0]+x];
+                    bodies+=p.body<0&&r.value.body>=0;floors+=p.floor<0&&r.value.floor>=0;
+                    p.body=first(p.body,r.value.body);p.floor=first(p.floor,r.value.floor);}
+                return;
+            }
+        }
         std::sort(rows.begin(),rows.end(),[](const row &a,const row &b){return a.position<b.position;});
         size_t written=0;
-        const auto first=[](int a,int b){return a<0?b:b<0?a:std::min(a,b);};
         for(size_t i=0;i<rows.size();++i){const row value=rows[i];
             if(written&&rows[written-1].position==value.position){auto &p=rows[written-1].value;
                 p.body=first(p.body,value.value.body);p.floor=first(p.floor,value.value.floor);}
@@ -56,12 +81,18 @@ public:
         for(const auto &r:rows){bodies+=r.value.body>=0;floors+=r.value.floor>=0;}
     }
     permission find(int x,int y,int z)const{
+        if(!dense.empty()){
+            const int64_t offset[]={int64_t(x)-dense_origin[0],int64_t(y)-dense_origin[1],int64_t(z)-dense_origin[2]};
+            for(unsigned axis=0;axis<3;++axis)if(offset[axis]<0||uint64_t(offset[axis])>=dense_span[axis])return {};
+            return dense[(size_t(offset[2])*dense_span[1]+size_t(offset[1]))*dense_span[0]+size_t(offset[0])];
+        }
         const std::array<int,3> key{{x,y,z}};
         const auto found=std::lower_bound(rows.begin(),rows.end(),key,[](const row &a,const auto &b){return a.position<b;});
         return found!=rows.end()&&found->position==key?found->value:permission{};
     }
     size_t body_count()const{return bodies;}
     size_t floor_count()const{return floors;}
+    bool dense_storage()const{return !dense.empty();}
 };
 enum class archetype {utility,bicycle,motorcycle,buggy,car,suv,van,truck,bus,pickup,armored,trailer,platform,boat};
 struct profile {archetype kind=archetype::utility;float cabin=1.28f;};

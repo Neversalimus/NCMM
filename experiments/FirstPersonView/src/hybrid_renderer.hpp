@@ -85,6 +85,7 @@ struct frame {
     uint32_t viewmodel_draws=0,viewmodel_errors=0,vehicle_streamed_triangles=0,vehicle_worker_skips=0,vehicle_empty_triangles=0,vehicle_band_skips=0;
     uint32_t vehicle_compact_records=0,vehicle_clipped_records=0;
     uint64_t vehicle_vector_groups=0;
+    uint64_t vehicle_depth_samples=0,vehicle_owner_skips=0;
     uint64_t vehicle_source_bytes=0,vehicle_reference_source_bytes=0;
     uint64_t vehicle_projection_bytes=0,vehicle_reference_projection_bytes=0; // Logical record bytes, not process RAM.
 };
@@ -98,6 +99,7 @@ struct render_options {
     bool vector_vehicle_pixels=true,cull_gpu_vehicle_shells=true;
     bool borrow_vehicle_materials=true;
     bool cache_static_vehicles=true;
+    bool vehicle_depth_owners=true;
 };
 using sprite_provider=std::function<bool(uint32_t,uint32_t,ncmm_graphics_sprite_v2 &)>;
 struct image {
@@ -585,7 +587,7 @@ class renderer {
         for(int piece=1;piece<count-1;++piece)
             project_piece(t,{poly[0],poly[piece],poly[piece+1]},nullptr,output,reject_empty,skip_unused_bands,vector_pixels);
     }
-    template<class Record>void raster(const Record &t,int worker,int workers,uint32_t &triangles,uint64_t &vector_groups){
+    template<bool ShadeOwner=false,class Record>void raster(const Record &t,int worker,int workers,uint32_t &triangles,uint64_t &vector_groups,const uint32_t *owners=nullptr,uint32_t owner=0){
         (void)vector_groups;
         const auto &v=raster_vertices(t);const auto &appearance=raster_material(t);const auto normal=raster_normal(t);
         const auto &p=t.p;const auto &iz=t.iz;const auto &uu=t.uu;const auto &vv=t.vv;
@@ -647,7 +649,10 @@ class renderer {
                     // increments belonging to samples rejected by depth.
                     for(unsigned lane=0;lane<4;++lane){weights0[lane]=w0;weights1[lane]=w1;w0+=dw0;w1+=dw1;}
                     const size_t k=size_t(y)*f.width+x;
-                    const auto values=vehicle_pixels::shade4(weights0,weights1,iz.data(),f.depth.data()+k,v,flat_color,fog_color,vector_fog);
+                    unsigned owned=15;
+                    if constexpr(ShadeOwner){owned=0;for(unsigned lane=0;lane<4;++lane)if(owners[k+lane]==owner)owned|=1u<<lane;if(!owned)continue;}
+                    auto values=vehicle_pixels::shade4(weights0,weights1,iz.data(),f.depth.data()+k,v,flat_color,fog_color,vector_fog);
+                    if constexpr(ShadeOwner)values.active&=owned;
                     ++vector_groups;if(!values.active)continue;
                     if(values.active==15){
                         _mm_storeu_si128(reinterpret_cast<__m128i *>(f.pixels.data()+k),values.color);
@@ -664,6 +669,7 @@ class renderer {
             }}
 #endif
             for(;x<=end;++x,w0+=dw0,w1+=dw1){
+                if constexpr(ShadeOwner)if(owners[size_t(y)*f.width+x]!=owner)continue;
                 const float w2=1-w0-w1;
                 float recip=w0*iz[0]+w1*iz[1]+w2*iz[2];if(recip<=0)continue;float z=1/recip;size_t k=size_t(y)*f.width+x;
                 if(!appearance.impostor&&z>(appearance.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
@@ -718,6 +724,54 @@ class renderer {
             }
         }
     }
+    template<class Record>bool prepare_depth_owners(const std::vector<Record> &projected,size_t first,std::vector<uint32_t> &owners)const{
+        const size_t count=size_t(f.width)*f.height;
+        if(!options.vehicle_depth_owners||first>=projected.size()||count>4u*1024u*1024u||projected.size()>=UINT32_MAX)return false;
+        for(size_t n=first;n<projected.size();++n){const auto &m=raster_material(projected[n]);
+            const bool finish=m.finish==surface::none||m.finish==surface::paint||m.finish==surface::metal||m.finish==surface::rubber||
+                m.finish==surface::cloth||m.finish==surface::skin||m.finish==surface::wood;
+            if(m.alpha!=1.f||!m.smooth||m.cell<0||!finish||m.texture||m.impostor||m.overlay||m.spill||m.cutout||m.opaque_texture||
+               m.silhouette||m.grass||m.creature||m.creature_visual||m.slab_lower||m.distance_lod||m.gpu_billboard||m.gpu_local||m.liquid||m.banks||
+               !std::isfinite(m.color.x)||!std::isfinite(m.color.y)||!std::isfinite(m.color.z))return false;
+        }
+        // Private, frame-owned storage, at most 16 MiB. Large viewports and an
+        // allocation failure keep the original ordered painter unchanged.
+        try{owners.assign(count,UINT32_MAX);}catch(const std::bad_alloc &){return false;}
+        return true;
+    }
+    template<class Record>void depth_owner_pass(const Record &t,int worker,int workers,uint32_t *owners,uint32_t owner,uint64_t &accepted,uint64_t &unique){
+        const auto &p=t.p;const auto &appearance=raster_material(t);
+        auto edge=[](vec a,vec b,float x,float y){return(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
+        constexpr int strip=16;
+        for(int y=t.ymin;y<=t.ymax;++y){
+            if((y/strip)%workers!=worker){y+=strip-1-y%strip;continue;}
+            float left=std::numeric_limits<float>::infinity(),right=-left;const float py=y+.5f;
+            for(int e=0;e<3;++e){const auto &a=p[e],&b=p[(e+1)%3];
+                if(py<std::min(a.y,b.y)||py>std::max(a.y,b.y)||std::abs(a.y-b.y)<.00001f)continue;
+                const float x=a.x+(py-a.y)*(b.x-a.x)/(b.y-a.y);left=std::min(left,x);right=std::max(right,x);}
+            if(!std::isfinite(left))continue;
+            const int begin=std::max(t.xmin,int(std::ceil(std::clamp(left-.5001f,-1.0f,float(f.width)))));
+            const int end=std::min(t.xmax,int(std::floor(std::clamp(right-.4999f,-1.0f,float(f.width)))));
+            float w0=edge(p[1],p[2],begin+.5f,py)*t.inv,w1=edge(p[2],p[0],begin+.5f,py)*t.inv;
+            for(int x=begin;x<=end;++x,w0+=t.dw0,w1+=t.dw1){const size_t k=size_t(y)*f.width+x;
+                const auto sample=vehicle_pixels::opaque_depth(w0,w1,t.iz.data(),f.depth[k]);if(!sample.accepted)continue;
+                ++accepted;unique+=owners[k]==UINT32_MAX;owners[k]=owner;f.depth[k]=sample.z;
+                // Keep the minimum of EVERY accepted centre sample, including
+                // an earlier nearer face replaced through the original epsilon.
+                if(x==f.width/2&&y==f.height/2&&sample.z<f.focus_depth){f.focus_depth=sample.z;f.focus=appearance.cell;}
+            }
+        }
+    }
+    template<class Record>void paint_owned_band(const std::vector<Record> &projected,size_t first,int worker,int workers,uint32_t &total,uint32_t &skipped,uint64_t &vectors,
+                                               uint32_t *owners,uint64_t &accepted,uint64_t &unique){
+        // World colour/depth stay in their original scalar order. Only proved
+        // opaque vehicle samples defer colour until their final owner is known.
+        for(size_t n=0;n<first;++n){const auto &t=projected[n];if(!(t.worker_mask&(1u<<worker))){++skipped;continue;}raster(t,worker,workers,total,vectors);}
+        for(size_t n=first;n<projected.size();++n){const auto &t=projected[n];if(t.worker_mask&(1u<<worker))
+            depth_owner_pass(t,worker,workers,owners,uint32_t(n),accepted,unique);}
+        for(size_t n=first;n<projected.size();++n){const auto &t=projected[n];if(!(t.worker_mask&(1u<<worker))){++skipped;continue;}
+            raster<true>(t,worker,workers,total,vectors,owners,uint32_t(n));}
+    }
     void quad(vec a,vec b,vec c,vec d,material m,vec normal={0,0,1},std::array<float,4> uv={0,0,1,1}){
         if(!m.overlay&&!in_view({std::min({a.x,b.x,c.x,d.x}),std::min({a.y,b.y,c.y,d.y}),std::min({a.z,b.z,c.z,d.z})},
                               {std::max({a.x,b.x,c.x,d.x}),std::max({a.y,b.y,c.y,d.y}),std::max({a.z,b.z,c.z,d.z})})){
@@ -762,8 +816,13 @@ class renderer {
             if(projected.empty())return;
             const bool prune=prune_workers&&count>1;
             if(prune)for(auto &t:projected)t.worker_mask=uint8_t(raster_worker_mask(t.ymin,t.ymax,count));
+            std::vector<uint32_t> depth_owners;bool owned=false;
+            if constexpr(std::is_same_v<Source,vehicle_triangle>)owned=prepare_depth_owners(projected,0,depth_owners);
+            std::array<uint64_t,4> accepted{},unique{};
             std::array<uint32_t,4> totals{},skipped{};std::array<uint64_t,4> vector_totals{};std::array<std::thread,3> threads;
-            auto band=[&](int n){uint64_t vector_groups=0;for(const auto &t:projected){
+            auto band=[&](int n){uint64_t vector_groups=0;
+                if(owned){paint_owned_band(projected,0,n,count,totals[n],skipped[n],vector_groups,depth_owners.data(),accepted[n],unique[n]);vector_totals[n]=vector_groups;return;}
+                for(const auto &t:projected){
                 // Tiny component triangles often occupy just one worker's strip.
                 // Reject the other workers before material/derivative preparation;
                 // each participating worker still executes the original rasterizer.
@@ -776,6 +835,7 @@ class renderer {
             for(auto total:totals)f.triangles+=total;
             for(auto total:skipped)f.vehicle_worker_skips+=total;
             for(auto total:vector_totals)f.vehicle_vector_groups+=total;
+            for(unsigned n=0;n<4;++n){f.vehicle_depth_samples+=accepted[n];f.vehicle_owner_skips+=accepted[n]-unique[n];}
         };
         if(compact){
             vehicle_clipped_vertices.clear();std::vector<compact_projected_triangle> projected;parallel(projected);
@@ -794,6 +854,7 @@ class renderer {
         f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;
         f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
         f.vehicle_vector_groups=0;f.vehicle_source_bytes=f.vehicle_reference_source_bytes=0;
+        f.vehicle_depth_samples=f.vehicle_owner_skips=0;
     }
     void paint_world_vehicles(size_t world_count){
         // One ordered worker dispatch: original world first, vehicle sources
@@ -810,12 +871,16 @@ class renderer {
         const int count=int(std::clamp(std::thread::hardware_concurrency(),1u,limit));
         if(options.prune_vehicle_workers)for(size_t n=world_projected;n<projected.size();++n)
             projected[n].worker_mask=uint8_t(raster_worker_mask(projected[n].ymin,projected[n].ymax,count));
+        std::vector<uint32_t> depth_owners;const bool owned=prepare_depth_owners(projected,world_projected,depth_owners);
+        std::array<uint64_t,4> accepted{},unique{};
         std::array<uint32_t,4> totals{},skipped{};std::array<uint64_t,4> vectors{};std::array<std::thread,3> threads;
-        auto band=[&](int worker){for(const auto &t:projected){if(!(t.worker_mask&(1u<<worker))){++skipped[worker];continue;}
+        auto band=[&](int worker){if(owned){paint_owned_band(projected,world_projected,worker,count,totals[worker],skipped[worker],vectors[worker],depth_owners.data(),accepted[worker],unique[worker]);return;}
+            for(const auto &t:projected){if(!(t.worker_mask&(1u<<worker))){++skipped[worker];continue;}
                 raster(t,worker,count,totals[worker],vectors[worker]);}};
         for(int n=1;n<count;++n){try{threads[n-1]=std::thread(band,n);}catch(const std::system_error &){band(n);}}
         band(0);for(auto &thread:threads)if(thread.joinable())thread.join();
         for(auto n:totals)f.triangles+=n;for(auto n:skipped)f.vehicle_worker_skips+=n;for(auto n:vectors)f.vehicle_vector_groups+=n;
+        for(unsigned n=0;n<4;++n){f.vehicle_depth_samples+=accepted[n];f.vehicle_owner_skips+=accepted[n]-unique[n];}
         const auto vehicle_projected=projected.size()-world_projected,vehicle_clipped=vehicle_clipped_vertices.size()-world_clipped;
         f.vehicle_compact_records+=uint32_t(vehicle_projected);f.vehicle_clipped_records+=uint32_t(vehicle_clipped);
         f.vehicle_projection_bytes+=vehicle_projected*sizeof(compact_projected_triangle)+vehicle_clipped*sizeof(std::array<vertex,3>);
@@ -1729,6 +1794,7 @@ public:
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
         f.vehicle_vector_groups=0;f.vehicle_source_bytes=f.vehicle_reference_source_bytes=0;
         modular_vehicles();if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
+        f.vehicle_depth_samples=f.vehicle_owner_skips=0;
     }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;

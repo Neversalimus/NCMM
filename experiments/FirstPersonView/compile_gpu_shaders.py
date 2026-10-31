@@ -39,7 +39,12 @@ for before,after in [('#include "material.glsl"','#include "material_component.g
     component=component.replace(before,after)
 if (a.source/'geometry_component.frag').read_text(encoding='utf-8')!=component:
     p.error('Component fragment changed an expression outside its proved branches/constants')
+reflective=component.replace('material_detail(color,material.state.y,','material_detail(color,7u,')
+if reflective==component or (a.source/'geometry_reflective.frag').read_text(encoding='utf-8')!=reflective:
+    p.error('Reflective fragment changed an expression outside its exact finish constant')
 detail=(a.source/'material.glsl').read_text(encoding='utf-8')
+if detail.count('finish==7u')!=1 or detail.count('finish==8u')!=1 or 'if(finish==7u||finish==8u)' not in detail:
+    p.error('Paint and metal no longer share the same original reflection expressions')
 begin=detail.index('    if(finish==12u){float scale=');end=detail.index('    vec2 q=abs(n.z)>.5?',begin)
 if (a.source/'material_component.glsl').read_text(encoding='utf-8')!=detail[:begin]+detail[end:]:
     p.error('Component material changed ordinary detail or reflection arithmetic')

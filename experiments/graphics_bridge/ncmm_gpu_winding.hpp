@@ -4,6 +4,7 @@
 #include <initializer_list>
 
 namespace ncmm_gpu {
+inline constexpr bool reflective_component_finish(uint32_t finish){return finish==7u||finish==8u;}
 // Pure immutable-data proofs, before selecting an optional rasterizer state.
 // Every unproved mesh, skin, billboard, camera or pose keeps the old pipeline.
 inline bool winding_basis(const float *a,const float *b,const float *c,bool positive){

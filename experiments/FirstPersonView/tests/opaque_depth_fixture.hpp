@@ -42,8 +42,14 @@ struct opaque_depth_fixture {
     void component_case(unsigned which){
         materials[0].flags=0;materials[0].color[0]=materials[0].color[3]=1;
         materials[1].flags=NCMM_GPU_SMOOTH|(which==2?4096u:0u);materials[1].color[2]=1;
+        materials[1].finish=0;
         materials[1].color[3]=which==3?.991f:1.f;
         cell.light[0]=1;cell.light[1]=.8f;cell.light[2]=.65f;
         draw.cell=which==0?UINT32_MAX:0;observe(1.f,true);
+    }
+    void reflective_case(unsigned which){
+        component_case(1);materials[1].finish=which==0?7u:which==1?8u:9u;
+        materials[1].color[0]=.2f;materials[1].color[1]=.25f;materials[1].color[2]=.3f;
+        scene.camera.sun[1]=-1;scene.camera.sun[3]=1;world.base=scene;
     }
 };

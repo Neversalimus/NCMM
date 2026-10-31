@@ -26,4 +26,11 @@
         require(guarded[0]!=guarded[1],"the valid opaque sentinel cell retains distinct held-style lighting");
         require(guarded[1]!=guarded[2],"lower-slab material lighting retains its original general fragment branch");
         require(guarded[1]!=guarded[3],"fractional opaque alpha retains its original background contribution");
+        std::array<uint32_t,3> reflected{};
+        for(unsigned which=0;which<3;++which){fixture.reflective_case(which);
+            const auto reason=ncmm_gpu::validate(fixture.scene,&fixture.world);require(!reason,reason?reason:"reflective finish control has a valid actual world contract");
+            require(engine.submit(fixture.scene,&fixture.world),engine.metrics().reason);
+            reflected[which]=capture(("-reflective-finish-"+std::to_string(which)).c_str());}
+        require(reflected[0]==reflected[1],"paint and metal retain their identical original reflection expressions");
+        require(reflected[1]!=reflected[2],"a non-reflective finish keeps its independent original material detail");
     }

@@ -25,8 +25,10 @@ def reference_backend(candidate):
                 // every unproved material, pose or cell uses the old program.
                 const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
                 const bool component=selected==NCMM_GPU_OPAQUE&&b.component_safe&&range.component_surface;
-                const unsigned policy=unsigned(winding)|(unsigned(component)<<1);
-                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,component?
+                const bool reflective=component&&reflective_component_finish(m.finish);
+                const unsigned policy=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2);
+                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,reflective?
+                    (winding?programs_.opaque_reflective_culled:programs_.opaque_reflective):component?
                     (winding?programs_.opaque_component_culled:programs_.opaque_component):(winding?programs_.opaque_culled:programs_.opaque));opaque_policy=policy;}
 ''',''),
         ('''        for(const auto &[key,list]:groups){
