@@ -27,6 +27,7 @@
 #include <type_traits>
 #include <cstdint>
 #include <cstring>
+#include <deque>
 #include <chrono>
 #include <functional>
 #include <limits>
@@ -83,6 +84,7 @@ struct frame {
     uint32_t viewmodel_draws=0,viewmodel_errors=0,vehicle_streamed_triangles=0,vehicle_worker_skips=0,vehicle_empty_triangles=0,vehicle_band_skips=0;
     uint32_t vehicle_compact_records=0,vehicle_clipped_records=0;
     uint64_t vehicle_vector_groups=0;
+    uint64_t vehicle_source_bytes=0,vehicle_reference_source_bytes=0;
     uint64_t vehicle_projection_bytes=0,vehicle_reference_projection_bytes=0; // Logical record bytes, not process RAM.
 };
 // Internal reference switches used by correctness tests and the manual
@@ -93,6 +95,7 @@ struct render_options {
     // measurements rejected its performance, so ordinary frames retain workers.
     bool stream_vehicle_raster=false,prune_vehicle_workers=true,prune_empty_vehicle_samples=true,prune_unused_vehicle_bands=true,compact_vehicle_records=true;
     bool vector_vehicle_pixels=true,cull_gpu_vehicle_shells=true;
+    bool borrow_vehicle_materials=true;
 };
 using sprite_provider=std::function<bool(uint32_t,uint32_t,ncmm_graphics_sprite_v2 &)>;
 struct image {
@@ -258,6 +261,8 @@ struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float
     bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;
     bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false,distance_lod=false,grass=false,gpu_local=false;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
+struct vehicle_triangle {std::array<vertex,3> v;const material &m;vec normal{0,0,1};};
+static_assert(sizeof(vehicle_triangle)<sizeof(triangle),"vehicle sources borrow one owned material instead of copying it per face");
 inline surface vehicle_finish(uint32_t kind){
     switch(kind){case NCMM_VM_PAINT:return surface::paint;case NCMM_VM_RUBBER:return surface::rubber;
         case NCMM_VM_CLOTH:return surface::cloth;case NCMM_VM_LEATHER:return surface::skin;
@@ -502,20 +507,31 @@ class renderer {
         uint8_t worker_mask=15;
     };
     struct projected_triangle:projected_fields {std::array<vertex,3> v;material m;vec normal;};
-    struct compact_projected_triangle:projected_fields {const triangle *source=nullptr;uint32_t clipped=UINT32_MAX;};
+    struct compact_projected_triangle:projected_fields {
+        const void *source=nullptr;uint32_t clipped=UINT32_MAX;bool borrowed=false;
+    };
     static_assert(sizeof(compact_projected_triangle)*2<=sizeof(projected_triangle),"ordinary vehicle projection records use at most half the original storage");
     static_assert(sizeof(compact_projected_triangle)+sizeof(std::array<vertex,3>)<sizeof(projected_triangle),"even a clipped triangle needs fewer logical bytes");
     // Queue elements are immutable and live until every painter worker joins.
     // Only genuinely clipped vertices need another owned copy. Indexing this
     // pool remains valid when its vector grows during projection.
     std::vector<std::array<vertex,3>> vehicle_clipped_vertices;
+    std::deque<material> vehicle_materials;
+    std::vector<vehicle_triangle> vehicle_sources;
     static const std::array<vertex,3> &raster_vertices(const projected_triangle &t){return t.v;}
-    const std::array<vertex,3> &raster_vertices(const compact_projected_triangle &t)const{return t.clipped==UINT32_MAX?t.source->v:vehicle_clipped_vertices[t.clipped];}
+    const std::array<vertex,3> &raster_vertices(const compact_projected_triangle &t)const{
+        if(t.clipped!=UINT32_MAX)return vehicle_clipped_vertices[t.clipped];
+        return t.borrowed?static_cast<const vehicle_triangle *>(t.source)->v:static_cast<const triangle *>(t.source)->v;
+    }
     static const material &raster_material(const projected_triangle &t){return t.m;}
-    static const material &raster_material(const compact_projected_triangle &t){return t.source->m;}
+    static const material &raster_material(const compact_projected_triangle &t){
+        return t.borrowed?static_cast<const vehicle_triangle *>(t.source)->m:static_cast<const triangle *>(t.source)->m;
+    }
     static vec raster_normal(const projected_triangle &t){return t.normal;}
-    static vec raster_normal(const compact_projected_triangle &t){return t.source->normal;}
-    template<class Record>void project_piece(const triangle &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false){
+    static vec raster_normal(const compact_projected_triangle &t){
+        return t.borrowed?static_cast<const vehicle_triangle *>(t.source)->normal:static_cast<const triangle *>(t.source)->normal;
+    }
+    template<class Record,class Source>void project_piece(const Source &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false){
         std::array<vec,3> p{};
         std::array<float,3> iz{},uu{},vv{};
         for(int i=0;i<3;++i){auto q=viewed?(*viewed)[i]:view(v[i].p);iz[i]=1/q.z;p[i]={f.width*0.5f+projection*q.x*iz[i],f.height*0.5f-projection*q.y*iz[i],q.z};uu[i]=v[i].u*iz[i];vv[i]=v[i].v*iz[i];}
@@ -549,10 +565,10 @@ class renderer {
         if constexpr(std::is_same<Record,compact_projected_triangle>::value){
             uint32_t clipped=UINT32_MAX;
             if(!viewed){clipped=uint32_t(vehicle_clipped_vertices.size());vehicle_clipped_vertices.push_back(v);}
-            output.push_back({fields,&t,clipped});
+            output.push_back({fields,&t,clipped,std::is_same_v<Source,vehicle_triangle>});
         }else output.push_back({fields,v,t.m,t.normal});
     }
-    template<class Record>void project(const triangle &t,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false){
+    template<class Record,class Source>void project(const Source &t,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false){
         // Keep world-space clipping exact; reuse the input view transforms.
         const std::array<vec,3> viewed={view(t.v[0].p),view(t.v[1].p),view(t.v[2].p)};
         const bool uncut=viewed[0].z>=.08f&&viewed[1].z>=.08f&&viewed[2].z>=.08f;
@@ -714,7 +730,7 @@ class renderer {
         auto &queue=m.overlay?overlay:m.alpha<.99f&&!m.cutout?transparent:opaque;
         queue.push_back(t0);queue.push_back(t1);
     }
-    void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr,bool stream=false,bool prune_workers=false,bool reject_empty=false,bool skip_unused_bands=false,bool compact=false){
+    template<class Source>void paint_queue(const std::vector<Source> &queue,const std::vector<Source> *last,bool stream,bool prune_workers,bool reject_empty,bool skip_unused_bands,bool compact){
         if(queue.empty()&&(!last||last->empty()))return;
         const auto begun=std::chrono::steady_clock::now();++f.raster_calls;f.submitted_triangles+=queue.size()+(last?last->size():0);
         if(stream){
@@ -766,6 +782,9 @@ class renderer {
             f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
         }else{std::vector<projected_triangle> projected;parallel(projected);
             f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();}
+    }
+    void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr,bool stream=false,bool prune_workers=false,bool reject_empty=false,bool skip_unused_bands=false,bool compact=false){
+        paint_queue(queue,last,stream,prune_workers,reject_empty,skip_unused_bands,compact);
     }
     void solid_quad(vec a,vec b,vec c,vec d,material m,vec normal={0,0,1}){
         if(gpu_sink)m.gpu_backface=true;
@@ -1591,8 +1610,13 @@ class renderer {
         face(point(0,float(img->data.height)),point(float(img->data.width),float(img->data.height)),point(float(img->data.width),0),point(0,0),item);
     }
     void modular_vehicles(){
+        vehicle_sources.clear();vehicle_materials.clear();
         if(!metadata||!metadata->vehicles)return;
         vehicle_region={};
+        const bool borrow=!gpu_sink&&options.borrow_vehicle_materials&&options.compact_vehicle_records&&!options.stream_vehicle_raster;
+        if(borrow){size_t reserve=0;for(const auto &draw:metadata->vehicles->draws)if(draw.geometry)
+                reserve=std::min(size_t(65536),reserve+std::min(size_t(65536),draw.geometry->triangles.size()));
+            vehicle_sources.reserve(reserve);}
         struct prepared_vertex {vec position{},lit{};uint8_t ready=0;};
         std::vector<prepared_vertex> prepared;
         for(const auto &draw:metadata->vehicles->draws){
@@ -1611,11 +1635,13 @@ class renderer {
             const bool cull=options.cull_geometry&&!gpu_sink&&draw.geometry->closed_shell&&!draw.geometry->contains(local_eye);
             const bool indexed=!gpu_sink&&draw.geometry->vertex_indices.size()==draw.geometry->triangles.size();
             if(indexed)prepared.assign(draw.geometry->shared_vertices.size(),{});
+            std::vector<const material *> materials;if(borrow)materials.resize(draw.geometry->materials.size(),nullptr);
             for(size_t index=0;index<draw.geometry->triangles.size();++index){const auto &source=draw.geometry->triangles[index];
                 if(cull&&!first_person::vehicle::model::front_facing(source,local_eye))continue;
-                const auto &appearance=draw.geometry->materials[source.material];triangle t{};
-                t.m={nullptr,{appearance.color[0],appearance.color[1],appearance.color[2]},appearance.color[3],false,false,false,draw.cell,vehicle_finish(appearance.kind)};
-                t.m.smooth=true;
+                const auto &appearance=draw.geometry->materials[source.material];
+                auto converted=[&]{material m{nullptr,{appearance.color[0],appearance.color[1],appearance.color[2]},appearance.color[3],false,false,false,draw.cell,vehicle_finish(appearance.kind)};
+                    m.smooth=true;return m;};
+                auto prepare=[&](auto &t){
                 for(size_t n=0;n<3;++n){const auto &v=source.vertices[n];vec position,lit{1,1,1};
                     if(indexed){const auto vertex_index=draw.geometry->vertex_indices[index][n];auto &cached=prepared[vertex_index];
                         const auto &shared=draw.geometry->shared_vertices[vertex_index];
@@ -1628,9 +1654,18 @@ class renderer {
                         if(!appearance.emissive)lit=light(draw.cell,{normal.x,normal.y,normal.z},false,draw.surface_outside);}
                     t.v[n]={position,v.u,v.v,lit};}
                 t.normal=normalize(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p));
-                if(gpu_sink)gpu_sink->emit(t);else if(t.m.alpha<.99f)transparent.push_back(t);else opaque.push_back(t);
+                };
+                if(borrow&&!(appearance.color[3]<.99f)){
+                    // The deque owns each appearance through the worker join;
+                    // ordinary source faces contain only vertices and a borrow.
+                    auto *&m=materials[source.material];if(!m){vehicle_materials.push_back(converted());m=&vehicle_materials.back();}
+                    vehicle_triangle t{{},*m,{0,0,1}};prepare(t);vehicle_sources.push_back(t);
+                }else{triangle t{};t.m=converted();prepare(t);
+                    if(gpu_sink)gpu_sink->emit(t);else if(t.m.alpha<.99f)transparent.push_back(t);else opaque.push_back(t);}
             }
         }
+        f.vehicle_source_bytes=vehicle_sources.size()*sizeof(vehicle_triangle)+vehicle_materials.size()*sizeof(material);
+        f.vehicle_reference_source_bytes=vehicle_sources.size()*sizeof(triangle);
     }
     void projectiles(){
         if(!metadata)return;
@@ -1655,7 +1690,7 @@ public:
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
-        f.vehicle_vector_groups=0;
+        f.vehicle_vector_groups=0;f.vehicle_source_bytes=f.vehicle_reference_source_bytes=0;
         modular_vehicles();if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
     }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
@@ -1681,11 +1716,13 @@ public:
             if(world_output)*world_output=f;
         }
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
-        f.vehicle_vector_groups=0;
+        f.vehicle_vector_groups=0;f.vehicle_source_bytes=f.vehicle_reference_source_bytes=0;
         // Animate only these near-field blades. The floor, walls and distant
         // world remain in the CPU cache; animation never changes Native time.
         opaque.clear();transparent.clear();
         modular_vehicles();paint(opaque,nullptr,small_vehicle_region(),options.prune_vehicle_workers,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands,options.compact_vehicle_records);opaque.clear();
+        paint_queue<vehicle_triangle>(vehicle_sources,nullptr,false,options.prune_vehicle_workers,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands,true);
+        vehicle_sources.clear();vehicle_materials.clear(); // All raster workers have joined.
         std::vector<triangle> vehicle_glass;vehicle_glass.swap(transparent);
         std::vector<int> lawns;
         for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&ncmm_grass::terrain(base.cells[i].terrain)&&

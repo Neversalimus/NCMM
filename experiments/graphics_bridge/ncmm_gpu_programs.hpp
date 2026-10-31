@@ -7,7 +7,7 @@ namespace ncmm_gpu {
 class programs {
     SDL_GPUDevice *device_=nullptr;
     SDL_GPUGraphicsPipeline *make(SDL_GPUShader *vs,SDL_GPUShader *fs,bool geometry,
-                                  const SDL_GPUTextureFormat *formats,uint32_t colors,bool depth,bool write_depth,bool blend,bool write_id){
+                                  const SDL_GPUTextureFormat *formats,uint32_t colors,bool depth,bool write_depth,bool blend,bool write_id,bool cull=false){
         if(!vs||!fs)return nullptr;
         std::array<SDL_GPUColorTargetDescription,2> targets{};
         for(uint32_t i=0;i<colors;++i){targets[i].format=formats[i];
@@ -28,21 +28,22 @@ class programs {
         p.rasterizer_state.enable_depth_clip=true;p.primitive_type=SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
         if(geometry){p.vertex_input_state.vertex_buffer_descriptions=&layout;p.vertex_input_state.num_vertex_buffers=1;p.vertex_input_state.vertex_attributes=attributes.data();p.vertex_input_state.num_vertex_attributes=8;}
         p.rasterizer_state.fill_mode=SDL_GPU_FILLMODE_FILL;p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_NONE;
+        if(cull){p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_BACK;p.rasterizer_state.front_face=SDL_GPU_FRONTFACE_CLOCKWISE;}
         p.multisample_state.sample_count=SDL_GPU_SAMPLECOUNT_1;p.depth_stencil_state.enable_depth_test=depth;
         p.depth_stencil_state.enable_depth_write=write_depth;p.depth_stencil_state.compare_op=SDL_GPU_COMPAREOP_LESS_OR_EQUAL;
         p.target_info.color_target_descriptions=targets.data();p.target_info.num_color_targets=colors;p.target_info.has_depth_stencil_target=depth;p.target_info.depth_stencil_format=SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
         return SDL_CreateGPUGraphicsPipeline(device_,&p);
     }
 public:
-    SDL_GPUGraphicsPipeline *opaque=nullptr,*transparent=nullptr,*held=nullptr,*held_alpha=nullptr,*sky=nullptr,*celestial=nullptr,*weather=nullptr,*volume=nullptr,*compose=nullptr;
+    SDL_GPUGraphicsPipeline *opaque=nullptr,*opaque_culled=nullptr,*transparent=nullptr,*held=nullptr,*held_alpha=nullptr,*sky=nullptr,*celestial=nullptr,*weather=nullptr,*volume=nullptr,*compose=nullptr;
     SDL_GPUComputePipeline *shadow=nullptr,*count=nullptr;
     SDL_GPUSampler *linear=nullptr,*nearest=nullptr,*pixel_art=nullptr;
-    void clear(){if(device_){for(auto *p:{opaque,transparent,held,held_alpha,sky,celestial,weather,volume,compose})if(p)SDL_ReleaseGPUGraphicsPipeline(device_,p);
+    void clear(){if(device_){for(auto *p:{opaque,opaque_culled,transparent,held,held_alpha,sky,celestial,weather,volume,compose})if(p)SDL_ReleaseGPUGraphicsPipeline(device_,p);
             for(auto *p:{shadow,count})if(p)SDL_ReleaseGPUComputePipeline(device_,p);
             if(linear)SDL_ReleaseGPUSampler(device_,linear);
             if(nearest)SDL_ReleaseGPUSampler(device_,nearest);
             if(pixel_art)SDL_ReleaseGPUSampler(device_,pixel_art);}
-        opaque=transparent=held=held_alpha=sky=celestial=weather=volume=compose=nullptr;shadow=count=nullptr;linear=nearest=pixel_art=nullptr;device_=nullptr;}
+        opaque=opaque_culled=transparent=held=held_alpha=sky=celestial=weather=volume=compose=nullptr;shadow=count=nullptr;linear=nearest=pixel_art=nullptr;device_=nullptr;}
     void abandon(){device_=nullptr;clear();}
     bool create(device_context &context){if(opaque)return true;device_=context.device();
 #define NCMM_GPU_SHADER(NAME,STAGE,SAMPLERS,STORAGE,UNIFORMS) context.shader(shaders::NAME##_spv,sizeof(shaders::NAME##_spv),shaders::NAME##_dxil,sizeof(shaders::NAME##_dxil),STAGE,SAMPLERS,STORAGE,UNIFORMS)
@@ -55,6 +56,7 @@ public:
         const SDL_GPUTextureFormat world[]={SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,SDL_GPU_TEXTUREFORMAT_R32_UINT};
         const SDL_GPUTextureFormat effects[]={SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT,SDL_GPU_TEXTUREFORMAT_R32_FLOAT};
         opaque=make(gv,gf,true,world,2,true,true,true,true);
+        opaque_culled=make(gv,gf,true,world,2,true,true,true,true,true);
         transparent=make(gv,gf,true,world,2,true,false,true,false);held=make(gv,gf,true,world,2,true,true,true,false);
         // The imported optic lens uses the existing shader/blend contract.
         // Draw it after all opaque hands/items without hiding geometry behind it.
@@ -71,7 +73,7 @@ public:
         sampler.max_lod=0;sampler.min_filter=sampler.mag_filter=SDL_GPU_FILTER_NEAREST;sampler.mipmap_mode=SDL_GPU_SAMPLERMIPMAPMODE_NEAREST;nearest=SDL_CreateGPUSampler(device_,&sampler);
         sampler.max_lod=10;
         sampler.min_filter=SDL_GPU_FILTER_LINEAR;sampler.mag_filter=SDL_GPU_FILTER_NEAREST;sampler.mipmap_mode=SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;pixel_art=SDL_CreateGPUSampler(device_,&sampler);
-        bool ok=opaque&&transparent&&held&&held_alpha&&sky&&celestial&&weather&&volume&&compose&&shadow&&count&&linear&&nearest&&pixel_art;
+        bool ok=opaque&&opaque_culled&&transparent&&held&&held_alpha&&sky&&celestial&&weather&&volume&&compose&&shadow&&count&&linear&&nearest&&pixel_art;
         if(!ok){if(context.reason().empty())context.fail("create GPU render programs");clear();}return ok;
     }
 };

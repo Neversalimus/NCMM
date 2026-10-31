@@ -14,6 +14,26 @@ def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def reference_backend(candidate):
     """Pure reconstruction, always checked against the unchanged frozen digest."""
     reference=candidate
+    # Candidate-only fixed-function face rejection must not also optimize the
+    # frozen baseline. Its original backend digest stays exactly unchanged.
+    winding_replacements=[
+        ('    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false;};',
+         '    struct batch {uint64_t key;uint32_t pass,first,count;};'),
+        ('        bool winding_bound=false;\n',''),
+        ('''                // Reject only faces already forbidden by the existing shader.
+                // Transparent, held, skinned, reflected and unproved ranges
+                // keep the original two-sided rasterizer and unchanged shader.
+                const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
+                if(winding!=winding_bound){SDL_BindGPUGraphicsPipeline(pass,winding?programs_.opaque_culled:programs_.opaque);winding_bound=winding;}
+''',''),
+        ('''        for(const auto &[key,list]:groups){
+            const bool winding=key.first==NCMM_GPU_OPAQUE&&winding_camera(scene.camera)&&std::all_of(list.begin(),list.end(),[&](const instance &i){
+                return i.bone_count==1&&i.bone_offset<scene.bone_count&&winding_bone(scene.bones[i.bone_offset])&&winding_pose(i.world);});
+            batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size()),winding});instances.insert(instances.end(),list.begin(),list.end());}
+''','        for(const auto &[key,list]:groups){batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size())});instances.insert(instances.end(),list.begin(),list.end());}\n')]
+    for before,after in winding_replacements:
+        assert reference.count(before)==1,'Unreviewed winding reconstruction'
+        reference=reference.replace(before,after)
     policy='    // Scratch reuse is currently pixel-qualified on Direct3D 12.\n    bool cycle_private_scratch()const{\n        auto *device=context_.device();\n        const char *driver=device?SDL_GetGPUDeviceDriver(device):nullptr;\n        return !driver||std::strcmp(driver,"direct3d12")!=0;\n    }\n'
     assert reference.count(policy)==1
     reference=reference.replace(policy,'')

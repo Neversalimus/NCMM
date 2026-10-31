@@ -50,20 +50,24 @@
                     const bool built=cache.build(source,views[view].yaw,views[view].pitch,{},packet,statistics,engine.metrics(),{},&metadata,nullptr,640,480,NCMM_GPU_FORCE,nullptr,options);
                     require(built,cache.last_reason.c_str());
                     const auto &submission=packet.finish(nullptr);
-                    unsigned marked=0;for(uint32_t n=0;n<submission.draw_count;++n){const auto &draw=submission.draws[n];
+                    unsigned marked=0,winding=0;for(uint32_t n=0;n<submission.draw_count;++n){const auto &draw=submission.draws[n];
                         if(draw.cell!=vehicle_cell||draw.transform.columns[14]!=placement.origin.z)continue;
                         for(uint32_t m=0;m<submission.mesh_count;++m)if(submission.meshes[m].key==draw.mesh_key){const auto &mesh_view=submission.meshes[m];
                             for(uint32_t slot=0;slot<mesh_view.material_count;++slot)marked+=(mesh_view.materials[slot].flags&NCMM_GPU_CULL_BACK)!=0;
                             for(uint32_t triangle=0;triangle<mesh_view.index_count;triangle+=3){const auto &a=mesh_view.vertices[mesh_view.indices[triangle]],
                                 &b=mesh_view.vertices[mesh_view.indices[triangle+1]],&c=mesh_view.vertices[mesh_view.indices[triangle+2]];
                                 if(!(mesh_view.materials[a.material].flags&NCMM_GPU_CULL_BACK))continue;
+                                 if(ncmm_gpu::winding_camera(submission.camera)&&ncmm_gpu::winding_pose(draw.transform)&&draw.bone_count==1&&
+                                    draw.bone_offset<submission.bone_count&&ncmm_gpu::winding_bone(submission.bones[draw.bone_offset])&&
+                                    ncmm_gpu::winding_range(mesh_view,a.material,triangle,3))++winding;
                                 const fp::vehicle::point pa{a.position[0],a.position[1],a.position[2]},pb{b.position[0],b.position[1],b.position[2]},pc{c.position[0],c.position[1],c.position[2]},
                                     plane{a.face_normal[0],a.face_normal[1],a.face_normal[2]};
                                 require(fp::vehicle::dot(fp::vehicle::cross(pb-pa,pc-pa),plane)>0,"published GPU winding, shader plane and CPU ray picking agree");
                             }
                         }}
                     require(!marked||(cull&&outside),"only proven outside closed shells enable the existing material face-discard flag");
-                    if(cull&&outside&&model==6&&view!=4)require(marked>0,"the proven closed reference cube actually enables face rejection");
+                    if(cull&&outside&&model==6&&view!=4){require(marked>0,"the proven closed reference cube actually enables face rejection");
+                        require(winding>0,"strict full-image pairs actually qualify the new rigid clockwise raster state");}
                     if(view==4)require(marked==0,"near-plane clipping retains the original inner and outer shell faces");
                     if(marked)++marked_variants;if(cull&&geometry->closed_shell&&!outside)++inside_variants;
                     require(engine.submit(submission),engine.metrics().reason);return read();

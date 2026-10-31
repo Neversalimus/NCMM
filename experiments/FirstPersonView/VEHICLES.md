@@ -357,6 +357,24 @@ avoids a heap node per distinct vertex during component preparation. It is a
 construction-cost change, not a reduction of geometry, resolution or quality;
 complete Native frame timings still determine its measured benefit.
 
+CPU opaque vehicle sources borrow one callback-owned appearance for each
+component/material, instead of copying that appearance into every triangle.
+Owned vertices, source order, clipping, interpolation and picking are retained.
+The material deque and source arrays outlive every raster worker; neither is
+stored in the world cache or exposed through an ABI. Full-field and compact
+material-copy references remain available to the complete-buffer CI comparison,
+including distinct Native light/owner cells, near clipping and camera interiors.
+
+The GPU may reject a proven one-sided range before fragment shading using the
+same shaders and existing material-side condition. Eligibility requires exact
+agreement between index winding and every published geometric unit normal,
+fully opaque unchanged positions, a static identity bone, and proper rigid draw
+and camera bases. Reflected/nonrigid/skinned/billboard/transparent/held or otherwise
+unproved submissions keep the original rasterizer. A separate pure data/math
+test checks this eligibility; the original frozen backend and all 414 ordinary
+readbacks still determine pixel equivalence on real CI devices. Neither the
+source-storage reduction nor this eligibility proof establishes a frame-time win.
+
 The long-run gate also validates source-bound process RAM samples, not just
 module/GPU accounting. It rejects a late resident median more than 50 percent
 (at least 256 MiB) above the warmed baseline, or a transient peak above twice
