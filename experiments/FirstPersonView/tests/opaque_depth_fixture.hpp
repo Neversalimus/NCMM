@@ -56,6 +56,8 @@ struct opaque_depth_fixture {
 
 // This extends the owned fixture without altering any original scene inputs.
 struct glass_depth_fixture:opaque_depth_fixture {
+    // Immutable resource IDs must not overlap the preceding depth fixture.
+    glass_depth_fixture(){mesh.key=0x474c4153530000ull;}
     unsigned glass_slot=0;
     void observe_glass(unsigned which){
         materials={};for(unsigned n=0;n<2;++n){materials[n].color[0]=n?.8f:.2f;materials[n].color[1]=.3f;

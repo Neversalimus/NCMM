@@ -132,8 +132,10 @@ int main(){
         vertices[2].position[0]=std::numeric_limits<float>::infinity();require(!glass(),"nonfinite corners fail closed");vertices=saved_vertices;
         require(!ncmm_gpu::rigid_glass_range(mesh,0,1,3)&&!ncmm_gpu::rigid_glass_range(mesh,1,0,3),"transparent material/index bounds remain strict");
         material=old_material;
-        glass_depth_fixture fixture;
-        for(unsigned which=0;which<10;++which){fixture.observe_glass(which);const auto reason=ncmm_gpu::validate(fixture.scene,&fixture.world);
+        glass_depth_fixture fixture;opaque_depth_fixture previous;
+        for(unsigned which=0;which<10;++which){fixture.observe_glass(which);previous.observe(1.f,true);
+            require(fixture.mesh.key!=previous.mesh.key,"independent fixtures cannot reuse an already resident immutable mesh ID");
+            const auto reason=ncmm_gpu::validate(fixture.scene,&fixture.world);
             require(!reason,reason?reason:"ordinary glass owns a valid unchanged sparse-world contract");
             require(ncmm_gpu::rigid_glass_range(fixture.mesh,fixture.glass_slot,0,6)==false,"mixed material ranges cannot be treated as one ordinary glass range");
             require(ncmm_gpu::rigid_glass_range(fixture.mesh,fixture.glass_slot,fixture.glass_slot*3,3)==(which<6||which==8),"all source-bound finish/alpha/lower negative controls retain their general shader");

@@ -7,6 +7,8 @@
             require(engine.submit(fixture.scene,&fixture.world),engine.metrics().reason);
             capture(("-ordered-glass-"+std::to_string(which)).c_str());
 #if defined(NCMM_GPU_COMPONENT_GLASS_PROGRAM)
+            if((engine.recording().glass_draws>0)!=(which<6))std::fprintf(stderr,"Glass case=%u slot=%u key=%llu specialized_draws=%llu\n",which,fixture.glass_slot,
+                static_cast<unsigned long long>(fixture.mesh.key),static_cast<unsigned long long>(engine.recording().glass_draws));
             require((engine.recording().glass_draws>0)==(which<6),"actual GPU draws execute only the proved transparent specialization and preserve every fallback");
             specialized+=engine.recording().glass_draws>0;
 #endif
