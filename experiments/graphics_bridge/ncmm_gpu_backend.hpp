@@ -15,6 +15,9 @@ struct recording_metrics {
     double batching_pick_ms=0,shadow_ms=0,world_ms=0,creature_ms=0,held_ms=0,volume_ms=0,compose_ms=0;
     uint64_t glass_draws=0;
     uint64_t plain_draws=0;
+    uint64_t opaque_component_draws=0,opaque_winding_draws=0,opaque_requested_winding_draws=0,opaque_range_rejections=0,opaque_batch_rejections=0,opaque_reflective_draws=0;
+    uint64_t opaque_component_triangles=0,opaque_winding_triangles=0;
+    uint64_t counted_plain_draws=0,counted_glass_draws=0;
     uint64_t bones=0,held_bones=0,static_upload_bytes=0,dynamic_geometry_bytes=0;
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
     uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
@@ -37,6 +40,7 @@ class backend {
     uint64_t generation_=0,resource_epoch_=1,world_epoch_=0,last_serial_=0,readback_generation_=1;
     ncmm_gpu_metrics_v1 metrics_{};
     recording_metrics recording_{};
+    bool policy_counts_=false;
     bool profiling_=false,white_ready_=false,cells_ready_=false,retirement_failed_=false;
     struct readback {SDL_GPUTransferBuffer *transfer=nullptr;SDL_GPUFence *fence=nullptr;uint64_t serial=0,generation=0;};
     std::array<readback,3> readbacks_{};
@@ -144,6 +148,19 @@ class backend {
                     opaque_policy=policy;}
                 if(profiling_&&glass)++recording_.glass_draws;
                 if(profiling_&&plain)++recording_.plain_draws;
+                if(profiling_||policy_counts_){
+                    if(plain)++recording_.counted_plain_draws;if(glass)++recording_.counted_glass_draws;
+                    if(selected==NCMM_GPU_OPAQUE){
+                        recording_.opaque_component_draws+=component;recording_.opaque_winding_draws+=winding;
+                        recording_.opaque_requested_winding_draws+=bool(m.flags&NCMM_GPU_CULL_BACK);
+                        recording_.opaque_range_rejections+=bool(m.flags&NCMM_GPU_CULL_BACK)&&!range.winding_safe;
+                        recording_.opaque_batch_rejections+=range.winding_safe&&!b.winding_safe;
+                        recording_.opaque_reflective_draws+=reflective;
+                        const uint64_t triangles=uint64_t(range.count/3)*b.count;
+                        if(component)recording_.opaque_component_triangles+=triangles;
+                        if(winding)recording_.opaque_winding_triangles+=triangles;
+                    }
+                }
                 const bool creature_zone=ncmm_graphics_trace::enabled()&&selected!=NCMM_GPU_HELD&&(m.flags&NCMM_GPU_CREATURE_VISUAL);
                 if(creature_zone){nvtxRangePushA("Creatures");SDL_PushGPUDebugGroup(commands,"Creatures");}
                 const auto draw_start=profiling_?clock::now():clock::time_point{};
@@ -173,6 +190,7 @@ public:
     ncmm_gpu_metrics_v1 metrics(){poll();metrics_.resource_epoch=resource_epoch_;return metrics_;}
     int32_t focus_cell()const{return focus_cell_;}
     void profile(bool enabled=true){profiling_=enabled;}
+    void count_policies(bool enabled=true){policy_counts_=enabled;}
     const recording_metrics &recording()const{return recording_;}
     void clear(){
         // SDL can still have composition commands queued against our output,

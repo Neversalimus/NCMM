@@ -36,6 +36,12 @@ class Diagnostics(unittest.TestCase):
     def test_changed_plain_finish_proof_cannot_reconstruct(self):
         source=self.backend().replace('const bool plain=component&&plain_component_finish(m.finish);','const bool plain=plain_component_finish(m.finish);')
         with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_policy_diagnostic_cannot_reconstruct(self):
+        source=self.backend().replace('recording_.opaque_component_draws+=component;','recording_.opaque_component_draws+=!component;')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_policy_guard_cannot_reconstruct(self):
+        source=self.backend().replace('if(profiling_||policy_counts_){','if(profiling_&&policy_counts_){')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def image(self,pixel):return struct.pack('<III',1,1,373694468)+bytes(pixel)
     def test_complete_equality(self):
         result=comparison.image_difference(self.image([255,20,30,40]),self.image([255,20,30,40]))

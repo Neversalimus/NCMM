@@ -31,8 +31,8 @@ public:
         values.emplace(id,value);return value;
     }
 };
-// Rebuilt from this frame's exact Native permissions, without a persistent
-// lifetime cache or Native pointers. Duplicate cells keep the first body and
+// Pure index of the exact published Native permissions, without Native
+// pointers or installed-part state. Duplicate cells keep the first body and
 // floor index independently, just as the original two ordered maps did.
 class permission_index {
 public:
@@ -48,6 +48,9 @@ public:
     // At most 2 MiB, rebuilt from the current frame's published permissions.
     // Sparse or extreme mod coordinates retain the original ordered lookup.
     static constexpr size_t dense_limit=262144;
+    void reset(){rows.clear();dense.clear();bodies=floors=0;dense_origin={};dense_span={};}
+    void release(){reset();decltype(rows){}.swap(rows);decltype(dense){}.swap(dense);}
+    size_t bytes()const{return rows.capacity()*sizeof(row)+dense.capacity()*sizeof(permission);}
     void reserve(size_t count){rows.reserve(count);}
     void add(int x,int y,int z,int body,int floor){if(body>=0||floor>=0)rows.push_back({{{x,y,z}},{body,floor}});}
     void finish(){
@@ -94,6 +97,55 @@ public:
     size_t floor_count()const{return floors;}
     bool dense_storage()const{return !dense.empty();}
 };
+// Cache only the exact ordered coordinate/permission input to the pure index.
+// Installed parts, visibility production and all lighting are still read live.
+// The retained input proof PLUS the complete index fit in this private 2 MiB
+// allowance; larger/sparse frames use the original index and release it on exit.
+class permission_frame {
+    struct source {std::array<int,3> position;int body,floor;};
+    permission_index index;
+    std::vector<source> proof;
+    size_t cursor=0;
+    uint64_t epoch=0;
+    bool valid=false,matching=false,eligible=false,reused=false;
+    void rebuild_prefix(){
+        index.reset();
+        for(size_t n=0;n<cursor;++n){const auto &p=proof[n];index.add(p.position[0],p.position[1],p.position[2],p.body,p.floor);}
+        matching=false;
+    }
+public:
+    static constexpr size_t cache_limit=2u*1024u*1024u;
+    void clear(){index.release();decltype(proof){}.swap(proof);cursor=0;epoch=0;valid=matching=eligible=reused=false;}
+    size_t bytes()const{return index.bytes()+proof.capacity()*sizeof(source);}
+    bool reused_input()const{return reused;}
+    void begin(uint64_t world,size_t count){
+        cursor=0;reused=false;eligible=world&&count<=cache_limit/(2*sizeof(source));
+        matching=eligible&&valid&&epoch==world;epoch=world;
+        if(!matching){index.reset();index.reserve(count);}
+        if(!eligible)decltype(proof){}.swap(proof);
+        valid=false;
+    }
+    void add(int x,int y,int z,int body,int floor){
+        if(body<0&&floor<0)return;
+        const source p{{{x,y,z}},body,floor};
+        if(!eligible){index.add(x,y,z,body,floor);return;}
+        if(matching&&(cursor>=proof.size()||proof[cursor].position!=p.position||proof[cursor].body!=body||proof[cursor].floor!=floor))rebuild_prefix();
+        if(!matching){index.add(x,y,z,body,floor);if(cursor<proof.size())proof[cursor]=p;else proof.push_back(p);}
+        ++cursor;
+    }
+    void finish(){
+        if(matching&&cursor!=proof.size())rebuild_prefix();
+        reused=matching;
+        if(!matching)index.finish();
+        if(eligible){proof.resize(cursor);valid=bytes()<=cache_limit;}
+        if(!valid)decltype(proof){}.swap(proof);
+    }
+    void end(){if(!valid)index.release();}
+    permission_index::permission find(int x,int y,int z)const{return index.find(x,y,z);}
+    size_t body_count()const{return index.body_count();}
+    size_t floor_count()const{return index.floor_count();}
+};
+
 enum class archetype {utility,bicycle,motorcycle,buggy,car,suv,van,truck,bus,pickup,armored,trailer,platform,boat};
 struct profile {archetype kind=archetype::utility;float cabin=1.28f;};
 inline profile shape(bool narrow,int length,unsigned wheels,unsigned seats,unsigned roofs,unsigned cargo,unsigned controls,

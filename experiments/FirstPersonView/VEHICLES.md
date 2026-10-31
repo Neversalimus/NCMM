@@ -494,3 +494,30 @@ lower light, animated roots, textures and unproved cells retain their original
 programs. All34 previous shader arrays and463 readbacks remain; one fragment
 SPIR-V/DXIL pair and ten full positive/fallback readbacks are added. Offline
 compilation and pure checks do not establish a Native frame-time improvement.
+
+Repeated stationary preparation may reuse its previous draw list only after
+comparing every owned vehicle/part byte, the complete non-clock scene header,
+Native cell-array bound and exact eye bits. Every Native velocity must be zero,
+each door must equal its final open value exactly and every wheel must equal
+its exact rolling target. The existing animation redraw tolerance is not this
+proof. Input changes, backward time, active interpolation, world/visibility
+changes, incomplete generation or eviction keep original full preparation.
+Each reused observation still advances the stored pose clocks, preserving the
+next real movement/door dt. Original model query counters and LRU order remain.
+The additional owned input proof is independently bounded to2 MiB, included in
+owned-byte metrics and released on disable/reset; the32 MiB mesh limit remains.
+
+The Native permission lookup can likewise reuse only the exact ordered list
+of current coordinate/body/floor indices, within the same world lifetime.
+All Native perception production, installed parts and RGB lights remain live.
+The complete retained proof plus index is bounded to2 MiB. Every mismatch
+rebuilds the original duplicate-minimum index, large frames retain original
+lookup and release storage on callback exit, and Legacy/module cleanup clear
+the proof. Neither cache trusts a Native pointer or revision alone.
+
+The opt-in Native vehicle benchmark also records actual component/cull/glass/
+plain policy selections and rejection counts with its existing submission
+serial. These are bounded benchmark-only numeric diagnostics; they enable no
+new timing instrumentation and represent neither GPU execution time nor FPS.
+Every original473 frozen GPU readback, shader byte, depth/lighting/blend
+expression, validation gate, quality setting and deadline is retained.

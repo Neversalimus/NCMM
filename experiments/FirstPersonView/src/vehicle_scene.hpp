@@ -40,6 +40,32 @@ class presentation {
     std::unordered_map<uint64_t,construction> layouts;
     std::unordered_set<uint32_t> groups;
     std::unordered_set<int> roof_cells;
+    // Exact owned proof of the previous completed static observation. No
+    // revision-only, pointer-only, quantized position or elapsed-time shortcut.
+    snapshot stationary_input;
+    point stationary_eye{};
+    uint64_t stationary_queries=0;
+    bool stationary_valid=false;
+    static bool same_observation(const snapshot &a,const snapshot &b,point eye,point old_eye){
+        constexpr size_t clock=offsetof(ncmm_graphics_vehicle_scene_v1,seconds),after=clock+sizeof(double);
+        const auto *x=reinterpret_cast<const unsigned char *>(&a.scene),*y=reinterpret_cast<const unsigned char *>(&b.scene);
+        const auto equal=[](const auto &left,const auto &right){return left.size()==right.size()&&
+            (left.empty()||std::memcmp(left.data(),right.data(),left.size()*sizeof(left[0]))==0);};
+        return a.enabled==b.enabled&&a.validated_cells==b.validated_cells&&
+            std::memcmp(x,y,clock)==0&&std::memcmp(x+after,y+after,sizeof(a.scene)-after)==0&&
+            std::memcmp(&eye,&old_eye,sizeof(eye))==0&&equal(a.vehicles,b.vehicles)&&equal(a.parts,b.parts);
+    }
+    void forget_stationary(){stationary_valid=false;stationary_input=snapshot{};stationary_queries=0;}
+    void remember_stationary(point eye,uint64_t queries,bool complete){
+        stationary_valid=false;
+        const bool fits=input.vehicles.size()*sizeof(ncmm_graphics_vehicle_v1)+input.parts.size()*sizeof(ncmm_graphics_vehicle_part_v1)<=stationary_limit;
+        const bool stopped=std::all_of(input.vehicles.begin(),input.vehicles.end(),[](const auto &v){return std::isfinite(v.native_velocity)&&v.native_velocity==0;});
+        if(!reuse_static_inputs||!complete||active_animation||!fits||!stopped||!std::isfinite(input.scene.seconds)||
+            !std::isfinite(eye.x)||!std::isfinite(eye.y)||!std::isfinite(eye.z)){forget_stationary();return;}
+        stationary_input=input;
+        if(stationary_input.bytes()>stationary_limit){forget_stationary();return;}
+        stationary_eye=eye;stationary_queries=queries;stationary_valid=true;
+    }
     uint64_t frame=0,world=0;
     size_t model_bytes=0;
     std::shared_ptr<const model> mesh(const topology &t,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod){
@@ -106,15 +132,19 @@ public:
         return result;
     }
     static constexpr size_t cache_limit=32u*1024u*1024u;
+    static constexpr size_t stationary_limit=2u*1024u*1024u;
+    bool reuse_static_inputs=true;
+    uint64_t stationary_reuses=0;
     snapshot input;
     std::vector<submission> draws;
     uint64_t generated=0,reused=0,evicted=0,revision=0,coverage_revision=0,topology_builds=0;
     bool active_animation=false;
     void reset(){input.clear();models.clear();poses.clear();layouts.clear();groups.clear();roof_cells.clear();draws.clear();
-        frame=world=generated=reused=evicted=revision=coverage_revision=topology_builds=0;model_bytes=0;active_animation=false;}
+        frame=world=generated=reused=evicted=revision=coverage_revision=topology_builds=stationary_reuses=0;model_bytes=0;active_animation=false;forget_stationary();}
     bool handles(uint32_t group)const{return input.enabled&&groups.count(group)!=0;}
     bool handles_roof(int cell)const{return input.enabled&&roof_cells.count(cell)!=0;}
-    size_t bytes()const{return input.bytes()+model_bytes+draws.capacity()*sizeof(submission)+
+    size_t stationary_bytes()const{return stationary_input.bytes();}
+    size_t bytes()const{return input.bytes()+stationary_input.bytes()+model_bytes+draws.capacity()*sizeof(submission)+
         models.size()*(sizeof(entry)+sizeof(uint64_t)+3*sizeof(void *))+poses.size()*(sizeof(pose_state)+sizeof(uint64_t)+3*sizeof(void *))+layout_bytes();}
     size_t layout_bytes()const{size_t result=layouts.size()*(sizeof(construction)+sizeof(uint64_t)+3*sizeof(void *));
         for(const auto &row:layouts)if(row.second.shape){const auto &t=*row.second.shape;result+=sizeof(t)+t.wheels.capacity()*sizeof(uint32_t)+
@@ -123,10 +153,18 @@ public:
         return result;
     }
     void observe(point eye){
+        if(reuse_static_inputs&&stationary_valid&&!active_animation&&input.enabled&&
+            std::isfinite(input.scene.seconds)&&input.scene.seconds>=stationary_input.scene.seconds&&same_observation(input,stationary_input,eye,stationary_eye)){
+            // Keep the original next-observation dt/freshness semantics even
+            // after many identical redraws; cache LRU ordering is unchanged.
+            for(auto &p:poses)p.second.seconds=input.scene.seconds;
+            stationary_input.scene.seconds=input.scene.seconds;reused+=stationary_queries;++stationary_reuses;return;
+        }
+        stationary_valid=false;
         draws.clear();groups.clear();roof_cells.clear();active_animation=false;coverage_revision=1469598103934665603ull;
-        if(!input.enabled)return;
+        if(!input.enabled){forget_stationary();return;}
         if(world!=input.scene.world_epoch){models.clear();poses.clear();layouts.clear();model_bytes=0;world=input.scene.world_epoch;}
-        ++frame;revision=input.scene.revision;
+        ++frame;revision=input.scene.revision;uint64_t queries=0;const auto previous_evicted=evicted;bool all_complete=true,exact_rest=true;
         for(const auto &v:input.vehicles){
             auto &construction=layouts[v.entity_id];
             if(!construction.shape||construction.revision!=v.structure_revision||construction.first!=v.first_part||construction.count!=v.part_count){
@@ -140,7 +178,7 @@ public:
                 const auto center=origin+rotate({float(p.mount_x),float(p.mount_y),p.mount_z*input.scene.level_height},v.yaw);
                 const float distance=std::sqrt(dot(center-eye,center-eye));
                 const unsigned lod=distance<12?0u:distance<28?1u:2u;
-                const auto geometry=mesh(t,p,lod);if(!geometry){complete=false;break;}
+                const auto geometry=mesh(t,p,lod);if(!geometry){complete=false;all_complete=false;break;}++queries;
                 if(geometry->triangles.empty())continue;
                 point local{float(p.mount_x),float(p.mount_y),p.mount_z*input.scene.level_height};
                 float yaw=v.yaw,roll=0;
@@ -156,6 +194,7 @@ public:
                     const float direction=side==1||side==2?-1.f:1.f;
                     yaw+=pose.open*1.36f*direction;local=local+geometry->pivot;
                     active_animation|=std::abs(desired-pose.open)>.0001f;
+                    exact_rest&=pose.open==desired;
                 }
                 if(kind==component::wheel){
                     // A mount identifies a Native cell, not an authored axle
@@ -179,6 +218,7 @@ public:
                     pose.angle+=step;roll=pose.angle;
                     if(std::abs(pose.angle)>1024){const float turns=std::floor(pose.angle/(2*pi))*(2*pi);pose.angle-=turns;pose.target-=turns;roll=pose.angle;}
                     active_animation|=std::abs(pose.target-pose.angle)>.0001f;
+                    exact_rest&=pose.target==pose.angle;
                     if((p.features&NCMM_VP_STEERABLE)&&(v.flags&NCMM_VEHICLE_STEERING_KNOWN))yaw+=std::clamp(v.steering,-.8f,.8f);
                 }
                 pose.touched=frame;pose.seconds=input.scene.seconds;
@@ -199,6 +239,7 @@ public:
         }
         for(auto it=poses.begin();it!=poses.end();)if(it->second.touched!=frame)it=poses.erase(it);else ++it;
         for(auto it=layouts.begin();it!=layouts.end();)if(it->second.touched!=frame)it=layouts.erase(it);else ++it;
+        remember_stationary(eye,queries,all_complete&&previous_evicted==evicted&&exact_rest);
     }
 };
 }

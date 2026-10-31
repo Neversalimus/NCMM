@@ -898,5 +898,6 @@ int main(){
                 require(shade==1.f&&std::memcmp(&old,&color,sizeof(color))==0,"independent original floor/hash/grain math is exactly the input colour at zero amplitude");}
         }
     }
+    #include "vehicle_repeat_input_test.inc"
     std::printf("vehicle snapshot: %d checks passed\n",checks);
 }

@@ -11,7 +11,7 @@
     struct vehicle_fixture_guard {SDL_Renderer *renderer;SDL_Texture *previous,*canvas;std::string mode,backend;
         ~vehicle_fixture_guard(){graphics_smoke_seconds.reset();graphics_smoke_vehicle_eye.reset();SDL_SetRenderTarget(renderer,previous);SDL_DestroyTexture(canvas);
             get_options().get_option("NCMM_FIRST_PERSON_VEHICLES").setValue(mode);
-            get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(backend);}
+            get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(backend);if(graphics_gpu_engine)graphics_gpu_engine->count_policies(false);}
     } vehicle_guard{renderer,previous,canvas,old_mode,old_renderer};
     get_options().get_option("NCMM_FIRST_PERSON_VEHICLES").setValue("modular");
     for(int y=-48;y<=48;++y)for(int x=-48;x<=48;++x){const tripoint_bub_ms p(center.x()+x,center.y()+y,0);
@@ -45,6 +45,7 @@
         get_avatar().setpos(get_map(),p,false);g->ter_view_p=p;look(std::atan2(float(-dy),float(-dx)),pitch);
     };
     auto draw=[&](const std::string &label,const std::string &prototype,const char *backend,const char *mode,bool capture,bool refresh=true,bool record=true){
+        if(graphics_gpu_engine)graphics_gpu_engine->count_policies(true);
         const auto begun=std::chrono::steady_clock::now();
         get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(backend);
         get_options().get_option("NCMM_FIRST_PERSON_VEHICLES").setValue(mode);
@@ -78,6 +79,7 @@
         evidence.member("vehicle_discovery_body_cells",graphics_vehicle_discovery.body_cells);evidence.member("vehicle_discovery_floor_cells",graphics_vehicle_discovery.floor_cells);
         evidence.member("vehicle_discovery_vehicles",graphics_vehicle_discovery.vehicles);evidence.member("vehicle_discovery_parts",graphics_vehicle_discovery.parts);
         evidence.member("vehicle_discovery_roof_cells",graphics_vehicle_discovery.roof_cells);evidence.member("vehicle_discovery_groups",graphics_vehicle_discovery.groups);
+        if(label.rfind("bench-",0)==0){evidence.member("permission_index_reused",graphics_vehicle_discovery.permission_reused);evidence.member("permission_index_bytes",graphics_vehicle_discovery.permission_bytes);}
         evidence.member("vehicle_exterior_surface_parts",std::count_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return bool(p.state&NCMM_VP_EXTERIOR_SURFACE);}));
         evidence.member("vehicle_owned_bytes",graphics_vehicle_metrics.owned_bytes);evidence.member("vehicle_generated",graphics_vehicle_metrics.generated);
         evidence.member("vehicle_reused",graphics_vehicle_metrics.reused);evidence.member("vehicle_topology_builds",graphics_vehicle_metrics.topology_builds);
@@ -99,6 +101,16 @@
             // Existing CPU-side timers of the most recent 3D submission.
             // They may overlap and are not hardware execution/FPS timings.
             evidence.member("gpu_frame_serial",metrics.frame_serial);
+            if(graphics_gpu_frame&&label.rfind("bench-",0)==0){const auto &p=graphics_gpu_engine->recording();
+                // Most recent submission only, like gpu_frame_serial above.
+                // Policy counts diagnose selection; no GPU execution timings.
+                evidence.member("gpu_policy");evidence.start_object();
+                evidence.member("component_draws",p.opaque_component_draws);evidence.member("winding_draws",p.opaque_winding_draws);
+                evidence.member("requested_winding_draws",p.opaque_requested_winding_draws);evidence.member("range_rejections",p.opaque_range_rejections);
+                evidence.member("batch_rejections",p.opaque_batch_rejections);evidence.member("reflective_draws",p.opaque_reflective_draws);
+                evidence.member("plain_draws",p.counted_plain_draws);evidence.member("glass_draws",p.counted_glass_draws);
+                evidence.member("component_triangles",p.opaque_component_triangles);evidence.member("winding_triangles",p.opaque_winding_triangles);evidence.end_object();
+            }
             evidence.member("gpu_geometry_ms",metrics.geometry_ms);evidence.member("gpu_render_record_ms",metrics.render_record_ms);
             evidence.member("gpu_resource_ms",metrics.resource_ms);evidence.member("gpu_upload_ms",metrics.upload_ms);
             evidence.member("gpu_submit_ms",metrics.submit_ms);

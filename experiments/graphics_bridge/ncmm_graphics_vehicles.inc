@@ -9,10 +9,11 @@ ncmm_graphics_vehicle_metrics_v1 graphics_vehicle_metrics{};
 int graphics_vehicle_focus_cell=-1;
 uint64_t graphics_vehicle_focus_entity=0,graphics_vehicle_focus_part=0;
 double graphics_vehicle_extraction_ms=0;
-struct {uint32_t body_cells=0,floor_cells=0,vehicles=0,parts=0,roof_cells=0,groups=0;} graphics_vehicle_discovery;
+struct {uint32_t body_cells=0,floor_cells=0,vehicles=0,parts=0,roof_cells=0,groups=0;bool permission_reused=false;size_t permission_bytes=0;} graphics_vehicle_discovery;
 struct {bool valid=false,opening=false;uint64_t entity=0,part=0,world=0;int x=0,y=0,z=0;} graphics_vehicle_activity_request;
 extern uint64_t graphics_world_epoch;
 ncmm_graphics_vehicle_policy::definition_features graphics_vehicle_feature_cache;
+ncmm_graphics_vehicle_policy::permission_frame graphics_vehicle_permission_cache;
 
 void graphics_clear_vehicles()
 {
@@ -20,7 +21,7 @@ void graphics_clear_vehicles()
     graphics_vehicle_focus_cell=-1;graphics_vehicle_focus_entity=graphics_vehicle_focus_part=0;
     graphics_vehicle_discovery={};
 }
-void graphics_forget_vehicle_client(){graphics_clear_vehicles();graphics_vehicle_feature_cache.clear();graphics_vehicles_requested=false;graphics_vehicle_activity_request={};}
+void graphics_forget_vehicle_client(){graphics_clear_vehicles();graphics_vehicle_feature_cache.clear();graphics_vehicle_permission_cache.clear();graphics_vehicles_requested=false;graphics_vehicle_activity_request={};}
 int graphics_vehicle_get_scene(ncmm_graphics_vehicle_scene_v1 *out)
 {
     if(!graphics_hybrid_frame||active_module_id!=graphics_view.owner||!out||out->struct_size<sizeof(*out))return 0;
@@ -157,13 +158,14 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
     scene.world_epoch=world?world->world_epoch:graphics_world_epoch;
     scene.level_height=world?world->level_height:NCMM_WORLD_LEVEL_HEIGHT;
     scene.seconds=graphics_presentation_seconds();scene.revision=1469598103934665603ull;
-    if(!graphics_vehicles_requested)return;
+    if(!graphics_vehicles_requested){graphics_vehicle_permission_cache.clear();return;}
     const char *mode=world_setting_get_string("NCMM_FIRST_PERSON_VEHICLES","legacy");
-    if(!mode||std::strcmp(mode,"modular")!=0)return;
+    if(!mode||std::strcmp(mode,"modular")!=0){graphics_vehicle_permission_cache.clear();return;}
     map &here=get_map();const auto &you=get_avatar();
     if(world){scene.origin_x=world->origin_x;scene.origin_y=world->origin_y;scene.origin_z=world->origin_z;}
     else if(!positions.empty()){const auto p=here.get_abs(positions[0]);scene.origin_x=p.x();scene.origin_y=p.y();scene.origin_z=p.z();}
-    ncmm_graphics_vehicle_policy::permission_index permissions;permissions.reserve(positions.size());
+    auto &permissions=graphics_vehicle_permission_cache;permissions.begin(scene.world_epoch,positions.size());
+    struct finish_permissions {ncmm_graphics_vehicle_policy::permission_frame &value;~finish_permissions(){value.end();}} permission_guard{permissions};
     const auto at_permissions=[&](const tripoint_bub_ms &p){return permissions.find(p.x(),p.y(),p.z());};
     std::map<tripoint_bub_ms,int> roof_surfaces;
     std::map<uint64_t,uint32_t> exterior_faces;
@@ -181,6 +183,7 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
         const auto &p=positions[i];permissions.add(p.x(),p.y(),p.z(),body,floor);
     }
     permissions.finish();graphics_vehicle_discovery.body_cells=uint32_t(permissions.body_count());graphics_vehicle_discovery.floor_cells=uint32_t(permissions.floor_count());
+    graphics_vehicle_discovery.permission_reused=permissions.reused_input();graphics_vehicle_discovery.permission_bytes=permissions.bytes();
     // Enumerate real loaded vehicles and real parts directly. A 2D sprite or
     // veh_at cache on the viewer's level is not the source of a 3D vehicle's
     // existence. Permissions still come exclusively from the published world.

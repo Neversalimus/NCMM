@@ -14,6 +14,12 @@ def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def reference_backend(candidate):
     """Pure reconstruction, always checked against the unchanged frozen digest."""
     reference=candidate
+    # Remove only these private diagnostic counters before every old recipe.
+    # No program, input proof or frozen digest changes with this addition.
+    diagnostic_replacements=[('    uint64_t opaque_component_draws=0,opaque_winding_draws=0,opaque_requested_winding_draws=0,opaque_range_rejections=0,opaque_batch_rejections=0,opaque_reflective_draws=0;\n    uint64_t opaque_component_triangles=0,opaque_winding_triangles=0;\n    uint64_t counted_plain_draws=0,counted_glass_draws=0;\n', ''), ('                if(profiling_||policy_counts_){\n                    if(plain)++recording_.counted_plain_draws;if(glass)++recording_.counted_glass_draws;\n                    if(selected==NCMM_GPU_OPAQUE){\n                        recording_.opaque_component_draws+=component;recording_.opaque_winding_draws+=winding;\n                        recording_.opaque_requested_winding_draws+=bool(m.flags&NCMM_GPU_CULL_BACK);\n                        recording_.opaque_range_rejections+=bool(m.flags&NCMM_GPU_CULL_BACK)&&!range.winding_safe;\n                        recording_.opaque_batch_rejections+=range.winding_safe&&!b.winding_safe;\n                        recording_.opaque_reflective_draws+=reflective;\n                        const uint64_t triangles=uint64_t(range.count/3)*b.count;\n                        if(component)recording_.opaque_component_triangles+=triangles;\n                        if(winding)recording_.opaque_winding_triangles+=triangles;\n                    }\n                }\n', ''), ('    bool policy_counts_=false;\n', ''), ('    void count_policies(bool enabled=true){policy_counts_=enabled;}\n', '')]
+    for before,after in diagnostic_replacements:
+        assert reference.count(before)==1,'Unreviewed policy diagnostics'
+        reference=reference.replace(before,after)
     # Reverse only the exact finish-zero addition before the old recipes.
     # The original frozen digest and every previous rejection control remain.
     if '#define NCMM_GPU_COMPONENT_PLAIN_PROGRAM 1\n' in reference:
