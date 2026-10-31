@@ -15,6 +15,7 @@ from native_options_bridge import prepare as prepare_deferred_options
 from native_compiler_bridge import prepare as prepare_native_compiler
 from native_atlas_bridge import prepare as prepare_native_atlas
 from fps_input_bridge import prepare as prepare_fps_input
+from vehicle_bridge import prepare as prepare_vehicles
 
 SOURCES = {
     "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": "cdda-experimental-2026-10-01-1040",
@@ -620,7 +621,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     if (root/"src/ncmm_native_atlas_pixels.hpp").exists():
         raise ValueError("Experimental source already exists: ncmm_native_atlas_pixels.hpp")
     updates["ncmm_native_atlas_pixels.hpp"] = (bridge/"ncmm_native_atlas_pixels.hpp").read_text(encoding="utf-8")
-    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creature_policy.hpp", "ncmm_graphics_performance.hpp", "ncmm_graphics_creatures.inc", "ncmm_graphics_creature_smoke.inc", "ncmm_graphics_appearance_smoke.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_gpu.h", "ncmm_gpu_validation.hpp", "ncmm_gpu_device.hpp", "ncmm_gpu_shader_bytes.hpp", "ncmm_gpu_probe.hpp", "ncmm_gpu_probe_smoke.inc", "ncmm_gpu_game_smoke.inc", "ncmm_gpu_benchmark.inc", "ncmm_gpu_backend.hpp", "ncmm_gpu_geometry.hpp", "ncmm_gpu_programs.hpp", "ncmm_gpu_resources.hpp", "ncmm_gpu_resource_diagnostics.hpp", "ncmm_graphics_gpu.inc", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_static_detail.inc", "ncmm_graphics_smoke.inc"):
+    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creature_policy.hpp", "ncmm_graphics_performance.hpp", "ncmm_graphics_creatures.inc", "ncmm_graphics_creature_smoke.inc", "ncmm_graphics_appearance_smoke.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_gpu.h", "ncmm_gpu_validation.hpp", "ncmm_gpu_device.hpp", "ncmm_gpu_shader_bytes.hpp", "ncmm_gpu_probe.hpp", "ncmm_gpu_probe_smoke.inc", "ncmm_gpu_game_smoke.inc", "ncmm_gpu_benchmark.inc", "ncmm_gpu_backend.hpp", "ncmm_gpu_geometry.hpp", "ncmm_gpu_programs.hpp", "ncmm_gpu_resources.hpp", "ncmm_gpu_winding.hpp", "ncmm_gpu_resource_diagnostics.hpp", "ncmm_graphics_gpu.inc", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_static_detail.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")
@@ -728,6 +729,17 @@ void initialize();''')
         "        void ncmm_graphics_smoke_prepare_turns();\n"
         "        bool ncmm_graphics_smoke_reload( const save_t &name ) {\n"
         "            return load( name );\n        }\n"
+        "        bool ncmm_graphics_smoke_vehicle_reload( const save_t &name ) {\n"
+        "            // Follow Native quickload's quit cleanup and menu setup.\n"
+        "            // load(name) alone appends saved global EOCs to live queues.\n"
+        "            uquit = QUIT_NOSAVED;\n"
+        "            if( !do_turn() ) return false;\n"
+        "            setup();\n"
+        "            const bool loaded = load( name );\n"
+        "            // The non-interactive smoke does not enter the first input turn.\n"
+        "            // Match its canonical initial setup before exposing character APIs.\n"
+        "            if( loaded ) new_game = false;\n"
+        "            return loaded;\n        }\n"
         "        void ncmm_graphics_smoke_examine( const tripoint_bub_ms &p ) {\n"
         "            examine( p, false );\n        }\n"
         "        void ncmm_graphics_smoke_controls( const tripoint_bub_ms &p ) {\n"
@@ -824,6 +836,7 @@ void initialize();''')
         raise ValueError("Experimental source already exists: ncmm_graphics_target_smoke.inc")
     updates["ncmm_graphics_target_smoke.inc"]=(bridge/"ncmm_graphics_target_smoke.inc").read_text(encoding="utf-8")
     prepare_fps_input(root,updates,bridge)
+    prepare_vehicles(root,updates,bridge)
     # No writes above this line. No save/installation/feed/catalog changes.
     for name, content in updates.items():
         (root / "src" / name).parent.mkdir(parents=True,exist_ok=True)

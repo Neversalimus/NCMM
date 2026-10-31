@@ -10,6 +10,8 @@ param(
     [switch]$CameraInputProbe,
     [switch]$FpsInputProbe,
     [switch]$StaticStairProbe,
+    [switch]$VehicleGallery,
+    [ValidateRange(0,1800)][int]$VehicleSoakSeconds=900,
     [switch]$Extended,
     [switch]$FullSizeGpuMatrix,
     [switch]$CameraSnapshotVerify,
@@ -62,7 +64,7 @@ function Read-NativeBenchmarkProgress([string]$Path){
     } finally {if($reader){$reader.Dispose()}else{$stream.Dispose()}}
 }
 if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
-if(@(@([bool]$MovementBenchmark,[bool]$FocusedGpuBenchmark,[bool]$CameraInputProbe,[bool]$FpsInputProbe,[bool]$StaticStairProbe,[bool]$HeldAssetGallery,[bool]$TargetHudGallery) | Where-Object {$_}).Count -gt 1){throw 'Choose one native diagnostic mode.'}
+if(@(@([bool]$MovementBenchmark,[bool]$FocusedGpuBenchmark,[bool]$CameraInputProbe,[bool]$FpsInputProbe,[bool]$StaticStairProbe,[bool]$VehicleGallery,[bool]$HeldAssetGallery,[bool]$TargetHudGallery) | Where-Object {$_}).Count -gt 1){throw 'Choose one native diagnostic mode.'}
 if($FpsInputProbe -and ($ViewmodelGallery -or $Extended -or $CameraSnapshotVerify -or $DisableCameraSnapshot -or $TraceCaptureScene -or $TilesetRoot -or $PSBoundParameters.ContainsKey('SoakSeconds'))){throw 'FpsInputProbe requires its own native diagnostic run.'}
 if($StaticStairProbe -and ($ViewmodelGallery -or $Extended -or $FullSizeGpuMatrix -or $CameraSnapshotVerify -or $DisableCameraSnapshot -or $TraceCaptureScene -or $TilesetRoot -or $DisableHeldAssets -or $DisableTargetHud -or $GpuDebug -or $PSBoundParameters.ContainsKey('SoakSeconds'))){throw 'StaticStairProbe requires its own fixed CPU diagnostic run.'}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
@@ -177,7 +179,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_SIGHT_COMPARE','NCMM_FP_VERIFY_DEFERRED_OPTIONS','NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_FPS_INPUT_ONLY','NCMM_FP_STATIC_STAIRS_ONLY','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_TERRAIN_PROFILE','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS','NCMM_FP_TARGET_HUD_ONLY','NCMM_FP_PERF_GPU_FULLSIZE','NCMM_FP_TARGET_HUD')
+$names=@('NCMM_FP_VEHICLE_ONLY','NCMM_FP_SIGHT_COMPARE','NCMM_FP_VERIFY_DEFERRED_OPTIONS','NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_FPS_INPUT_ONLY','NCMM_FP_STATIC_STAIRS_ONLY','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_TERRAIN_PROFILE','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS','NCMM_FP_TARGET_HUD_ONLY','NCMM_FP_PERF_GPU_FULLSIZE','NCMM_FP_TARGET_HUD') + @('NCMM_FP_VEHICLE_SOAK_SECONDS')
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -189,7 +191,7 @@ $failure=$null
 $process=$null
 $lastProgress='native startup'
 try {
-    if($StaticStairProbe){$env:NCMM_FP_STATIC_STAIRS_ONLY='1'}elseif($CameraInputProbe){$env:NCMM_FP_CAMERA_INPUT='1'}elseif($HeldAssetGallery){$env:NCMM_FP_HELD_GALLERY_ONLY='1'}elseif($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
+    if($VehicleGallery){$env:NCMM_FP_VEHICLE_ONLY='1';$env:NCMM_FP_VEHICLE_SOAK_SECONDS=[string]$VehicleSoakSeconds}elseif($StaticStairProbe){$env:NCMM_FP_STATIC_STAIRS_ONLY='1'}elseif($CameraInputProbe){$env:NCMM_FP_CAMERA_INPUT='1'}elseif($HeldAssetGallery){$env:NCMM_FP_HELD_GALLERY_ONLY='1'}elseif($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
     if($DisableHeldAssets){$env:NCMM_FP_HELD_ASSETS='0'}
     if($SightCacheComparison){$env:NCMM_FP_SIGHT_COMPARE='1'}
     if($Extended){$env:NCMM_FP_EXTENDED='1'}
@@ -216,11 +218,14 @@ try {
     # The native firing matrix preserves every actual presented frame. Its 186
     # attempts can exceed twenty minutes with lossless diagnostic readback.
     # Keep the independent 180-second no-progress/crash guard below.
-    $deadline=[DateTime]::UtcNow.AddSeconds($(if($Extended){7200}elseif($FocusedGpuBenchmark -or $HeldAssetGallery -or $CameraInputProbe -or $FpsInputProbe -or $StaticStairProbe -or $TargetHudGallery){600}elseif($MovementBenchmark){1200}else{$SoakSeconds+3600}))
+    $deadline=[DateTime]::UtcNow.AddSeconds($(if($VehicleGallery){3000}elseif($Extended){7200}elseif($FocusedGpuBenchmark -or $HeldAssetGallery -or $CameraInputProbe -or $FpsInputProbe -or $StaticStairProbe -or $TargetHudGallery){600}elseif($MovementBenchmark){1200}else{$SoakSeconds+3600}))
     $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
+    if($VehicleGallery){$progressPath=Join-Path $test 'ncmm/first-person-vehicle-progress.txt'}
     if($HeldAssetGallery){$progressPath=Join-Path $test 'ncmm/first-person-held-gallery-progress.txt'}
     $lastProgress='native startup'
     $lastAdvance=[DateTime]::UtcNow
+    $vehicleMemory=[System.Collections.Generic.List[object]]::new()
+    $vehicleMemoryStart=[DateTime]::UtcNow
     while(-not $process.WaitForExit(20000)){
         $nativeCrash=[NCMMNativeCrashDialog]::CloseOwnedCrash([uint32]$process.Id)
         if($nativeCrash){
@@ -236,6 +241,7 @@ try {
         if($line -and $line -ne $lastProgress){$lastProgress=[string]$line;$lastAdvance=[DateTime]::UtcNow}
         try {
             $process.Refresh()
+            if($VehicleGallery){$vehicleMemory.Add([ordered]@{elapsed_seconds=([DateTime]::UtcNow-$vehicleMemoryStart).TotalSeconds;working_set_bytes=$process.WorkingSet64;peak_working_set_bytes=$process.PeakWorkingSet64;phase=$lastProgress})}
             Write-Host ('Native SDL audit: {0}; process_cpu_seconds={1:F2}; working_set_mib={2:F1}' -f $lastProgress,$process.TotalProcessorTime.TotalSeconds,($process.WorkingSet64/1MB))
         } catch {Write-Host "Native SDL audit: $lastProgress"}
         if(([DateTime]::UtcNow-$lastAdvance).TotalSeconds -gt 180){
@@ -315,6 +321,9 @@ public static class NCMMBenchmarkWindow {
     if($debugger){$debugger.Dispose()}
     if($process -and $process.HasExited){$process.WaitForExit();$exitCode=$process.ExitCode}
     if($progressPath){$lastProgress=[string](Read-NativeBenchmarkProgress $progressPath)}
+    if($VehicleGallery -and $vehicleMemory){
+        [ordered]@{schema=1;actual_native=$true;source_commit=$bundle.ncmm_source_commit;engine_commit=$bundle.source_commit;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';sample_period_seconds=20;samples=$vehicleMemory.ToArray()} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence 'first-person-process-memory.json') -Encoding UTF8
+    }
     [ordered]@{schema=1;child_pid=$(if($process){$process.Id}else{$null});exit_signed=$exitCode;exit_hex=$(if($null -ne $exitCode){'0x'+([BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$exitCode),0)).ToString('X8')}else{$null});last_progress=$lastProgress;wrapper_failure=$failure;debugger_requested=[bool]$CaptureCrashDump;debugger_error=$(if($debugger){$debugger.Error}else{$null});crash_dumps=$(if($debugger){$debugger.Dumps}else{0});host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';ncmm_commit=$bundle.ncmm_source_commit;engine_commit=$bundle.source_commit;focused_gpu=[bool]$FocusedGpuBenchmark;movement=[bool]$MovementBenchmark} | ConvertTo-Json | Set-Content (Join-Path $evidence 'first-person-process-result.json') -Encoding UTF8
     try { if($CaptureCrashDump -and (Test-Path -LiteralPath $DumpAnalyzer) -and (Test-Path -LiteralPath (Join-Path $evidence 'first-person-debug-events.log'))){
         $events=Get-Content -LiteralPath (Join-Path $evidence 'first-person-debug-events.log') -Raw
@@ -329,7 +338,7 @@ public static class NCMMBenchmarkWindow {
         else{[Environment]::SetEnvironmentVariable($name,$prior[$name],'Process')}
     }
     $runtime=Join-Path $test 'ncmm'
-    if(Test-Path $runtime){Get-ChildItem $runtime -File | Where-Object {$_.Name -like 'first-person-*' -or $_.Extension -eq '.log'} | Copy-Item -Destination $evidence}
+    if(Test-Path $runtime){Get-ChildItem $runtime -File | Where-Object {$_.Name -like 'first-person-*' -or $_.Name -like 'vehicle-*' -or $_.Extension -eq '.log'} | Copy-Item -Destination $evidence}
     foreach($name in @('debug.log','debug.log.prev','crash.log')){
         $nativeLog=Join-Path $test ('config/'+$name)
         if(Test-Path $nativeLog){Copy-Item $nativeLog (Join-Path $evidence ('first-person-cdda-'+$name))}
@@ -348,7 +357,7 @@ if($exitCode -ne 0){
 }
 if($debugger -and $debugger.Error){throw "Native diagnostic debugger failed: $($debugger.Error)"}
 if($debugger -and $debugger.Dumps -gt 0){throw 'Native diagnostic captured an access violation even though the process exited successfully.'}
-$auditName=if($StaticStairProbe){'first-person-static-stair-audit.json'}elseif($FpsInputProbe){'first-person-fps-input.json'}elseif($TargetHudGallery){'first-person-target-audit.json'}elseif($HeldAssetGallery){'first-person-held-gallery.json'}elseif($CameraInputProbe){'first-person-camera-input.json'}elseif($TraceCaptureScene){'first-person-nsight-scene.json'}elseif($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
+$auditName=if($VehicleGallery){'first-person-vehicles.json'}elseif($StaticStairProbe){'first-person-static-stair-audit.json'}elseif($FpsInputProbe){'first-person-fps-input.json'}elseif($TargetHudGallery){'first-person-target-audit.json'}elseif($HeldAssetGallery){'first-person-held-gallery.json'}elseif($CameraInputProbe){'first-person-camera-input.json'}elseif($TraceCaptureScene){'first-person-nsight-scene.json'}elseif($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
 if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
 if($SightCacheComparison){
     foreach($scene in @('street','multi_level_horde','city_blocks')){
@@ -356,7 +365,13 @@ if($SightCacheComparison){
         if($comparison.schema -ne 3 -or $comparison.candidate -ne 'exact_standard_integer_distance_original_exponent' -or $comparison.metric_preserved -ne $true -or $comparison.distance_metric -notin @('square','circular') -or $comparison.success -ne $true -or $comparison.actual_cdda_sdl -ne $true -or $comparison.same_process -ne $true -or $comparison.scene -ne $scene -or @($comparison.samples).Count -ne 9){throw 'Native sight-distance comparison is missing or incomplete.'}
     }
 }
-if($StaticStairProbe){
+if($VehicleGallery){
+    $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
+    if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda -ne $true -or $audit.manual_playthrough -ne $false -or $audit.native_parts_verified -ne $true){throw 'Native vehicle gallery is incomplete.'}
+    $summary=@($audit.frames | Where-Object {$_.label -eq 'soak-summary'})
+    if($summary.Count -ne 1 -or $summary[0].requested_seconds -ne $VehicleSoakSeconds -or $summary[0].elapsed_seconds -lt $VehicleSoakSeconds){throw 'Native vehicle long run did not complete.'}
+    $soaked=$summary[0].elapsed_seconds
+}elseif($StaticStairProbe){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
     if($audit.schema -notin @(1,2) -or $audit.success -ne $true -or $audit.diagnostic_only -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.renderer -ne 'cpu' -or $audit.width -ne 640 -or $audit.height -ne 480 -or @($audit.cases).Count -ne 3){throw 'Static terrain-stair diagnostic evidence is incomplete.'}
     # The separate pixel/ledger verifier determines confirmed vs inconclusive.
@@ -435,6 +450,7 @@ if($StaticStairProbe){
     $soaked=$audit.soak.actual_wall_seconds
 }
 $result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;extended_matrix=[bool]$Extended;full_size_gpu_matrix=[bool]$FullSizeGpuMatrix;viewmodel_gallery=[bool]$ViewmodelGallery;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
+$result['vehicle_gallery']=[bool]$VehicleGallery
 $result['camera_input_probe']=[bool]$CameraInputProbe
 $result['fps_input_probe']=[bool]$FpsInputProbe
 $result['static_stair_probe']=[bool]$StaticStairProbe

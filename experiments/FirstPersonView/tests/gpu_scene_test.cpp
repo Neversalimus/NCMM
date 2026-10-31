@@ -2,6 +2,7 @@
 #include "ncmm_gpu_backend.hpp"
 #include "gpu_scene.hpp"
 #include "world_visual_fixture.hpp"
+#include "opaque_depth_fixture.hpp"
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -56,6 +57,41 @@ int main(int argc,char **argv){
         SDL_ReleaseGPUFence(device,fence);
     }
     ncmm_gpu::backend engine;require(engine.bind(renderer,1),"borrow existing device");engine.profile();
+    {
+        // Warm Legacy chunks must be replaced on a Modular toggle. The part
+        // mesh is instanced separately, so retaining Legacy here draws both.
+        namespace fp=first_person;constexpr unsigned side=16,count=side*side,at=8*side+8;
+        std::array<ncmm_graphics_cell_v1,count> cells{};std::array<ncmm_graphics_cell_v2,count> details{};
+        for(unsigned i=0;i<count;++i){cells[i].flags=NCMM_GFX_VISIBLE;std::strcpy(cells[i].terrain,"t_pavement");
+            std::strcpy(details[i].ground,"t_pavement");details[i].light_r=details[i].light_g=details[i].light_b=1;}
+        details[at].vehicle_features=NCMM_VEH_FRAME|NCMM_VEH_BOARD;details[at].vehicle_group=1;details[at].vehicle_x=details[at].vehicle_y=8.5f;details[at].vehicle_health=1;
+        ncmm_graphics_scene_v2 source{};source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,side,side,8.5f,12.5f,cells.data(),count};
+        source.details=details.data();source.detail_count=count;source.environment.daylight=1;source.environment.sun_z=1;
+        fp::hybrid::presentation_data metadata;metadata.view.struct_size=sizeof(metadata.view);metadata.view.eye_height=1.55f;metadata.view.body_scale=1;metadata.view.held_length=.6f;metadata.cells.resize(count);
+        fp::vehicle::presentation vehicle;vehicle.input.enabled=true;vehicle.input.scene.world_epoch=1;vehicle.input.scene.revision=1;vehicle.input.scene.level_height=3.2f;
+        ncmm_graphics_vehicle_v1 car{};car.entity_id=7;car.structure_revision=car.state_revision=1;car.legacy_group=1;car.part_count=1;car.origin_x=car.origin_y=8.5f;vehicle.input.vehicles.push_back(car);
+        ncmm_graphics_vehicle_part_v1 part{};part.part_id=9;part.cell_index=at;part.features=NCMM_VP_FRAME|NCMM_VP_FLOOR;part.state=NCMM_VP_EXISTS;part.health=1;
+        std::strcpy(part.id,"frame");part.color[0]=part.color[1]=part.color[2]=.4f;part.color[3]=1;vehicle.input.parts.push_back(part);vehicle.observe({8.5f,12.5f,1.55f});
+        fp::gpu::scene_cache cache;fp::hybrid::frame statistics;fp::gpu::packet legacy,modular,warm,restored;
+        auto build=[&](fp::gpu::packet &packet){require(cache.build(source,-fp::hybrid::pi*.5f,-.1f,{},packet,statistics,engine.metrics(),{},&metadata,nullptr,640,480,NCMM_GPU_FORCE),cache.last_reason.c_str());};
+        build(legacy);metadata.vehicles=&vehicle;build(modular);require(cache.generated_cells>0,"Legacy to Modular invalidates static vehicle chunks");
+        const auto scans=cache.vehicle_pass_scans;require(scans==2,"opaque component checks its present and absent passes once");
+        build(warm);require(cache.generated_cells==0,"unchanged Modular retains warm terrain chunks");
+        require(cache.vehicle_pass_scans==scans,"warm opaque component neither scans nor allocates its absent transparent pass");
+        vehicle.input.vehicles[0].origin_x+=.1f;vehicle.input.scene.seconds+=.1;vehicle.observe({8.5f,12.5f,1.55f});
+        fp::gpu::packet moving;build(moving);require(cache.generated_cells==0,"instance motion does not rebuild static terrain");
+        require(cache.vehicle_pass_scans==scans,"rigid motion reuses both positive and negative component pass results");
+        vehicle.input.parts[0].features=NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD;
+        ++vehicle.input.vehicles[0].structure_revision;++vehicle.input.vehicles[0].state_revision;
+        ++vehicle.input.scene.revision;vehicle.observe({8.5f,12.5f,1.55f});
+        fp::gpu::packet glass,glass_warm;build(glass);
+        require(cache.vehicle_pass_scans>scans,"changed component recipe cannot inherit an old negative pass result");
+        require(std::any_of(glass.draws.begin(),glass.draws.end(),[](const auto &d){return d.pass==NCMM_GPU_TRANSPARENT;}),
+            "real glazing retains its transparent GPU pass after an opaque recipe");
+        const auto glass_scans=cache.vehicle_pass_scans;build(glass_warm);
+        require(cache.vehicle_pass_scans==glass_scans,"warm mixed/glass recipe also avoids repeated pass scans");
+        metadata.vehicles=nullptr;build(restored);require(cache.generated_cells>0,"Modular to Legacy restores static vehicle geometry");
+    }
     ncmm_gpu_scene_v1 scene{};scene.struct_size=sizeof(scene);scene.width=640;scene.height=480;scene.mode=NCMM_GPU_FORCE;scene.frame_serial=1;
     auto &camera=scene.camera;camera.right[0]=1;camera.up[2]=1;camera.forward[1]=1;camera.projection[0]=640;camera.projection[1]=480;camera.projection[2]=457;camera.projection[3]=512;
     camera.sun[2]=1;camera.sun[3]=1;camera.sky_top[2]=.4f;camera.sky_bottom[0]=.3f;camera.sky_bottom[1]=.4f;camera.sky_bottom[2]=.5f;camera.grid[0]=camera.grid[1]=camera.grid[2]=1;
@@ -669,6 +705,26 @@ int main(int argc,char **argv){
         submit_focus();
         require(engine.focus_cell()==1&&engine.metrics().target_cell==1,"held overlays never steal the world interaction target");
     }
+    {
+        // Device test only: a real emitting lens must remain bright in an
+        // unlit scene while the identical unpowered material stays dark.
+        ncmm_gpu_scene_v1 lamp{};lamp.struct_size=sizeof(lamp);lamp.width=640;lamp.height=480;lamp.mode=NCMM_GPU_FORCE;lamp.frame_serial=1970;
+        lamp.camera.right[0]=1;lamp.camera.up[2]=1;lamp.camera.forward[1]=1;
+        lamp.camera.projection[0]=640;lamp.camera.projection[1]=480;lamp.camera.projection[2]=457;lamp.camera.projection[3]=512;
+        lamp.camera.grid[0]=lamp.camera.grid[1]=lamp.camera.grid[2]=1;
+        ncmm_gpu_cell_v1 dark{};dark.flags=NCMM_GFX_VISIBLE|NCMM_GFX_CEILING;lamp.cells=&dark;lamp.cell_count=1;
+        std::array<ncmm_gpu_vertex_v1,3> points{};
+        for(unsigned n=0;n<3;++n){points[n].position[0]=n==0?-1.f:n==1?1.f:0.f;points[n].position[1]=2;points[n].position[2]=n==2?1.f:-1.f;points[n].normal[1]=points[n].face_normal[1]=-1;}
+        ncmm_gpu_material_v1 lens{};lens.color[0]=.95f;lens.color[1]=.85f;lens.color[2]=.60f;lens.color[3]=1;
+        ncmm_gpu_mesh_v1 lamp_mesh{0x4c414d50,points.data(),indices,&lens,3,3,1,0};lamp.meshes=&lamp_mesh;lamp.mesh_count=1;
+        const auto identity=first_person::gpu::identity();lamp.bones=&identity;lamp.bone_count=1;
+        ncmm_gpu_draw_v1 command{};command.mesh_key=lamp_mesh.key;command.transform=identity;command.bone_count=1;lamp.draws=&command;lamp.draw_count=1;
+        require(engine.submit(lamp),engine.metrics().reason);const auto unpowered=capture("-lamp-off");
+        require((unpowered>>24)<20&&((unpowered>>16)&255)<20,"unpowered lens stays dark at zero ambient");
+        lens.flags=NCMM_GPU_EMISSIVE;++lamp_mesh.key;command.mesh_key=lamp_mesh.key;++lamp.frame_serial;
+        require(engine.submit(lamp),engine.metrics().reason);const auto powered=capture("-lamp-on");
+        require((powered>>24)>180&&((powered>>16)&255)>150,"emitting lens stays bright at zero ambient without inventing surrounding illumination");
+    }
     // Leave work and an SDL composition queued while replacing the backend.
     // No read-pixels or explicit fence wait may accidentally serialize this path.
     scene.meshes=&mesh;scene.mesh_count=1;scene.draws=&draw;scene.draw_count=1;scene.textures=nullptr;scene.texture_count=0;
@@ -679,7 +735,11 @@ int main(int argc,char **argv){
             require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"queue SDL sampling before teardown");}
         engine.clear();require(!engine.metrics().active&&engine.resources().bytes()==0&&engine.recording().frame_upload_capacity_bytes==0&&engine.recording().cell_cache_bytes==0,"in-flight teardown drains and clears resources including staging and source cells");
     }
+    #include "vehicle_closed_gpu_test.inc"
     #include "world_visual_gpu_test.inc"
+    #include "opaque_depth_gpu_test.inc"
+    #include "glass_gpu_test.inc"
+    #include "plain_gpu_test.inc"
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();
     SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();

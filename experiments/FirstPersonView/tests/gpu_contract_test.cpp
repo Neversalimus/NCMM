@@ -30,6 +30,7 @@ int main() {
     mesh.vertex_count=NCMM_GPU_MAX_VERTICES+1;check(ncmm_gpu::validate(s));mesh.vertex_count=3;
     vertices[0].material=1;check(ncmm_gpu::validate(s));vertices[0].material=0;
     material.flags=~4095u;check(ncmm_gpu::validate(s));material.flags=0;
+    material.flags=NCMM_GPU_EMISSIVE;check(!ncmm_gpu::validate(s));material.flags=1u<<15;check(ncmm_gpu::validate(s));material.flags=0;
     draw.bone_offset=UINT32_MAX;check(ncmm_gpu::validate(s));draw.bone_offset=0;
     draw.cell=1;check(ncmm_gpu::validate(s));draw.cell=0;
     draw.transform.columns[2]=std::numeric_limits<float>::infinity();check(ncmm_gpu::validate(s));draw.transform=identity;

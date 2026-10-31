@@ -120,6 +120,32 @@ jobs:
                   target=dest/pathlib.Path(relative);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(zipped.read(entry))
           pathlib.Path('official-data-identity.json').write_text(json.dumps(dict(tag=tag,archive=name,sha256=sha,only_data_used=True))+'\n')
           PY
+      - name: Actual Native modular vehicles and matched CPU GPU gallery
+        run: |
+          mapfile -t lavapipe_icds < <(dpkg-query -L mesa-vulkan-drivers:amd64 | awk '/\/lvp_icd[^/]*\.json$/')
+          test "${#lavapipe_icds[@]}" -eq 1
+          export VK_DRIVER_FILES="${lavapipe_icds[0]}"
+          xvfb-run -a -s '-screen 0 1920x1200x24' python3 -B ncmmrepo/experiments/FirstPersonView/tests/run_native_linux.py --engine upstream --data official-data --modules linux-modules --output linux-vehicle-results --build '${{ matrix.build }}' --mode vehicles
+      - name: Preserve bounded exact source vehicle review sheets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vehicle-review-linux-${{ matrix.build }}
+          path: linux-vehicle-results/vehicle-review/*
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Preserve full Native vehicle captures and receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vehicle-native-linux-${{ matrix.build }}
+          path: |
+            linux-vehicle-results/evidence/**
+            linux-vehicle-results/process-results.json
+            linux-vehicle-results/linux-native-verified.json
+          if-no-files-found: warn
+          compression-level: 9
+          retention-days: 7
       - name: Actual Native controls, camera and every compiled gameplay feature
         run: |
           mapfile -t lavapipe_icds < <(dpkg-query -L mesa-vulkan-drivers:amd64 | awk '/\/lvp_icd[^/]*\.json$/')

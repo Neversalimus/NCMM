@@ -80,10 +80,11 @@ void graphics_clear_gpu();
 void graphics_release_mouse();
 void graphics_cancel_animation();
 void graphics_clear_world();
+void graphics_forget_vehicle_client();
 
 void graphics_erase( const std::string &id )
 {
-    if( graphics_view.owner == id ) { graphics_release_mouse(); graphics_fps_reset(); graphics_cancel_animation(); graphics_context.reset(); graphics_view = {}; graphics_clear_hybrid(); }
+    if( graphics_view.owner == id ) { graphics_release_mouse(); graphics_fps_reset(); graphics_cancel_animation(); graphics_context.reset(); graphics_view = {}; graphics_clear_hybrid(); graphics_forget_vehicle_client(); }
 }
 
 int graphics_register( const char *id, ncmm_graphics_render_v1 render,
@@ -198,6 +199,7 @@ bool graphics_action( const std::string &action )
 }
 
 bool graphics_world_needs_redraw();
+bool graphics_vehicle_needs_redraw();
 #include "ncmm_graphics_controls.inc"
 #include "ncmm_graphics_held.inc"
 #include "ncmm_graphics_hybrid.inc"

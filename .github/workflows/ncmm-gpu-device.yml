@@ -53,11 +53,20 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'GPU probe build failed.'}
       - name: Require real draw commands, hardware depth and ordinary SDL UI
         run: ctest --test-dir gpu-build -C Release -R "gpu_probe|gpu_contract|gpu_scene" --output-on-failure
+      - name: Verify pure numeric scratch diagnostics
+        run: python -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
       - name: Compare every existing normalized GPU image with the original scratch policy
+        id: scratch_pixels
         shell: pwsh
         run: |
           python -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-pair --toolchain-file "$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" --vcpkg-triplet x64-windows-static --vcpkg-installed-dir "$PWD/gpu-upstream/msvc-full-features/vcpkg_installed/x64-windows-static" --shader-header gpu-shader-bytes.hpp
           if($LASTEXITCODE -ne 0){throw 'Full scratch-reuse pixel comparison failed.'}
+      - name: Diagnose inputs after the original pixel gate fails
+        if: ${{ failure() && steps.scratch_pixels.outcome == 'failure' }}
+        shell: pwsh
+        run: |
+          python -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-inputs --toolchain-file "$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" --vcpkg-triplet x64-windows-static --vcpkg-installed-dir "$PWD/gpu-upstream/msvc-full-features/vcpkg_installed/x64-windows-static" --shader-header gpu-shader-bytes.hpp --trace-inputs
+          if($LASTEXITCODE -ne 0){throw 'Semantic scratch input diagnostic retained differences.'}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,6 +75,7 @@ jobs:
             gpu-build/gpu-probe.*
             gpu-build/gpu-scene*
             scratch-pair/comparison.json
+            scratch-inputs/comparison.json
             scratch-pair/build.log
             scratch-pair/reference/run/
             scratch-pair/candidate/run/
@@ -100,8 +110,14 @@ jobs:
           cmake -S experiments/FirstPersonView -B gpu-build -DCMAKE_BUILD_TYPE=Release -DSDL3_DIR="$PWD/gpu-sdl-build" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
           cmake --build gpu-build --parallel 2 --target first_person_gpu_probe_tests first_person_gpu_contract_tests first_person_gpu_scene_tests
           ctest --test-dir gpu-build -R "gpu_probe|gpu_contract|gpu_scene" --output-on-failure
+      - name: Verify pure numeric scratch diagnostics
+        run: python3 -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
       - name: Compare every existing normalized Vulkan image with the original scratch policy
+        id: scratch_pixels
         run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-pair --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp
+      - name: Diagnose inputs after the original pixel gate fails
+        if: ${{ failure() && steps.scratch_pixels.outcome == 'failure' }}
+        run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-inputs --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp --trace-inputs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -110,6 +126,7 @@ jobs:
             gpu-build/gpu-probe.*
             gpu-build/gpu-scene*
             scratch-pair/comparison.json
+            scratch-inputs/comparison.json
             scratch-pair/build.log
             scratch-pair/reference/run/
             scratch-pair/candidate/run/
@@ -131,33 +148,33 @@ jobs:
           from pathlib import Path
           import hashlib,json,os
           files={
-            'experiments/FirstPersonView/CMakeLists.txt':'aab17d6085cee2db2ed3fccd80dc80d55eb0bd10a9ce3a9e98caf935fd3741c5',
+            'experiments/FirstPersonView/CMakeLists.txt':'caa06ca3b0a9a37110bc5153aba83bd20e2173d3f19c79ef8b83410da3f192a1',
             'experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp':'d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597',
             'experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp':'f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b',
-            'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'b60edf4b3c56168023d89d777ab019e67dc2cc9f5ac68f6672f75e442eb8ca0c',
+            'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'8244b1e3875cb512ae76cabb1db56344fca059894d2c2d809b4f82d5696f7bfa',
             'experiments/graphics_bridge/ncmm_gpu_geometry.hpp':'0b4908e30c9855d78466fad31f9c194a057268d4d2a82d1397fb57c504618e9d',
-            'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'2c6a31754b82c6b1bec8b03efaffc97603132107d16b604b0ad60265bcc4f6d4',
+            'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'d5b57fc33ba9edba2e7767f43ba2e16791fed2392c292c7279732fd8c00465bd',
             'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'3b5ce5f1c95e4a156be4dad5e6896c60217f557491156cf953952e7ec0a95dd4',
-            'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'db76b642ab0661cbffbae74027f7eba48c65668b12ee603e90a8cc7d6ea32230',
+            'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'0cdf06765fc7594f5c04e572208328e07a0d4952fef2a8a917f8dd07eaae4a6f',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'e7ca95216b84c3bfdb34bcf9c2638a8d46696b8eda28014a5c18511c1e38a16d',
-            'experiments/FirstPersonView/src/gpu_scene.hpp':'24661c47add9376adb213a88472625ea9b3961baa8eea2b66b688d71a657f543',
-            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'480937e741960684afab3cd14b6a9cf864317bf8002b899812d5d710fedbd3dd',
+            'experiments/FirstPersonView/src/gpu_scene.hpp':'75263464ca66efd018c7840a13a62aa2be632056cc45cb2385234a106980177e',
+            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'1beaac1e74f235651c3ea1e1f6383bbdbc3584ad352610ba55919fb38f5f3216',
             'experiments/FirstPersonView/tests/viewmodel_gpu_test.cpp':'4297305f7cc2f99026373322b42b6bcc07ec97c01da8af706a564296608bd3ef',
             'experiments/FirstPersonView/src/multilevel_geometry.inc':'3adae8955b66dc15c9faa2baddcb74b78afcc6702a4031227f85b472f22c4de4',
             'experiments/FirstPersonView/src/grass.inc':'d9ccc9eb4c0f0e0fb92f074cdee8bed96b27ea9a3f3f87a6c7262d8bdc16c5b8',
-            'experiments/FirstPersonView/tests/gpu_scene_test.cpp':'287043d0ae0bff000702d986573c1079b53e7fee8ce73cb328735381d43bcd89',
+            'experiments/FirstPersonView/tests/gpu_scene_test.cpp':'5d62508ab678340bfd347c22ab8e5d0dcbcc29eca52fcdb7a19c2945162000b1',
             'experiments/graphics_bridge/ncmm_graphics_grass.hpp':'f8ac493f441696db0e0f24453d605348346c418a767ff5272e002d0f52c45899',
             'experiments/graphics_bridge/ncmm_world_policy.hpp':'936cc107be1833a7d1011555b1cd041ce0f5e6c322c6c3615a10e88c8799478a',
             'experiments/FirstPersonView/src/rail.inc':'701ca6374ab6c49a0c6700aa2a1d20f1fb63eb4787377cba344bd4f115ade0ad',
             'experiments/graphics_bridge/ncmm_graphics_rail.hpp':'cc6add27ab26abc50af75cab79b89785d2f6707cf3b4a1ce2694fac779cec914',
             'experiments/graphics_bridge/fps_input_bridge.py':'c74da6bba6ea4f07f17074bb556820fdcafcf2364d6e39ebfda4f4606de779c7',
             'experiments/graphics_bridge/ncmm_graphics_input.hpp':'cdf6d40cab9b09d3afd02a4b87f0ca4fb236456cff4c82c9265dc190c802aa98',
-            'experiments/graphics_bridge/ncmm_graphics_fps.inc':'7b69c3da0ba0266f73d6401719e3f5dbca004c67f15dd4d603e42b9f0eb00f9a',
-            'experiments/graphics_bridge/ncmm_graphics_controls.inc':'6435696a65a5ef7751653ca858551bb3faa702c1e8a98cbe486d28d01fc045e5',
-            'experiments/graphics_bridge/ncmm_graphics_presentation.inc':'40394124c431569c9867bc587876d3b2a6ba79b2ba3c679a47109955aaad90ca',
+            'experiments/graphics_bridge/ncmm_graphics_fps.inc':'01f37ec8e4d760c9cca23acf1edef43fe1d4f66d0d8d548f865671ae639228db',
+            'experiments/graphics_bridge/ncmm_graphics_controls.inc':'8f65ac43c1ba26c590786e2a54ff88e3b2c9cf3e7a18e3c320738700f3af690a',
+            'experiments/graphics_bridge/ncmm_graphics_presentation.inc':'a6e804fd6843cc795e15431b2309f61f935712451a5cefdc06ee513e27429410',
             'experiments/graphics_bridge/ncmm_graphics_presentation.h':'cc7d7db6318db55c9408083ba1dcec29b2b13228f3d5f06097f1f4a70f6237fa',
             'experiments/FirstPersonView/src/animation.hpp':'c759ce3b3de4702f9b9c327a1250f7e36810773b83808cbd45e40a5b9cc426f5',
-            'experiments/FirstPersonView/src/module.cpp':'ef52b426292f79c3c3ee6a255ed3b92702641e57a1d1e8ca0d597f8201f1984c',
+            'experiments/FirstPersonView/src/module.cpp':'4841a95ad26a0ccafb053f2c3e984446d0a262b48f37163311d9fbeb699eeef8',
             'experiments/FirstPersonView/tests/held_runtime_test.cpp':'b86778cd234fc22fbae0d990ae534d13b7572ab9ba29348a4ed9bab3cfbd679f',
             'experiments/FirstPersonView/src/terrain_edges.inc':'adf9497199b76d5a4a0bc36f61b0abb1b51d3434d5037752e99845639b30cd21',
             'experiments/FirstPersonView/src/world_objects.inc':'7ee00f3d49a04cfccff9be195d49bfc2f6f8b99c4803d3531021693061c5cd4c',
@@ -177,10 +194,10 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_held.h':'98433bda5f7d343aed1421db5e280f101d315f52c6db591806997fe088110bc2',
             'experiments/graphics_bridge/ncmm_graphics_held.inc':'b8e1362606f87abd1e81e110e3066eae220637054ea6b68fbad658a8b48098ec',
             'experiments/graphics_bridge/ncmm_graphics_effects.inc':'b12053892afece39efdd33f7856d0dcc6ecab059eb78b410e367d025f1bf2f15',
-            'experiments/graphics_bridge/ncmm_graphics_hybrid.inc':'a3e4827726e80ce717ac922935ebb01e053242eb79c4260f3b95837f7cfa0641',
+            'experiments/graphics_bridge/ncmm_graphics_hybrid.inc':'11c8b7b8af7c00f3a9347ecb6804ca731f19daaee2aa6452cd2e8abbc42d0661',
             'experiments/graphics_bridge/ncmm_graphics_fps_audit.inc':'b12ccc3315de947c0adfc0f4301e1fa403dabbb99aaedc3cc288b87ac01316a5',
-            'experiments/graphics_bridge/ncmm_graphics_smoke.inc':'c87d57d5c5394e0d13386c994660b7376f41362c6f94a739d28ee7b7628bb2b4',
-            'experiments/FirstPersonView/Build-FirstPersonInstaller.ps1':'0570b635fec861e9de985ca53015c69d5960ff1bcce3be7a0506f01e78094483',
+            'experiments/graphics_bridge/ncmm_graphics_smoke.inc':'e0f4c9c87ca8e5d5dd4b4dc6928e27e1f8a9bee13f5e954ba0cfdbcd2138c0e7',
+            'experiments/FirstPersonView/Build-FirstPersonInstaller.ps1':'b2512a212c2ab59f5dda3cc731abb17eb02db28b3c75628305722e4fa09238d4',
             'experiments/FirstPersonView/FirstPersonInstallerBridge.cs':'c4bdedf2ba160d65801b0553d244b9a176042863cf4765aae61b9b05bfb9d420',
             'experiments/FirstPersonView/src/viewmodel.cpp':'efe9160712cfc81e77b9e75a8b4d858254316d59407ced72e960612d1f602862',
             'experiments/FirstPersonView/src/viewmodel.hpp':'5921fb04c4393cb5b1fc74d1abf00e74d30caa20506571a42e7d2517370da360',
@@ -202,15 +219,15 @@ jobs:
             'experiments/FirstPersonView/assets/world_props/SOURCE.json':'22a3ef12ffc34cb14c9cfae1618fffe96faaa27274debbfc32d614117979be47',
             'experiments/graphics_bridge/ncmm_graphics_locomotion.hpp':'0ec06b783ec4286999d2d83e8b45a4c0111022996fb0ea23ffbb92b049d01ffd',
             'experiments/graphics_bridge/ncmm_graphics_locomotion.inc':'a3403f4f55a9a786877ba8a678caa564ec266a0d6348aaa941a64402c5fcf91f',
-            'experiments/graphics_bridge/ncmm_graphics_bridge.inc':'87588e3fe508151f10ff8969b043868787ab074ad100a6791c45a99483c07b77',
+            'experiments/graphics_bridge/ncmm_graphics_bridge.inc':'8bdfd209757a3a0b53294bc21a4791970e486309f1b840280e36637cd81d04db',
             'experiments/graphics_bridge/ncmm_graphics_world.inc':'7d9e56759122f2f46bbd7ebf3aae64c74bf92b025e33b3acda656d673d239633',
-            'experiments/FirstPersonView/src/gpu_packet.hpp':'68c8fac6edd8fa779d7a1e6b812107ec7f566a719b870ac58d0f474b0b7ed7ed',
+            'experiments/FirstPersonView/src/gpu_packet.hpp':'b2e0bffecea856f26330e26703e1d750f3f5ba835c0175a8abcba1941a1f3068',
             'experiments/FirstPersonView/tests/locomotion_test.cpp':'d66cbe4b2fa22f79ac94d24948967ad4a0320051d8142fd0db7ac7f6c4bd4947',
-            'experiments/FirstPersonView/tests/gpu_contract_test.cpp':'e60eefa8fa0a67094d9da1a31f39490439829bd427f371d7ca9459ec2b55abd3',
+            'experiments/FirstPersonView/tests/gpu_contract_test.cpp':'f2a03e88a35f7fbc417da9227f3d6b76092508913759edfd679099f6e97d2a25',
             'experiments/FirstPersonView/tests/multilevel_module_test.cpp':'573ef120b4dce032ffd2817ecc474186649320f67fd5fe7171a4e176e7fcff4f',
             'experiments/FirstPersonView/tests/verify_fps_audit.py':'ba70877b4fe8ce547e32be19ad69faf18caa4e71a85c50380f58c296c20f50a9',
             'experiments/FirstPersonView/tests/test_verify_fps_audit.py':'100968678ebd8779d8d272d2435b49b36b3a559e9d3921eee288730b90a05258',
-            'experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1':'6bd35fd9ac17d6e9cc979a4567ede266bdcb5a6979baa532e1b7a4244b2e7826',
+            'experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1':'224237844e25fdc0e50f452a7a855c71cca1e261a1ff6d5e91420f7bb0420891',
             'experiments/FirstPersonView/src/liquid_surface.hpp':'888adcdc8d1aa5961cc183aeef57f8db8dc62a10a59f6e777ed9e64c7e2b3610',
             'experiments/FirstPersonView/src/liquids.inc':'68a93c31216b56c315544ec62945d63b8a0936408ac11c6438886b075d6550e2',
             'experiments/FirstPersonView/src/projectile_assets.hpp':'935dd03ff3ab71e734cf5a997df56c7e32ebc1b96f14eb93037bba07529aed28',
@@ -220,7 +237,7 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_projectiles.h':'fe0917662db6932f84e90174b6c0970380fb560f0e31a8d715776c524f4829ac',
             'experiments/graphics_bridge/ncmm_graphics_projectiles.inc':'b66eaec1988ba9757950f13cb15dd49fed9903f26836918d56466a62ce7fc8f6',
             'experiments/graphics_bridge/ncmm_graphics_snapshot_cache.hpp':'200f3088ddf4c719d8df4d13b2350770dd632c648ad087f423d934adc4435e8b',
-            'experiments/graphics_bridge/test_apply_graphics_bridge.py':'fc9d64af4334eafabbebdfa79a63e690ad8045a8249127c1468723c4c8fed7aa',
+            'experiments/graphics_bridge/test_apply_graphics_bridge.py':'e121aab362d13db8f113985ecd1dc90a0aa4ce62689e5f5843f3f3bfa440e1c0',
             'experiments/FirstPersonView/tests/Test-CompilerWrapper.ps1':'3b8e80a9180241c2144a92f0902cfd4ab15c7b3d7d190ab375128ef7f5110633',
             'experiments/FirstPersonView/tests/multilevel_cache_test.cpp':'f49096300b96f8324507f21b39b762f299e7fe4678a64a9382e2e849d71a62ba',
             'experiments/graphics_bridge/ncmm_world_cache.hpp':'b4cbe4e3774dfdb17c2e395bf23a0a1bc9b51b840a551f06f54cbde0da3c9080',
@@ -235,7 +252,7 @@ jobs:
             'experiments/FirstPersonView/tests/snapshot_storage_test.cpp':'0c8e0267dcff19d08ea34ad0033899b5d82f283422f60bcbac7eba31cf86afff',
             'experiments/FirstPersonView/reports/night-static-boundary-preparation-20261027.json':'08a7888ac121a67ce4eecda0231242f309148cb643127d8c7bad3b31edc1029e',
             'experiments/FirstPersonView/tests/skyline_host_fixture.hpp':'3bd6b9ac14b72cbe1b9d6ae7907803fbe1acf64faa16c2645ee77e1b241984a0',
-            'experiments/graphics_bridge/apply_graphics_bridge.py':'14ec994bd796610827ed1ba848123c0636fc8d9cfb6e90330d7636f60f3c5404',
+            'experiments/graphics_bridge/apply_graphics_bridge.py':'0a441a3f99b74c3f5b99ea97bdb5c24790dd4260456e50b4b40125869e1001de',
             'experiments/graphics_bridge/ncmm_graphics_lod.inc':'94a554a5343d3e5fbfe7506596e4079bcb98cd62e5b16abdc12f794aa8ee8321',
             'experiments/graphics_bridge/ncmm_graphics_multilevel.h':'5c8292ca3fca90fe8686cb32ce15cbd0bf8c78fc2e5ffc766d36af6a708741cd',
             'experiments/graphics_bridge/ncmm_world_lod.hpp':'e3fff61d1cc606d651e9b45c002e683b1b3e2ea2144005610a68df0aa3cafe60',
@@ -244,8 +261,8 @@ jobs:
             'experiments/FirstPersonView/tests/test_verify_static_stair_audit.py':'105faba8ed56ff451a67eeaa8ba5ffb44103ea682d9b88682fc94caa554c1dd9',
             'experiments/FirstPersonView/tests/verify_static_stair_audit.py':'89fb1953a98a3d1f05e3b18ee77750495669eba5ad9cc620dd0a6cebf78df503',
             'experiments/graphics_bridge/ncmm_graphics_static_stair_audit.inc':'efaa7acb144a2ebfbaf294e99f4eba836daf76253992ca5bae0ca433f3209b0a',
-            'experiments/FirstPersonView/tests/test_verify_movement_phases.py':'fc8144f206dd3d5aad2cfd42c319f304689e61127d536d484095f21cc1cca3c5',
-            'experiments/FirstPersonView/tests/verify_horizon_release.py':'67c184652b21d7ff52eb049492ef69954235723d254779841f7641ae5ca6869c',
+            'experiments/FirstPersonView/tests/test_verify_movement_phases.py':'d8f40b4a9941074ad90f1ccff4c589cc84b5d409cfd36842a678bf00d04bf1b2',
+            'experiments/FirstPersonView/tests/verify_horizon_release.py':'c7e72179a9de7882212b0cb2e0295bc1fdfb6d8bd392e5282264789ee962e7a0',
             'experiments/graphics_bridge/ncmm_graphics_apparent_light.inc':'1d5e61f678ea4a1d55af1047267a5bba4ec392a7b0313198d8bd41ae0f0b5826',
             'experiments/graphics_bridge/ncmm_graphics_static_detail.inc':'c8cbe2f7026402bef93eab29115f1996ec44c64d18fc873423d378884575140d',
             'experiments/graphics_bridge/ncmm_graphics_candidate_range.inc':'5f2e16462cbab351939b34ee0b9c83888547b0911bed1347e40c19585fcdd3f7',
@@ -304,6 +321,56 @@ jobs:
             'experiments/FirstPersonView/src/volumes.inc':'928984f0bbaf7d2fb386a388a21c7d5eb0e884fdb5b3b5c55890e74c419bfdb6',
             'experiments/graphics_bridge/ncmm_gpu_resource_diagnostics.hpp':'a7f09e36af2d0bcd11da6ee055099ef7940ba37c69368bfaf688a079701a8d36',
             'experiments/FirstPersonView/tests/resource_diagnostics_test.cpp':'c2fa38a2f8561dcee4095f779e3c8b54b80bd451dc289c6342702219eeab7f75',
+            'experiments/FirstPersonView/assets/vehicles/generated/manifest.json':'212a3b62b540de0e6b75207bbcb1273cb71d36553cf348d95ecfb4b3935241fa',
+            'experiments/FirstPersonView/assets/vehicles/generated/vehicle_components.generated.cpp':'69c80349f0869031c4290a4ae54acaf8e837d4e94262c0686e4eb466fe8f218c',
+            'experiments/FirstPersonView/assets/vehicles/generated/vehicle_components.generated.hpp':'352d65af0c768804f4a3a0026fc8b316014223bebfbe6923354379bdd17cd4f6',
+            'experiments/FirstPersonView/assets/vehicles/selection.json':'ba550a196a7ecd858818ed6d8739d3d6158dc9ef93dc76dcc7daf21588e22895',
+            'experiments/FirstPersonView/assets/vehicles/source/License.txt':'c33b7f6453d134deae7b1b8493717d9ccfa754c25ab97f6de89b88f8fda19b00',
+            'experiments/FirstPersonView/assets/vehicles/source/Textures/colormap.png':'f3622a03a20c6696065cae9cbe391351be873508af190c2ebd1d420c055787a5',
+            'experiments/FirstPersonView/assets/vehicles/source/wheel-default.mtl':'45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060',
+            'experiments/FirstPersonView/assets/vehicles/source/wheel-default.obj':'c8ade934b7f340e1d52d2dfa168d170e3faf05a89055194d7a97602eaed6599d',
+            'experiments/FirstPersonView/assets/vehicles/source/wheel-truck.mtl':'45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060',
+            'experiments/FirstPersonView/assets/vehicles/source/wheel-truck.obj':'b4deed247fef1a193cd59b6b0f5ae46e9effb554dcc000153df6a706830e6673',
+            'experiments/FirstPersonView/src/vehicle_geometry.hpp':'c1c2983cfc57193ec7a0fa0632b36ad9f2747ca2d59236ac53cbf1c06222f8a5',
+            'experiments/FirstPersonView/src/vehicle_scene.hpp':'447429f2cfd362d378c868a6afe7cc242faee3676b717e52c11642baf7e9520f',
+            'experiments/FirstPersonView/src/vehicle_snapshot.hpp':'34e27bcb3dd07c003ecdeeb8d1b6e77e75f210788892e85e1744a887e418bcbd',
+            'experiments/FirstPersonView/src/vehicle_topology.hpp':'5b347a00cf65789e82b5aad4aa6c2afc3e9849c652939550bd0b25bc3367220d',
+            'experiments/FirstPersonView/tests/test_import_vehicle_components.py':'578c5d82130a6f872c844691c3b26ddca1a639e0a1a25dcd31b6251e84c32e9b',
+            'experiments/FirstPersonView/src/raster_dispatch.hpp':'e59ef2bfd8d8a16363182ffa65b3cd6ae034be96ff9c497e78f7ffb6d65045b2',
+            'experiments/FirstPersonView/tests/gpu_input_fingerprint.hpp':'6407914cc82d5250a9249085407181fca264c18725706ac57ab68d0b424867a4',
+            'experiments/FirstPersonView/tests/gpu_scratch_capture.inc':'51b295e9e853867f1f124cc4b2ad634d44aac461fa16674ff3aec343d554f816',
+            'experiments/FirstPersonView/tests/test_compare_scratch_inputs.py':'b4aa38bcba160d43ae93d61d8cb2360c8c840f0a9533fc913d6cd09733dac743',
+            'experiments/FirstPersonView/tests/vehicle_raster_test.cpp':'76c9dc92692c7defc947291bb6816b907056783dd508d694e838c7a759a0878f',
+            'experiments/FirstPersonView/tests/vehicle_snapshot_test.cpp':'a5cccca071b3a2ac0f9874862eca2526d8a3e31d939e95d219ef3102e25e1e59',
+            'experiments/FirstPersonView/tests/verify_vehicle_gallery.py':'e1c98f6446efc32dfc7532b0dfe1c5d597f6fb5f0db9dab5f6babbd240e79c3f',
+            'experiments/FirstPersonView/tools/import_vehicle_components.py':'eb3ad1e712185cc10bd2c97329d6fd3a2f761a97e3a24277d616ff5de417c705',
+            'experiments/graphics_bridge/ncmm_graphics_vehicle_qualification.inc':'9798a0f35ad77e7e22696bd6489d59e249cef9e9bc1cb2f425cd20d4b761cee2',
+            'experiments/FirstPersonView/tests/test_verify_vehicle_memory.py':'7a63df2d2c5029a3a31c41b84edab78325f8e5b11c114380cc0d96b88e6fe790',
+            'experiments/graphics_bridge/ncmm_gpu_programs.hpp':'4a8710c8ffbe45f1adbfeda1bb48ac35d13e371196d63326cd35cbe33162d948',
+            'experiments/FirstPersonView/src/vehicle_pixel_math.hpp':'6f13a39047bab9e3ec2edd6a972685a590aa5b712fd45202a217d18eead2aa50',
+            'experiments/FirstPersonView/tests/vehicle_closed_gpu_test.inc':'92fc8435e427ae0404e4232fd2a293ca15c64884afd3b59915aae9e5d286f0c1',
+            'experiments/graphics_bridge/ncmm_gpu_winding.hpp':'37d86cb05665f31263cc79751b7c7d7e912e7c949f1a66cbd88fa91d58a2fa73',
+            'experiments/FirstPersonView/tests/gpu_winding_test.cpp':'3dbffd16e18be1e5209cb05ec6b5744059ea4b013a405b704210d14ab301d605',
+            'experiments/FirstPersonView/shaders/geometry.frag':'43e53abfafac39b9608d5bfe750fb679d1d18b2186a1e0d27ddd7fc7a27ee23d',
+            'experiments/FirstPersonView/tests/opaque_depth_gpu_test.inc':'56ce286a261193f371656209cdcd577be6cd20650b05e9d58d857cf57171ea38',
+            'experiments/FirstPersonView/compile_gpu_shaders.py':'777b467144e5de97784baeec32f10e7f14f29cb1a1da43cb0d73b992fd833f52',
+            'experiments/graphics_bridge/ncmm_gpu_shader_bytes.hpp':'2cc32de4b04481bbd4cfcf7332edf27710d19acd971f79ca5e13512084efabc2',
+            'experiments/FirstPersonView/tests/opaque_depth_fixture.hpp':'ef85c632ca889d821c1e309c956fbac64c6997e086b2219de8ef3ad0a007129f',
+            'experiments/FirstPersonView/shaders/geometry_component.frag':'0834b531d2295ae62c88ec3299a2f8ed4c2fd77f7f7931be740d0f83e110bb4d',
+            'experiments/FirstPersonView/shaders/material_component.glsl':'d89e40608abdb65103aa9d44f19ea044e105e30864d14c753caae107e81bcb07',
+            'experiments/FirstPersonView/shaders/geometry_reflective.frag':'ed49940c3c1321492bb072840e5aa6d929a91f0c9d2796f42a31e9efe9f58ee1',
+            'experiments/FirstPersonView/shaders/geometry_glass.frag':'75e572c4f58627e68633a1ca526c278bbbee663b885a06822a460dadc15768c0',
+            'experiments/FirstPersonView/tests/glass_gpu_test.inc':'e760dcb7699769e28399ec3682d1bdb9365b91fed7423c2d418d1de2f3d43d78',
+            'experiments/FirstPersonView/shaders/geometry_plain.frag':'d789a6983af3250b67486332194513e278d4ea7cba8606d541045fc90007ce80',
+            'experiments/FirstPersonView/tests/plain_gpu_test.inc':'80920cd9b7279e1047b1dc2c83cbb0c083ea14781d4288dfe2590bf86d13212f',
+            'experiments/graphics_bridge/ncmm_graphics_vehicle_identity.hpp':'3216a71347c1194be6d0d451c97067e54d8fed54201850b898f47c0489acbc7d',
+            'experiments/graphics_bridge/ncmm_graphics_vehicle_policy.hpp':'5c05a07b389cdf0341845ab559f6803036653d64294673893c6f00fed744c79e',
+            'experiments/graphics_bridge/ncmm_graphics_vehicle_smoke.inc':'1638642fbbb850f7588dc68ad13c153df7107b33b5e747db9cc5bcb595e86603',
+            'experiments/graphics_bridge/ncmm_graphics_vehicles.h':'6d43919a3e7e2db339dfeeff78a99177679ab51b7091382024674d5cdacc4fde',
+            'experiments/graphics_bridge/ncmm_graphics_vehicles.inc':'3d85f9ecc9688489bc204458675fbd2ea24cb740ebaf630d16a792f1904fc442',
+            'experiments/graphics_bridge/test_vehicle_bridge.py':'276e4023f2ee4dea152a09ccd1d62b2d7afd17fb283521913da341cc3166fc05',
+            'experiments/graphics_bridge/vehicle_bridge.py':'168a58e40e14542dbc6642fb02d58eba0606a49cc49091495b8e40fec238191f',
+            'experiments/graphics_bridge/vehicle_interactions.py':'28039f99481b26a9331cbf66adcc295f49bb526245b29df836516368e6f7eb8f',
           }
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
@@ -339,8 +406,14 @@ jobs:
           cmake --build vertex-asan --parallel 2 --target first_person_gpu_resource_cache_tests first_person_gpu_scene_tests first_person_gpu_vertex_lease_edge_tests first_person_gpu_resource_failure_tests
       - name: Verify exact GPU bytes, lease lifetime, picking and depth without suppressions
         run: ctest --test-dir vertex-asan -R '^first_person_gpu_(resource_cache|scene|vertex_lease_edge|resource_failure)$' --output-on-failure -V
+      - name: Verify pure numeric scratch diagnostics
+        run: python3 -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
       - name: Compare all normalized Vulkan images with ASan UBSan and exit leak checks
+        id: scratch_pixels
         run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-pair-asan --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp --sanitize
+      - name: Diagnose inputs after the original pixel gate fails
+        if: ${{ failure() && steps.scratch_pixels.outcome == 'failure' }}
+        run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-inputs --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp --sanitize --trace-inputs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -349,6 +422,7 @@ jobs:
             vertex-source-proof.json
             lvp-fixture.json
             scratch-pair-asan/comparison.json
+            scratch-inputs/comparison.json
             scratch-pair-asan/build.log
             scratch-pair-asan/reference/run/
             scratch-pair-asan/candidate/run/

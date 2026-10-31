@@ -6,11 +6,15 @@
 #include <chrono>
 #include <tuple>
 
+#define NCMM_GPU_COMPONENT_GLASS_PROGRAM 1
+#define NCMM_GPU_COMPONENT_PLAIN_PROGRAM 1
 namespace ncmm_gpu {
 // Private diagnostics: CPU time spent preparing/recording commands, never GPU
 // execution timestamps. The public metrics V1 layout remains unchanged.
 struct recording_metrics {
     double batching_pick_ms=0,shadow_ms=0,world_ms=0,creature_ms=0,held_ms=0,volume_ms=0,compose_ms=0;
+    uint64_t glass_draws=0;
+    uint64_t plain_draws=0;
     uint64_t bones=0,held_bones=0,static_upload_bytes=0,dynamic_geometry_bytes=0;
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
     uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
@@ -40,7 +44,7 @@ class backend {
     struct gpu_cell {ncmm_gpu_cell_v1 appearance;float origin[4],lower_light[4];};
     static_assert(sizeof(gpu_cell)==112,"owned std430 world cell layout");
     std::vector<gpu_cell> cell_snapshot_;
-    struct batch {uint64_t key;uint32_t pass,first,count;};
+    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false,component_safe=false;};
     using clock=std::chrono::steady_clock;
     static double ms(clock::time_point begin){return std::chrono::duration<double,std::milli>(clock::now()-begin).count();}
     void reason(const std::string &value){std::strncpy(metrics_.reason,value.c_str(),sizeof(metrics_.reason)-1);metrics_.reason[sizeof(metrics_.reason)-1]=0;}
@@ -112,6 +116,7 @@ class backend {
     }
     bool draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene,bool alpha_only=false){
         bool deferred_alpha=false;
+        unsigned opaque_policy=0;
         SDL_BindGPUGraphicsPipeline(pass,selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held);
         SDL_GPUBuffer *vertex_storage[]={instances_,bones_};SDL_BindGPUVertexStorageBuffers(pass,0,vertex_storage,2);
         SDL_GPUBuffer *fragment_storage[]={cells_,shadows_};SDL_BindGPUFragmentStorageBuffers(pass,0,fragment_storage,2);
@@ -121,6 +126,24 @@ class backend {
             const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));
             for(const auto &range:mesh->ranges){const auto &m=mesh->materials[range.material];
                 if(selected==NCMM_GPU_HELD&&(m.color[3]<.999f)!=alpha_only){deferred_alpha|=m.color[3]<.999f;continue;}
+                // Component flags/coverage and every real cell are proved.
+                // Its original detail/reflection/depth expressions remain;
+                // every unproved material, pose or cell uses the old program.
+                const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
+                const bool component=selected==NCMM_GPU_OPAQUE&&b.component_safe&&range.component_surface;
+                const bool reflective=component&&reflective_component_finish(m.finish);
+                const bool glass=selected==NCMM_GPU_TRANSPARENT&&b.component_safe&&range.glass_surface;
+                const bool plain=component&&plain_component_finish(m.finish);
+                const unsigned policy=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2)|(unsigned(glass)<<3)|(unsigned(plain)<<4);
+                if(policy!=opaque_policy){
+                    if(selected==NCMM_GPU_TRANSPARENT)SDL_BindGPUGraphicsPipeline(pass,glass?programs_.transparent_glass:programs_.transparent);
+                    else SDL_BindGPUGraphicsPipeline(pass,plain?
+                        (winding?programs_.opaque_plain_culled:programs_.opaque_plain):reflective?
+                        (winding?programs_.opaque_reflective_culled:programs_.opaque_reflective):component?
+                        (winding?programs_.opaque_component_culled:programs_.opaque_component):(winding?programs_.opaque_culled:programs_.opaque));
+                    opaque_policy=policy;}
+                if(profiling_&&glass)++recording_.glass_draws;
+                if(profiling_&&plain)++recording_.plain_draws;
                 const bool creature_zone=ncmm_graphics_trace::enabled()&&selected!=NCMM_GPU_HELD&&(m.flags&NCMM_GPU_CREATURE_VISUAL);
                 if(creature_zone){nvtxRangePushA("Creatures");SDL_PushGPUDebugGroup(commands,"Creatures");}
                 const auto draw_start=profiling_?clock::now():clock::time_point{};
@@ -156,11 +179,17 @@ public:
         // and a software D3D12 worker may still execute the last native frame.
         // Drain only at lifecycle boundaries, before releasing any borrowed-
         // device children. Ordinary submit()/walking never waits for GPU idle.
-        if(context_.device()){
+        auto *device=context_.device();
+        if(device){
             if(context_.renderer())SDL_FlushRenderer(context_.renderer());
             SDL_WaitForGPUIdle(context_.device());
         }
         resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
+        // SDL queues Release* calls in a pending-destroy list. The preceding
+        // drain protects queued draws, but cannot retire objects released
+        // afterwards. Finish disposal at this lifecycle boundary, including
+        // when the next mode is CPU and no further 3D submission will occur.
+        if(device)SDL_WaitForGPUIdle(device);
     }
     void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;}
     bool bind(SDL_Renderer *renderer,uint64_t generation){if(generation_&&generation_!=generation)abandon();generation_=generation;
@@ -238,10 +267,16 @@ public:
             if(d.pass==NCMM_GPU_TRANSPARENT){point center=transform(d.transform,{0,0,0});transparent.push_back({i,dot(center-from(scene.camera.eye),from(scene.camera.forward))});continue;}
             if(mesh&&d.pass!=NCMM_GPU_HELD&&mesh->joint_count<=d.bone_count&&!in_frustum(posed_bounds[i],scene.camera))continue;
             uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);groups[{d.pass,d.mesh_key}].push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
-        for(const auto &[key,list]:groups){batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size())});instances.insert(instances.end(),list.begin(),list.end());}
+        for(const auto &[key,list]:groups){
+            const bool winding=key.first==NCMM_GPU_OPAQUE&&winding_camera(scene.camera)&&std::all_of(list.begin(),list.end(),[&](const instance &i){
+                return i.bone_count==1&&i.bone_offset<scene.bone_count&&winding_bone(scene.bones[i.bone_offset])&&winding_pose(i.world);});
+            const bool component=winding&&std::all_of(list.begin(),list.end(),[&](const instance &i){return i.cell<scene.cell_count;});
+            batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size()),winding,component});instances.insert(instances.end(),list.begin(),list.end());}
         std::stable_sort(transparent.begin(),transparent.end(),[](const auto &a,const auto &b){return a.distance>b.distance;});
         for(const auto &t:transparent){const auto &d=scene.draws[t.index];auto *mesh=resources_.mesh(d.mesh_key);if(mesh&&mesh->joint_count<=d.bone_count&&!in_frustum(posed_bounds[t.index],scene.camera))continue;
-            uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
+            const bool component=d.cell<scene.cell_count&&d.bone_count==1&&d.bone_offset<scene.bone_count&&
+                winding_camera(scene.camera)&&winding_pose(d.transform)&&winding_bone(scene.bones[d.bone_offset]);
+            uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1,false,component});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
         pick(resources_,scene,metrics_,world,&posed_bounds,&focus_cell_);
         pick_zone.stop();
         if(profiling_)recording_.batching_pick_ms=ms(batching_start);
