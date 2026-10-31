@@ -112,7 +112,8 @@ class backend {
     }
     bool draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene,bool alpha_only=false){
         bool deferred_alpha=false;
-        SDL_BindGPUGraphicsPipeline(pass,selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held);
+        auto *const base_pipeline=selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held;
+        auto *bound_pipeline=base_pipeline;SDL_BindGPUGraphicsPipeline(pass,bound_pipeline);
         SDL_GPUBuffer *vertex_storage[]={instances_,bones_};SDL_BindGPUVertexStorageBuffers(pass,0,vertex_storage,2);
         SDL_GPUBuffer *fragment_storage[]={cells_,shadows_};SDL_BindGPUFragmentStorageBuffers(pass,0,fragment_storage,2);
         SDL_PushGPUVertexUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));
@@ -121,6 +122,8 @@ class backend {
             const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));
             for(const auto &range:mesh->ranges){const auto &m=mesh->materials[range.material];
                 if(selected==NCMM_GPU_HELD&&(m.color[3]<.999f)!=alpha_only){deferred_alpha|=m.color[3]<.999f;continue;}
+                auto *const pipeline=selected==NCMM_GPU_OPAQUE&&opaque_color_replacement(m,mesh->vertex_flags)?programs_.opaque_replace:base_pipeline;
+                if(pipeline!=bound_pipeline){SDL_BindGPUGraphicsPipeline(pass,pipeline);bound_pipeline=pipeline;}
                 const bool creature_zone=ncmm_graphics_trace::enabled()&&selected!=NCMM_GPU_HELD&&(m.flags&NCMM_GPU_CREATURE_VISUAL);
                 if(creature_zone){nvtxRangePushA("Creatures");SDL_PushGPUDebugGroup(commands,"Creatures");}
                 const auto draw_start=profiling_?clock::now():clock::time_point{};

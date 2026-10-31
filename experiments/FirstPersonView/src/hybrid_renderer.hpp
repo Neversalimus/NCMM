@@ -507,9 +507,13 @@ class renderer {
     // pool remains valid when its vector grows during projection.
     std::vector<std::array<vertex,3>> vehicle_clipped_vertices;
     static const std::array<vertex,3> &raster_vertices(const projected_triangle &t){return t.v;}
-    const std::array<vertex,3> &raster_vertices(const compact_projected_triangle &t)const{return t.clipped==UINT32_MAX?t.source->v:vehicle_clipped_vertices[t.clipped];}
+    // Copy the immutable pixel-loop inputs once into this worker's stack.
+    // References into the queue can alias the float/ID frame buffers to the
+    // optimizer, forcing material and light reloads after every pixel write.
+    // The full-field record keeps the original reference path for comparison.
+    std::array<vertex,3> raster_vertices(const compact_projected_triangle &t)const{return t.clipped==UINT32_MAX?t.source->v:vehicle_clipped_vertices[t.clipped];}
     static const material &raster_material(const projected_triangle &t){return t.m;}
-    static const material &raster_material(const compact_projected_triangle &t){return t.source->m;}
+    static material raster_material(const compact_projected_triangle &t){return t.source->m;}
     static vec raster_normal(const projected_triangle &t){return t.normal;}
     static vec raster_normal(const compact_projected_triangle &t){return t.source->normal;}
     template<class Record>void project_piece(const triangle &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false){
@@ -563,16 +567,30 @@ class renderer {
             project_piece(t,{poly[0],poly[piece],poly[piece+1]},nullptr,output,reject_empty,skip_unused_bands);
     }
     template<class Record>void raster(const Record &t,int worker,int workers,uint32_t &triangles){
+        if constexpr(std::is_same_v<Record,compact_projected_triangle>){
+            const auto &m=t.source->m;
+            // A generated opaque vehicle has no sprite, cutout, spill or held
+            // semantics. Select that shader once per triangle, rather than
+            // rechecking those immutable alternatives for every covered pixel.
+            // Unexpected future materials retain the complete reference shader.
+            if(!m.texture&&!m.impostor&&!m.overlay&&!m.spill&&!m.cutout&&!m.grass&&
+               !m.creature&&!m.creature_visual&&m.smooth&&m.alpha>=.99f&&m.finish!=surface::contact){
+                raster_piece<Record,true>(t,worker,workers,triangles);return;
+            }
+        }
+        raster_piece<Record,false>(t,worker,workers,triangles);
+    }
+    template<class Record,bool SolidVehicle>void raster_piece(const Record &t,int worker,int workers,uint32_t &triangles){
         const auto &v=raster_vertices(t);const auto &appearance=raster_material(t);const auto normal=raster_normal(t);
         const auto &p=t.p;const auto &iz=t.iz;const auto &uu=t.uu;const auto &vv=t.vv;
         const auto &fine=t.fine;const auto &medium=t.medium;
         const auto flat_light=t.flat_light,flat_color=t.flat_color;
         const int xmin=t.xmin,xmax=t.xmax,ymin=t.ymin,ymax=t.ymax;
         const float inv=t.inv,dw0=t.dw0,dw1=t.dw1;const bool coarse=t.coarse,detailed=t.detailed;
-        const bool solid_grass=appearance.grass&&!appearance.overlay&&!appearance.texture&&!appearance.smooth&&appearance.alpha>=.99f&&appearance.finish==surface::none;
+        const bool solid_grass=!SolidVehicle&&appearance.grass&&!appearance.overlay&&!appearance.texture&&!appearance.smooth&&appearance.alpha>=.99f&&appearance.finish==surface::none;
         const vec grass_color{flat_color.x*flat_light.x,flat_color.y*flat_light.y,flat_color.z*flat_light.z};
         float dux=0,duy=0,dvx=0,dvy=0,dzx=0,dzy=0;
-        if(appearance.impostor||(appearance.texture&&appearance.texture->creature_skin)){
+        if(!SolidVehicle&&(appearance.impostor||(appearance.texture&&appearance.texture->creature_skin))){
             const float dw0y=(p[2].x-p[1].x)*inv,dw1y=(p[0].x-p[2].x)*inv;
             dux=dw0*(uu[0]-uu[2])+dw1*(uu[1]-uu[2]);duy=dw0y*(uu[0]-uu[2])+dw1y*(uu[1]-uu[2]);
             dvx=dw0*(vv[0]-vv[2])+dw1*(vv[1]-vv[2]);dvy=dw0y*(vv[0]-vv[2])+dw1y*(vv[1]-vv[2]);
@@ -583,12 +601,12 @@ class renderer {
         // Jacobian over every empty pixel of an impostor's enclosing quad.
         float impostor_footprint=0,impostor_lod=0;
         creature::colour_filter impostor_filter;
-        if(appearance.impostor){const auto &image=*appearance.impostor;const float center_z=3/(iz[0]+iz[1]+iz[2]);
+        if(!SolidVehicle&&appearance.impostor){const auto &image=*appearance.impostor;const float center_z=3/(iz[0]+iz[1]+iz[2]);
             const float center_u=(uu[0]+uu[1]+uu[2])*center_z/3,center_v=(vv[0]+vv[1]+vv[2])*center_z/3;
             impostor_footprint=center_z*std::max({std::abs(dux-center_u*dzx)*image.width,std::abs(duy-center_u*dzy)*image.width,std::abs(dvx-center_v*dzx)*image.height,std::abs(dvy-center_v*dzy)*image.height});
             if(impostor_footprint>=1){impostor_lod=std::log2(impostor_footprint);
                 impostor_filter=creature::colour_filter(uint32_t(image.width),uint32_t(image.height),image.color,image.mips,impostor_lod);}}
-        const float creature_cos=appearance.impostor?std::cos(appearance.creature_yaw):1,creature_sin=appearance.impostor?std::sin(appearance.creature_yaw):0;
+        const float creature_cos=!SolidVehicle&&appearance.impostor?std::cos(appearance.creature_yaw):1,creature_sin=!SolidVehicle&&appearance.impostor?std::sin(appearance.creature_yaw):0;
         auto edge=[](vec a,vec b,float x,float y){return(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
         // Interleaved strips keep all workers busy when the expensive floor or
         // view model occupies only the bottom of the viewport. Each pixel still
@@ -610,7 +628,7 @@ class renderer {
             for(int x=begin;x<=end;++x,w0+=dw0,w1+=dw1){
                 const float w2=1-w0-w1;
                 float recip=w0*iz[0]+w1*iz[1]+w2*iz[2];if(recip<=0)continue;float z=1/recip;size_t k=size_t(y)*f.width+x;
-                if(!appearance.impostor&&z>(appearance.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
+                if((SolidVehicle||!appearance.impostor)&&z>(!SolidVehicle&&appearance.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
                 if(solid_grass){
                     const float fog=clamp((z-2)*fog_density(appearance.cell));
                     f.pixels[k]=pack(grass_color*(1-fog)+fog_color*fog);f.depth[k]=z;f.owners[k]=appearance.cell;f.creatures[k]=-1;
@@ -618,8 +636,8 @@ class renderer {
                     continue;
                 }
                 vec c=flat_color;float alpha=appearance.alpha;vec pixel_light=flat_light;
-                if(appearance.smooth){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;pixel_light=v[0].light*a+v[1].light*b+v[2].light*cw;}
-                if(appearance.impostor){const auto &sprite=*appearance.impostor;
+                if(SolidVehicle||appearance.smooth){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;pixel_light=v[0].light*a+v[1].light*b+v[2].light*cw;}
+                if(!SolidVehicle&&appearance.impostor){const auto &sprite=*appearance.impostor;
                     const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z;
                     const size_t at=size_t(std::clamp(int(vv0*sprite.height),0,sprite.height-1))*sprite.width+std::clamp(int(u*sprite.width),0,sprite.width-1);
                     const auto pixel=impostor_footprint<1?sprite.color[at]:impostor_filter.sample(u,vv0);
@@ -630,7 +648,7 @@ class renderer {
                     const auto n=creature::decode_normal(sprite.normal[at]);
                     pixel_light=light(appearance.cell,{creature_cos*n.x-creature_sin*n.y,creature_sin*n.x+creature_cos*n.y,n.z});
                 }
-                if(appearance.texture&&appearance.texture->valid()){const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z;
+                if(!SolidVehicle&&appearance.texture&&appearance.texture->valid()){const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z;
                     float footprint=0;if(appearance.texture->creature_skin){const float width=float(appearance.texture->data.width),height=float(appearance.texture->data.height);
                         footprint=z*std::max({std::abs(dux-u*dzx)*width,std::abs(duy-u*dzy)*width,std::abs(dvx-vv0*dzx)*height,std::abs(dvy-vv0*dzy)*height});}
                     auto px=appearance.texture->sample(u,vv0,coarse,footprint);float a=float(px&255)/255;
@@ -638,27 +656,27 @@ class renderer {
                     // floating view model or write opaque world depth.
                     if(appearance.cutout&&a<(appearance.overlay?.55f:.25f))continue;
                     if(appearance.opaque_texture)c=unpack(px)*a+c*(1-a);else{c=unpack(px);alpha*=a;}}
-                if(appearance.spill){const float ax=w0*iz[0]*z,bx=w1*iz[1]*z,cx=w2*iz[2]*z;
+                if(!SolidVehicle&&appearance.spill){const float ax=w0*iz[0]*z,bx=w1*iz[1]*z,cx=w2*iz[2]*z;
                     const vec at=v[0].p*ax+v[1].p*bx+v[2].p*cx;
                     const float dx=at.x-std::floor(at.x)-.5f,dy=at.y-std::floor(at.y)-.5f;
                     const float radius=.135f+(noise(at.x*9,at.y*9)-.5f)*.09f;
                     alpha*=liquid_surface::spill_coverage(radius,dx*dx+dy*dy,z/projection);}
-                if(appearance.finish==surface::contact){
+                if(!SolidVehicle&&appearance.finish==surface::contact){
                     const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z-.5f,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z-.5f;
                     const float fade=clamp(1-4*(u*u+vv0*vv0));alpha*=fade*fade;
                 }
-                if(alpha<.01f)continue;
+                if(!SolidVehicle&&alpha<.01f)continue;
                 // One writer owns the centre pixel. Transparent glass blocks
                 // interaction picking without changing colour or opaque depth.
-                if(!appearance.overlay&&x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=appearance.cell;}
+                if((SolidVehicle||!appearance.overlay)&&x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=appearance.cell;}
                 if(detailed){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;
                     const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
                     c=surface_color(c,appearance,pos,normal,z,fine[0]*a+fine[1]*b+fine[2]*cw,medium[0]*a+medium[1]*b+medium[2]*cw);}
                 c={c.x*pixel_light.x,c.y*pixel_light.y,c.z*pixel_light.z};
-                if(!appearance.overlay){float fog=clamp((z-2)*fog_density(appearance.cell));c=c*(1-fog)+fog_color*fog;}
-                if(alpha<.99f)c=c*alpha+unpack(f.pixels[k])*(1-alpha);
+                if(SolidVehicle||!appearance.overlay){float fog=clamp((z-2)*fog_density(appearance.cell));c=c*(1-fog)+fog_color*fog;}
+                if(!SolidVehicle&&alpha<.99f)c=c*alpha+unpack(f.pixels[k])*(1-alpha);
                 f.pixels[k]=pack(c);
-                if(alpha>=.99f||appearance.cutout){if(appearance.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=appearance.cell;if(!appearance.overlay)f.creatures[k]=appearance.creature?appearance.cell:appearance.creature_visual?-2:-1;}
+                if(SolidVehicle||alpha>=.99f||appearance.cutout){if(!SolidVehicle&&appearance.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=appearance.cell;if(SolidVehicle||!appearance.overlay)f.creatures[k]=SolidVehicle?-1:appearance.creature?appearance.cell:appearance.creature_visual?-2:-1;}
             }
         }
     }

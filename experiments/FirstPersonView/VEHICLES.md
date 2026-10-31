@@ -174,8 +174,23 @@ keep even clipped logical records smaller. This describes temporary records,
 not total game RAM or a measured frame-rate improvement. Their complete pixel,
 depth, picking and clipping-lifetime checks also run under ASan/UBSan in CI.
 
-Native vehicle reports retain the GPU backend's existing CPU-side resource,
-upload and submit timers with the most recent submission serial. These timers
+Opaque, smooth vehicle triangles select a dedicated CPU shader once per
+triangle. It retains the same perspective/light/fog/depth/picking arithmetic,
+but omits per-pixel alternatives for sprites, cutouts, spills, held objects and
+alpha blending. A complete material guard sends unexpected inputs through the
+original general shader. Worker-local copies of immutable vertices/materials
+avoid queue aliases in the pixel loop; the full-field record remains the exact
+comparison path. This does not remove geometry or change resolution or LOD.
+
+The GPU uses the same shader with colour blending disabled only for exact
+unit-alpha ranges whose material and vertex flags cannot change coverage.
+Textured/cutout/spill/contact/unknown modes keep the original pipeline, as do
+transparent and held passes. Mesh keys, draw/material order, depth and picking
+remain unchanged; the ordinary exact GPU image gate qualifies this path.
+
+Native vehicle reports retain the GPU backend's existing CPU-side geometry,
+resource, upload, command-recording and submit timers with the most recent
+submission serial. These timers
 can overlap; cached images can retain an earlier submission. They are never
 added together or presented as hardware execution time. Complete Native frame
 comparisons remain the performance acceptance evidence.
