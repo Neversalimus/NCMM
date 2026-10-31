@@ -48,8 +48,8 @@ int main(){
     pose=identity();pose.columns[3]=.01f;require(!ncmm_gpu::winding_pose(pose),"perspective instance matrices fall back");
     {
         const auto saved=vertices;const auto old_material=material;
-        auto depth=[&]{return ncmm_gpu::opaque_depth_range(mesh,0,0,3);};
-        require(depth(),"the proven ordinary static opaque model can use vertex-interpolated depth");
+        auto depth=[&]{return ncmm_gpu::rigid_opaque_range(mesh,0,0,3);};
+        require(depth(),"the ordinary static opaque model can omit only its proven identity skin terms");
         for(uint32_t flag:{uint32_t(NCMM_GPU_TEXTURED),uint32_t(NCMM_GPU_CUTOUT),uint32_t(NCMM_GPU_IMPOSTOR),
             uint32_t(NCMM_GPU_SPILL),uint32_t(NCMM_GPU_HELD_MATERIAL),uint32_t(NCMM_GPU_CREATURE_VISUAL),uint32_t(NCMM_GPU_BILLBOARD)}){
             material.flags|=flag;require(!depth(),"coverage/depth-altering and held materials retain the general depth shader");material=old_material;}
@@ -61,7 +61,7 @@ int main(){
         vertices[2].flags=NCMM_GPU_BILLBOARD;require(!depth(),"billboard depth remains unchanged");vertices=saved;
         vertices[2].position[0]=std::numeric_limits<float>::infinity();require(!depth(),"nonfinite corners fail closed");vertices=saved;
         material.flags&=~NCMM_GPU_SMOOTH;require(!depth(),"the specialization stays limited to explicit smooth component materials");material=old_material;
-        require(!ncmm_gpu::opaque_depth_range(mesh,0,1,3)&&!ncmm_gpu::opaque_depth_range(mesh,1,0,3),"ordinary depth material and index bounds stay strict");
+        require(!ncmm_gpu::rigid_opaque_range(mesh,0,1,3)&&!ncmm_gpu::rigid_opaque_range(mesh,1,0,3),"ordinary depth material and index bounds stay strict");
     }
     for(unsigned n=0;n<10000;++n){vertices={};const float angle=float(n)*.071f;
         vertices[1].position[0]=1;vertices[1].position[1]=.1f+.4f*std::sin(angle);vertices[1].position[2]=.2f;
@@ -81,8 +81,9 @@ int main(){
             const auto reason=ncmm_gpu::validate(depth.scene,&depth.world);
             require(!reason,reason?reason:"complete mixed-depth fixture contract");
             require(ncmm_gpu::validate(depth.scene)!=nullptr,"world camera mode requires its actual coordinate extension");
-            require(ncmm_gpu::opaque_depth_range(depth.mesh,1,3,3)&&!ncmm_gpu::opaque_depth_range(depth.mesh,0,0,3),"mixed-depth fixture proves exactly its intended ordinary range");
+            require(ncmm_gpu::rigid_opaque_range(depth.mesh,1,3,3)&&!ncmm_gpu::rigid_opaque_range(depth.mesh,0,0,3),"mixed-depth fixture proves exactly its intended ordinary range");
             require(ncmm_gpu::winding_camera(depth.scene.camera)&&ncmm_gpu::winding_pose(depth.draw.transform),"fixture camera and pose qualify the actual specialized draw");
+            require(depth.draw.bone_count==1&&ncmm_gpu::winding_bone(depth.bone),"the mixed-depth specialized draw has exactly the required identity root");
             require(depth.scene.camera.grid[3]==1&&(depth.cell.flags&NCMM_GFX_CEILING),"world ceiling semantics disable outdoor distance fog in the strict color control");
         }
     }

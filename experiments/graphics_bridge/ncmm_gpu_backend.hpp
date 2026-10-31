@@ -122,14 +122,14 @@ class backend {
             const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));
             for(const auto &range:mesh->ranges){const auto &m=mesh->materials[range.material];
                 if(selected==NCMM_GPU_HELD&&(m.color[3]<.999f)!=alpha_only){deferred_alpha|=m.color[3]<.999f;continue;}
-                // Immutable range proofs select only ordinary rigid opaque
-                // surfaces. Alpha, impostors, held items and unproved poses
-                // retain their original fragment depth and rasterizer.
+                // Proven static roots may skip identity skin arithmetic.
+                // Every range keeps the established fragment shader/depth;
+                // unproved skins, held items and poses keep both old stages.
                 const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
-                const bool identity_depth=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.opaque_depth;
-                const unsigned policy=unsigned(winding)|(unsigned(identity_depth)<<1);
-                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,identity_depth?
-                    (winding?programs_.opaque_depth_culled:programs_.opaque_depth):(winding?programs_.opaque_culled:programs_.opaque));opaque_policy=policy;}
+                const bool rigid=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.rigid_vertices;
+                const unsigned policy=unsigned(winding)|(unsigned(rigid)<<1);
+                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,rigid?
+                    (winding?programs_.opaque_rigid_culled:programs_.opaque_rigid):(winding?programs_.opaque_culled:programs_.opaque));opaque_policy=policy;}
                 const bool creature_zone=ncmm_graphics_trace::enabled()&&selected!=NCMM_GPU_HELD&&(m.flags&NCMM_GPU_CREATURE_VISUAL);
                 if(creature_zone){nvtxRangePushA("Creatures");SDL_PushGPUDebugGroup(commands,"Creatures");}
                 const auto draw_start=profiling_?clock::now():clock::time_point{};

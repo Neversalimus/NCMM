@@ -17,13 +17,15 @@ p.add_argument('--output',required=True,type=Path)
 p.add_argument('--source',type=Path,default=Path(__file__).parent/'shaders')
 p.add_argument('--verify',action='store_true',help='Verify the shipping source identity and embedded SPIR-V/DXIL without invoking a compiler')
 a=p.parse_args()
-# The additional ordinary-opaque program must retain the complete established
-# colour, lighting and material body. Only hardware-interpolated depth differs.
-ordinary=(a.source/'geometry.frag').read_text(encoding='utf-8')
-depth_write=';gl_FragDepth=depth_z(z);'
-if ordinary.count(depth_write)!=1:p.error('Unreviewed ordinary opaque depth specialization')
-if (a.source/'geometry_opaque.frag').read_text(encoding='utf-8')!=ordinary.replace(depth_write,';'):
-    p.error('Opaque specialization changed colour, material or lighting code')
+# Host proofs require an exact identity root. Retain its scalar one (and the
+# original descriptor layout), while omitting only its zero matrix terms.
+# Every fragment program, including its explicit depth, remains unchanged.
+ordinary=(a.source/'geometry.vert').read_text(encoding='utf-8')
+skin='vec3 p=(bone*vec4(position,1)).xyz,n=mat3(bone)*normal,face=mat3(bone)*face_normal;'
+rigid='vec3 p=position*bone[3][3],n=normal*bone[3][3],face=face_normal*bone[3][3];'
+if ordinary.count(skin)!=1:p.error('Unreviewed rigid vertex specialization')
+if (a.source/'geometry_rigid.vert').read_text(encoding='utf-8')!=ordinary.replace(skin,rigid):
+    p.error('Rigid specialization changed more than proven identity skin arithmetic')
 lines=['#pragma once','#include <cstddef>','namespace ncmm_gpu::shaders {']
 source_hash=hashlib.sha256()
 for source in sorted(a.source.glob('*')):
