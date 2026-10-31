@@ -2,6 +2,7 @@
 #include "ncmm_gpu_backend.hpp"
 #include "gpu_scene.hpp"
 #include "world_visual_fixture.hpp"
+#include "opaque_depth_fixture.hpp"
 #include <array>
 #include <cstdio>
 #include <cstdlib>

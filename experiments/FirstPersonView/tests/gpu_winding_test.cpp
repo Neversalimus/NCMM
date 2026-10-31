@@ -1,4 +1,5 @@
 #include "ncmm_gpu_winding.hpp"
+#include "opaque_depth_fixture.hpp"
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -72,6 +73,18 @@ int main(){
         require(proof(),"curved-source unit directions use exactly the producer's multiply-by-inverse arithmetic");
         for(auto &v:vertices)v.face_normal[0]=std::nextafter(v.face_normal[0],2.f);
         require(!proof(),"a uniformly perturbed plane is not admitted through a normal tolerance");
+    }
+    {
+        opaque_depth_fixture depth;
+        for(float distance:{.081f,1.f,12.f,80.f})for(bool coplanar:{false,true}){
+            depth.observe(distance,coplanar);
+            const auto reason=ncmm_gpu::validate(depth.scene,&depth.world);
+            require(!reason,reason?reason:"complete mixed-depth fixture contract");
+            require(ncmm_gpu::validate(depth.scene)!=nullptr,"world camera mode requires its actual coordinate extension");
+            require(ncmm_gpu::opaque_depth_range(depth.mesh,1,3,3)&&!ncmm_gpu::opaque_depth_range(depth.mesh,0,0,3),"mixed-depth fixture proves exactly its intended ordinary range");
+            require(ncmm_gpu::winding_camera(depth.scene.camera)&&ncmm_gpu::winding_pose(depth.draw.transform),"fixture camera and pose qualify the actual specialized draw");
+            require(depth.scene.camera.grid[3]==1&&(depth.cell.flags&NCMM_GFX_CEILING),"world ceiling semantics disable outdoor distance fog in the strict color control");
+        }
     }
     std::printf("GPU winding: %u pure data/math checks passed; no SDL/device execution\n",checks);
 }
