@@ -11,6 +11,51 @@ REFERENCE_SHA256='a0dd1aa83c05e1a51ac33854dedb54696e85616857d9da1f68bb30ee7fe966
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+def reference_backend(candidate):
+    """Pure reconstruction, always checked against the unchanged frozen digest."""
+    reference=candidate
+    policy='    // Scratch reuse is currently pixel-qualified on Direct3D 12.\n    bool cycle_private_scratch()const{\n        auto *device=context_.device();\n        const char *driver=device?SDL_GetGPUDeviceDriver(device):nullptr;\n        return !driver||std::strcmp(driver,"direct3d12")!=0;\n    }\n'
+    assert reference.count(policy)==1
+    reference=reference.replace(policy,'')
+    replacements=[('c.cycle=clear&&cycle_private_scratch();', 'c.cycle=clear;'), ('depth.cycle=(clear||held)&&cycle_private_scratch();', 'depth.cycle=clear||held;'), ('shadow_binding.cycle=cycle_private_scratch();', 'shadow_binding.cycle=true;'), ('e.cycle=cycle_private_scratch();', 'e.cycle=true;')]
+    for before,after in replacements:
+        assert reference.count(before)==1,before;reference=reference.replace(before,after)
+    # Reconstruct the same frozen baseline, including its original lifecycle
+    # disposal. The candidate now drains SDL's deferred child releases after
+    # clear(); that change must preserve these pixels too. Do not advance the
+    # reference hash to the candidate or share its new disposal with both runs.
+    disposal='''        auto *device=context_.device();
+        if(device){
+            if(context_.renderer())SDL_FlushRenderer(context_.renderer());
+            SDL_WaitForGPUIdle(context_.device());
+        }
+        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
+        // SDL queues Release* calls in a pending-destroy list. The preceding
+        // drain protects queued draws, but cannot retire objects released
+        // afterwards. Finish disposal at this lifecycle boundary, including
+        // when the next mode is CPU and no further 3D submission will occur.
+        if(device)SDL_WaitForGPUIdle(device);
+'''
+    original_disposal='''        if(context_.device()){
+            if(context_.renderer())SDL_FlushRenderer(context_.renderer());
+            SDL_WaitForGPUIdle(context_.device());
+        }
+        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
+'''
+    assert reference.count(disposal)==1,'Unreviewed lifecycle reconstruction'
+    reference=reference.replace(disposal,original_disposal)
+    # The reference keeps its original blended pipeline for every range.
+    # Only the candidate may select the new exact-unit-alpha replacement.
+    binding='        auto *const base_pipeline=selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held;\n        auto *bound_pipeline=base_pipeline;SDL_BindGPUGraphicsPipeline(pass,bound_pipeline);\n'
+    original_binding='        SDL_BindGPUGraphicsPipeline(pass,selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held);\n'
+    selection='                auto *const pipeline=selected==NCMM_GPU_OPAQUE&&opaque_color_replacement(m,mesh->vertex_flags)?programs_.opaque_replace:base_pipeline;\n                if(pipeline!=bound_pipeline){SDL_BindGPUGraphicsPipeline(pass,pipeline);bound_pipeline=pipeline;}\n'
+    assert reference.count(binding)==1,'Unreviewed pipeline binding reconstruction'
+    assert reference.count(selection)==1,'Unreviewed colour replacement reconstruction'
+    reference=reference.replace(binding,original_binding).replace(selection,'')
+    assert hashlib.sha256(reference.encode()).hexdigest()==REFERENCE_SHA256,'Unreviewed reference reconstruction'
+    return reference
+
+
 def image_difference(left, right):
     result = dict(reference_bytes=len(left), candidate_bytes=len(right))
     shapes = [list(struct.unpack('<III', data[:12])) if len(data) >= 12 else None
@@ -112,38 +157,7 @@ def main():
     assert not (args.sanitize and os.name=='nt'),'Use the compiler-specific Windows ASan fixture'
     assert args.sdl_dir or args.toolchain_file,'Use the same explicit SDL configuration as the original GPU fixture'
     parent=repo/'experiments/FirstPersonView';backend=repo/'experiments/graphics_bridge/ncmm_gpu_backend.hpp'
-    candidate=backend.read_text(encoding='utf-8').replace('\r\n','\n');reference=candidate
-    policy='    // Scratch reuse is currently pixel-qualified on Direct3D 12.\n    bool cycle_private_scratch()const{\n        auto *device=context_.device();\n        const char *driver=device?SDL_GetGPUDeviceDriver(device):nullptr;\n        return !driver||std::strcmp(driver,"direct3d12")!=0;\n    }\n'
-    assert reference.count(policy)==1
-    reference=reference.replace(policy,'')
-    replacements=[('c.cycle=clear&&cycle_private_scratch();', 'c.cycle=clear;'), ('depth.cycle=(clear||held)&&cycle_private_scratch();', 'depth.cycle=clear||held;'), ('shadow_binding.cycle=cycle_private_scratch();', 'shadow_binding.cycle=true;'), ('e.cycle=cycle_private_scratch();', 'e.cycle=true;')]
-    for before,after in replacements:
-        assert reference.count(before)==1,before;reference=reference.replace(before,after)
-    # Reconstruct the same frozen baseline, including its original lifecycle
-    # disposal. The candidate now drains SDL's deferred child releases after
-    # clear(); that change must preserve these pixels too. Do not advance the
-    # reference hash to the candidate or share its new disposal with both runs.
-    disposal='''        auto *device=context_.device();
-        if(device){
-            if(context_.renderer())SDL_FlushRenderer(context_.renderer());
-            SDL_WaitForGPUIdle(context_.device());
-        }
-        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
-        // SDL queues Release* calls in a pending-destroy list. The preceding
-        // drain protects queued draws, but cannot retire objects released
-        // afterwards. Finish disposal at this lifecycle boundary, including
-        // when the next mode is CPU and no further 3D submission will occur.
-        if(device)SDL_WaitForGPUIdle(device);
-'''
-    original_disposal='''        if(context_.device()){
-            if(context_.renderer())SDL_FlushRenderer(context_.renderer());
-            SDL_WaitForGPUIdle(context_.device());
-        }
-        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
-'''
-    assert reference.count(disposal)==1,'Unreviewed lifecycle reconstruction'
-    reference=reference.replace(disposal,original_disposal)
-    assert hashlib.sha256(reference.encode()).hexdigest()==REFERENCE_SHA256,'Unreviewed reference reconstruction'
+    candidate=backend.read_text(encoding='utf-8').replace('\r\n','\n');reference=reference_backend(candidate)
     out.mkdir(parents=True);(out/'reference').mkdir();(out/'reference/ncmm_gpu_backend.hpp').write_text(reference,encoding='utf-8',newline='\n')
     capture = '#include "'+(parent/'tests/gpu_scratch_capture.inc').as_posix()+'"\n'
     (out/'capture.cpp').write_text(capture+'#include "'+(parent/'tests/gpu_scene_test.cpp').as_posix()+'"\n',encoding='utf-8',newline='\n')

@@ -1,5 +1,6 @@
 """Pure numeric diagnostics only: no renderer, SDL, device or Native process."""
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import struct
@@ -10,6 +11,19 @@ spec=importlib.util.spec_from_file_location('scratch_comparison',Path(__file__).
 comparison=importlib.util.module_from_spec(spec);spec.loader.exec_module(comparison)
 
 class Diagnostics(unittest.TestCase):
+    def backend(self):
+        return (Path(__file__).resolve().parents[2]/'graphics_bridge/ncmm_gpu_backend.hpp').read_text(encoding='utf-8')
+    def test_reconstructed_reference_keeps_frozen_bytes(self):
+        reference=comparison.reference_backend(self.backend())
+        self.assertEqual(hashlib.sha256(reference.encode()).hexdigest(),'a0dd1aa83c05e1a51ac33854dedb54696e85616857d9da1f68bb30ee7fe9662a')
+        self.assertNotIn('opaque_color_replacement(',reference)
+        self.assertNotIn('bound_pipeline',reference)
+    def test_changed_replacement_policy_cannot_reconstruct(self):
+        source=self.backend().replace('opaque_color_replacement(m,mesh->vertex_flags)','opaque_color_replacement(m,0)')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_unrelated_backend_edit_cannot_reconstruct(self):
+        source=self.backend().replace('metrics_.cpu_raster_calls=0;','metrics_.cpu_raster_calls=1;')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def image(self,pixel):return struct.pack('<III',1,1,373694468)+bytes(pixel)
     def test_complete_equality(self):
         result=comparison.image_difference(self.image([255,20,30,40]),self.image([255,20,30,40]))
