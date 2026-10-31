@@ -477,3 +477,20 @@ The original scalar and all previous opaque kernels remain unchanged.
 Independent numeric controls and complete1280x800 colour/depth/owner/focus
 comparisons cover overlapping panes, opaque occlusion, clipping and caching.
 This source change still requires full Native image and frame qualification.
+
+The CPU can prove absent fine grain on stone, asphalt, rubber, cloth, skin and
+plaster when its original fine bands are exactly zero at all three corners.
+Those six finishes have no other medium-band term. The original bands and
+every nonzero-grain, noisy, water, mortar and reflective expression remain;
+this changes no sampling threshold, LOD, geometry or material colour. The
+proof applies only to a valid Modular vehicle frame. Legacy retains its old
+material decision. A disabled internal proof option supplies the full original
+material reference, with complete buffer and positive-execution CI controls.
+
+Proved opaque finish-zero components use an additional constant-finish
+fragment. It retains the exact original component vertex/lighting/fog/depth,
+alpha-one state, culling proof and draw order. Other finishes, fractional alpha,
+lower light, animated roots, textures and unproved cells retain their original
+programs. All34 previous shader arrays and463 readbacks remain; one fragment
+SPIR-V/DXIL pair and ten full positive/fallback readbacks are added. Offline
+compilation and pure checks do not establish a Native frame-time improvement.

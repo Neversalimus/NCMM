@@ -83,7 +83,7 @@ struct frame {
     uint32_t geometry_cells=0,culled_cells=0,culled_quads=0,sky_pixels=0;
     uint64_t volume_samples=0;
     uint32_t viewmodel_draws=0,viewmodel_errors=0,vehicle_streamed_triangles=0,vehicle_worker_skips=0,vehicle_empty_triangles=0,vehicle_band_skips=0;
-    uint32_t vehicle_compact_records=0,vehicle_clipped_records=0;
+    uint32_t vehicle_compact_records=0,vehicle_clipped_records=0,vehicle_zero_grain_triangles=0;
     uint64_t vehicle_vector_groups=0,world_vector_groups=0,world_texture_vector_groups=0,vehicle_glass_vector_groups=0;
     uint64_t vehicle_source_bytes=0,vehicle_reference_source_bytes=0;
     uint64_t vehicle_projection_bytes=0,vehicle_reference_projection_bytes=0; // Logical record bytes, not process RAM.
@@ -96,7 +96,7 @@ struct render_options {
     // measurements rejected its performance, so ordinary frames retain workers.
     bool stream_vehicle_raster=false,prune_vehicle_workers=true,prune_empty_vehicle_samples=true,prune_unused_vehicle_bands=true,compact_vehicle_records=true;
     bool vector_vehicle_pixels=true,cull_gpu_vehicle_shells=true;
-    bool borrow_vehicle_materials=true;
+    bool borrow_vehicle_materials=true,zero_vehicle_grain=true;
     bool cache_static_vehicles=true;
 };
 using sprite_provider=std::function<bool(uint32_t,uint32_t,ncmm_graphics_sprite_v2 &)>;
@@ -564,7 +564,11 @@ class renderer {
         if(!bands)++f.vehicle_band_skips;
         for(int n=0;!t.m.grass&&bands&&n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
             fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
-        const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&t.m.finish!=surface::contact&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
+        const bool zero_detail=options.zero_vehicle_grain&&metadata&&metadata->vehicles&&!metadata->vehicles->draws.empty()&&
+            vehicle_pixels::zero_grain_detail(t.m.finish,fine.data());
+        if(zero_detail)++f.vehicle_zero_grain_triangles;
+        const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&t.m.finish!=surface::contact&&!reflective&&
+            std::max({medium[0],medium[1],medium[2]})>0&&!zero_detail);
         const projected_fields fields{p,iz,uu,vv,fine,medium,flat_light,flat_color,xmin,xmax,ymin,ymax,inv,dw0,dw1,coarse,detailed};
         if constexpr(std::is_same<Record,compact_projected_triangle>::value){
             uint32_t clipped=UINT32_MAX;
@@ -828,7 +832,7 @@ class renderer {
     }
     void reset_vehicle_work(){
         f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;
-        f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
+        f.vehicle_compact_records=f.vehicle_clipped_records=f.vehicle_zero_grain_triangles=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
         f.vehicle_vector_groups=f.world_vector_groups=f.world_texture_vector_groups=f.vehicle_glass_vector_groups=0;f.vehicle_source_bytes=f.vehicle_reference_source_bytes=0;
     }
     void paint_world_vehicles(size_t world_count){
@@ -1771,7 +1775,7 @@ public:
     void collect(geometry_sink &sink,int width,int height){
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
-        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;f.vehicle_compact_records=f.vehicle_clipped_records=f.vehicle_zero_grain_triangles=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
         f.vehicle_vector_groups=f.world_vector_groups=f.world_texture_vector_groups=f.vehicle_glass_vector_groups=0;f.vehicle_source_bytes=f.vehicle_reference_source_bytes=0;
         modular_vehicles();if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
     }

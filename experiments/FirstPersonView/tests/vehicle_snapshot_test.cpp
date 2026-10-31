@@ -873,5 +873,30 @@ int main(){
         still.draws.pop_back();require(still.visual_revision()!=signature,"demolition removes cached component pixels");still.draws=saved;
         ++still.input.scene.world_epoch;require(still.visual_revision()!=signature,"world replacement invalidates the stationary composite");
     }
+
+    {
+        enum class finish {none,stone,asphalt,earth,grass,wood,tile,paint,metal,rubber,cloth,skin,water,plaster,resin,brick,contact};
+        std::array<float,3> bands{{0.f,-0.f,0.f}};
+        for(unsigned n=0;n<17;++n){const bool expected=n==1||n==2||n==9||n==10||n==11||n==13;
+            require(first_person::vehicle_pixels::zero_grain_detail(finish(n),bands.data())==expected,"only the six original grain-only finishes prove zero contribution");}
+        for(unsigned corner=0;corner<3;++corner){bands[corner]=std::nextafter(0.f,1.f);
+            require(!first_person::vehicle_pixels::zero_grain_detail(finish::cloth,bands.data()),"even the smallest positive original band keeps material detail");bands[corner]=0;}
+        bands[1]=std::numeric_limits<float>::quiet_NaN();
+        require(!first_person::vehicle_pixels::zero_grain_detail(finish::rubber,bands.data()),"nonfinite bands cannot prove absent detail");bands[1]=0;
+        uint32_t state=0x7a168065u;
+        const auto random=[&](){state^=state<<13;state^=state>>17;state^=state<<5;return state;};
+        const auto hash=[](uint32_t x){x^=x>>16;x*=0x7feb352du;x^=x>>15;x*=0x846ca68bu;return x^(x>>16);};
+        for(unsigned sample=0;sample<20000;++sample){
+            const float u=float(int32_t(random()%2000000)-1000000)/97.f,v=float(int32_t(random()%2000000)-1000000)/113.f;
+            const int ix=int(std::floor(u*96)),iy=int(std::floor(v*96));
+            const float grain=float(hash(uint32_t(ix)*374761393u+uint32_t(iy)*668265263u)&0xffffff)/16777215.0f-.5f;
+            const float a=float(random()%100000)/100000.f,b=float(random()%100000)/100000.f;
+            const float fine=0.f*a+0.f*b+0.f*(1-a-b);
+            for(float coefficient:{.14f,.27f,.10f,.09f,.025f,.035f}){
+                const float shade=1+grain*coefficient*fine;
+                const float color=float(random()&0xffffff)/16777215.0f,old=color*shade;
+                require(shade==1.f&&std::memcmp(&old,&color,sizeof(color))==0,"independent original floor/hash/grain math is exactly the input colour at zero amplitude");}
+        }
+    }
     std::printf("vehicle snapshot: %d checks passed\n",checks);
 }

@@ -12,6 +12,15 @@
 // accessed here. The caller retains scan coverage, scalar weight increments,
 // row ownership, material guards and the original one-to-three-sample tail.
 namespace first_person::vehicle_pixels {
+// These finishes have only grain * coefficient * fine. With all three
+// original fine bands exactly zero, interpolation cannot add material detail.
+// Other finishes retain their independent medium/water/reflection expressions.
+template<class Surface>inline bool zero_grain_detail(Surface finish,const float *fine){
+    const bool grain=finish==Surface::stone||finish==Surface::asphalt||finish==Surface::rubber||
+        finish==Surface::cloth||finish==Surface::skin||finish==Surface::plaster;
+    return grain&&fine[0]==0.f&&fine[1]==0.f&&fine[2]==0.f;
+}
+
 #if NCMM_VEHICLE_PIXEL_SSE2
 struct result4 {__m128 depth;__m128i color;unsigned active=0;};
 template<class Vertices,class RGB>

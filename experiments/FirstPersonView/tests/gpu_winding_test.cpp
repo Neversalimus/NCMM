@@ -141,5 +141,20 @@ int main(){
             require(ncmm_gpu::rigid_glass_range(fixture.mesh,fixture.glass_slot,fixture.glass_slot*3,3)==(which<6||which==8),"all source-bound finish/alpha/lower negative controls retain their general shader");
             require(ncmm_gpu::winding_bone(fixture.bone)==(which!=8),"an animated root separately rejects the transparent batch proof");}
     }
+
+    {
+        for(uint32_t finish=0;finish<=16;++finish)
+            require(ncmm_gpu::plain_component_finish(finish)==(finish==0),"only exact finish zero can replace the ordinary detail uniform");
+        require(!ncmm_gpu::plain_component_finish(UINT32_MAX),"unknown finishes keep the original component program");
+        plain_depth_fixture fixture;glass_depth_fixture previous_glass;opaque_depth_fixture previous_depth;
+        for(unsigned which=0;which<10;++which){fixture.observe_plain(which);previous_glass.observe_glass(which);previous_depth.observe(1.f,true);
+            require(fixture.mesh.key!=previous_glass.mesh.key&&fixture.mesh.key!=previous_depth.mesh.key,"new immutable plain probes never alias old resident geometry");
+            const auto reason=ncmm_gpu::validate(fixture.scene,&fixture.world);require(!reason,reason?reason:"owned plain opaque source contract");
+            const auto slot=fixture.glass_slot;
+            const bool eligible=ncmm_gpu::rigid_opaque_range(fixture.mesh,slot,slot*3,3)&&
+                ncmm_gpu::plain_component_finish(fixture.materials[slot].finish)&&ncmm_gpu::winding_bone(fixture.bone);
+            require(eligible==(which<6),"finish, lower light, root animation and fractional alpha keep every original fallback");
+        }
+    }
     std::printf("GPU winding: %u pure data/math checks passed; no SDL/device execution\n",checks);
 }

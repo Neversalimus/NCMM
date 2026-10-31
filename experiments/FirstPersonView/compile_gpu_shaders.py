@@ -42,6 +42,10 @@ if (a.source/'geometry_component.frag').read_text(encoding='utf-8')!=component:
 reflective=component.replace('material_detail(color,material.state.y,','material_detail(color,7u,')
 if reflective==component or (a.source/'geometry_reflective.frag').read_text(encoding='utf-8')!=reflective:
     p.error('Reflective fragment changed an expression outside its exact finish constant')
+plain=component.replace('material_detail(color,material.state.y,','material_detail(color,0u,')
+if plain==component or (a.source/'geometry_plain.frag').read_text(encoding='utf-8')!=plain:
+    p.error('Plain fragment changed an expression outside its exact finish-zero proof')
+
 glass=component.replace('#include "material_component.glsl"','#include "material.glsl"')
 old_glass_main='void main(){uint flags=(material.state.x&(512u|16384u))|8u;vec3 p=world_position,n=(flags&8u)!=0u?normalize(world_normal):normalize(flat_normal);\n    if((flags&512u)!=0u&&dot(flat_normal,camera.eye.xyz-p)<=0.0)discard;\n    float z=view_point(p).z,alpha=1.0;vec3 color=material.color.rgb;'
 new_glass_main='// The Host proves finish0, smooth untextured corners, a real world cell,\n// unchanged ordinary alpha, and no coverage/depth/lower/held modifiers.\nvoid main(){uint flags=(material.state.x&16384u)|8u;vec3 p=world_position,n=normalize(world_normal);\n    float z=view_point(p).z,alpha=material.color.a;vec3 color=material.color.rgb;\n    if(alpha<.01)discard;'

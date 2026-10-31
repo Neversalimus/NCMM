@@ -30,6 +30,12 @@ class Diagnostics(unittest.TestCase):
     def test_changed_glass_batch_proof_cannot_reconstruct(self):
         source=self.backend().replace('const bool component=d.cell<scene.cell_count&&d.bone_count==1&&','const bool component=d.cell<=scene.cell_count&&d.bone_count==1&&')
         with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_plain_counter_cannot_reconstruct(self):
+        source=self.backend().replace('if(profiling_&&plain)++recording_.plain_draws;','if(profiling_&&plain)recording_.plain_draws+=2;')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_plain_finish_proof_cannot_reconstruct(self):
+        source=self.backend().replace('const bool plain=component&&plain_component_finish(m.finish);','const bool plain=plain_component_finish(m.finish);')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def image(self,pixel):return struct.pack('<III',1,1,373694468)+bytes(pixel)
     def test_complete_equality(self):
         result=comparison.image_difference(self.image([255,20,30,40]),self.image([255,20,30,40]))

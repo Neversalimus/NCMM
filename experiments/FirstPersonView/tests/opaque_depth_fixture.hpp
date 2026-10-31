@@ -79,3 +79,14 @@ struct glass_depth_fixture:opaque_depth_fixture {
         observe(which==4?.081f:which==5?80.f:1.f,true);world.base=scene;
     }
 };
+
+// The opaque finish-zero cases own identities independent of both predecessors.
+struct plain_depth_fixture:glass_depth_fixture {
+    plain_depth_fixture(){mesh.key=0x504c41494e0000ull;}
+    void observe_plain(unsigned which){
+        observe_glass(which);draw.pass=NCMM_GPU_OPAQUE;
+        auto &plain=materials[glass_slot];plain.color[3]=which==9?.995f:1.f;
+        if(which==6)plain.finish=7;
+        world.base=scene;
+    }
+};

@@ -7,12 +7,14 @@
 #include <tuple>
 
 #define NCMM_GPU_COMPONENT_GLASS_PROGRAM 1
+#define NCMM_GPU_COMPONENT_PLAIN_PROGRAM 1
 namespace ncmm_gpu {
 // Private diagnostics: CPU time spent preparing/recording commands, never GPU
 // execution timestamps. The public metrics V1 layout remains unchanged.
 struct recording_metrics {
     double batching_pick_ms=0,shadow_ms=0,world_ms=0,creature_ms=0,held_ms=0,volume_ms=0,compose_ms=0;
     uint64_t glass_draws=0;
+    uint64_t plain_draws=0;
     uint64_t bones=0,held_bones=0,static_upload_bytes=0,dynamic_geometry_bytes=0;
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
     uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
@@ -131,14 +133,17 @@ class backend {
                 const bool component=selected==NCMM_GPU_OPAQUE&&b.component_safe&&range.component_surface;
                 const bool reflective=component&&reflective_component_finish(m.finish);
                 const bool glass=selected==NCMM_GPU_TRANSPARENT&&b.component_safe&&range.glass_surface;
-                const unsigned policy=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2)|(unsigned(glass)<<3);
+                const bool plain=component&&plain_component_finish(m.finish);
+                const unsigned policy=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2)|(unsigned(glass)<<3)|(unsigned(plain)<<4);
                 if(policy!=opaque_policy){
                     if(selected==NCMM_GPU_TRANSPARENT)SDL_BindGPUGraphicsPipeline(pass,glass?programs_.transparent_glass:programs_.transparent);
-                    else SDL_BindGPUGraphicsPipeline(pass,reflective?
+                    else SDL_BindGPUGraphicsPipeline(pass,plain?
+                        (winding?programs_.opaque_plain_culled:programs_.opaque_plain):reflective?
                         (winding?programs_.opaque_reflective_culled:programs_.opaque_reflective):component?
                         (winding?programs_.opaque_component_culled:programs_.opaque_component):(winding?programs_.opaque_culled:programs_.opaque));
                     opaque_policy=policy;}
                 if(profiling_&&glass)++recording_.glass_draws;
+                if(profiling_&&plain)++recording_.plain_draws;
                 const bool creature_zone=ncmm_graphics_trace::enabled()&&selected!=NCMM_GPU_HELD&&(m.flags&NCMM_GPU_CREATURE_VISUAL);
                 if(creature_zone){nvtxRangePushA("Creatures");SDL_PushGPUDebugGroup(commands,"Creatures");}
                 const auto draw_start=profiling_?clock::now():clock::time_point{};

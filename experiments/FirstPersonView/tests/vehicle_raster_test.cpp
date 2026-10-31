@@ -74,12 +74,12 @@ struct fixture {
         detailed.face({.06f,-.6f,0},{.06f,.6f,0},{.06f,.6f,.9f},{.06f,-.6f,.9f},detailed.fabric);
         vehicles.draws.push_back({detailed.finish(),v::rigid({7,12.5f,.1f},0),7,170,312,false,false,true});
     }
-    h::frame render(int dispatch,float yaw,float pitch,const h::frame *cache=nullptr,h::frame *world=nullptr){
+    h::frame render(int dispatch,float yaw,float pitch,const h::frame *cache=nullptr,h::frame *world=nullptr,bool zero_grain=false){
         const bool compose=dispatch>=9,borrow=dispatch==7||dispatch==8||(compose&&dispatch!=10),optimized=borrow||compose;
         h::render_options options;options.stream_vehicle_raster=dispatch==2;options.prune_vehicle_workers=dispatch==1||dispatch==3||optimized;
         options.prune_empty_vehicle_samples=dispatch==3||optimized;options.prune_unused_vehicle_bands=dispatch==3||dispatch==4||optimized;
         options.compact_vehicle_records=dispatch==3||dispatch==5||dispatch==6||optimized;
-        options.vector_vehicle_pixels=dispatch!=6&&dispatch!=8&&dispatch!=11;options.borrow_vehicle_materials=borrow;options.cache_static_vehicles=compose;h::frame result;
+        options.vector_vehicle_pixels=dispatch!=6&&dispatch!=8&&dispatch!=11;options.borrow_vehicle_materials=borrow;options.cache_static_vehicles=compose;options.zero_vehicle_grain=zero_grain;h::frame result;
         const h::sprite_provider provider=[&](uint32_t cell,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){
             if(!textured_ground||cell>=cells.size()||layer!=NCMM_GFX_GROUND)return false;
             sprite={sizeof(sprite),4,4,4,ground_texture.data()};return true;};
@@ -206,6 +206,32 @@ int main(){
         h::frame dark_world;const auto dark=f.render(9,0,0,nullptr,&dark_world);compare(f.render(0,0,0),dark);
         compare(dark,f.render_without_local_reuse(0,0));
         compare_cached(f.render(0,0,0),f.render(9,0,0,&dark_world));
+    }
+
+    {
+        // Far cloth/rubber and the original textured road retain nonzero medium
+        // bands while every fine corner is zero. Near detail remains present.
+        fixture grain;grain.vehicles.draws.clear();
+        for(auto &c:grain.cells)std::strcpy(c.terrain,"t_pavement");
+        for(auto &d:grain.details)std::strcpy(d.ground,"t_pavement");
+        ncmm_graphics_vehicle_part_v1 part{};part.health=1;part.color[0]=.4f;part.color[3]=1;
+        for(unsigned n=0;n<2;++n){v::builder pane(part);
+            pane.face({0,-1.7f,0},{0,1.7f,0},{0,1.7f,2.8f},{0,-1.7f,2.8f},n?pane.rubber:pane.fabric);
+            grain.vehicles.draws.push_back({pane.finish(),v::rigid({18.f+n*.8f,12.5f,0},n*.09f),7,700+n,312,false,false,true});}
+        uint64_t proved=0,extra_vectors=0;
+        for(bool texture:{false,true})for(float yaw:{-.08f,0.f,.11f}){
+            grain.textured_ground=texture;h::frame old_world,new_world;
+            const auto before=grain.render(9,yaw,-.08f,nullptr,&old_world,false),after=grain.render(9,yaw,-.08f,nullptr,&new_world,true);
+            compare(before,after);require(before.vehicle_zero_grain_triangles==0,"original full material-detail reference remains available");
+            proved+=after.vehicle_zero_grain_triangles;
+            require(after.world_vector_groups>=before.world_vector_groups,"the positive execution count cannot underflow");
+            extra_vectors+=after.world_vector_groups-before.world_vector_groups;
+            compare_cached(grain.render(9,yaw,-.08f,&old_world,nullptr,false),grain.render(9,yaw,-.08f,&new_world,nullptr,true));
+        }
+        require(proved>0,"complete 1280x800 buffers actually exercise zero-amplitude material proofs");
+#if NCMM_VEHICLE_PIXEL_SSE2
+        require(extra_vectors>0,"proved inactive road detail uses the existing exact opaque vector kernels");
+#endif
     }
     std::printf("vehicle raster: %d checks passed; full 1280x800 colour/depth/picking equivalence\n",checks);
     std::printf("vehicle projection logical bytes: %llu compact, %llu original; %u clipped records\n",

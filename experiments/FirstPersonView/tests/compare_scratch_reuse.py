@@ -14,6 +14,13 @@ def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def reference_backend(candidate):
     """Pure reconstruction, always checked against the unchanged frozen digest."""
     reference=candidate
+    # Reverse only the exact finish-zero addition before the old recipes.
+    # The original frozen digest and every previous rejection control remain.
+    if '#define NCMM_GPU_COMPONENT_PLAIN_PROGRAM 1\n' in reference:
+        plain_replacements=[('                if(profiling_&&glass)++recording_.glass_draws;\n                if(profiling_&&plain)++recording_.plain_draws;', '                if(profiling_&&glass)++recording_.glass_draws;'), ('                    else SDL_BindGPUGraphicsPipeline(pass,plain?\n                        (winding?programs_.opaque_plain_culled:programs_.opaque_plain):reflective?\n                        (winding?programs_.opaque_reflective_culled:programs_.opaque_reflective):component?', '                    else SDL_BindGPUGraphicsPipeline(pass,reflective?\n                        (winding?programs_.opaque_reflective_culled:programs_.opaque_reflective):component?'), ('                const bool glass=selected==NCMM_GPU_TRANSPARENT&&b.component_safe&&range.glass_surface;\n                const bool plain=component&&plain_component_finish(m.finish);\n                const unsigned policy=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2)|(unsigned(glass)<<3)|(unsigned(plain)<<4);', '                const bool glass=selected==NCMM_GPU_TRANSPARENT&&b.component_safe&&range.glass_surface;\n                const unsigned policy=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2)|(unsigned(glass)<<3);'), ('    uint64_t glass_draws=0;\n    uint64_t plain_draws=0;', '    uint64_t glass_draws=0;'), ('#define NCMM_GPU_COMPONENT_GLASS_PROGRAM 1\n#define NCMM_GPU_COMPONENT_PLAIN_PROGRAM 1', '#define NCMM_GPU_COMPONENT_GLASS_PROGRAM 1')]
+        for before,after in plain_replacements:
+            assert reference.count(before)==1,'Unreviewed plain reconstruction'
+            reference=reference.replace(before,after)
     # Remove only the reviewed glass policy before the existing reconstruction.
     # The unchanged digest below still rejects every unrelated modification.
     if '#define NCMM_GPU_COMPONENT_GLASS_PROGRAM 1\n' in reference:
