@@ -6,7 +6,10 @@
         depth_scene.mode=NCMM_GPU_FORCE;depth_scene.frame_serial=5000;
         depth_scene.camera.right[0]=-1;depth_scene.camera.up[2]=1;depth_scene.camera.forward[1]=1;
         depth_scene.camera.projection[0]=640;depth_scene.camera.projection[1]=480;depth_scene.camera.projection[2]=457;depth_scene.camera.projection[3]=512;
-        depth_scene.camera.grid[0]=depth_scene.camera.grid[1]=depth_scene.camera.grid[2]=1;
+        // This ceiling-covered fixture uses indoor lighting. Match the Native
+        // camera's interior flag so outdoor distance fog cannot dim the red
+        // control surface while this test isolates depth ordering.
+        depth_scene.camera.grid[0]=depth_scene.camera.grid[1]=depth_scene.camera.grid[2]=depth_scene.camera.grid[3]=1;
         ncmm_gpu_cell_v1 cell{};cell.flags=NCMM_GFX_VISIBLE|NCMM_GFX_CEILING;depth_scene.cells=&cell;depth_scene.cell_count=1;
         const auto identity=first_person::gpu::identity();depth_scene.bones=&identity;depth_scene.bone_count=1;
         std::array<ncmm_gpu_material_v1,2> materials{};
@@ -26,6 +29,8 @@
             require(ncmm_gpu::winding_camera(depth_scene.camera)&&ncmm_gpu::winding_pose(draw.transform),"mixed depth fixture uses the actual proven camera and rigid pose");
             draw.mesh_key=++mesh.key;++depth_scene.frame_serial;require(engine.submit(depth_scene),engine.metrics().reason);
             const auto center=capture(("-ordinary-depth-"+std::to_string(observations++)).c_str());
+            if(!coplanar&&((center>>24)<=220||((center>>8)&255)>=20))
+                std::fprintf(stderr,"Ordinary depth distance=%g center=%08x indoor=%g\n",distance,center,depth_scene.camera.grid[3]);
             if(!coplanar)require((center>>24)>220&&((center>>8)&255)<20,"later opaque geometry cannot paint through a nearer general-depth surface");
         }
         require(observations==8,"all eight near/distant/coplanar mixed-depth complete readbacks are retained");
