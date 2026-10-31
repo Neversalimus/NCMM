@@ -24,6 +24,12 @@ class Diagnostics(unittest.TestCase):
     def test_unrelated_backend_edit_cannot_reconstruct(self):
         source=self.backend().replace('metrics_.cpu_raster_calls=0;','metrics_.cpu_raster_calls=1;')
         with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_glass_policy_cannot_reconstruct(self):
+        source=self.backend().replace('if(profiling_&&glass)++recording_.glass_draws;','if(profiling_&&glass)recording_.glass_draws+=2;')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_glass_batch_proof_cannot_reconstruct(self):
+        source=self.backend().replace('const bool component=d.cell<scene.cell_count&&d.bone_count==1&&','const bool component=d.cell<=scene.cell_count&&d.bone_count==1&&')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def image(self,pixel):return struct.pack('<III',1,1,373694468)+bytes(pixel)
     def test_complete_equality(self):
         result=comparison.image_difference(self.image([255,20,30,40]),self.image([255,20,30,40]))

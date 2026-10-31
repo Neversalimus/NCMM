@@ -53,3 +53,27 @@ struct opaque_depth_fixture {
         scene.camera.sun[1]=-1;scene.camera.sun[3]=1;world.base=scene;
     }
 };
+
+// This extends the owned fixture without altering any original scene inputs.
+struct glass_depth_fixture:opaque_depth_fixture {
+    unsigned glass_slot=0;
+    void observe_glass(unsigned which){
+        materials={};for(unsigned n=0;n<2;++n){materials[n].color[0]=n?.8f:.2f;materials[n].color[1]=.3f;
+            materials[n].color[2]=n?.1f:.8f;materials[n].color[3]=.65f;}
+        glass_slot=which%2;auto &glass=materials[glass_slot];glass.flags=NCMM_GPU_SMOOTH;
+        glass.color[3]=which==1?.01f:which==2?.989f:which==9?.005f:.19f;
+        if(which==2)glass.flags|=NCMM_GPU_EMISSIVE;
+        if(which==6)glass.finish=9;
+        if(which==7)glass.flags|=4096u;
+        bone={};for(unsigned n=0;n<4;++n)bone.columns[n*5]=1;
+        if(which==8)bone.columns[12]=.001f;
+        const bool outside=which==3||which==5;cell.flags=NCMM_GFX_VISIBLE|(outside?0u:uint32_t(NCMM_GFX_CEILING));
+        cell.light[0]=.8f;cell.light[1]=.6f;cell.light[2]=.4f;
+        coordinate.flags=NCMM_WORLD_BODY_VISIBLE|(outside?0u:uint32_t(NCMM_WORLD_ROOFED));
+        scene.camera.sun[1]=-.6f;scene.camera.sun[2]=.8f;scene.camera.sun[3]=.4f;
+        scene.camera.weather[2]=.018f;scene.camera.sky_bottom[0]=.15f;scene.camera.sky_bottom[1]=.23f;scene.camera.sky_bottom[2]=.32f;
+        scene.camera.time[3]=1;
+        draw.cell=0;draw.pass=NCMM_GPU_TRANSPARENT;
+        observe(which==4?.081f:which==5?80.f:1.f,true);world.base=scene;
+    }
+};

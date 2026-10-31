@@ -459,3 +459,21 @@ samples and resource behavior; and passing both Windows installers and lifecycle
 Hosted software-adapter timings do not establish RTX 4090 FPS or the approximately
 15 ms hardware target. No local game/input/device tests or manual playthrough
 have been performed for this integration.
+
+Ordinary translucent component glass has a separate proved fragment path.
+It retains the existing vertex shader, source alpha, blend/depth state,
+lighting, fog, explicit fragment depth and globally stable transparent order.
+Only finish0, smooth untextured ordinary corners with a real cell and exact
+static-root/rigid-pose proofs qualify. All other flags, material finishes,
+alpha classes, textures, poses and lower-slab cases use the general program.
+All32 original shader arrays remain; one SPIR-V/DXIL fragment pair is added.
+
+The CPU keeps that same transparent order and uses compact projection and
+four independent smooth-light/fog/blend samples for proved ordinary glass.
+It reads each original scalar background only after its original depth test,
+blends floating colour before byte packing, never writes opaque/held depth or
+owners, and retains each exact crosshair focus minimum and the scalar tail.
+The original scalar and all previous opaque kernels remain unchanged.
+Independent numeric controls and complete1280x800 colour/depth/owner/focus
+comparisons cover overlapping panes, opaque occlusion, clipping and caching.
+This source change still requires full Native image and frame qualification.

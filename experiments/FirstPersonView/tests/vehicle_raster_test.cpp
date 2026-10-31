@@ -147,6 +147,27 @@ int main(){
 #endif
         f.textured_ground=false;f.cells[wall]=old_cell;f.details[wall]=old_detail;
     }
+
+    {
+        // Large overlapping panes plus an intervening opaque panel force
+        // ordered alpha, rejected lanes, focus, clipping and scalar tails.
+        fixture glass;glass.vehicles.draws.clear();
+        ncmm_graphics_vehicle_part_v1 part{};part.health=1;part.color[0]=.3f;part.color[1]=.5f;part.color[2]=.7f;part.color[3]=1;
+        for(unsigned layer=0;layer<4;++layer){v::builder pane(part);
+            pane.face({0,-1.7f,-.1f},{0,1.7f,-.1f},{0,1.7f,2.2f},{0,-1.7f,2.2f},layer==2?pane.paint:pane.glass);
+            glass.vehicles.draws.push_back({pane.finish(),v::rigid({4.f+layer*.65f,12.5f,0},layer*.08f),7,300+layer,312,false,false,true});}
+        uint64_t groups=0;
+        for(float yaw:{-.13f,0.f,.17f}){h::frame old_world,new_world;
+            const auto scalar=glass.render(0,yaw,-.08f,nullptr,&old_world),packed=glass.render(9,yaw,-.08f,nullptr,&new_world);
+            compare(scalar,packed);compare(scalar,glass.render(11,yaw,-.08f));groups+=packed.vehicle_glass_vector_groups;
+            require(scalar.vehicle_glass_vector_groups==0,"original complete-buffer glass reference stays scalar");
+            compare_cached(glass.render(0,yaw,-.08f,&old_world),glass.render(9,yaw,-.08f,&new_world));}
+        glass.scene.base.camera_x=4.02f;
+        for(float yaw:{0.f,3.1f})compare(glass.render(0,yaw,.07f),glass.render(9,yaw,.07f));
+#if NCMM_VEHICLE_PIXEL_SSE2
+        require(groups>0,"full 1280x800 color/depth/owners/focus equivalence actually executes ordered glass SIMD");
+#endif
+    }
     const auto reference=f.render(0,0,0),streamed=f.render(2,0,0);compare(reference,streamed);
     require(streamed.vehicle_streamed_triangles>0,"disabled streaming experiment remains an explicit correctness reference");
     f.scene.base.camera_x=12.5f;

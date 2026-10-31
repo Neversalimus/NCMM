@@ -6,11 +6,13 @@
 #include <chrono>
 #include <tuple>
 
+#define NCMM_GPU_COMPONENT_GLASS_PROGRAM 1
 namespace ncmm_gpu {
 // Private diagnostics: CPU time spent preparing/recording commands, never GPU
 // execution timestamps. The public metrics V1 layout remains unchanged.
 struct recording_metrics {
     double batching_pick_ms=0,shadow_ms=0,world_ms=0,creature_ms=0,held_ms=0,volume_ms=0,compose_ms=0;
+    uint64_t glass_draws=0;
     uint64_t bones=0,held_bones=0,static_upload_bytes=0,dynamic_geometry_bytes=0;
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
     uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
@@ -128,10 +130,15 @@ class backend {
                 const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
                 const bool component=selected==NCMM_GPU_OPAQUE&&b.component_safe&&range.component_surface;
                 const bool reflective=component&&reflective_component_finish(m.finish);
-                const unsigned policy=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2);
-                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,reflective?
-                    (winding?programs_.opaque_reflective_culled:programs_.opaque_reflective):component?
-                    (winding?programs_.opaque_component_culled:programs_.opaque_component):(winding?programs_.opaque_culled:programs_.opaque));opaque_policy=policy;}
+                const bool glass=selected==NCMM_GPU_TRANSPARENT&&b.component_safe&&range.glass_surface;
+                const unsigned policy=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2)|(unsigned(glass)<<3);
+                if(policy!=opaque_policy){
+                    if(selected==NCMM_GPU_TRANSPARENT)SDL_BindGPUGraphicsPipeline(pass,glass?programs_.transparent_glass:programs_.transparent);
+                    else SDL_BindGPUGraphicsPipeline(pass,reflective?
+                        (winding?programs_.opaque_reflective_culled:programs_.opaque_reflective):component?
+                        (winding?programs_.opaque_component_culled:programs_.opaque_component):(winding?programs_.opaque_culled:programs_.opaque));
+                    opaque_policy=policy;}
+                if(profiling_&&glass)++recording_.glass_draws;
                 const bool creature_zone=ncmm_graphics_trace::enabled()&&selected!=NCMM_GPU_HELD&&(m.flags&NCMM_GPU_CREATURE_VISUAL);
                 if(creature_zone){nvtxRangePushA("Creatures");SDL_PushGPUDebugGroup(commands,"Creatures");}
                 const auto draw_start=profiling_?clock::now():clock::time_point{};
@@ -262,7 +269,9 @@ public:
             batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size()),winding,component});instances.insert(instances.end(),list.begin(),list.end());}
         std::stable_sort(transparent.begin(),transparent.end(),[](const auto &a,const auto &b){return a.distance>b.distance;});
         for(const auto &t:transparent){const auto &d=scene.draws[t.index];auto *mesh=resources_.mesh(d.mesh_key);if(mesh&&mesh->joint_count<=d.bone_count&&!in_frustum(posed_bounds[t.index],scene.camera))continue;
-            uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
+            const bool component=d.cell<scene.cell_count&&d.bone_count==1&&d.bone_offset<scene.bone_count&&
+                winding_camera(scene.camera)&&winding_pose(d.transform)&&winding_bone(scene.bones[d.bone_offset]);
+            uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1,false,component});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
         pick(resources_,scene,metrics_,world,&posed_bounds,&focus_cell_);
         pick_zone.stop();
         if(profiling_)recording_.batching_pick_ms=ms(batching_start);

@@ -17,7 +17,7 @@ struct bounds {
     void include(const float *p){for(int i=0;i<3;++i){lo[i]=std::min(lo[i],p[i]);hi[i]=std::max(hi[i],p[i]);}}
     bool valid()const{return lo[0]<=hi[0];}
 };
-struct mesh_range {uint32_t material=0,first=0,count=0;bool winding_safe=false,component_surface=false;};
+struct mesh_range {uint32_t material=0,first=0,count=0;bool winding_safe=false,component_surface=false,glass_surface=false;};
 // CPU preparation consumes the already validated scene index/material IDs.
 inline bool material_indices(const ncmm_gpu_mesh_v1 &source,std::vector<uint32_t> &indices,std::vector<mesh_range> &ranges){
     indices.clear();ranges.clear();
@@ -98,7 +98,8 @@ class resource_cache {
         const ncmm_gpu_mesh_v1 ordered{source.key,source.vertices,m.cpu_indices.data(),source.materials,
             source.vertex_count,source.index_count,source.material_count,source.reserved};
         for(auto &range:m.ranges){range.winding_safe=winding_range(ordered,range.material,range.first,range.count);
-            range.component_surface=rigid_opaque_range(ordered,range.material,range.first,range.count);}
+            range.component_surface=rigid_opaque_range(ordered,range.material,range.first,range.count);
+            range.glass_surface=rigid_glass_range(ordered,range.material,range.first,range.count);}
         for(const auto &vertex:m.cpu_vertices){if(m.joints.size()<=vertex.joint)m.joints.resize(vertex.joint+1);m.joints[vertex.joint].include(vertex.position);m.joint_count=std::max(m.joint_count,vertex.joint+1);
             if(vertex.flags&NCMM_GPU_BILLBOARD){const float radius=std::abs(vertex.position[0]-vertex.pivot[0]);
                 const float lo[]={vertex.pivot[0]-radius,vertex.pivot[1]-radius,vertex.position[2]},hi[]={vertex.pivot[0]+radius,vertex.pivot[1]+radius,vertex.position[2]};m.joints[vertex.joint].include(lo);m.joints[vertex.joint].include(hi);}}

@@ -738,6 +738,7 @@ int main(int argc,char **argv){
     #include "vehicle_closed_gpu_test.inc"
     #include "world_visual_gpu_test.inc"
     #include "opaque_depth_gpu_test.inc"
+    #include "glass_gpu_test.inc"
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();
     SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();
