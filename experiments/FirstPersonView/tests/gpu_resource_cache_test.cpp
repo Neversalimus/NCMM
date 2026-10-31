@@ -2,8 +2,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cmath>
-#include <limits>
 #include <vector>
 
 namespace {
@@ -38,20 +36,6 @@ void verify_indices(SDL_GPUDevice *device,const ncmm_gpu::mesh_resource &mesh,co
 int material_indices_cpu_test(){
     uint64_t checked=0,payloads=0;
     const auto check=[&](bool value,const char *message){++checked;if(!value){std::fprintf(stderr,"CPU material indices: %s\n",message);std::exit(2);}};
-    ncmm_gpu_material_v1 replacement{};replacement.color[3]=1.f;
-    check(ncmm_gpu::opaque_color_replacement(replacement,0),"unit-alpha untextured colour can replace");
-    replacement.flags=NCMM_GPU_SMOOTH|NCMM_GPU_EMISSIVE;
-    check(ncmm_gpu::opaque_color_replacement(replacement,NCMM_GPU_SMOOTH),"smooth and emissive preserve shader alpha");
-    for(uint32_t coverage:{uint32_t(NCMM_GPU_TEXTURED),uint32_t(NCMM_GPU_CUTOUT),uint32_t(NCMM_GPU_SPILL),uint32_t(NCMM_GPU_IMPOSTOR),1u<<31}){
-        check(!ncmm_gpu::opaque_color_replacement(replacement,coverage),"vertex coverage/unknown flag retains blending");
-        const auto saved=replacement.flags;replacement.flags|=coverage;
-        check(!ncmm_gpu::opaque_color_replacement(replacement,0),"material coverage/unknown flag retains blending");replacement.flags=saved;
-    }
-    for(float alpha:{0.f,.24f,.99f,.999f,std::nextafter(1.f,0.f),std::nextafter(1.f,2.f),std::numeric_limits<float>::quiet_NaN()}){
-        replacement.color[3]=alpha;check(!ncmm_gpu::opaque_color_replacement(replacement,0),"only exact unit alpha can replace");
-    }
-    replacement.color[3]=1.f;replacement.finish=16;
-    check(!ncmm_gpu::opaque_color_replacement(replacement,0),"contact shader independently changes coverage");
     for(uint32_t triangles:{0u,1u,2u,17u,127u,1024u})for(uint32_t count:{1u,2u,7u,64u,256u})for(uint32_t pattern=0;pattern<4;++pattern){
         std::vector<ncmm_gpu_vertex_v1> vertices(std::max(3u,triangles*3));std::vector<uint32_t> input(triangles*3);std::vector<ncmm_gpu_material_v1> materials(count);
         for(uint32_t t=0;t<triangles;++t){const uint32_t material=pattern==0?0:pattern==1?t%count:pattern==2?(triangles-1-t)%count:((t*1664525u+1013904223u)>>8)%count;
@@ -151,15 +135,12 @@ int main(int argc,char **argv){
     require(cache.mesh(1)->indices!=cache.mesh(2)->indices&&cache.static_index_creations()==2,"equal length never substitutes unequal contents");
     verify_indices(device,*cache.mesh(1),{0,1,2,3,4,5});verify_indices(device,*cache.mesh(2),{5,4,3,2,1,0});cache.clear();
 
-    fixture changing,stable;changing.vertices[5].flags=NCMM_GPU_SPILL;
-    meshes={changing.view(1,true),stable.view(2)};scene.meshes=meshes.data();metrics={};
+    fixture changing,stable;meshes={changing.view(1,true),stable.view(2)};scene.meshes=meshes.data();metrics={};
     require(cache.prepare(scene,NCMM_GPU_RESOURCE_LIMIT,metrics),"mixed dynamic and immutable meshes");
-    require(cache.mesh(1)->vertex_flags==NCMM_GPU_SPILL&&cache.mesh(2)->vertex_flags==0,"coverage union includes every vertex and is owned per mesh");
     require(cache.mesh(1)->indices!=cache.mesh(2)->indices,"dynamic indices never share immutable storage");
     require(cache.mesh(1)->vertices!=cache.mesh(2)->vertices&&!cache.mesh(1)->static_vertices,"dynamic vertices never share immutable storage");
-    changing.indices={{5,4,3,2,1,0}};changing.vertices[0].position[0]=.75f;changing.vertices[5].flags=0;meshes[0]=changing.view(1,true);metrics={};
+    changing.indices={{5,4,3,2,1,0}};changing.vertices[0].position[0]=.75f;meshes[0]=changing.view(1,true);metrics={};
     require(cache.prepare(scene,NCMM_GPU_RESOURCE_LIMIT,metrics)&&metrics.dynamic_mesh_updates==1,"dynamic mesh update keeps its own storage");
-    require(cache.mesh(1)->vertex_flags==0,"dynamic update clears the previous coverage union");
     verify_indices(device,*cache.mesh(1),{5,4,3,2,1,0});verify_indices(device,*cache.mesh(2),{0,1,2,3,4,5});
     const auto dynamic_vertices=download(device,cache.mesh(1)->vertices,uint32_t(vertex_bytes));
     const auto stable_vertices=download(device,cache.mesh(2)->vertices,uint32_t(vertex_bytes));

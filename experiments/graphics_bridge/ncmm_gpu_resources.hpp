@@ -17,13 +17,6 @@ struct bounds {
     bool valid()const{return lo[0]<=hi[0];}
 };
 struct mesh_range {uint32_t material=0,first=0,count=0;};
-// geometry.frag preserves unit alpha for these untextured material/vertex
-// modes. Its contact surface (16) changes alpha independently of those flags.
-// Unknown or coverage-changing flags keep the original blending pipeline.
-inline bool opaque_color_replacement(const ncmm_gpu_material_v1 &material,uint32_t vertex_flags){
-    constexpr uint32_t colour_only=NCMM_GPU_SMOOTH|NCMM_GPU_EMISSIVE;
-    return material.color[3]==1.f&&material.finish!=16u&&((material.flags|vertex_flags)&~colour_only)==0;
-}
 // CPU preparation consumes the already validated scene index/material IDs.
 inline bool material_indices(const ncmm_gpu_mesh_v1 &source,std::vector<uint32_t> &indices,std::vector<mesh_range> &ranges){
     indices.clear();ranges.clear();
@@ -67,7 +60,7 @@ struct mesh_resource {
     std::vector<ncmm_gpu_material_v1> materials;
     std::vector<mesh_range> ranges;
     std::vector<bounds> joints;
-    uint32_t joint_count=1,vertex_flags=0;
+    uint32_t joint_count=1;
     uint32_t vertex_capacity=0,index_capacity=0;
     uint64_t touched=0,bytes=0;
     bool ready=false,dynamic=false,shared_indices=false,upload_indices=true;
@@ -97,9 +90,9 @@ class resource_cache {
     std::string reason_;
     bool mesh_data(const ncmm_gpu_mesh_v1 &source,mesh_resource &m){
         m.cpu_vertices.assign(source.vertices,source.vertices+source.vertex_count);m.materials.assign(source.materials,source.materials+source.material_count);
-        m.joints.clear();m.joint_count=1;m.vertex_flags=0;
+        m.joints.clear();m.joint_count=1;
         if(!material_indices(source,m.cpu_indices,m.ranges)){reason_="triangle references multiple materials";return false;}
-        for(const auto &vertex:m.cpu_vertices){m.vertex_flags|=vertex.flags;if(m.joints.size()<=vertex.joint)m.joints.resize(vertex.joint+1);m.joints[vertex.joint].include(vertex.position);m.joint_count=std::max(m.joint_count,vertex.joint+1);
+        for(const auto &vertex:m.cpu_vertices){if(m.joints.size()<=vertex.joint)m.joints.resize(vertex.joint+1);m.joints[vertex.joint].include(vertex.position);m.joint_count=std::max(m.joint_count,vertex.joint+1);
             if(vertex.flags&NCMM_GPU_BILLBOARD){const float radius=std::abs(vertex.position[0]-vertex.pivot[0]);
                 const float lo[]={vertex.pivot[0]-radius,vertex.pivot[1]-radius,vertex.position[2]},hi[]={vertex.pivot[0]+radius,vertex.pivot[1]+radius,vertex.position[2]};m.joints[vertex.joint].include(lo);m.joints[vertex.joint].include(hi);}}
         return true;

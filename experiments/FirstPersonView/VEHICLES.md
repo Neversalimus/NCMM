@@ -174,19 +174,15 @@ keep even clipped logical records smaller. This describes temporary records,
 not total game RAM or a measured frame-rate improvement. Their complete pixel,
 depth, picking and clipping-lifetime checks also run under ASan/UBSan in CI.
 
-Opaque, smooth vehicle triangles select a dedicated CPU shader once per
-triangle. It retains the same perspective/light/fog/depth/picking arithmetic,
-but omits per-pixel alternatives for sprites, cutouts, spills, held objects and
-alpha blending. A complete material guard sends unexpected inputs through the
-original general shader. Worker-local copies of immutable vertices/materials
-avoid queue aliases in the pixel loop; the full-field record remains the exact
-comparison path. This does not remove geometry or change resolution or LOD.
-
-The GPU uses the same shader with colour blending disabled only for exact
-unit-alpha ranges whose material and vertex flags cannot change coverage.
-Textured/cutout/spill/contact/unknown modes keep the original pipeline, as do
-transparent and held passes. Mesh keys, draw/material order, depth and picking
-remain unchanged; the ordinary exact GPU image gate qualifies this path.
+Healthy panel lofts can coalesce locally straight, coplanar spans while
+retaining sampled arches, corners, dents and folded/degenerate sections.
+An intact roof mount with real roof neighbours at both longitudinal ends has
+no longitudinal variation in its height function; it retains every transverse
+curvature sample while omitting redundant longitudinal planes. Eaves, damage,
+apertures and missing neighbours keep the original grid. The generator's
+internal reference subdivision switch is used only by pure surface tests;
+the scene cache always uses the production geometry. Independent intersections,
+materials, bounds and normals are checked against the original sampled surface.
 
 Native vehicle reports retain the GPU backend's existing CPU-side geometry,
 resource, upload, command-recording and submit timers with the most recent

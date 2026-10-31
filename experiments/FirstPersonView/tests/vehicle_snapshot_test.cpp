@@ -99,6 +99,44 @@ void verify_closed_surface(const first_person::vehicle::model &mesh){
     }
     require(rejected>0&&kept>0,"closed-shell work reduction actually skips only the hidden side");
 }
+void verify_sampled_surface(const first_person::vehicle::model &actual,const first_person::vehicle::model &reference){
+    using namespace first_person::vehicle;
+    require(actual.kind==reference.kind&&actual.closed_shell==reference.closed_shell,"coalescing preserves component semantics");
+    require(actual.materials.size()==reference.materials.size(),"coalescing preserves material slots");
+    for(size_t n=0;n<actual.materials.size();++n){const auto &a=actual.materials[n],&b=reference.materials[n];
+        require(a.color==b.color&&a.kind==b.kind&&a.emissive==b.emissive,"coalescing preserves actual colour/material/light data");}
+    const auto low=actual.minimum-reference.minimum,high=actual.maximum-reference.maximum;
+    require(dot(low,low)<1e-12f&&dot(high,high)<1e-12f,"coalescing preserves the original exact component extent");
+    const auto areas=[](const model &mesh){std::vector<double> result(mesh.materials.size());
+        for(const auto &t:mesh.triangles){const auto a=t.vertices[1].position-t.vertices[0].position,b=t.vertices[2].position-t.vertices[0].position;
+            const double x=double(a.y)*b.z-double(a.z)*b.y,y=double(a.z)*b.x-double(a.x)*b.z,z=double(a.x)*b.y-double(a.y)*b.x;
+            result[t.material]+=.5*std::sqrt(x*x+y*y+z*z);}
+        return result;};
+    const auto aa=areas(actual),ba=areas(reference);for(size_t n=0;n<aa.size();++n)
+        require(std::abs(aa[n]-ba[n])<1e-5*(1+ba[n]),"coalescing preserves each material's physical surface area");
+    const auto center=(reference.minimum+reference.maximum)*.5f,diagonal=reference.maximum-reference.minimum;
+    const float extent=std::sqrt(dot(diagonal,diagonal))*.55f+.02f;
+    const std::array<point,14> directions{{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1},
+        {1,1,1},{1,1,-1},{1,-1,1},{1,-1,-1},{-1,1,1},{-1,1,-1},{-1,-1,1},{-1,-1,-1}}};
+    const auto compare=[&](point eye,point ray){
+        struct hit {double distance=std::numeric_limits<double>::infinity();const triangle *surface=nullptr;};
+        const auto nearest=[&](const model &mesh){hit result;
+            for(const auto &t:mesh.triangles){const auto d=reference_intersection(t,eye,ray);if(d<result.distance)result={d,&t};}return result;};
+        const auto a=nearest(actual),b=nearest(reference);
+        require(bool(a.surface)==bool(b.surface),"coalescing preserves openings and silhouettes in independent rays");
+        if(!a.surface)return;
+        require(std::abs(a.distance-b.distance)<1e-5,"coalescing preserves the nearest sampled surface depth");
+        require(a.surface->material==b.surface->material,"coalescing preserves the visible surface's material");
+        const auto delta=a.surface->vertices[0].normal-b.surface->vertices[0].normal;
+        require(dot(delta,delta)<1e-8f,"coalescing preserves the original sampled surface normal");
+    };
+    for(auto d:directions){const auto eye=center+unit(d)*(extent*4+1),forward=unit(center-eye);
+        const auto side=unit(cross(forward,std::abs(forward.z)<.8f?point{0,0,1}:point{0,1,0})),up=unit(cross(side,forward));
+        for(int x=-3;x<=3;++x)for(int y=-3;y<=3;++y)
+            compare(eye,unit(center+side*(extent*(x+.137f)/3.4f)+up*(extent*(y+.271f)/3.4f)-eye));
+        compare(center+point{.013f,.021f,.007f},unit(d));
+    }
+}
 }
 int main(){
     {struct sample_point {float x,y;};
@@ -284,6 +322,46 @@ int main(){
         const first_person::vehicle::topology corner_layout(straight,straight.vehicles[0]);
         const auto corner=first_person::vehicle::generate(straight,corner_layout,panel,0);
         require(paint_triangles(corner)>paint_triangles(flat),"a rounded outer body corner keeps its full contour samples");
+        const auto sampled_corner=first_person::vehicle::generate(straight,corner_layout,panel,0,true);
+        require(corner->triangles.size()<sampled_corner->triangles.size(),"only the redundant straight middle of a curved corner coalesces");
+        verify_sampled_surface(*corner,*sampled_corner);
+        for(unsigned lod=0;lod<3;++lod)for(float health:{1.f,.6f,0.f}){
+            panel.health=health;
+            const auto a=first_person::vehicle::generate(straight,corner_layout,panel,lod);
+            const auto b=first_person::vehicle::generate(straight,corner_layout,panel,lod,true);
+            if(health!=1)require(a->triangles.size()==b->triangles.size(),"damaged panel retains every original subdivision");
+            verify_sampled_surface(*a,*b);
+        }
+    }
+    {
+        using namespace first_person::vehicle;
+        auto canopy=original;canopy.parts.clear();canopy.vehicles[0].min_x=-2;canopy.vehicles[0].max_x=2;
+        canopy.vehicles[0].min_y=-1;canopy.vehicles[0].max_y=1;
+        uint64_t identity=300;
+        for(int x=-2;x<=2;++x)for(int y=-1;y<=1;++y)for(uint32_t feature:{uint32_t(NCMM_VP_FRAME),uint32_t(NCMM_VP_ROOF)}){
+            auto p=original.parts[0];p.part_id=identity++;p.mount_x=x;p.mount_y=y;p.features=feature;
+            std::strcpy(p.id,feature==NCMM_VP_ROOF?"roof":"frame");canopy.parts.push_back(p);
+        }
+        canopy.scene.part_count=canopy.vehicles[0].part_count=uint32_t(canopy.parts.size());
+        require(valid(canopy,64),"roof surface fixture is a bounded installed construction");
+        const first_person::vehicle::topology layout(canopy,canopy.vehicles[0]);
+        for(int x:{0,2})for(int y:{0,1})for(unsigned lod=0;lod<3;++lod)for(float health:{1.f,.7f,0.f})for(bool broken:{false,true}){
+            auto p=*std::find_if(canopy.parts.begin(),canopy.parts.end(),[&](const auto &v){return v.mount_x==x&&v.mount_y==y&&v.features==NCMM_VP_ROOF;});
+            p.health=health;if(broken)p.state|=NCMM_VP_BROKEN;
+            const auto actual=generate(canopy,layout,p,lod),reference=generate(canopy,layout,p,lod,true);
+            const bool coalesced=x==0&&health==1&&!broken;
+            const size_t reduction=coalesced?4*(lod==0?8:4)*((lod==0?6:3)-1):0;
+            require(reference->triangles.size()-actual->triangles.size()==reduction,"only intact interior roofs remove redundant longitudinal planes");
+            verify_sampled_surface(*actual,*reference);
+        }
+        auto missing=canopy;missing.parts.erase(std::remove_if(missing.parts.begin(),missing.parts.end(),[](const auto &p){return p.mount_x==1&&p.mount_y==0&&p.features==NCMM_VP_ROOF;}),missing.parts.end());
+        missing.scene.part_count=missing.vehicles[0].part_count=uint32_t(missing.parts.size());
+        const first_person::vehicle::topology open(missing,missing.vehicles[0]);
+        auto p=*std::find_if(missing.parts.begin(),missing.parts.end(),[](const auto &p){return p.mount_x==0&&p.mount_y==0&&p.features==NCMM_VP_ROOF;});
+        require(layout.recipe(p,0)!=open.recipe(p,0),"removing the real roof neighbour invalidates the dependent cached geometry");
+        const auto actual=generate(missing,open,p,0),reference=generate(missing,open,p,0,true);
+        require(actual->triangles.size()==reference->triangles.size(),"missing roof neighbour retains the original eave samples");
+        verify_sampled_surface(*actual,*reference);
     }
     {
         auto names=original.parts[0];std::strcpy(names.id,"dashboard");std::strcpy(names.variant,"_extra");

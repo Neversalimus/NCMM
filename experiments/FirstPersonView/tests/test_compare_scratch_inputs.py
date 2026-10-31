@@ -18,8 +18,8 @@ class Diagnostics(unittest.TestCase):
         self.assertEqual(hashlib.sha256(reference.encode()).hexdigest(),'a0dd1aa83c05e1a51ac33854dedb54696e85616857d9da1f68bb30ee7fe9662a')
         self.assertNotIn('opaque_color_replacement(',reference)
         self.assertNotIn('bound_pipeline',reference)
-    def test_changed_replacement_policy_cannot_reconstruct(self):
-        source=self.backend().replace('opaque_color_replacement(m,mesh->vertex_flags)','opaque_color_replacement(m,0)')
+    def test_changed_pipeline_policy_cannot_reconstruct(self):
+        source=self.backend().replace('selected==NCMM_GPU_OPAQUE?programs_.opaque:','selected==NCMM_GPU_OPAQUE?programs_.transparent:')
         with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def test_unrelated_backend_edit_cannot_reconstruct(self):
         source=self.backend().replace('metrics_.cpu_raster_calls=0;','metrics_.cpu_raster_calls=1;')

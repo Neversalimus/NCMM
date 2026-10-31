@@ -44,14 +44,6 @@ def reference_backend(candidate):
 '''
     assert reference.count(disposal)==1,'Unreviewed lifecycle reconstruction'
     reference=reference.replace(disposal,original_disposal)
-    # The reference keeps its original blended pipeline for every range.
-    # Only the candidate may select the new exact-unit-alpha replacement.
-    binding='        auto *const base_pipeline=selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held;\n        auto *bound_pipeline=base_pipeline;SDL_BindGPUGraphicsPipeline(pass,bound_pipeline);\n'
-    original_binding='        SDL_BindGPUGraphicsPipeline(pass,selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held);\n'
-    selection='                auto *const pipeline=selected==NCMM_GPU_OPAQUE&&opaque_color_replacement(m,mesh->vertex_flags)?programs_.opaque_replace:base_pipeline;\n                if(pipeline!=bound_pipeline){SDL_BindGPUGraphicsPipeline(pass,pipeline);bound_pipeline=pipeline;}\n'
-    assert reference.count(binding)==1,'Unreviewed pipeline binding reconstruction'
-    assert reference.count(selection)==1,'Unreviewed colour replacement reconstruction'
-    reference=reference.replace(binding,original_binding).replace(selection,'')
     assert hashlib.sha256(reference.encode()).hexdigest()==REFERENCE_SHA256,'Unreviewed reference reconstruction'
     return reference
 

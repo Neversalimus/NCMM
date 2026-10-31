@@ -166,7 +166,7 @@ inline component classify(const ncmm_graphics_vehicle_part_v1 &p){const auto f=p
     if(f&NCMM_VP_FUEL_TANK)return component::tank;if(f&NCMM_VP_FRAME)return component::frame;
     return component::other;
 }
-inline std::shared_ptr<const model> generate(const snapshot &s,const topology &layout,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod){
+inline std::shared_ptr<const model> generate(const snapshot &s,const topology &layout,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod,bool reference_subdivisions=false){
     auto visual=p;
     // Native's standard door cyan is an operational map-symbol colour, not a
     // separate paint job. Use one actual body definition colour for these
@@ -222,8 +222,31 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             const auto delta=sections[n][edge]-expected;
             if(dot(delta,delta)>1e-12f){straight=false;break;}
         }
-        const unsigned stride=straight?count:1;
-        for(unsigned n=0;n<count;n+=stride){const auto &a=sections[n],&c=sections[n+stride];
+        const auto planar_run=[&](unsigned first,unsigned last){
+            for(unsigned n=first+1;n<last;++n)for(unsigned edge=0;edge<3;++edge){
+                const auto expected=sections[first][edge]+(sections[last][edge]-sections[first][edge])*(float(n-first)/(last-first));
+                const auto delta=sections[n][edge]-expected;if(dot(delta,delta)>1e-12f)return false;
+            }
+            for(unsigned edge=0;edge<2;++edge){const auto origin=sections[first][edge];
+                const auto normal=cross(sections[first][edge+1]-origin,sections[last][edge+1]-origin);
+                const float length2=dot(normal,normal);if(length2<1e-12f)return false;
+                for(unsigned n=first;n<=last;++n)for(unsigned rail=edge;rail<=edge+1;++rail){
+                    const float distance=dot(normal,sections[n][rail]-origin);if(distance*distance>length2*1e-12f)return false;
+                }
+                for(unsigned n=first;n<last;++n){const auto &a=sections[n],&c=sections[n+1];
+                    if(a[0].z>=high&&c[0].z>=high)return false;
+                    if(dot(cross(a[edge+1]-a[edge],c[edge+1]-a[edge]),normal)<=0||
+                       dot(cross(c[edge+1]-a[edge],c[edge]-a[edge]),normal)<=0)return false;
+                }
+            }
+            return true;
+        };
+        for(unsigned n=0;n<count;){unsigned stride=straight?count:1;
+            // Only healthy, locally straight and coplanar spans can coalesce.
+            // Keep sampled arches/corners/dents and every folded/degenerate run.
+            if(!straight&&!reference_subdivisions&&p.health==1.f)for(unsigned end=count;end>n+1;--end){
+                if(planar_run(n,end)){stride=end-n;break;}}
+            const auto &a=sections[n],&c=sections[n+stride];n+=stride;
             if(a[0].z>=high&&c[0].z>=high)continue;
             b.face(a[0],a[1],c[1],c[0],material);
             b.face(a[1],a[2],c[2],c[1],material);
@@ -317,7 +340,12 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         const bool open_frame=layout.kind==archetype::bicycle||layout.kind==archetype::motorcycle||layout.kind==archetype::boat;
         if(!open_frame&&layout.has(at,NCMM_VP_FLOOR|NCMM_VP_AISLE))b.cushion({0,0,chassis+.035f},{1,1,.055f},.025f,b.dark);
     }else if(kind==component::roof){
-        const unsigned nx=lod==0?6:3,ny=lod==0?8:4;
+        unsigned nx=lod==0?6:3;const unsigned ny=lod==0?8:4;
+        // roof_height has no X dependence on an intact interior roof mount.
+        // Keep every transverse curvature sample and the original eave/dent/
+        // aperture grid. This removes redundant longitudinal planes only.
+        if(!reference_subdivisions&&p.health==1.f&&!(p.state&NCMM_VP_BROKEN)&&
+           layout.has(topology::adjacent(at,0),NCMM_VP_ROOF)&&layout.has(topology::adjacent(at,2),NCMM_VP_ROOF))nx=1;
         auto roof=[&](float x,float y){return point{x,y,layout.roof_height(at,x,y,p.health)};};
         for(unsigned x=0;x<nx;++x)for(unsigned y=0;y<ny;++y){const float x0=-.5f+float(x)/nx,x1=-.5f+float(x+1)/nx,y0=-.5f+float(y)/ny,y1=-.5f+float(y+1)/ny;
             if((p.state&NCMM_VP_BROKEN)&&std::abs((x0+x1)*.5f)<.23f&&std::abs((y0+y1)*.5f)<.29f)continue;
