@@ -38,6 +38,18 @@ def process_memory(status):
     return result
 
 
+def observe_process_memory(process, read_status):
+    try:return process_memory(read_status())
+    except (FileNotFoundError,ProcessLookupError,ValueError) as error:
+        # A single poll cannot settle a race with process teardown. Omit a
+        # malformed/missing terminal sample only after a bounded wait proves
+        # that the process has exited;
+        # retain its real exit status and every preceding RSS/HWM sample.
+        try:process.wait(timeout=5)
+        except subprocess.TimeoutExpired:raise error
+        return None
+
+
 def seed_linux_configuration(game):
     path=Path(game)/'config/options.json'
     if path.exists():raise ValueError('Linux fixture requires a fresh owned configuration')
@@ -145,12 +157,8 @@ def run(args):
                         try:code=process.wait(timeout=5);break
                         except subprocess.TimeoutExpired:
                             if time.monotonic()>=deadline:raise
-                            try:sample=process_memory(Path('/proc',str(process.pid),'status').read_text())
-                            except (FileNotFoundError,ProcessLookupError):continue
-                            except ValueError:
-                                if process.poll() is None:raise
-                                continue
-                            memory.append(dict(elapsed_seconds=time.time()-started,**sample))
+                            sample=observe_process_memory(process,lambda:Path('/proc',str(process.pid),'status').read_text())
+                            if sample is not None:memory.append(dict(elapsed_seconds=time.time()-started,**sample))
             except subprocess.TimeoutExpired:
                 import signal
                 timed_out=True;os.killpg(process.pid,signal.SIGKILL);code=process.wait()

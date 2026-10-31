@@ -23,6 +23,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <type_traits>
 #include <cstdint>
 #include <cstring>
 #include <chrono>
@@ -79,6 +80,8 @@ struct frame {
     uint32_t geometry_cells=0,culled_cells=0,culled_quads=0,sky_pixels=0;
     uint64_t volume_samples=0;
     uint32_t viewmodel_draws=0,viewmodel_errors=0,vehicle_streamed_triangles=0,vehicle_worker_skips=0,vehicle_empty_triangles=0,vehicle_band_skips=0;
+    uint32_t vehicle_compact_records=0,vehicle_clipped_records=0;
+    uint64_t vehicle_projection_bytes=0,vehicle_reference_projection_bytes=0; // Logical record bytes, not process RAM.
 };
 // Internal reference switches used by correctness tests and the manual
 // benchmark. They do not alter the Host ABI or add player-facing settings.
@@ -86,7 +89,7 @@ struct render_options {
     bool cull_geometry=true,skip_hidden_sky=true,skip_empty_volume=true,contact_shadows=true;
     // Sequential streaming remains a correctness reference: actual Native
     // measurements rejected its performance, so ordinary frames retain workers.
-    bool stream_vehicle_raster=false,prune_vehicle_workers=true,prune_empty_vehicle_samples=true,prune_unused_vehicle_bands=true;
+    bool stream_vehicle_raster=false,prune_vehicle_workers=true,prune_empty_vehicle_samples=true,prune_unused_vehicle_bands=true,compact_vehicle_records=true;
 };
 using sprite_provider=std::function<bool(uint32_t,uint32_t,ncmm_graphics_sprite_v2 &)>;
 struct image {
@@ -488,14 +491,28 @@ class renderer {
         return color;
     }
     static vertex interpolate(const vertex &a,const vertex &b,float t){return{a.p+(b.p-a.p)*t,a.u+(b.u-a.u)*t,a.v+(b.v-a.v)*t,a.light+(b.light-a.light)*t};}
-    struct projected_triangle {
-        std::array<vertex,3> v;std::array<vec,3> p;
+    struct projected_fields {
+        std::array<vec,3> p;
         std::array<float,3> iz,uu,vv,fine,medium;
-        material m;vec normal,flat_light,flat_color;
+        vec flat_light,flat_color;
         int xmin,xmax,ymin,ymax;float inv,dw0,dw1;bool coarse,detailed;
         uint8_t worker_mask=15;
     };
-    void project_piece(const triangle &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<projected_triangle> &output,bool reject_empty=false,bool skip_unused_bands=false){
+    struct projected_triangle:projected_fields {std::array<vertex,3> v;material m;vec normal;};
+    struct compact_projected_triangle:projected_fields {const triangle *source=nullptr;uint32_t clipped=UINT32_MAX;};
+    static_assert(sizeof(compact_projected_triangle)*2<=sizeof(projected_triangle),"ordinary vehicle projection records use at most half the original storage");
+    static_assert(sizeof(compact_projected_triangle)+sizeof(std::array<vertex,3>)<sizeof(projected_triangle),"even a clipped triangle needs fewer logical bytes");
+    // Queue elements are immutable and live until every painter worker joins.
+    // Only genuinely clipped vertices need another owned copy. Indexing this
+    // pool remains valid when its vector grows during projection.
+    std::vector<std::array<vertex,3>> vehicle_clipped_vertices;
+    static const std::array<vertex,3> &raster_vertices(const projected_triangle &t){return t.v;}
+    const std::array<vertex,3> &raster_vertices(const compact_projected_triangle &t)const{return t.clipped==UINT32_MAX?t.source->v:vehicle_clipped_vertices[t.clipped];}
+    static const material &raster_material(const projected_triangle &t){return t.m;}
+    static const material &raster_material(const compact_projected_triangle &t){return t.source->m;}
+    static vec raster_normal(const projected_triangle &t){return t.normal;}
+    static vec raster_normal(const compact_projected_triangle &t){return t.source->normal;}
+    template<class Record>void project_piece(const triangle &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false){
         std::array<vec,3> p{};
         std::array<float,3> iz{},uu{},vv{};
         for(int i=0;i<3;++i){auto q=viewed?(*viewed)[i]:view(v[i].p);iz[i]=1/q.z;p[i]={f.width*0.5f+projection*q.x*iz[i],f.height*0.5f-projection*q.y*iz[i],q.z};uu[i]=v[i].u*iz[i];vv[i]=v[i].v*iz[i];}
@@ -525,9 +542,14 @@ class renderer {
         for(int n=0;!t.m.grass&&bands&&n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
             fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
         const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&t.m.finish!=surface::contact&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
-        output.push_back({v,p,iz,uu,vv,fine,medium,t.m,t.normal,flat_light,flat_color,xmin,xmax,ymin,ymax,inv,dw0,dw1,coarse,detailed});
+        const projected_fields fields{p,iz,uu,vv,fine,medium,flat_light,flat_color,xmin,xmax,ymin,ymax,inv,dw0,dw1,coarse,detailed};
+        if constexpr(std::is_same<Record,compact_projected_triangle>::value){
+            uint32_t clipped=UINT32_MAX;
+            if(!viewed){clipped=uint32_t(vehicle_clipped_vertices.size());vehicle_clipped_vertices.push_back(v);}
+            output.push_back({fields,&t,clipped});
+        }else output.push_back({fields,v,t.m,t.normal});
     }
-    void project(const triangle &t,std::vector<projected_triangle> &output,bool reject_empty=false,bool skip_unused_bands=false){
+    template<class Record>void project(const triangle &t,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false){
         // Keep world-space clipping exact; reuse the input view transforms.
         const std::array<vec,3> viewed={view(t.v[0].p),view(t.v[1].p),view(t.v[2].p)};
         const bool uncut=viewed[0].z>=.08f&&viewed[1].z>=.08f&&viewed[2].z>=.08f;
@@ -540,16 +562,17 @@ class renderer {
         for(int piece=1;piece<count-1;++piece)
             project_piece(t,{poly[0],poly[piece],poly[piece+1]},nullptr,output,reject_empty,skip_unused_bands);
     }
-    void raster(const projected_triangle &t,int worker,int workers,uint32_t &triangles){
-        const auto &v=t.v;const auto &p=t.p;const auto &iz=t.iz;const auto &uu=t.uu;const auto &vv=t.vv;
+    template<class Record>void raster(const Record &t,int worker,int workers,uint32_t &triangles){
+        const auto &v=raster_vertices(t);const auto &appearance=raster_material(t);const auto normal=raster_normal(t);
+        const auto &p=t.p;const auto &iz=t.iz;const auto &uu=t.uu;const auto &vv=t.vv;
         const auto &fine=t.fine;const auto &medium=t.medium;
         const auto flat_light=t.flat_light,flat_color=t.flat_color;
         const int xmin=t.xmin,xmax=t.xmax,ymin=t.ymin,ymax=t.ymax;
         const float inv=t.inv,dw0=t.dw0,dw1=t.dw1;const bool coarse=t.coarse,detailed=t.detailed;
-        const bool solid_grass=t.m.grass&&!t.m.overlay&&!t.m.texture&&!t.m.smooth&&t.m.alpha>=.99f&&t.m.finish==surface::none;
+        const bool solid_grass=appearance.grass&&!appearance.overlay&&!appearance.texture&&!appearance.smooth&&appearance.alpha>=.99f&&appearance.finish==surface::none;
         const vec grass_color{flat_color.x*flat_light.x,flat_color.y*flat_light.y,flat_color.z*flat_light.z};
         float dux=0,duy=0,dvx=0,dvy=0,dzx=0,dzy=0;
-        if(t.m.impostor||(t.m.texture&&t.m.texture->creature_skin)){
+        if(appearance.impostor||(appearance.texture&&appearance.texture->creature_skin)){
             const float dw0y=(p[2].x-p[1].x)*inv,dw1y=(p[0].x-p[2].x)*inv;
             dux=dw0*(uu[0]-uu[2])+dw1*(uu[1]-uu[2]);duy=dw0y*(uu[0]-uu[2])+dw1y*(uu[1]-uu[2]);
             dvx=dw0*(vv[0]-vv[2])+dw1*(vv[1]-vv[2]);dvy=dw0y*(vv[0]-vv[2])+dw1y*(vv[1]-vv[2]);
@@ -560,12 +583,12 @@ class renderer {
         // Jacobian over every empty pixel of an impostor's enclosing quad.
         float impostor_footprint=0,impostor_lod=0;
         creature::colour_filter impostor_filter;
-        if(t.m.impostor){const auto &image=*t.m.impostor;const float center_z=3/(iz[0]+iz[1]+iz[2]);
+        if(appearance.impostor){const auto &image=*appearance.impostor;const float center_z=3/(iz[0]+iz[1]+iz[2]);
             const float center_u=(uu[0]+uu[1]+uu[2])*center_z/3,center_v=(vv[0]+vv[1]+vv[2])*center_z/3;
             impostor_footprint=center_z*std::max({std::abs(dux-center_u*dzx)*image.width,std::abs(duy-center_u*dzy)*image.width,std::abs(dvx-center_v*dzx)*image.height,std::abs(dvy-center_v*dzy)*image.height});
             if(impostor_footprint>=1){impostor_lod=std::log2(impostor_footprint);
                 impostor_filter=creature::colour_filter(uint32_t(image.width),uint32_t(image.height),image.color,image.mips,impostor_lod);}}
-        const float creature_cos=t.m.impostor?std::cos(t.m.creature_yaw):1,creature_sin=t.m.impostor?std::sin(t.m.creature_yaw):0;
+        const float creature_cos=appearance.impostor?std::cos(appearance.creature_yaw):1,creature_sin=appearance.impostor?std::sin(appearance.creature_yaw):0;
         auto edge=[](vec a,vec b,float x,float y){return(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
         // Interleaved strips keep all workers busy when the expensive floor or
         // view model occupies only the bottom of the viewport. Each pixel still
@@ -587,55 +610,55 @@ class renderer {
             for(int x=begin;x<=end;++x,w0+=dw0,w1+=dw1){
                 const float w2=1-w0-w1;
                 float recip=w0*iz[0]+w1*iz[1]+w2*iz[2];if(recip<=0)continue;float z=1/recip;size_t k=size_t(y)*f.width+x;
-                if(!t.m.impostor&&z>(t.m.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
+                if(!appearance.impostor&&z>(appearance.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
                 if(solid_grass){
-                    const float fog=clamp((z-2)*fog_density(t.m.cell));
-                    f.pixels[k]=pack(grass_color*(1-fog)+fog_color*fog);f.depth[k]=z;f.owners[k]=t.m.cell;f.creatures[k]=-1;
-                    if(x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=t.m.cell;}
+                    const float fog=clamp((z-2)*fog_density(appearance.cell));
+                    f.pixels[k]=pack(grass_color*(1-fog)+fog_color*fog);f.depth[k]=z;f.owners[k]=appearance.cell;f.creatures[k]=-1;
+                    if(x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=appearance.cell;}
                     continue;
                 }
-                vec c=flat_color;float alpha=t.m.alpha;vec pixel_light=flat_light;
-                if(t.m.smooth){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;pixel_light=v[0].light*a+v[1].light*b+v[2].light*cw;}
-                if(t.m.impostor){const auto &sprite=*t.m.impostor;
+                vec c=flat_color;float alpha=appearance.alpha;vec pixel_light=flat_light;
+                if(appearance.smooth){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;pixel_light=v[0].light*a+v[1].light*b+v[2].light*cw;}
+                if(appearance.impostor){const auto &sprite=*appearance.impostor;
                     const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z;
                     const size_t at=size_t(std::clamp(int(vv0*sprite.height),0,sprite.height-1))*sprite.width+std::clamp(int(u*sprite.width),0,sprite.width-1);
                     const auto pixel=impostor_footprint<1?sprite.color[at]:impostor_filter.sample(u,vv0);
                     if((pixel&255)<64)continue;
                     z+=float(sprite.depth[at])*sprite.span/32760*cp;
                     if(z<.08f||z>f.depth[k]+.0002f)continue;
-                    if(!t.m.silhouette)c=unpack(pixel);
+                    if(!appearance.silhouette)c=unpack(pixel);
                     const auto n=creature::decode_normal(sprite.normal[at]);
-                    pixel_light=light(t.m.cell,{creature_cos*n.x-creature_sin*n.y,creature_sin*n.x+creature_cos*n.y,n.z});
+                    pixel_light=light(appearance.cell,{creature_cos*n.x-creature_sin*n.y,creature_sin*n.x+creature_cos*n.y,n.z});
                 }
-                if(t.m.texture&&t.m.texture->valid()){const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z;
-                    float footprint=0;if(t.m.texture->creature_skin){const float width=float(t.m.texture->data.width),height=float(t.m.texture->data.height);
+                if(appearance.texture&&appearance.texture->valid()){const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z;
+                    float footprint=0;if(appearance.texture->creature_skin){const float width=float(appearance.texture->data.width),height=float(appearance.texture->data.height);
                         footprint=z*std::max({std::abs(dux-u*dzx)*width,std::abs(duy-u*dzy)*width,std::abs(dvx-vv0*dzx)*height,std::abs(dvy-vv0*dzy)*height});}
-                    auto px=t.m.texture->sample(u,vv0,coarse,footprint);float a=float(px&255)/255;
+                    auto px=appearance.texture->sample(u,vv0,coarse,footprint);float a=float(px&255)/255;
                     // Low-opacity glows and tile outlines must not become a large
                     // floating view model or write opaque world depth.
-                    if(t.m.cutout&&a<(t.m.overlay?.55f:.25f))continue;
-                    if(t.m.opaque_texture)c=unpack(px)*a+c*(1-a);else{c=unpack(px);alpha*=a;}}
-                if(t.m.spill){const float ax=w0*iz[0]*z,bx=w1*iz[1]*z,cx=w2*iz[2]*z;
+                    if(appearance.cutout&&a<(appearance.overlay?.55f:.25f))continue;
+                    if(appearance.opaque_texture)c=unpack(px)*a+c*(1-a);else{c=unpack(px);alpha*=a;}}
+                if(appearance.spill){const float ax=w0*iz[0]*z,bx=w1*iz[1]*z,cx=w2*iz[2]*z;
                     const vec at=v[0].p*ax+v[1].p*bx+v[2].p*cx;
                     const float dx=at.x-std::floor(at.x)-.5f,dy=at.y-std::floor(at.y)-.5f;
                     const float radius=.135f+(noise(at.x*9,at.y*9)-.5f)*.09f;
                     alpha*=liquid_surface::spill_coverage(radius,dx*dx+dy*dy,z/projection);}
-                if(t.m.finish==surface::contact){
+                if(appearance.finish==surface::contact){
                     const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z-.5f,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z-.5f;
                     const float fade=clamp(1-4*(u*u+vv0*vv0));alpha*=fade*fade;
                 }
                 if(alpha<.01f)continue;
                 // One writer owns the centre pixel. Transparent glass blocks
                 // interaction picking without changing colour or opaque depth.
-                if(!t.m.overlay&&x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=t.m.cell;}
+                if(!appearance.overlay&&x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=appearance.cell;}
                 if(detailed){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;
                     const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
-                    c=surface_color(c,t.m,pos,t.normal,z,fine[0]*a+fine[1]*b+fine[2]*cw,medium[0]*a+medium[1]*b+medium[2]*cw);}
+                    c=surface_color(c,appearance,pos,normal,z,fine[0]*a+fine[1]*b+fine[2]*cw,medium[0]*a+medium[1]*b+medium[2]*cw);}
                 c={c.x*pixel_light.x,c.y*pixel_light.y,c.z*pixel_light.z};
-                if(!t.m.overlay){float fog=clamp((z-2)*fog_density(t.m.cell));c=c*(1-fog)+fog_color*fog;}
+                if(!appearance.overlay){float fog=clamp((z-2)*fog_density(appearance.cell));c=c*(1-fog)+fog_color*fog;}
                 if(alpha<.99f)c=c*alpha+unpack(f.pixels[k])*(1-alpha);
                 f.pixels[k]=pack(c);
-                if(alpha>=.99f||t.m.cutout){if(t.m.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=t.m.cell;if(!t.m.overlay)f.creatures[k]=t.m.creature?t.m.cell:t.m.creature_visual?-2:-1;}
+                if(alpha>=.99f||appearance.cutout){if(appearance.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=appearance.cell;if(!appearance.overlay)f.creatures[k]=appearance.creature?appearance.cell:appearance.creature_visual?-2:-1;}
             }
         }
     }
@@ -655,7 +678,7 @@ class renderer {
         auto &queue=m.overlay?overlay:m.alpha<.99f&&!m.cutout?transparent:opaque;
         queue.push_back(t0);queue.push_back(t1);
     }
-    void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr,bool stream=false,bool prune_workers=false,bool reject_empty=false,bool skip_unused_bands=false){
+    void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr,bool stream=false,bool prune_workers=false,bool reject_empty=false,bool skip_unused_bands=false,bool compact=false){
         if(queue.empty()&&(!last||last->empty()))return;
         const auto begun=std::chrono::steady_clock::now();++f.raster_calls;f.submitted_triangles+=queue.size()+(last?last->size():0);
         if(stream){
@@ -677,26 +700,35 @@ class renderer {
             !queue.empty()&&!queue.front().m.overlay;
         const unsigned limit=area>=500000||dense_grass?4u:medium_world?2u:1u;
         const int count=limit>1?int(std::clamp(std::thread::hardware_concurrency(),1u,limit)):1;
-        std::vector<projected_triangle> projected;projected.reserve(queue.size()+(last?last->size():0));
-        for(const auto &t:queue)project(t,projected,reject_empty,skip_unused_bands);
-        if(last)for(const auto &t:*last)project(t,projected,reject_empty,skip_unused_bands);
-        if(projected.empty()){f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();return;}
-        const bool prune=prune_workers&&count>1;
-        if(prune)for(auto &t:projected)t.worker_mask=uint8_t(raster_worker_mask(t.ymin,t.ymax,count));
-        std::array<uint32_t,4> totals{},skipped{};std::array<std::thread,3> threads;
-        auto band=[&](int n){for(const auto &t:projected){
-            // Tiny component triangles often occupy just one worker's strip.
-            // Reject the other workers before material/derivative preparation;
-            // each participating worker still executes the original rasterizer.
-            if(prune&&!(t.worker_mask&(1u<<n))){++skipped[n];continue;}
-            raster(t,n,count,totals[n]);}};
-        // Sprites/geometry are resolved on the callback thread. Workers only
-        // read owned analyses and write disjoint pixel/depth rows, then join.
-        for(int n=1;n<count;++n){try{threads[n-1]=std::thread(band,n);}catch(const std::system_error &){band(n);}}
-        band(0);for(auto &t:threads)if(t.joinable())t.join();
-        for(auto total:totals)f.triangles+=total;
-        for(auto total:skipped)f.vehicle_worker_skips+=total;
-        f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
+        auto parallel=[&](auto &projected){projected.reserve(queue.size()+(last?last->size():0));
+            for(const auto &t:queue)project(t,projected,reject_empty,skip_unused_bands);
+            if(last)for(const auto &t:*last)project(t,projected,reject_empty,skip_unused_bands);
+            if(projected.empty())return;
+            const bool prune=prune_workers&&count>1;
+            if(prune)for(auto &t:projected)t.worker_mask=uint8_t(raster_worker_mask(t.ymin,t.ymax,count));
+            std::array<uint32_t,4> totals{},skipped{};std::array<std::thread,3> threads;
+            auto band=[&](int n){for(const auto &t:projected){
+                // Tiny component triangles often occupy just one worker's strip.
+                // Reject the other workers before material/derivative preparation;
+                // each participating worker still executes the original rasterizer.
+                if(prune&&!(t.worker_mask&(1u<<n))){++skipped[n];continue;}
+                raster(t,n,count,totals[n]);}};
+            // Sprites/geometry are resolved on the callback thread. Workers only
+            // read owned analyses and write disjoint pixel/depth rows, then join.
+            for(int n=1;n<count;++n){try{threads[n-1]=std::thread(band,n);}catch(const std::system_error &){band(n);}}
+            band(0);for(auto &t:threads)if(t.joinable())t.join();
+            for(auto total:totals)f.triangles+=total;
+            for(auto total:skipped)f.vehicle_worker_skips+=total;
+        };
+        if(compact){
+            vehicle_clipped_vertices.clear();std::vector<compact_projected_triangle> projected;parallel(projected);
+            f.vehicle_compact_records+=uint32_t(projected.size());f.vehicle_clipped_records+=uint32_t(vehicle_clipped_vertices.size());
+            f.vehicle_projection_bytes+=projected.size()*sizeof(compact_projected_triangle)+vehicle_clipped_vertices.size()*sizeof(std::array<vertex,3>);
+            f.vehicle_reference_projection_bytes+=projected.size()*sizeof(projected_triangle);
+            vehicle_clipped_vertices.clear();
+            f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
+        }else{std::vector<projected_triangle> projected;parallel(projected);
+            f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();}
     }
     void solid_quad(vec a,vec b,vec c,vec d,material m,vec normal={0,0,1}){
         if(gpu_sink)m.gpu_backface=true;
@@ -1585,7 +1617,7 @@ public:
     void collect(geometry_sink &sink,int width,int height){
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
-        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
         modular_vehicles();if(creature_data)dynamic_creatures();projectiles();held();gpu_sink=nullptr;
     }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
@@ -1610,11 +1642,11 @@ public:
             f.sun_shadows=shadows;
             if(world_output)*world_output=f;
         }
-        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
         // Animate only these near-field blades. The floor, walls and distant
         // world remain in the CPU cache; animation never changes Native time.
         opaque.clear();transparent.clear();
-        modular_vehicles();paint(opaque,nullptr,small_vehicle_region(),options.prune_vehicle_workers,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands);opaque.clear();
+        modular_vehicles();paint(opaque,nullptr,small_vehicle_region(),options.prune_vehicle_workers,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands,options.compact_vehicle_records);opaque.clear();
         std::vector<triangle> vehicle_glass;vehicle_glass.swap(transparent);
         std::vector<int> lawns;
         for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&ncmm_grass::terrain(base.cells[i].terrain)&&

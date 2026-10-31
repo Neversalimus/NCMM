@@ -96,6 +96,11 @@
             evidence.member("device",std::string(metrics.device));evidence.member("software_device",bool(metrics.software_device));
             evidence.member("gpu_draw_calls",metrics.draw_calls);evidence.member("gpu_triangles",metrics.triangles);
             evidence.member("gpu_upload_bytes",metrics.upload_bytes);evidence.member("gpu_resource_bytes",metrics.resource_bytes);
+            // Existing CPU-side timers of the most recent 3D submission.
+            // They may overlap and are not hardware execution/FPS timings.
+            evidence.member("gpu_frame_serial",metrics.frame_serial);
+            evidence.member("gpu_resource_ms",metrics.resource_ms);evidence.member("gpu_upload_ms",metrics.upload_ms);
+            evidence.member("gpu_submit_ms",metrics.submit_ms);
             evidence.member("gpu_producer_cache_bytes",metrics.producer_cache_bytes);evidence.member("gpu_frame_staging_bytes",graphics_gpu_engine->recording().frame_upload_capacity_bytes);}
         if(capture){const auto name="vehicle-"+prototype+"-"+label+"-"+backend+"-"+mode+".bmp";
             SDL_Surface *image=SDL_RenderReadPixels(renderer,nullptr);require(image!=nullptr,"vehicle_capture_failed");

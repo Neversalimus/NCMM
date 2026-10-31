@@ -165,6 +165,27 @@ The separate raster test compares complete 1280x800 colour, depth and picking
 buffers bit for bit, with cold/cached, angled, clipped, inside and hidden cases.
 New scheduling changes still require actual Native full-frame qualification.
 
+Compact CPU vehicle projection records reference the immutable, callback-owned
+source triangle until every painter worker joins. Only near-clipped vertex
+triples need a separate owned pool, addressed by indices that survive growth.
+The original full-field record remains a correctness reference. Compile-time
+checks bound ordinary record storage to at most half its original size and
+keep even clipped logical records smaller. This describes temporary records,
+not total game RAM or a measured frame-rate improvement. Their complete pixel,
+depth, picking and clipping-lifetime checks also run under ASan/UBSan in CI.
+
+Native vehicle reports retain the GPU backend's existing CPU-side resource,
+upload and submit timers with the most recent submission serial. These timers
+can overlap; cached images can retain an earlier submission. They are never
+added together or presented as hardware execution time. Complete Native frame
+comparisons remain the performance acceptance evidence.
+
+Linux process-memory sampling omits malformed/missing terminal data only after
+a bounded wait confirms child exit. A live child with incomplete data still
+fails, the real exit code remains subject to the original process gate, and no
+zero RSS/HWM sample is manufactured. Sampling periods, deadlines, the 900-second
+soak and memory thresholds remain unchanged.
+
 Straight panel lofts coalesce redundant coplanar strips only when every original
 edge sample agrees with the same linear surface. Real wheel cut-outs, rounded
 corners and local dents retain their sampled contour. World-space material
