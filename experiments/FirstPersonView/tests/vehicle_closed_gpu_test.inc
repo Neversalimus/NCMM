@@ -23,6 +23,8 @@
             part.features=feature;models.push_back(fp::vehicle::generate(construction,topology,part,0));}
         fp::vehicle::builder cube(part);cube.output.recipe=0x434c4f534544u;cube.output.closed_shell=true;
         cube.cushion({0,0,0},{1.5f,1.5f,1.5f},.08f,cube.paint);models.push_back(cube.finish());
+        part.features=NCMM_VP_ROOF;part.state=NCMM_VP_EXISTS;models.push_back(fp::vehicle::generate(construction,topology,part,0));
+        part.state|=NCMM_VP_BROKEN;models.push_back(fp::vehicle::generate(construction,topology,part,0));
         struct observation {std::vector<uint32_t> pixels;int focus=-1,target=-1;};
         const auto read=[&](){observation result;
             require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"compose actual closed-surface device frame");
@@ -79,8 +81,9 @@
                 require(reference.focus==candidate.focus&&reference.target==candidate.target,"closed-shell rejection preserves actual interaction and combat picking");++pairs;
             }
         }
-        require(pairs==42&&marked_variants>0&&inside_variants>0,"all42 full-image pairs exercise outside optimization and cached inside fallback");
-        for(unsigned unsafe=0;unsafe<2;++unsafe){auto geometry=std::make_shared<fp::vehicle::model>(*models.back());geometry->recipe+=100+unsafe;
+        require(pairs>=42&&marked_variants>0&&inside_variants>0,"all42 full-image pairs exercise outside optimization and cached inside fallback");
+        require(pairs==54,"all54 full-image pairs retain the original42 plus sealed/broken roofs and cached inside fallback");
+        for(unsigned unsafe=0;unsafe<2;++unsafe){auto geometry=std::make_shared<fp::vehicle::model>(*models[6]);geometry->recipe+=100+unsafe;
             if(unsafe==0)for(auto &v:geometry->triangles.front().vertices)v.normal={};
             else for(auto &m:geometry->materials)m.color[3]=.995f;
             vehicles.draws={{geometry,fp::vehicle::rigid({4.5f,4.5f,1.f},0),7,999,int(vehicle_cell),false,false,true}};

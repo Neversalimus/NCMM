@@ -144,6 +144,15 @@ public:
             add(p.wheel_radius);add(p.wheel_width);return h?h:1;
         }
         add(chassis);
+        constexpr uint32_t earlier_frame_roles=NCMM_VP_CONTROL_PANEL|NCMM_VP_CURTAIN|NCMM_VP_DOOR|NCMM_VP_WINDOW|
+            NCMM_VP_WHEEL|NCMM_VP_SEAT|NCMM_VP_AXLE|NCMM_VP_FLOAT|NCMM_VP_CONTROLS|NCMM_VP_SOLAR|NCMM_VP_ROOF|
+            NCMM_VP_ARMOR|NCMM_VP_PANEL|NCMM_VP_ENGINE|NCMM_VP_CARGO|NCMM_VP_TURRET|NCMM_VP_LIGHT|NCMM_VP_RACK|NCMM_VP_FUEL_TANK;
+        if(!narrow&&(p.features&NCMM_VP_FRAME)&&!(p.features&earlier_frame_roles)&&std::string_view(p.id)!="dashboard"){
+            // Wide frame beams are identical at every mount. Only the actual
+            // optional floor plate depends on topology; retain it in the key.
+            add(narrow);const bool open=kind==archetype::bicycle||kind==archetype::motorcycle||kind==archetype::boat;
+            add(!open&&has(at,NCMM_VP_FLOOR|NCMM_VP_AISLE));return h?h:1;
+        }
         constexpr uint32_t earlier_roof_roles=NCMM_VP_CONTROL_PANEL|NCMM_VP_CURTAIN|NCMM_VP_DOOR|NCMM_VP_WINDOW|
             NCMM_VP_WHEEL|NCMM_VP_SEAT|NCMM_VP_AXLE|NCMM_VP_FLOAT|NCMM_VP_CONTROLS|NCMM_VP_SOLAR;
         if((p.features&NCMM_VP_ROOF)&&!(p.features&earlier_roof_roles)&&std::string_view(p.id)!="dashboard"){

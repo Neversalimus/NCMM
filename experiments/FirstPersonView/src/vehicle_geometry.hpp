@@ -28,6 +28,17 @@ struct model {
     // order remain in triangles; the CPU can share rigid/light computations.
     std::vector<vertex> shared_vertices;
     std::vector<std::array<uint32_t,3>> vertex_indices;
+    // Lighting depends on the exact normal, not on the vertex position/UV.
+    // Keep these immutable local identities separate from per-draw lighting.
+    std::vector<point> shared_normals;
+    std::vector<uint32_t> normal_indices;
+    struct face_direction {point normal{};uint8_t flags=0;};
+    std::vector<face_direction> face_directions;
+    // An edited/copy-constructed diagnostic model must use its own original
+    // arithmetic, not auxiliary proofs belonging to a different allocation.
+    const triangle *face_source=nullptr;
+    const vertex *normal_source=nullptr;
+    bool indexed_normals()const{return normal_source==shared_vertices.data()&&normal_indices.size()==shared_vertices.size();}
     point pivot{};
     component kind=component::other;
     uint64_t recipe=0;
@@ -63,8 +74,23 @@ struct model {
         if(!std::isfinite(length)||length<=0)return false;
         normal=normal*(1/length);return true;
     }
+    bool front_facing(size_t index,point eye)const{
+        if(face_source!=triangles.data()||face_directions.size()!=triangles.size())return front_facing(triangles[index],eye);
+        const auto &face=face_directions[index];
+        return !(face.flags&1u)||dot(face.normal,eye-triangles[index].vertices[0].position)>=-1e-6f;
+    }
+    bool unit_outward_face(size_t index,point &normal,bool *reversed=nullptr)const{
+        if(face_source!=triangles.data()||face_directions.size()!=triangles.size())return unit_outward_face(triangles[index],normal,reversed);
+        const auto &face=face_directions[index];normal=face.normal;
+        if(!(face.flags&1u))return false;
+        if(reversed)*reversed=(face.flags&2u)!=0;
+        const float length=std::sqrt(dot(normal,normal));
+        if(!std::isfinite(length)||length<=0)return false;
+        normal=normal*(1/length);return true;
+    }
     size_t bytes()const{return sizeof(*this)+triangles.capacity()*sizeof(triangle)+materials.capacity()*sizeof(material)+
-        shared_vertices.capacity()*sizeof(vertex)+vertex_indices.capacity()*sizeof(std::array<uint32_t,3>);}
+        shared_vertices.capacity()*sizeof(vertex)+vertex_indices.capacity()*sizeof(std::array<uint32_t,3>)+
+        shared_normals.capacity()*sizeof(point)+normal_indices.capacity()*sizeof(uint32_t)+face_directions.capacity()*sizeof(face_direction);}
 };
 class builder {
 public:
@@ -88,6 +114,7 @@ public:
             std::vector<slot> unique(capacity);const size_t mask=capacity-1;
             output.shared_vertices.reserve(output.triangles.size());
             output.vertex_indices.reserve(output.triangles.size());
+            if(output.closed_shell)output.face_directions.reserve(output.triangles.size());
             output.minimum=output.maximum=output.triangles.front().vertices[0].position;
             for(const auto &t:output.triangles){std::array<uint32_t,3> indices{};
                 for(size_t n=0;n<3;++n){const auto &v=t.vertices[n];const auto p=v.position;
@@ -105,7 +132,26 @@ public:
                     indices[n]=found.index;
                 }
                 output.vertex_indices.push_back(indices);
+                if(output.closed_shell){model::face_direction direction{};bool reversed=false;
+                    if(model::outward_face(t,direction.normal,&reversed))direction.flags=uint8_t(1u|(reversed?2u:0u));
+                    output.face_directions.push_back(direction);}
             }
+            // Intern exact normal bits once per model. A flat half-full table
+            // avoids per-normal heap nodes, including imported smooth wheels.
+            struct normal_slot {std::array<uint32_t,3> identity{};uint32_t index=UINT32_MAX;};
+            size_t normal_capacity=1;while(normal_capacity<output.shared_vertices.size()*2)normal_capacity*=2;
+            std::vector<normal_slot> normals(normal_capacity);
+            output.normal_indices.reserve(output.shared_vertices.size());
+            for(const auto &v:output.shared_vertices){const std::array<float,3> values{{v.normal.x,v.normal.y,v.normal.z}};
+                std::array<uint32_t,3> identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
+                uint64_t hash=1469598103934665603ull;for(uint32_t value:identity)hash=(hash^value)*1099511628211ull;
+                hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
+                size_t at=size_t(hash)&(normal_capacity-1);
+                while(normals[at].index!=UINT32_MAX&&normals[at].identity!=identity)at=(at+1)&(normal_capacity-1);
+                auto &found=normals[at];if(found.index==UINT32_MAX){found.identity=identity;found.index=uint32_t(output.shared_normals.size());output.shared_normals.push_back(v.normal);}
+                output.normal_indices.push_back(found.index);
+            }
+            output.normal_source=output.shared_vertices.data();output.face_source=output.triangles.data();
         }
         return std::make_shared<model>(std::move(output));
     }
@@ -194,7 +240,7 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
     const auto closed_kind=b.output.kind;
     b.output.closed_shell=closed_kind==component::frame||closed_kind==component::seat||closed_kind==component::axle||
         closed_kind==component::tank||closed_kind==component::other||
-        (closed_kind==component::wheel&&!(p.state&NCMM_VP_BROKEN));
+        ((closed_kind==component::wheel||closed_kind==component::roof)&&!(p.state&NCMM_VP_BROKEN));
     if(p.state&NCMM_VP_TOPOLOGY_ONLY)return b.finish();
     const auto kind=b.output.kind;const mount at{p.mount_x,p.mount_y,p.mount_z};
     const float chassis=layout.chassis;
@@ -369,6 +415,16 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             if((p.state&NCMM_VP_BROKEN)&&std::abs((x0+x1)*.5f)<.23f&&std::abs((y0+y1)*.5f)<.29f)continue;
             const auto a=roof(x0,y0),c=roof(x1,y1),d=roof(x0,y1),q=roof(x1,y0);
             b.face(a,q,c,d,b.paint);b.face(d-point{0,0,.035f},c-point{0,0,.035f},q-point{0,0,.035f},a-point{0,0,.035f},b.fabric);}
+        if(!(p.state&NCMM_VP_BROKEN)){
+            // Each real roof patch is a thin solid, even beside a topology-only
+            // neighbour. Seal its exact sampled rim instead of exposing the
+            // backs of its upper/inner sheets through an open 35 mm slice.
+            const auto rim=[&](point a,point c){b.face(a-point{0,0,.035f},c-point{0,0,.035f},c,a,b.paint);};
+            for(unsigned x=0;x<nx;++x){const float a=-.5f+float(x)/nx,c=-.5f+float(x+1)/nx;
+                rim(roof(a,-.5f),roof(c,-.5f));rim(roof(c,.5f),roof(a,.5f));}
+            for(unsigned y=0;y<ny;++y){const float a=-.5f+float(y)/ny,c=-.5f+float(y+1)/ny;
+                rim(roof(.5f,a),roof(.5f,c));rim(roof(-.5f,c),roof(-.5f,a));}
+        }
         for(unsigned side=0;side<4;++side)if(!layout.has(topology::adjacent(at,side),NCMM_VP_ROOF)){
             const auto a=roof(side==0?.5f:-.5f,side==1?.5f:-.5f),c=roof(side==2?-.5f:.5f,side==3?-.5f:.5f);
             b.beam(a,c,.028f,.045f,b.dark);}

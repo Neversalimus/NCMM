@@ -36,7 +36,41 @@ void identical_model_data(const first_person::vehicle::model &a,const first_pers
     for(size_t n=0;n<a.shared_vertices.size();++n){const auto x=vertex(a.shared_vertices[n]),y=vertex(b.shared_vertices[n]);
         require(std::memcmp(x.data(),y.data(),sizeof(x))==0,"shared rigid/light input vertices retain all original bits");}
 }
+void verify_roof_solid(const first_person::vehicle::model &mesh,unsigned nx,unsigned ny){
+    const size_t count=4*nx*ny+4*(nx+ny);
+    require(mesh.closed_shell&&mesh.triangles.size()>=count,"an intact roof retains both sampled sheets and every closing rim");
+    using position=std::array<uint32_t,3>;
+    std::map<std::pair<position,position>,std::pair<unsigned,int>> edges;
+    for(size_t i=0;i<count;++i)for(unsigned n=0;n<3;++n){
+        const auto bits=[](auto point){const std::array<float,3> values{{point.x,point.y,point.z}};position result{};
+            std::memcpy(result.data(),values.data(),sizeof(result));return result;};
+        const auto a=bits(mesh.triangles[i].vertices[n].position),b=bits(mesh.triangles[i].vertices[(n+1)%3].position);
+        require(a!=b,"a closed roof has no collapsed source edge");
+        auto &edge=edges[a<b?std::make_pair(a,b):std::make_pair(b,a)];++edge.first;edge.second+=a<b?1:-1;
+    }
+    for(const auto &edge:edges)require(edge.second.first==2&&edge.second.second==0,
+        "every exact sampled roof edge belongs to two oppositely oriented triangles; no open rim or invented neighbour is needed");
+}
 void verify_gpu_vertices(const first_person::vehicle::model &model){
+    using namespace first_person::vehicle;
+    require(model.normal_indices.size()==model.shared_vertices.size(),"every immutable shared vertex has its own exact normal identity");
+    std::map<std::array<uint32_t,3>,uint32_t> normal_reference;
+    for(size_t index=0;index<model.shared_vertices.size();++index){const auto &normal=model.shared_vertices[index].normal;
+        const std::array<float,3> values{{normal.x,normal.y,normal.z}};std::array<uint32_t,3> bits{};
+        std::memcpy(bits.data(),values.data(),sizeof(bits));const auto expected=normal_reference.emplace(bits,uint32_t(normal_reference.size()));
+        const auto actual=model.normal_indices[index];require(actual==expected.first->second&&actual<model.shared_normals.size(),"normal IDs equal independent ordered three-float bit identities");
+        const auto &shared=model.shared_normals[actual];const std::array<float,3> cached{{shared.x,shared.y,shared.z}};
+        require(std::memcmp(values.data(),cached.data(),sizeof(values))==0,"interned normal inputs preserve signed zero and every source bit");
+    }
+    require(normal_reference.size()==model.shared_normals.size(),"normal reuse has no missing or extra local input");
+    require(model.face_directions.size()==(model.closed_shell?model.triangles.size():0),"only closed immutable shells store their exact local orientation proofs");
+    for(size_t index=0;index<model.triangles.size();++index){point expected{},actual{};bool before=false,after=false;
+        const bool a=first_person::vehicle::model::unit_outward_face(model.triangles[index],expected,&before),b=model.unit_outward_face(index,actual,&after);
+        const std::array<float,3> x{{expected.x,expected.y,expected.z}},y{{actual.x,actual.y,actual.z}};
+        require(a==b&&(!a||before==after)&&std::memcmp(x.data(),y.data(),sizeof(x))==0,"cached face direction equals the original cross/hint/normalization bits");
+        for(point eye:std::array<point,4>{{{0,0,0},{7,-3,2},{-.001f,.002f,-.003f},{-19,21,-8}}})
+            require(first_person::vehicle::model::front_facing(model.triangles[index],eye)==model.front_facing(index,eye),"cached raw orientation retains every original back-face decision");
+    }
     first_person::gpu::owned_mesh mesh;first_person::gpu::vertex_index indexed(model.triangles.size()*3);
     std::map<std::array<uint32_t,18>,uint32_t> reference;
     if(model.closed_shell)for(const auto &triangle:model.triangles){first_person::vehicle::point normal,raw;
@@ -166,6 +200,23 @@ void verify_sampled_surface(const first_person::vehicle::model &actual,const fir
 }
 }
 int main(){
+    {
+        using namespace first_person::vehicle;
+        ncmm_graphics_vehicle_part_v1 part{};part.health=1;builder b(part);b.output.closed_shell=true;
+        triangle face{{{{{0,0,0},{0,0,1},0,0},{{1,0,0},{0,0,1},1,0},{{0,1,0},{0,0,1},0,1}}},0};
+        b.output.triangles.push_back(face);for(auto &v:face.vertices)v.normal.x=-0.f;b.output.triangles.push_back(face);
+        const auto mesh=b.finish();require(mesh->shared_normals.size()==2,"positive and negative zero normals retain separate exact bit identities");verify_gpu_vertices(*mesh);
+        auto fallback=*mesh;fallback.face_directions.clear();fallback.normal_indices.clear();fallback.shared_normals.clear();
+        require(mesh->indexed_normals()&&!fallback.indexed_normals(),"copying a model cannot reuse normal proofs belonging to another allocation");
+        point before{},after{};bool a=false,c=false;
+        require(mesh->unit_outward_face(size_t(0),before,&a)==fallback.unit_outward_face(size_t(0),after,&c)&&a==c&&
+            before.x==after.x&&before.y==after.y&&before.z==after.z,"models without auxiliary storage retain the original face calculation");
+        const size_t extra=mesh->shared_normals.capacity()*sizeof(point)+mesh->normal_indices.capacity()*sizeof(uint32_t)+
+            mesh->face_directions.capacity()*sizeof(model::face_direction);
+        const size_t original=sizeof(model)+mesh->triangles.capacity()*sizeof(triangle)+mesh->materials.capacity()*sizeof(material)+
+            mesh->shared_vertices.capacity()*sizeof(vertex)+mesh->vertex_indices.capacity()*sizeof(std::array<uint32_t,3>);
+        require(mesh->bytes()==original+extra,"the existing model budget includes every optional allocation by capacity");
+    }
 #if NCMM_VEHICLE_PIXEL_SSE2
     {
         // Independent scalar arithmetic over plain numeric arrays. This does
@@ -209,38 +260,6 @@ int main(){
         }
     }
 #endif
-    {
-        uint32_t seed=0x183AB91u;const auto random=[&](){seed=seed*1664525u+1013904223u;return float(seed&0xffffffu)/16777215.f;};
-        unsigned epsilon_chains=0;
-        for(unsigned test=0;test<5000;++test){
-            float inverse[21][3],weights0[21],weights1[21];uint32_t colours[21];
-            const float initial=test%5?random()*100+.08f:std::numeric_limits<float>::infinity();
-            float reference_depth=initial,reference_focus=initial,staged_depth=initial,staged_focus=initial;
-            uint32_t reference_colour=37,reference_owner=23,focus_owner=23,staged_focus_owner=23,selected=UINT32_MAX;
-            for(unsigned n=0;n<21;++n){
-                weights0[n]=random()*1.2f-.1f;weights1[n]=random()*1.2f-.1f;colours[n]=seed;
-                for(float &v:inverse[n])v=.0001f+random()*12.5f;
-                if(test%4==0){const float z=(std::isfinite(initial)?initial:1.f)+float(n)*.00011f;
-                    weights0[n]=1;weights1[n]=0;for(float &v:inverse[n])v=1/z;}
-                volatile float w2=1-weights0[n];w2=w2-weights1[n];
-                volatile float a=weights0[n]*inverse[n][0],b=weights1[n]*inverse[n][1],c=w2*inverse[n][2],ab=a+b,reciprocal=ab+c;
-                bool accepted=false;float z=0;
-                if(reciprocal>0){z=1/reciprocal;volatile float limit=reference_depth+.0002f;accepted=!(z>limit);}
-                if(accepted){reference_depth=z;reference_colour=colours[n];reference_owner=n;
-                    if(z<reference_focus){reference_focus=z;focus_owner=n;}}
-                const auto actual=first_person::vehicle_pixels::opaque_depth(weights0[n],weights1[n],inverse[n],staged_depth);
-                require(actual.accepted==accepted,"opaque prepass preserves independently rounded reciprocal/depth/epsilon acceptance");
-                if(actual.accepted){require(std::memcmp(&actual.z,&z,sizeof(z))==0,"prepass depth retains every original float bit");
-                    staged_depth=actual.z;selected=n;if(actual.z<staged_focus){staged_focus=actual.z;staged_focus_owner=n;}}
-            }
-            const uint32_t staged_colour=selected==UINT32_MAX?37:colours[selected],staged_owner=selected==UINT32_MAX?23:selected;
-            require(staged_colour==reference_colour&&staged_owner==reference_owner&&staged_focus_owner==focus_owner&&
-                std::memcmp(&staged_depth,&reference_depth,sizeof(float))==0&&std::memcmp(&staged_focus,&reference_focus,sizeof(float))==0,
-                "final opaque owner colour, exact depth, Native owner and minimum centre focus equal the complete original sequence");
-            epsilon_chains+=reference_depth>initial+.0002f;
-        }
-        require(epsilon_chains>500,"ordered depth proof includes accepted epsilon chains beyond the initial world depth");
-    }
     {
         using namespace first_person::vehicle;triangle plane{};
         plane.vertices[0].position={0,0,0};plane.vertices[1].position={1,0,0};plane.vertices[2].position={0,1,0};
@@ -492,10 +511,45 @@ int main(){
         canopy.scene.part_count=canopy.vehicles[0].part_count=uint32_t(canopy.parts.size());
         require(valid(canopy,64),"roof surface fixture is a bounded installed construction");
         const first_person::vehicle::topology layout(canopy,canopy.vehicles[0]);
+        {
+            auto a=canopy.parts[0];a.features=NCMM_VP_FRAME;std::strcpy(a.id,"frame");a.mount_x=-1;a.mount_y=0;
+            auto b=a;b.mount_x=1;++b.part_id;
+            for(unsigned lod=0;lod<3;++lod)for(float health:{1.f,.7f,0.f})for(bool floor:{false,true}){
+                a.health=b.health=health;auto left=layout,right=layout;
+                for(auto *shape:{&left,&right})for(auto &row:shape->mounts)row.second.features&=~(NCMM_VP_FLOOR|NCMM_VP_AISLE);
+                if(floor){left.mounts[{a.mount_x,a.mount_y,a.mount_z}].features|=NCMM_VP_FLOOR;
+                    right.mounts[{b.mount_x,b.mount_y,b.mount_z}].features|=NCMM_VP_AISLE;}
+                right.kind=archetype::utility;right.min_x-=17;right.max_x+=9;right.cabin+=.5f;
+                right.mounts[{b.mount_x,b.mount_y,b.mount_z}].features|=NCMM_VP_SEAT|NCMM_VP_WHEEL|NCMM_VP_STEERABLE;
+                right.mounts[topology::adjacent({b.mount_x,b.mount_y,b.mount_z},0)].features|=NCMM_VP_SEAT|NCMM_VP_WHEEL;
+                require(left.recipe(a,lod)==right.recipe(b,lod),"wide frames share only their actual floor/beam recipe despite unrelated equipment and mount bounds");
+                identical_model_data(*generate(canopy,left,a,lod),*generate(canopy,right,b,lod));
+                auto no_floor=left;no_floor.mounts[{a.mount_x,a.mount_y,a.mount_z}].features^=NCMM_VP_FLOOR;
+                require(left.recipe(a,lod)!=no_floor.recipe(a,lod),"an actual floor-plate change invalidates its wide frame model");
+                auto narrow=left;narrow.narrow=true;
+                require(left.recipe(a,lod)!=narrow.recipe(a,lod),"narrow connected frame geometry cannot alias a wide frame");
+            }
+            a.health=b.health=1;auto open=layout;open.kind=archetype::boat;
+            open.mounts[{a.mount_x,a.mount_y,a.mount_z}].features|=NCMM_VP_FLOOR;
+            auto bare=open;bare.mounts[{a.mount_x,a.mount_y,a.mount_z}].features&=~NCMM_VP_FLOOR;
+            require(open.recipe(a,0)==bare.recipe(a,0),"open boat frames cannot acquire an invented floor plate");
+            identical_model_data(*generate(canopy,open,a,0),*generate(canopy,bare,a,0));
+            for(uint32_t role:{uint32_t(NCMM_VP_ROOF),uint32_t(NCMM_VP_SOLAR),uint32_t(NCMM_VP_PANEL),uint32_t(NCMM_VP_CONTROLS),uint32_t(NCMM_VP_CONTROL_PANEL)}){
+                a.features=b.features=NCMM_VP_FRAME|role;
+                auto dependency=layout;if(role&(NCMM_VP_CONTROLS|NCMM_VP_CONTROL_PANEL))dependency.narrow=!dependency.narrow;else dependency.cabin+=.5f;
+                require(layout.recipe(a,0)!=dependency.recipe(a,0),"higher-priority frame combinations retain their complete dependent recipes");}
+            a.features=b.features=NCMM_VP_FRAME;std::strcpy(a.id,"dashboard");std::strcpy(b.id,"dashboard");
+            auto dashboard=layout;dashboard.narrow=!dashboard.narrow;
+            require(layout.recipe(a,0)!=dashboard.recipe(a,0),"dashboard identity override never enters wide-frame sharing");
+        }
         for(int y:{-1,0,1})for(unsigned lod=0;lod<3;++lod)for(float health:{1.f,.7f,0.f})for(bool broken:{false,true}){
             auto a=*std::find_if(canopy.parts.begin(),canopy.parts.end(),[&](const auto &p){return p.mount_x==-1&&p.mount_y==y&&p.features==NCMM_VP_ROOF;});
             a.health=health;if(broken)a.state|=NCMM_VP_BROKEN;
             auto b=a;b.mount_x=1;++b.part_id;
+            const auto roof_model=generate(canopy,layout,a,lod);
+            if(!broken){const unsigned nx=health==1?1u:lod==0?6u:3u,ny=lod==0?8u:4u;
+                verify_roof_solid(*roof_model,nx,ny);}
+            else require(!roof_model->closed_shell&&roof_model->face_directions.empty(),"broken roof apertures keep their original two-sided fallback");
             require(layout.recipe(a,lod)==layout.recipe(b,lod),"equivalent longitudinal roof mounts share a local model recipe");
             identical_model_data(*generate(canopy,layout,a,lod),*generate(canopy,layout,b,lod));
             auto unrelated=layout;unrelated.min_x-=17;unrelated.max_x+=9;unrelated.cabin_min_x=-100;unrelated.cabin_max_x=100;
@@ -526,7 +580,7 @@ int main(){
             p.health=health;if(broken)p.state|=NCMM_VP_BROKEN;
             const auto actual=generate(canopy,layout,p,lod),reference=generate(canopy,layout,p,lod,true);
             const bool coalesced=x==0&&health==1&&!broken;
-            const size_t reduction=coalesced?4*(lod==0?8:4)*((lod==0?6:3)-1):0;
+            const size_t reduction=coalesced?4*((lod==0?8:4)+1)*((lod==0?6:3)-1):0;
             require(reference->triangles.size()-actual->triangles.size()==reduction,"only intact interior roofs remove redundant longitudinal planes");
             verify_sampled_surface(*actual,*reference);
         }

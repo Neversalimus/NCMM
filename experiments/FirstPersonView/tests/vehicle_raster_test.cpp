@@ -57,6 +57,8 @@ struct fixture {
         for(unsigned i=0;i<20;++i){const float y=i*.03f;
             tiny.face({0,y,0},{0,y+.0008f,0},{0,y,.0008f},{0,y,0},tiny.paint);}
         vehicles.draws.push_back({tiny.finish(),v::rigid({12,12,1.2f},0),7,150,312,false,false,true});
+        auto roof_part=input.parts[2];
+        vehicles.draws.push_back({v::generate(input,shape,roof_part,0),v::rigid({11.8f,12,0},.17f),7,151,312,false,false,true});
         // One shared model in distinct Native cells must not share its light,
         // picking owner or appearance storage across these component draws.
         auto neighbor=vehicles.draws[3];neighbor.cell=313;neighbor.part_id=160;neighbor.placement.origin.y+=.35f;
@@ -69,20 +71,26 @@ struct fixture {
         vehicles.draws.push_back({detailed.finish(),v::rigid({7,12.5f,.1f},0),7,170,312,false,false,true});
     }
     h::frame render(int dispatch,float yaw,float pitch,const h::frame *cache=nullptr,h::frame *world=nullptr){
-        const bool compose=dispatch>=9&&dispatch!=12,borrow=dispatch==7||dispatch==8||dispatch==12||(compose&&dispatch!=10),optimized=borrow||compose;
+        const bool compose=dispatch>=9,borrow=dispatch==7||dispatch==8||(compose&&dispatch!=10),optimized=borrow||compose;
         h::render_options options;options.stream_vehicle_raster=dispatch==2;options.prune_vehicle_workers=dispatch==1||dispatch==3||optimized;
         options.prune_empty_vehicle_samples=dispatch==3||optimized;options.prune_unused_vehicle_bands=dispatch==3||dispatch==4||optimized;
         options.compact_vehicle_records=dispatch==3||dispatch==5||dispatch==6||optimized;
-        options.vector_vehicle_pixels=dispatch!=6&&dispatch!=8&&dispatch!=11&&dispatch!=14;options.borrow_vehicle_materials=borrow;options.cache_static_vehicles=compose;
-        options.vehicle_depth_owners=dispatch>=12;h::frame result;
+        options.vector_vehicle_pixels=dispatch!=6&&dispatch!=8&&dispatch!=11;options.borrow_vehicle_materials=borrow;options.cache_static_vehicles=compose;h::frame result;
         h::renderer painter(scene,yaw,pitch,{},result,{},&metadata,options);painter.run(1280,800,cache,world);return result;
+    }
+    h::frame render_without_local_reuse(float yaw,float pitch){
+        const auto original=vehicles.draws;
+        for(auto &draw:vehicles.draws){auto model=std::make_shared<v::model>(*draw.geometry);
+            model->shared_normals.clear();model->normal_indices.clear();model->face_directions.clear();draw.geometry=std::move(model);}
+        auto result=render(0,yaw,pitch);vehicles.draws=original;return result;
     }
 };
 }
 int main(){
-    fixture f;uint32_t skipped=0,empty=0,bands=0,compact=0,clipped=0;uint64_t compact_bytes=0,full_bytes=0,vector_groups=0,source_bytes=0,full_source_bytes=0,depth_samples=0,owner_skips=0;
+    fixture f;uint32_t skipped=0,empty=0,bands=0,compact=0,clipped=0;uint64_t compact_bytes=0,full_bytes=0,vector_groups=0,source_bytes=0,full_source_bytes=0;
     for(float yaw:{-.17f,0.f,.17f})for(float pitch:{-.15f,0.f,.12f}){
         h::frame old_world,new_world;const auto before=f.render(0,yaw,pitch,nullptr,&old_world),after=f.render(1,yaw,pitch,nullptr,&new_world);
+        compare(before,f.render_without_local_reuse(yaw,pitch));
         compare(before,after);skipped+=after.vehicle_worker_skips;
         require(before.triangles==after.triangles,"parallel worker pruning retains every participating triangle visit");
         require(after.vehicle_streamed_triangles==0,"ordinary optimized path keeps parallel pixel work");
@@ -109,16 +117,11 @@ int main(){
         require(reused.submitted_triangles<cached_before.submitted_triangles&&reused.vehicle_source_bytes==0,
             "warm vehicle pixels are reused rather than rebuilt or quietly omitted");
         compare_cached(cached_before,f.render(9,yaw,pitch,&old_world));
-        for(int dispatch:{12,13,14}){const auto owned=f.render(dispatch,yaw,pitch);compare(before,owned);
-            depth_samples+=owned.vehicle_depth_samples;owner_skips+=owned.vehicle_owner_skips;}
-        h::frame owned_world;compare(before,f.render(13,yaw,pitch,nullptr,&owned_world));
-        compare_cached(cached_before,f.render(13,yaw,pitch,&owned_world));
     }
     if(std::thread::hardware_concurrency()>1)require(skipped>0,"equivalence actually rejects empty worker strips");
     require(empty>0,"exact sample pruning actually rejects projected zero-fragment triangles without dropping source geometry");
     require(bands>0,"unused band pruning actually avoids per-corner calculations while preserving reflective colour and all pixels");
     require(compact>0&&compact_bytes<full_bytes,"compact equivalence actually reduces logical projected-record bytes");
-    require(depth_samples>0&&owner_skips>0,"exact full-buffer equivalence actually shades final opaque owners and skips overwritten samples");
 #if NCMM_VEHICLE_PIXEL_SSE2
     require(vector_groups>0,"full colour/depth/picking equivalence actually executes four-lane vehicle arithmetic");
 #endif
@@ -129,12 +132,12 @@ int main(){
     v::builder inside(part);inside.cushion({0,0,0},{2,2,2},.1f,inside.paint);
     f.vehicles.draws.push_back({inside.finish(),v::rigid({12.5f,12.5f,1.55f},0),7,999,312,false,false,true});
     for(float yaw:{0.f,1.2f,3.1f}){const auto before=f.render(0,yaw,-.12f),after=f.render(1,yaw,-.12f);compare(before,after);
+        compare(before,f.render_without_local_reuse(yaw,-.12f));
         compare(before,f.render(3,yaw,-.12f));
         const auto packed=f.render(5,yaw,-.12f);compare(before,packed);clipped+=packed.vehicle_clipped_records;
         compare(before,f.render(6,yaw,-.12f));
         compare(before,f.render(7,yaw,-.12f));compare(before,f.render(8,yaw,-.12f));
         compare(before,f.render(9,yaw,-.12f));
-        compare(before,f.render(12,yaw,-.12f));compare(before,f.render(13,yaw,-.12f));compare(before,f.render(14,yaw,-.12f));
         require(after.vehicle_streamed_triangles==0,"near-plane/inside component conservatively keeps parallel path");}
     f.scene.base.camera_x=1.5f;f.cells[312].flags=0;f.cells[313].flags=0;
     require(clipped>=2,"clipped-vertex ownership is exercised across pool growth near and inside geometry");
@@ -143,7 +146,6 @@ int main(){
     const auto hidden_borrowed=f.render(7,0,0);compare(hidden_before,hidden_borrowed);
     require(hidden_borrowed.vehicle_source_bytes==0,"no callback material ownership survives the hidden-cell fallback");
     compare_cached(hidden_before,f.render(9,0,0));
-    compare_cached(hidden_before,f.render(13,0,0));
     f.cells[312].flags=f.cells[313].flags=NCMM_GFX_VISIBLE;
     {
         h::frame cache;f.render(9,0,0,nullptr,&cache);const auto original=f.vehicles.draws;
@@ -155,14 +157,12 @@ int main(){
         require(!moving.vehicle_composite,"a moving Native vehicle retains the independent geometry path");f.vehicles.input.vehicles[0].native_velocity=0;
         auto fractional=std::make_shared<v::model>(*f.vehicles.draws[0].geometry);
         for(auto &m:fractional->materials)if(m.color[3]>=.99f)m.color[3]=.995f;
-        f.vehicles.draws[0].geometry=fractional;compare(f.render(0,0,0),f.render(9,0,0,&cache));
-        const auto fractional_owned=f.render(13,0,0,&cache);compare(f.render(0,0,0),fractional_owned);
-        require(fractional_owned.vehicle_depth_samples==0,"a fractional opaque appearance keeps the original painter");f.vehicles.draws=original;
+        f.vehicles.draws[0].geometry=fractional;compare(f.render(0,0,0),f.render(9,0,0,&cache));f.vehicles.draws=original;
         f.scene.environment.daylight=0;f.scene.environment.cloud_cover=.8f;f.scene.environment.animation_seconds+=.04;
         f.details[312].light_r=.15f;f.details[312].light_g=.3f;f.details[312].light_b=.5f;
         h::frame dark_world;const auto dark=f.render(9,0,0,nullptr,&dark_world);compare(f.render(0,0,0),dark);
+        compare(dark,f.render_without_local_reuse(0,0));
         compare_cached(f.render(0,0,0),f.render(9,0,0,&dark_world));
-        compare(f.render(0,0,0),f.render(13,0,0));compare(f.render(0,0,0),f.render(14,0,0));
     }
     std::printf("vehicle raster: %d checks passed; full 1280x800 colour/depth/picking equivalence\n",checks);
     std::printf("vehicle projection logical bytes: %llu compact, %llu original; %u clipped records\n",

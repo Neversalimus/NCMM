@@ -415,16 +415,20 @@ non-reflective material path. These 429 complete readbacks and actual Native
 frame/resource/image qualification are required; source or compiler instruction
 counts never establish a game performance win.
 
-The CPU vehicle path can defer colour for strictly opaque, smooth, untextured
-ordinary component samples. It first applies the original ordered coverage and
-depth recurrence, then shades each pixel's final owner. Every accepted centre
-sample still participates in the minimum picking depth, including epsilon
-chains. World geometry keeps its original scalar order; fractional opacity,
-coverage effects, liquids and unproved materials keep the original painter.
-All source triangles, projection, detail, lighting and display dimensions stay
-unchanged. Private owner storage is bounded to 16 MiB; larger viewports or an
-allocation failure use the original path. Full colour/depth/owner/creature/focus
-buffers are compared against all retained scalar and SIMD controls in CI.
+The CPU path retains its original ordered scalar/SIMD painter. Additional
+depth-owner passes did not improve complete Native frames and are not used.
+Immutable models intern exact three-float normal identities and raw local face
+directions. CPU lighting remains per draw, with its actual Native cell, pose,
+environment and exterior permission; only identical input normals reuse a value.
+Models without these optional tables retain the original calculations. The
+existing 32 MiB model budget includes every auxiliary table. Wide frame beams
+share a model only when their actual optional floor plates are identical.
+CPU geometry telemetry includes modular source conversion before rasterization.
+Intact roof patches retain their original upper/inner samples and now seal the
+35 mm rim along every actual patch boundary. This permits the existing proved
+closed-shell culling path. Broken apertures retain two-sided rendering. Twelve
+additional full-image pairs cover intact/broken roofs outside, below, inside
+and near the camera, retaining all previous 429 readbacks (453 in total).
 
 Native permissions are rebuilt from the current published cells every frame.
 Compact coordinate bounds use an exact direct index of at most 2 MiB; sparse
