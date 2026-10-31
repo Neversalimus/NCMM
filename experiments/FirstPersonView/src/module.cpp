@@ -99,7 +99,9 @@ uint64_t geometry_key(const ncmm_graphics_scene_v2 &s,bool dynamic=false){
     auto bytes=[&](const void *p,size_t n){h=first_person::hash_bytes(h,p,n);};
     bytes(&yaw,sizeof(yaw));bytes(&pitch,sizeof(pitch));bytes(&high_quality,sizeof(high_quality));
     bytes(&modular_vehicles,sizeof(modular_vehicles));
-    if(metadata.vehicles)bytes(&metadata.vehicles->coverage_revision,sizeof(metadata.vehicles->coverage_revision));
+    if(metadata.vehicles){bytes(&metadata.vehicles->coverage_revision,sizeof(metadata.vehicles->coverage_revision));
+        const bool compose=metadata.vehicles->cacheable_opaque();bytes(&compose,sizeof(compose));
+        if(compose){const auto visual=metadata.vehicles->visual_revision();bytes(&visual,sizeof(visual));}}
     if(creature_state)bytes(&creature_state->native_art,sizeof(creature_state->native_art));
     if(active_world){const auto &w=*active_world;bytes(&w.world_epoch,sizeof(w.world_epoch));
         for(int32_t value:{w.origin_x,w.origin_y,w.origin_z,w.loaded_min_z,w.loaded_max_z})bytes(&value,sizeof(value));

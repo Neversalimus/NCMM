@@ -28,6 +28,22 @@ inline bool winding_bone(const ncmm_gpu_matrix_v1 &m){
     for(unsigned n=0;n<16;++n)if(m.columns[n]!=(n%5==0?1.f:0.f))return false;
     return true;
 }
+inline bool opaque_depth_range(const ncmm_gpu_mesh_v1 &mesh,uint32_t material,uint32_t first,uint32_t count){
+    // Ordinary opaque rigid geometry has no fragment depth displacement,
+    // alpha coverage, skin or billboard. Preserve the general shader for
+    // every unproved input; this is not a new public material flag.
+    if(!mesh.vertices||!mesh.indices||!mesh.materials||material>=mesh.material_count||!count||count%3||
+       count>mesh.index_count||first>mesh.index_count-count)return false;
+    const auto &m=mesh.materials[material];
+    constexpr uint32_t allowed=NCMM_GPU_CULL_BACK|NCMM_GPU_SMOOTH|NCMM_GPU_EMISSIVE;
+    if(!(m.flags&NCMM_GPU_SMOOTH)||(m.flags&~allowed)||m.color[3]!=1.f||m.finish==12||m.finish==16||
+       m.texture_key||m.normal_key||m.depth_key)return false;
+    for(uint32_t n=first;n<first+count;++n){if(mesh.indices[n]>=mesh.vertex_count)return false;
+        const auto &v=mesh.vertices[mesh.indices[n]];if(v.material!=material||v.joint||v.flags)return false;
+        for(float value:v.position)if(!std::isfinite(value))return false;
+    }
+    return true;
+}
 inline bool winding_range(const ncmm_gpu_mesh_v1 &mesh,uint32_t material,uint32_t first,uint32_t count){
     if(!mesh.vertices||!mesh.indices||!mesh.materials||material>=mesh.material_count||!count||count%3||
        count>mesh.index_count||first>mesh.index_count-count)return false;

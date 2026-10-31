@@ -618,5 +618,26 @@ int main(){
         wall.features=NCMM_VP_PANEL;wall.surface_faces=16u;require(!first_person::vehicle::valid(outside,8),"an exterior panel needs a real outward face proof");
         wall.surface_faces=32u;require(!first_person::vehicle::valid(outside,8),"unrecognized exterior face bits fail closed");
     }
+    {
+        first_person::vehicle::presentation still;still.input=original;still.input.enabled=true;still.observe({0,0,1.5f});
+        const auto signature=still.visual_revision();require(still.cacheable_opaque(),"stationary immutable opaque models may compose into the CPU world cache");
+        ++still.input.scene.revision;still.input.scene.seconds+=.01;still.observe({0,0,1.5f});
+        require(still.visual_revision()==signature,"a new callback provenance serial alone cannot change displayed model content");
+        const auto saved=still.draws;still.draws[0].placement.origin.x+=.001f;
+        require(still.visual_revision()!=signature,"even sub-tile rigid motion invalidates cached vehicle pixels");still.draws=saved;
+        ++still.draws[0].part_id;require(still.visual_revision()!=signature,"replacement part identity invalidates composition");still.draws=saved;
+        ++still.draws[0].cell;require(still.visual_revision()!=signature,"Native cell/lighting owner changes invalidate composition");still.draws=saved;
+        still.draws[0].exterior_surface=!still.draws[0].exterior_surface;
+        require(still.visual_revision()!=signature,"Native permission changes cannot reuse old vehicle pixels");still.draws=saved;
+        still.draws[0].surface_outside=!still.draws[0].surface_outside;
+        require(still.visual_revision()!=signature,"outside versus cabin lighting stays in the cache identity");still.draws=saved;
+        still.input.vehicles[0].native_velocity=1;require(!still.cacheable_opaque(),"moving Native vehicles retain independent per-frame composition");still.input.vehicles[0].native_velocity=0;
+        still.active_animation=true;require(!still.cacheable_opaque(),"door and wheel interpolation cannot enter the stationary cache");still.active_animation=false;
+        auto fractional=std::make_shared<first_person::vehicle::model>(*still.draws[0].geometry);
+        fractional->materials[0].color[3]=.995f;still.draws[0].geometry=fractional;
+        require(!still.cacheable_opaque(),"fractional opaque faces retain their original sky/background blend ordering");still.draws=saved;
+        still.draws.pop_back();require(still.visual_revision()!=signature,"demolition removes cached component pixels");still.draws=saved;
+        ++still.input.scene.world_epoch;require(still.visual_revision()!=signature,"world replacement invalidates the stationary composite");
+    }
     std::printf("vehicle snapshot: %d checks passed\n",checks);
 }

@@ -375,6 +375,26 @@ test checks this eligibility; the original frozen backend and all 414 ordinary
 readbacks still determine pixel equivalence on real CI devices. Neither the
 source-storage reduction nor this eligibility proof establishes a frame-time win.
 
+Stationary CPU components can compose into the existing opaque world cache.
+The content key includes every exact component pose, immutable model recipe,
+part/cell identity and surface permission; the existing complete world, light,
+camera, tileset and epoch keys remain in force. Native velocity, active hinges
+or wheels, and fractional opaque alpha retain independent drawing. Cold frames
+dispatch the original world and component sources in one ordered worker pass;
+transparent vehicle glass still joins the original transparent ordering.
+Complete color, depth, cell/creature ownership and crosshair comparisons cover
+both cold composition and warm reuse, including invalidation after mutations.
+
+An additional GPU fragment program lets proven smooth, untextured, fully opaque
+rigid components use vertex-interpolated depth. The build verifies that its
+complete color, lighting and material body equals the general program, with
+only its explicit depth write removed. All 14 original program binaries remain
+unchanged. Unproved poses, alpha, skinning, billboards, liquids, contact effects,
+textures and held items retain the general fragment-depth path. The complete
+frozen-backend comparison retains all 414 original readbacks and adds eight
+near-plane, distant and exactly coplanar mixed-depth cases. These are candidate
+correctness controls; frame-time and final image admission remain mandatory.
+
 The long-run gate also validates source-bound process RAM samples, not just
 module/GPU accounting. It rejects a late resident median more than 50 percent
 (at least 256 MiB) above the warmed baseline, or a transient peak above twice

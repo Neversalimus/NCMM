@@ -19,6 +19,16 @@ void compare(const h::frame &a,const h::frame &b){
     require(a.focus==b.focus&&a.focus_depth==b.focus_depth&&a.aimed==b.aimed,"crosshair selection/depth are unchanged");
     require(a.submitted_triangles==b.submitted_triangles&&a.vehicle_parts==b.vehicle_parts,"all source triangles/components are retained");
 }
+void compare_cached(const h::frame &a,const h::frame &b){
+    // Cache hits intentionally submit fewer triangles. Their complete displayed
+    // buffers and Native ownership still have to equal the uncached reference.
+    require(a.width==b.width&&a.height==b.height,"composite cache keeps the full original viewport");
+    require(identical(a.pixels,b.pixels),"composite cache preserves every displayed colour bit");
+    require(identical(a.depth,b.depth)&&identical(a.held_depth,b.held_depth),"composite cache preserves complete world and held depth");
+    require(a.owners==b.owners&&a.creatures==b.creatures,"composite cache preserves every Native owner and creature ID");
+    require(a.focus==b.focus&&a.focus_depth==b.focus_depth&&a.aimed==b.aimed,"composite cache preserves actual crosshair selection");
+    require(a.vehicle_parts==b.vehicle_parts,"cached images still represent every visible component");
+}
 struct fixture {
     std::vector<ncmm_graphics_cell_v1> cells=std::vector<ncmm_graphics_cell_v1>(625);
     std::vector<ncmm_graphics_cell_v2> details=std::vector<ncmm_graphics_cell_v2>(625);
@@ -34,6 +44,7 @@ struct fixture {
         metadata.vehicles=&vehicles;metadata.cells.resize(cells.size());metadata.view.eye_height=1.55f;
         v::snapshot input;input.scene.level_height=3.2f;ncmm_graphics_vehicle_v1 car{};car.entity_id=7;car.part_count=3;
         input.vehicles.push_back(car);
+        vehicles.input.vehicles.push_back(car);vehicles.input.scene.world_epoch=1;
         for(uint32_t i=0;i<3;++i){ncmm_graphics_vehicle_part_v1 p{};p.part_id=100+i;p.state=NCMM_VP_EXISTS;p.health=1;
             p.features=i==0?NCMM_VP_FRAME:i==1?NCMM_VP_ROOF:NCMM_VP_WINDOW;p.color[0]=.7f;p.color[1]=.2f;p.color[2]=.1f;p.color[3]=1;
             p.material=NCMM_VM_PAINT;std::strcpy(p.id,i==0?"frame":i==1?"roof":"windshield");input.parts.push_back(p);}
@@ -52,11 +63,11 @@ struct fixture {
         vehicles.draws.push_back(neighbor);details[313].light_r=.2f;details[313].light_g=.9f;details[313].light_b=.3f;
     }
     h::frame render(int dispatch,float yaw,float pitch,const h::frame *cache=nullptr,h::frame *world=nullptr){
-        const bool borrow=dispatch==7||dispatch==8;
-        h::render_options options;options.stream_vehicle_raster=dispatch==2;options.prune_vehicle_workers=dispatch==1||dispatch==3||borrow;
-        options.prune_empty_vehicle_samples=dispatch==3||borrow;options.prune_unused_vehicle_bands=dispatch==3||dispatch==4||borrow;
-        options.compact_vehicle_records=dispatch==3||dispatch==5||dispatch==6||borrow;
-        options.vector_vehicle_pixels=dispatch!=6&&dispatch!=8;options.borrow_vehicle_materials=borrow;h::frame result;
+        const bool compose=dispatch>=9,borrow=dispatch==7||dispatch==8||(compose&&dispatch!=10),optimized=borrow||compose;
+        h::render_options options;options.stream_vehicle_raster=dispatch==2;options.prune_vehicle_workers=dispatch==1||dispatch==3||optimized;
+        options.prune_empty_vehicle_samples=dispatch==3||optimized;options.prune_unused_vehicle_bands=dispatch==3||dispatch==4||optimized;
+        options.compact_vehicle_records=dispatch==3||dispatch==5||dispatch==6||optimized;
+        options.vector_vehicle_pixels=dispatch!=6&&dispatch!=8&&dispatch!=11;options.borrow_vehicle_materials=borrow;options.cache_static_vehicles=compose;h::frame result;
         h::renderer painter(scene,yaw,pitch,{},result,{},&metadata,options);painter.run(1280,800,cache,world);return result;
     }
 };
@@ -84,6 +95,13 @@ int main(){
             "the pixel-identical path actually borrows owned materials with smaller source storage");
         require(before.vehicle_source_bytes==0&&packed.vehicle_source_bytes==0,"both full-field and compact source-copy references are retained");
         source_bytes+=borrowed.vehicle_source_bytes;full_source_bytes+=borrowed.vehicle_reference_source_bytes;
+        h::frame composite_world;const auto composite=f.render(9,yaw,pitch,nullptr,&composite_world);
+        compare(before,composite);compare(before,f.render(10,yaw,pitch));compare(before,f.render(11,yaw,pitch));
+        const auto reused=f.render(9,yaw,pitch,&composite_world);compare_cached(cached_before,reused);
+        require(reused.vehicle_composite&&reused.vehicle_visual_revision==f.vehicles.visual_revision(),"warm frame actually reuses a source-bound vehicle composite");
+        require(reused.submitted_triangles<cached_before.submitted_triangles&&reused.vehicle_source_bytes==0,
+            "warm vehicle pixels are reused rather than rebuilt or quietly omitted");
+        compare_cached(cached_before,f.render(9,yaw,pitch,&old_world));
     }
     if(std::thread::hardware_concurrency()>1)require(skipped>0,"equivalence actually rejects empty worker strips");
     require(empty>0,"exact sample pruning actually rejects projected zero-fragment triangles without dropping source geometry");
@@ -103,6 +121,7 @@ int main(){
         const auto packed=f.render(5,yaw,-.12f);compare(before,packed);clipped+=packed.vehicle_clipped_records;
         compare(before,f.render(6,yaw,-.12f));
         compare(before,f.render(7,yaw,-.12f));compare(before,f.render(8,yaw,-.12f));
+        compare(before,f.render(9,yaw,-.12f));
         require(after.vehicle_streamed_triangles==0,"near-plane/inside component conservatively keeps parallel path");}
     f.scene.base.camera_x=1.5f;f.cells[312].flags=0;f.cells[313].flags=0;
     require(clipped>=2,"clipped-vertex ownership is exercised across pool growth near and inside geometry");
@@ -110,6 +129,24 @@ int main(){
     require(hidden_after.vehicle_parts==0&&hidden_after.vehicle_streamed_triangles==0,"hidden Native cell cannot submit vehicle geometry");
     const auto hidden_borrowed=f.render(7,0,0);compare(hidden_before,hidden_borrowed);
     require(hidden_borrowed.vehicle_source_bytes==0,"no callback material ownership survives the hidden-cell fallback");
+    compare_cached(hidden_before,f.render(9,0,0));
+    f.cells[312].flags=f.cells[313].flags=NCMM_GFX_VISIBLE;
+    {
+        h::frame cache;f.render(9,0,0,nullptr,&cache);const auto original=f.vehicles.draws;
+        f.vehicles.draws[0].placement.origin.x+=.2f;compare(f.render(0,0,0),f.render(9,0,0,&cache));
+        f.vehicles.draws=original;f.vehicles.draws.pop_back();compare(f.render(0,0,0),f.render(9,0,0,&cache));f.vehicles.draws=original;
+        f.vehicles.active_animation=true;const auto active=f.render(9,0,0,&cache);compare(f.render(0,0,0),active);
+        require(!active.vehicle_composite,"active hinges/wheels invalidate a previously stationary image");f.vehicles.active_animation=false;
+        f.vehicles.input.vehicles[0].native_velocity=2;const auto moving=f.render(9,0,0,&cache);compare(f.render(0,0,0),moving);
+        require(!moving.vehicle_composite,"a moving Native vehicle retains the independent geometry path");f.vehicles.input.vehicles[0].native_velocity=0;
+        auto fractional=std::make_shared<v::model>(*f.vehicles.draws[0].geometry);
+        for(auto &m:fractional->materials)if(m.color[3]>=.99f)m.color[3]=.995f;
+        f.vehicles.draws[0].geometry=fractional;compare(f.render(0,0,0),f.render(9,0,0,&cache));f.vehicles.draws=original;
+        f.scene.environment.daylight=0;f.scene.environment.cloud_cover=.8f;f.scene.environment.animation_seconds+=.04;
+        f.details[312].light_r=.15f;f.details[312].light_g=.3f;f.details[312].light_b=.5f;
+        h::frame dark_world;const auto dark=f.render(9,0,0,nullptr,&dark_world);compare(f.render(0,0,0),dark);
+        compare_cached(f.render(0,0,0),f.render(9,0,0,&dark_world));
+    }
     std::printf("vehicle raster: %d checks passed; full 1280x800 colour/depth/picking equivalence\n",checks);
     std::printf("vehicle projection logical bytes: %llu compact, %llu original; %u clipped records\n",
         static_cast<unsigned long long>(compact_bytes),static_cast<unsigned long long>(full_bytes),clipped);

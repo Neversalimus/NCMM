@@ -17,6 +17,13 @@ p.add_argument('--output',required=True,type=Path)
 p.add_argument('--source',type=Path,default=Path(__file__).parent/'shaders')
 p.add_argument('--verify',action='store_true',help='Verify the shipping source identity and embedded SPIR-V/DXIL without invoking a compiler')
 a=p.parse_args()
+# The additional ordinary-opaque program must retain the complete established
+# colour, lighting and material body. Only hardware-interpolated depth differs.
+ordinary=(a.source/'geometry.frag').read_text(encoding='utf-8')
+depth_write=';gl_FragDepth=depth_z(z);'
+if ordinary.count(depth_write)!=1:p.error('Unreviewed ordinary opaque depth specialization')
+if (a.source/'geometry_opaque.frag').read_text(encoding='utf-8')!=ordinary.replace(depth_write,';'):
+    p.error('Opaque specialization changed colour, material or lighting code')
 lines=['#pragma once','#include <cstddef>','namespace ncmm_gpu::shaders {']
 source_hash=hashlib.sha256()
 for source in sorted(a.source.glob('*')):

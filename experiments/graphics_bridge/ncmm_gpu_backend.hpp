@@ -112,7 +112,7 @@ class backend {
     }
     bool draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene,bool alpha_only=false){
         bool deferred_alpha=false;
-        bool winding_bound=false;
+        unsigned opaque_policy=0;
         SDL_BindGPUGraphicsPipeline(pass,selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held);
         SDL_GPUBuffer *vertex_storage[]={instances_,bones_};SDL_BindGPUVertexStorageBuffers(pass,0,vertex_storage,2);
         SDL_GPUBuffer *fragment_storage[]={cells_,shadows_};SDL_BindGPUFragmentStorageBuffers(pass,0,fragment_storage,2);
@@ -122,11 +122,14 @@ class backend {
             const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));
             for(const auto &range:mesh->ranges){const auto &m=mesh->materials[range.material];
                 if(selected==NCMM_GPU_HELD&&(m.color[3]<.999f)!=alpha_only){deferred_alpha|=m.color[3]<.999f;continue;}
-                // Reject only faces already forbidden by the existing shader.
-                // Transparent, held, skinned, reflected and unproved ranges
-                // keep the original two-sided rasterizer and unchanged shader.
+                // Immutable range proofs select only ordinary rigid opaque
+                // surfaces. Alpha, impostors, held items and unproved poses
+                // retain their original fragment depth and rasterizer.
                 const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
-                if(winding!=winding_bound){SDL_BindGPUGraphicsPipeline(pass,winding?programs_.opaque_culled:programs_.opaque);winding_bound=winding;}
+                const bool identity_depth=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.opaque_depth;
+                const unsigned policy=unsigned(winding)|(unsigned(identity_depth)<<1);
+                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,identity_depth?
+                    (winding?programs_.opaque_depth_culled:programs_.opaque_depth):(winding?programs_.opaque_culled:programs_.opaque));opaque_policy=policy;}
                 const bool creature_zone=ncmm_graphics_trace::enabled()&&selected!=NCMM_GPU_HELD&&(m.flags&NCMM_GPU_CREATURE_VISUAL);
                 if(creature_zone){nvtxRangePushA("Creatures");SDL_PushGPUDebugGroup(commands,"Creatures");}
                 const auto draw_start=profiling_?clock::now():clock::time_point{};

@@ -70,6 +70,7 @@ struct frame {
     uint32_t raster_calls=0;uint64_t submitted_triangles=0;
     std::shared_ptr<const cached_transparency> transparency;
     bool dynamic_world=false;uint32_t sky_kind=NCMM_SKY_EARTH;
+    bool vehicle_composite=false;uint64_t vehicle_visual_revision=0;
     std::array<uint32_t,4> creature_lods{};uint32_t creature_culled=0,creature_fallback=0;
     int width=0,height=0;std::vector<uint32_t> pixels;std::vector<float> depth;
     std::vector<int32_t> creatures;
@@ -96,6 +97,7 @@ struct render_options {
     bool stream_vehicle_raster=false,prune_vehicle_workers=true,prune_empty_vehicle_samples=true,prune_unused_vehicle_bands=true,compact_vehicle_records=true;
     bool vector_vehicle_pixels=true,cull_gpu_vehicle_shells=true;
     bool borrow_vehicle_materials=true;
+    bool cache_static_vehicles=true;
 };
 using sprite_provider=std::function<bool(uint32_t,uint32_t,ncmm_graphics_sprite_v2 &)>;
 struct image {
@@ -508,7 +510,7 @@ class renderer {
     };
     struct projected_triangle:projected_fields {std::array<vertex,3> v;material m;vec normal;};
     struct compact_projected_triangle:projected_fields {
-        const void *source=nullptr;uint32_t clipped=UINT32_MAX;bool borrowed=false;
+        const void *source=nullptr;uint32_t clipped=UINT32_MAX;bool borrowed=false,vector_pixels=true;
     };
     static_assert(sizeof(compact_projected_triangle)*2<=sizeof(projected_triangle),"ordinary vehicle projection records use at most half the original storage");
     static_assert(sizeof(compact_projected_triangle)+sizeof(std::array<vertex,3>)<sizeof(projected_triangle),"even a clipped triangle needs fewer logical bytes");
@@ -531,7 +533,9 @@ class renderer {
     static vec raster_normal(const compact_projected_triangle &t){
         return t.borrowed?static_cast<const vehicle_triangle *>(t.source)->normal:static_cast<const triangle *>(t.source)->normal;
     }
-    template<class Record,class Source>void project_piece(const Source &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false){
+    static bool raster_vectors(const projected_triangle &){return false;}
+    static bool raster_vectors(const compact_projected_triangle &t){return t.vector_pixels;}
+    template<class Record,class Source>void project_piece(const Source &t,const std::array<vertex,3> &v,const std::array<vec,3> *viewed,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false,bool vector_pixels=true){
         std::array<vec,3> p{};
         std::array<float,3> iz{},uu{},vv{};
         for(int i=0;i<3;++i){auto q=viewed?(*viewed)[i]:view(v[i].p);iz[i]=1/q.z;p[i]={f.width*0.5f+projection*q.x*iz[i],f.height*0.5f-projection*q.y*iz[i],q.z};uu[i]=v[i].u*iz[i];vv[i]=v[i].v*iz[i];}
@@ -565,21 +569,21 @@ class renderer {
         if constexpr(std::is_same<Record,compact_projected_triangle>::value){
             uint32_t clipped=UINT32_MAX;
             if(!viewed){clipped=uint32_t(vehicle_clipped_vertices.size());vehicle_clipped_vertices.push_back(v);}
-            output.push_back({fields,&t,clipped,std::is_same_v<Source,vehicle_triangle>});
+            output.push_back({fields,&t,clipped,std::is_same_v<Source,vehicle_triangle>,vector_pixels});
         }else output.push_back({fields,v,t.m,t.normal});
     }
-    template<class Record,class Source>void project(const Source &t,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false){
+    template<class Record,class Source>void project(const Source &t,std::vector<Record> &output,bool reject_empty=false,bool skip_unused_bands=false,bool vector_pixels=true){
         // Keep world-space clipping exact; reuse the input view transforms.
         const std::array<vec,3> viewed={view(t.v[0].p),view(t.v[1].p),view(t.v[2].p)};
         const bool uncut=viewed[0].z>=.08f&&viewed[1].z>=.08f&&viewed[2].z>=.08f;
-        if(uncut){project_piece(t,t.v,&viewed,output,reject_empty,skip_unused_bands);return;}
+        if(uncut){project_piece(t,t.v,&viewed,output,reject_empty,skip_unused_bands,vector_pixels);return;}
         std::array<vertex,5> poly{};int count=0;
         for(int i=0;i<3;++i){const auto &a=t.v[i],&b=t.v[(i+1)%3];float za=viewed[i].z,zb=viewed[(i+1)%3].z;
             if(za>=0.08f)poly[count++]=a;
             if((za>=0.08f)!=(zb>=0.08f))poly[count++]=interpolate(a,b,(0.08f-za)/(zb-za));}
         if(count<3)return;
         for(int piece=1;piece<count-1;++piece)
-            project_piece(t,{poly[0],poly[piece],poly[piece+1]},nullptr,output,reject_empty,skip_unused_bands);
+            project_piece(t,{poly[0],poly[piece],poly[piece+1]},nullptr,output,reject_empty,skip_unused_bands,vector_pixels);
     }
     template<class Record>void raster(const Record &t,int worker,int workers,uint32_t &triangles,uint64_t &vector_groups){
         (void)vector_groups;
@@ -591,7 +595,7 @@ class renderer {
         const float inv=t.inv,dw0=t.dw0,dw1=t.dw1;const bool coarse=t.coarse,detailed=t.detailed;
         const bool solid_grass=appearance.grass&&!appearance.overlay&&!appearance.texture&&!appearance.smooth&&appearance.alpha>=.99f&&appearance.finish==surface::none;
 #if NCMM_VEHICLE_PIXEL_SSE2
-        const bool vector_solid=std::is_same_v<Record,compact_projected_triangle>&&options.vector_vehicle_pixels&&
+        const bool vector_solid=raster_vectors(t)&&options.vector_vehicle_pixels&&
             appearance.smooth&&appearance.alpha==1.f&&!appearance.texture&&!appearance.impostor&&!appearance.overlay&&
             !appearance.spill&&!appearance.cutout&&!appearance.silhouette&&!appearance.grass&&!appearance.creature&&!appearance.creature_visual&&
             appearance.cell>=0&&appearance.finish!=surface::contact&&!detailed;
@@ -785,6 +789,39 @@ class renderer {
     }
     void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr,bool stream=false,bool prune_workers=false,bool reject_empty=false,bool skip_unused_bands=false,bool compact=false){
         paint_queue(queue,last,stream,prune_workers,reject_empty,skip_unused_bands,compact);
+    }
+    void reset_vehicle_work(){
+        f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;
+        f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
+        f.vehicle_vector_groups=0;f.vehicle_source_bytes=f.vehicle_reference_source_bytes=0;
+    }
+    void paint_world_vehicles(size_t world_count){
+        // One ordered worker dispatch: original world first, vehicle sources
+        // second. World samples keep their scalar path and original bands.
+        if(opaque.empty()&&vehicle_sources.empty())return;
+        const auto begun=std::chrono::steady_clock::now();++f.raster_calls;f.submitted_triangles+=opaque.size()+vehicle_sources.size();
+        vehicle_clipped_vertices.clear();std::vector<compact_projected_triangle> projected;
+        projected.reserve(opaque.size()+vehicle_sources.size());
+        for(size_t n=0;n<world_count;++n)project(opaque[n],projected,false,false,false);
+        const size_t world_projected=projected.size(),world_clipped=vehicle_clipped_vertices.size();
+        for(size_t n=world_count;n<opaque.size();++n)project(opaque[n],projected,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands);
+        for(const auto &t:vehicle_sources)project(t,projected,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands);
+        const unsigned limit=size_t(f.width)*f.height>=500000?4u:projected.size()>=1024?2u:1u;
+        const int count=int(std::clamp(std::thread::hardware_concurrency(),1u,limit));
+        if(options.prune_vehicle_workers)for(size_t n=world_projected;n<projected.size();++n)
+            projected[n].worker_mask=uint8_t(raster_worker_mask(projected[n].ymin,projected[n].ymax,count));
+        std::array<uint32_t,4> totals{},skipped{};std::array<uint64_t,4> vectors{};std::array<std::thread,3> threads;
+        auto band=[&](int worker){for(const auto &t:projected){if(!(t.worker_mask&(1u<<worker))){++skipped[worker];continue;}
+                raster(t,worker,count,totals[worker],vectors[worker]);}};
+        for(int n=1;n<count;++n){try{threads[n-1]=std::thread(band,n);}catch(const std::system_error &){band(n);}}
+        band(0);for(auto &thread:threads)if(thread.joinable())thread.join();
+        for(auto n:totals)f.triangles+=n;for(auto n:skipped)f.vehicle_worker_skips+=n;for(auto n:vectors)f.vehicle_vector_groups+=n;
+        const auto vehicle_projected=projected.size()-world_projected,vehicle_clipped=vehicle_clipped_vertices.size()-world_clipped;
+        f.vehicle_compact_records+=uint32_t(vehicle_projected);f.vehicle_clipped_records+=uint32_t(vehicle_clipped);
+        f.vehicle_projection_bytes+=vehicle_projected*sizeof(compact_projected_triangle)+vehicle_clipped*sizeof(std::array<vertex,3>);
+        f.vehicle_reference_projection_bytes+=vehicle_projected*sizeof(projected_triangle);
+        vehicle_clipped_vertices.clear();vehicle_sources.clear();vehicle_materials.clear();
+        f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
     }
     void solid_quad(vec a,vec b,vec c,vec d,material m,vec normal={0,0,1}){
         if(gpu_sink)m.gpu_backface=true;
@@ -1696,7 +1733,10 @@ public:
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;
         projection=f.width/(2*std::tan(70*pi/360));clipping_build();
-        if(cached_world&&cached_world->width==f.width&&cached_world->height==f.height&&cached_world->pixels.size()==count&&cached_world->depth.size()==count&&cached_world->sun_shadows.size()==base.cell_count&&cached_world->dynamic_world==bool(creature_data)){
+        const bool compose=options.cache_static_vehicles&&options.compact_vehicle_records&&!options.stream_vehicle_raster&&metadata&&metadata->vehicles&&metadata->vehicles->cacheable_opaque();
+        const uint64_t visual=compose?metadata->vehicles->visual_revision():0;bool composed_now=false;
+        if(cached_world&&cached_world->width==f.width&&cached_world->height==f.height&&cached_world->pixels.size()==count&&cached_world->depth.size()==count&&cached_world->sun_shadows.size()==base.cell_count&&cached_world->dynamic_world==bool(creature_data)&&
+           cached_world->vehicle_composite==compose&&(!compose||cached_world->vehicle_visual_revision==visual)){
             f=*cached_world;f.geometry_ms=f.raster_ms=f.effects_ms=0;f.raster_calls=0;f.submitted_triangles=0;
             shadows=f.sun_shadows;fog_color=f.sky_horizon;f.held_depth.assign(count,std::numeric_limits<float>::infinity());
         }else{
@@ -1704,25 +1744,30 @@ public:
             f.triangles=f.vehicle_parts=f.weather_particles=f.held_pixels=f.vertical_doors=f.vertical_windows=f.vertical_fences=f.plants=f.shadow_cells=0;
             f.geometry_cells=f.culled_cells=f.culled_quads=f.sky_pixels=0;
             f.geometry_ms=f.raster_ms=f.effects_ms=0;f.raster_calls=0;f.submitted_triangles=0;
+            reset_vehicle_work();f.vehicle_composite=compose;f.vehicle_visual_revision=visual;
             f.transparency.reset();f.dynamic_world=bool(creature_data);
             f.focus=-1;f.focus_depth=std::numeric_limits<float>::infinity();
             sky_palette();if(!options.skip_hidden_sky)sky();
             const auto geometry_begun=std::chrono::steady_clock::now();shadows_build();vehicles_build();world();horizon();
-            f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-geometry_begun).count();paint(opaque);
+            f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-geometry_begun).count();
+            if(compose){const size_t world_count=opaque.size();std::vector<triangle> world_transparency;world_transparency.swap(transparent);
+                modular_vehicles();transparent.insert(transparent.end(),world_transparency.begin(),world_transparency.end());
+                paint_world_vehicles(world_count);composed_now=true;}
+            else paint(opaque);
             if(options.skip_hidden_sky)sky();
             std::stable_sort(transparent.begin(),transparent.end(),[&](const triangle &a,const triangle &b){return view(a.v[0].p+a.v[1].p+a.v[2].p).z>view(b.v[0].p+b.v[1].p+b.v[2].p).z;});
             f.transparency=std::make_shared<cached_transparency>(transparent);
             f.sun_shadows=shadows;
             if(world_output)*world_output=f;
         }
-        f.creature_lods={};f.creature_culled=f.creature_fallback=0;f.vehicle_streamed_triangles=f.vehicle_worker_skips=f.vehicle_empty_triangles=f.vehicle_band_skips=0;f.vehicle_compact_records=f.vehicle_clipped_records=0;f.vehicle_projection_bytes=f.vehicle_reference_projection_bytes=0;
-        f.vehicle_vector_groups=0;f.vehicle_source_bytes=f.vehicle_reference_source_bytes=0;
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;if(!composed_now)reset_vehicle_work();
         // Animate only these near-field blades. The floor, walls and distant
         // world remain in the CPU cache; animation never changes Native time.
         opaque.clear();transparent.clear();
-        modular_vehicles();paint(opaque,nullptr,small_vehicle_region(),options.prune_vehicle_workers,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands,options.compact_vehicle_records);opaque.clear();
-        paint_queue<vehicle_triangle>(vehicle_sources,nullptr,false,options.prune_vehicle_workers,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands,true);
-        vehicle_sources.clear();vehicle_materials.clear(); // All raster workers have joined.
+        if(!f.vehicle_composite){modular_vehicles();paint(opaque,nullptr,small_vehicle_region(),options.prune_vehicle_workers,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands,options.compact_vehicle_records);opaque.clear();
+            paint_queue<vehicle_triangle>(vehicle_sources,nullptr,false,options.prune_vehicle_workers,options.prune_empty_vehicle_samples,options.prune_unused_vehicle_bands,true);
+            vehicle_sources.clear();vehicle_materials.clear(); // All raster workers have joined.
+        }
         std::vector<triangle> vehicle_glass;vehicle_glass.swap(transparent);
         std::vector<int> lawns;
         for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&ncmm_grass::terrain(base.cells[i].terrain)&&

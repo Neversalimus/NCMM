@@ -19,12 +19,15 @@ def reference_backend(candidate):
     winding_replacements=[
         ('    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false;};',
          '    struct batch {uint64_t key;uint32_t pass,first,count;};'),
-        ('        bool winding_bound=false;\n',''),
-        ('''                // Reject only faces already forbidden by the existing shader.
-                // Transparent, held, skinned, reflected and unproved ranges
-                // keep the original two-sided rasterizer and unchanged shader.
+        ('        unsigned opaque_policy=0;\n',''),
+        ('''                // Immutable range proofs select only ordinary rigid opaque
+                // surfaces. Alpha, impostors, held items and unproved poses
+                // retain their original fragment depth and rasterizer.
                 const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
-                if(winding!=winding_bound){SDL_BindGPUGraphicsPipeline(pass,winding?programs_.opaque_culled:programs_.opaque);winding_bound=winding;}
+                const bool identity_depth=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.opaque_depth;
+                const unsigned policy=unsigned(winding)|(unsigned(identity_depth)<<1);
+                if(policy!=opaque_policy){SDL_BindGPUGraphicsPipeline(pass,identity_depth?
+                    (winding?programs_.opaque_depth_culled:programs_.opaque_depth):(winding?programs_.opaque_culled:programs_.opaque));opaque_policy=policy;}
 ''',''),
         ('''        for(const auto &[key,list]:groups){
             const bool winding=key.first==NCMM_GPU_OPAQUE&&winding_camera(scene.camera)&&std::all_of(list.begin(),list.end(),[&](const instance &i){

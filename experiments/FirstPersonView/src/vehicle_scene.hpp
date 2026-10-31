@@ -55,6 +55,38 @@ class presentation {
         model_bytes+=needed;models.emplace(key,entry{result,frame});++generated;return result;
     }
 public:
+    bool cacheable_opaque()const{
+        if(draws.empty()||active_animation)return false;
+        for(const auto &v:input.vehicles)if(!std::isfinite(v.native_velocity)||v.native_velocity!=0)return false;
+        for(const auto &draw:draws)if(draw.geometry)for(const auto &m:draw.geometry->materials)
+            if(!std::isfinite(m.color[3])||(m.color[3]>=.99f&&m.color[3]!=1.f))return false;
+        return true;
+    }
+    uint64_t visual_revision()const{
+        // Snapshot serials prove callback provenance, not changed pixels.
+        // Hash the actual immutable model and each current draw's full pose,
+        // identity and Native permission/cell. Nothing is quantized away.
+        uint64_t hash=1469598103934665603ull;
+        auto bytes=[&](const auto &value){const auto *p=reinterpret_cast<const unsigned char *>(&value);
+            for(size_t n=0;n<sizeof(value);++n)hash=(hash^p[n])*1099511628211ull;};
+        bytes(input.scene.world_epoch);bytes(draws.size());
+        for(const auto &draw:draws){bytes(draw.vehicle_id);bytes(draw.part_id);bytes(draw.cell);
+            for(bool value:{draw.roof_surface,draw.exterior_surface,draw.surface_outside})bytes(uint8_t(value));
+            for(const auto basis:{draw.placement.origin,draw.placement.x,draw.placement.y,draw.placement.z})
+                for(float value:{basis.x,basis.y,basis.z})bytes(value);
+            const uint64_t recipe=draw.geometry?draw.geometry->recipe:0;bytes(recipe);
+            // Hand-authored internal test models may have no recipe. Their
+            // complete immutable data still participate in invalidation.
+            if(draw.geometry&&!recipe){const auto &model=*draw.geometry;bytes(model.triangles.size());bytes(model.materials.size());
+                bytes(uint8_t(model.closed_shell));
+                for(float value:{model.minimum.x,model.minimum.y,model.minimum.z,model.maximum.x,model.maximum.y,model.maximum.z})bytes(value);
+                for(const auto &m:model.materials){for(float value:m.color)bytes(value);bytes(m.kind);bytes(uint8_t(m.emissive));}
+                for(const auto &t:model.triangles){bytes(t.material);for(const auto &v:t.vertices){
+                    for(float value:{v.position.x,v.position.y,v.position.z,v.normal.x,v.normal.y,v.normal.z,v.u,v.v})bytes(value);}}
+            }
+        }
+        return hash;
+    }
     struct selection {uint64_t vehicle=0,part=0;float distance=std::numeric_limits<float>::infinity();};
     selection pick(int cell,point origin,point direction)const{
         selection result;if(cell<0)return result;
