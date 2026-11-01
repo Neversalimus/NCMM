@@ -68,10 +68,10 @@ class presentation {
     }
     uint64_t frame=0,world=0;
     size_t model_bytes=0;
-    std::shared_ptr<const model> mesh(const topology &t,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod){
+    std::shared_ptr<const model> mesh(const topology &t,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod,preparation_workspace &workspace){
         const auto key=t.recipe(p,lod);auto found=models.find(key);
         if(found!=models.end()){found->second.touched=frame;++reused;return found->second.geometry;}
-        auto result=generate(input,t,p,lod);const auto needed=result->bytes();
+        auto result=generate(input,t,p,lod,false,&workspace);const auto needed=result->bytes();
         while(model_bytes+needed>cache_limit){auto oldest=models.end();
             for(auto it=models.begin();it!=models.end();++it)if(it->second.geometry.use_count()==1&&
                 (oldest==models.end()||it->second.touched<oldest->second.touched))oldest=it;
@@ -164,6 +164,7 @@ public:
         draws.clear();groups.clear();roof_cells.clear();active_animation=false;coverage_revision=1469598103934665603ull;
         if(!input.enabled){forget_stationary();return;}
         if(world!=input.scene.world_epoch){models.clear();poses.clear();layouts.clear();model_bytes=0;world=input.scene.world_epoch;}
+        preparation_workspace workspace;
         ++frame;revision=input.scene.revision;uint64_t queries=0;const auto previous_evicted=evicted;bool all_complete=true,exact_rest=true;
         for(const auto &v:input.vehicles){
             auto &construction=layouts[v.entity_id];
@@ -178,7 +179,7 @@ public:
                 const auto center=origin+rotate({float(p.mount_x),float(p.mount_y),p.mount_z*input.scene.level_height},v.yaw);
                 const float distance=std::sqrt(dot(center-eye,center-eye));
                 const unsigned lod=distance<12?0u:distance<28?1u:2u;
-                const auto geometry=mesh(t,p,lod);if(!geometry){complete=false;all_complete=false;break;}++queries;
+                const auto geometry=mesh(t,p,lod,workspace);if(!geometry){complete=false;all_complete=false;break;}++queries;
                 if(geometry->triangles.empty())continue;
                 point local{float(p.mount_x),float(p.mount_y),p.mount_z*input.scene.level_height};
                 float yaw=v.yaw,roll=0;

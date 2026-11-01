@@ -16,56 +16,50 @@
             }
         };
         ncmm_graphics_vehicle_part_v1 part{};part.health=1;part.color[0]=.3f;part.color[1]=.4f;part.color[2]=.5f;part.color[3]=1;
-        // The original loops remain selectable. Count actual sample evaluations
-        // in these constructed cases; these counts are not frame timings.
+        // Native retains the original angular/sample/hash arithmetic. Only
+        // the temporary table storage is reused; every new model gets a new
+        // generation and resolves its own first-corner identities from scratch.
+        preparation_workspace workspace;
         for(unsigned sides:{0u,1u,2u,3u,4u,6u,8u,12u,17u,32u})for(unsigned direction=0;direction<4;++direction){
             const point from=direction==0?point{}:point{-.0f,.03125f,-.125f};
             const point to=direction==0?point{0,0,1}:direction==1?point{.75f,-.625f,1.125f}:direction==2?from:point{-1,.00001f,-.25f};
-            preparation_counts actual{},reference{};builder fast(part,true,&actual),old(part,false,&reference);
-            fast.output.closed_shell=old.output.closed_shell=true;
+            builder fast(part,&workspace),old(part);fast.output.closed_shell=old.output.closed_shell=true;
             fast.beam(from,to,.032f,direction==3?-.014f:.027f,fast.steel,sides);
             old.beam(from,to,.032f,direction==3?-.014f:.027f,old.steel,sides);
             exact_preparation(*fast.finish(),*old.finish());
-            require(reference.beam_samples==size_t(sides)*2&&actual.beam_samples==(sides?size_t(sides)+1:0),
-                "beam reuse computes the first endpoint and each next endpoint exactly once");
-            require(actual.beam_reuses==(sides?sides-1:0)&&reference.beam_reuses==0,
-                "the production beam path really reuses matching previous endpoint bits");
+            require(workspace.bytes()<=preparation_workspace::limit,"primitive temporary storage stays within its unchanged callback-local bound");
         }
         for(unsigned segments:{0u,1u,2u,16u,24u,32u})for(unsigned rings:{0u,1u,3u,6u,10u,16u,17u}){
-            preparation_counts actual{},reference{};builder fast(part,true,&actual),old(part,false,&reference);
+            builder fast(part,&workspace),old(part);
             fast.torus({.0625f,-.0f,.25f},{1,.0625f,0},{.03125f,0,1},.36f,.027f,.051f,fast.rubber,segments,rings);
             old.torus({.0625f,-.0f,.25f},{1,.0625f,0},{.03125f,0,1},.36f,.027f,.051f,old.rubber,segments,rings);
             exact_preparation(*fast.finish(),*old.finish());
-            const size_t original=size_t(segments)*rings*4;
-            const size_t expected=segments&&rings&&rings<=16?(size_t(segments)+1)*(rings+1):original;
-            require(reference.torus_samples==original&&actual.torus_samples==expected&&actual.torus_reuses==original-expected,
-                "torus rows keep the final seam samples distinct and unsupported dimensions use the original loop");
-            require(reference.torus_reuses==0,"the torus control executes every original corner sample");
         }
-        {
-            preparation_counts actual{},reference{};builder fast(part,true,&actual),old(part,false,&reference);
+        const auto identities=[&](preparation_workspace *scratch,bool reverse){builder value(part,scratch);
             // Exact identities distinguish signed zeros, small nonzero normals
-            // and UVs whose first stored corner must keep its original value.
-            for(unsigned i=0;i<24;++i){triangle t{};t.material=uint16_t(i%2);
+            // and UVs whose first stored corner keeps its original value.
+            for(unsigned source=0;source<24;++source){const unsigned i=reverse?23-source:source;triangle t{};t.material=uint16_t(i%2);
                 for(unsigned j=0;j<3;++j){const unsigned at=(j+(i%3))%3;
                     t.vertices[j]={{float(at==1),float(at==2),i%4==0?-0.f:0.f},
                         {i%5==0?-0.f:0.f,i%7==0?std::nextafter(0.f,1.f):0.f,1.f},float(i),float(j)};
                 }
-                fast.output.triangles.push_back(t);old.output.triangles.push_back(t);
+                value.output.triangles.push_back(t);
             }
-            const auto a=fast.finish(),b=old.finish();exact_preparation(*a,*b);verify_gpu_vertices(*a);
-            require(actual.vertex_reuses>0&&actual.normal_reuses>0&&reference.vertex_reuses==0&&reference.normal_reuses==0,
-                "exact prior-corner and prior-normal reuse paths are exercised against the original global hash path");
-            require(actual.vertex_hashes+actual.vertex_reuses==reference.vertex_hashes&&
-                actual.normal_hashes+actual.normal_reuses==reference.normal_hashes,
-                "every source corner and normal still resolves exactly one original identity");
+            return value.finish();
+        };
+        for(bool reverse:{false,true,false}){const auto actual=identities(&workspace,reverse),reference=identities(nullptr,reverse);
+            exact_preparation(*actual,*reference);verify_gpu_vertices(*actual);}
+        workspace.generation=UINT32_MAX;
+        {
+            const auto actual=identities(&workspace,true),reference=identities(nullptr,true);exact_preparation(*actual,*reference);verify_gpu_vertices(*actual);
+            require(workspace.generation==1,"generation wrap clears all old table stamps before any new identity may resolve");
         }
         const std::array<uint32_t,25> roles{{NCMM_VP_FRAME,NCMM_VP_ROOF,NCMM_VP_PANEL,NCMM_VP_HALF_PANEL|NCMM_VP_PANEL,
             NCMM_VP_DOOR,NCMM_VP_DOOR|NCMM_VP_WINDOW|NCMM_VP_OPENABLE,NCMM_VP_WINDOW,NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD,
             NCMM_VP_WHEEL,NCMM_VP_WHEEL|NCMM_VP_BICYCLE|NCMM_VP_STEERABLE,NCMM_VP_WHEEL|NCMM_VP_MOTORCYCLE,
             NCMM_VP_SEAT,NCMM_VP_CONTROLS,NCMM_VP_CONTROL_PANEL,NCMM_VP_ENGINE,NCMM_VP_CARGO,NCMM_VP_ARMOR,
             NCMM_VP_SOLAR,NCMM_VP_TURRET,NCMM_VP_LIGHT,NCMM_VP_RACK,NCMM_VP_FUEL_TANK,NCMM_VP_CURTAIN,NCMM_VP_FLOAT,NCMM_VP_AXLE}};
-        preparation_counts actual{},reference{};size_t models=0;
+        size_t models=0;
         for(bool narrow:{false,true})for(uint32_t role:roles)for(unsigned state=0;state<4;++state){
             auto s=fixture();s.parts.clear();auto &car=s.vehicles[0];car.first_part=0;car.min_x=-1;car.max_x=2;car.min_y=narrow?0:-1;car.max_y=narrow?0:1;
             const auto add=[&](int x,int y,uint32_t flags){auto p=part;p.part_id=s.parts.size()+1;p.mount_x=x;p.mount_y=y;p.features=flags;
@@ -82,15 +76,24 @@
             car.part_count=uint32_t(s.parts.size());s.scene.vehicle_count=1;s.scene.part_count=car.part_count;
             require(valid(s,256),"full primitive preparation controls use a bounded valid owned snapshot");
             first_person::vehicle::topology layout(s,car);
-            for(unsigned lod=0;lod<3;++lod){const auto fast=generate(s,layout,p,lod,false,false,&actual),old=generate(s,layout,p,lod,false,true,&reference);
+            for(unsigned lod=0;lod<3;++lod){const auto fast=generate(s,layout,p,lod,false,&workspace),old=generate(s,layout,p,lod);
                 exact_preparation(*fast,*old);verify_gpu_vertices(*fast);++models;
             }
         }
-        require(models==600&&actual.beam_reuses>0&&actual.torus_reuses>0&&actual.vertex_reuses>0&&actual.normal_reuses>0,
-            "all 25 authored role combinations, three LODs, narrow/wide layouts and intact/damaged/open states exercise real preparation reuse");
-        require(actual.beam_samples+actual.beam_reuses==reference.beam_samples&&
-            actual.torus_samples+actual.torus_reuses==reference.torus_samples&&
-            actual.vertex_hashes+actual.vertex_reuses==reference.vertex_hashes&&
-            actual.normal_hashes+actual.normal_reuses==reference.normal_hashes,
-            "full-model reuse eliminates only repeated original operations, without dropping any sample, triangle or identity");
+        require(models==600&&workspace.vertex_table_reuses>0&&workspace.normal_table_reuses>0,
+            "all25 role combinations, three LODs and intact/damaged/open narrow/wide layouts reuse actual storage while preserving complete original model data");
+        require(workspace.bytes()<=preparation_workspace::limit,"the complete vertex plus normal scratch capacity stays within2 MiB");
+        {
+            builder actual(part,&workspace),reference(part);
+            for(unsigned i=0;i<6000;++i){const float x=float(i%100),y=float(i/100);
+                for(auto *value:{&actual,&reference})value->face({x,y,0},{x+1,y,0},{x+1,y+1,0},{x,y+1,0},value->paint);
+            }
+            const auto a=actual.finish(),b=reference.finish();exact_preparation(*a,*b);verify_gpu_vertices(*a);
+            require(workspace.bytes()==0,"an oversized part releases temporary shared storage and executes the complete original local-table fallback");
+        }
+        {
+            const auto a=identities(&workspace,false),b=identities(nullptr,false);exact_preparation(*a,*b);
+            require(workspace.generation==1&&workspace.bytes()>0,"ordinary generation resumes with fresh owned tables after oversized fallback");
+        }
+        workspace.release();require(workspace.bytes()==0&&workspace.generation==0,"callback-local cleanup releases every temporary table and stamp");
     }

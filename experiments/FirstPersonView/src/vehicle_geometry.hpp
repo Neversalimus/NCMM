@@ -44,6 +44,10 @@ struct model {
     uint64_t recipe=0;
     point minimum{},maximum{};
     bool closed_shell=false;
+    bool opaque_closed_beams=false;
+    bool proved_opaque_beams()const{return opaque_closed_beams&&face_source==triangles.data()&&
+        !triangles.empty()&&face_directions.size()==triangles.size();}
+    bool opaque_shell()const{return closed_shell||proved_opaque_beams();}
     bool contains(point p)const{return p.x>=minimum.x-.001f&&p.x<=maximum.x+.001f&&
         p.y>=minimum.y-.001f&&p.y<=maximum.y+.001f&&p.z>=minimum.z-.001f&&p.z<=maximum.z+.001f;}
     bool ahead_of_near_plane(point eye,point forward)const{
@@ -92,18 +96,60 @@ struct model {
         shared_vertices.capacity()*sizeof(vertex)+vertex_indices.capacity()*sizeof(std::array<uint32_t,3>)+
         shared_normals.capacity()*sizeof(point)+normal_indices.capacity()*sizeof(uint32_t)+face_directions.capacity()*sizeof(face_direction);}
 };
-struct preparation_counts {
-    size_t beam_samples=0,torus_samples=0,vertex_hashes=0,normal_hashes=0;
-    size_t beam_reuses=0,torus_reuses=0,vertex_reuses=0,normal_reuses=0;
+template<size_t N>struct geometry_identity_slot {std::array<uint32_t,N> identity{};uint32_t index=UINT32_MAX;};
+template<size_t N>struct geometry_epoch_slot:geometry_identity_slot<N> {uint32_t generation=0;};
+template<size_t N>inline bool geometry_occupied(const geometry_identity_slot<N> &s,uint32_t){return s.index!=UINT32_MAX;}
+template<size_t N>inline bool geometry_occupied(const geometry_epoch_slot<N> &s,uint32_t generation){return s.generation==generation;}
+template<size_t N>inline void geometry_mark(geometry_identity_slot<N> &,uint32_t){}
+template<size_t N>inline void geometry_mark(geometry_epoch_slot<N> &s,uint32_t generation){s.generation=generation;}
+struct preparation_workspace {
+    using vertex_slot=geometry_epoch_slot<6>;using normal_slot=geometry_epoch_slot<3>;
+    static constexpr size_t limit=2*1024*1024;
+    std::vector<vertex_slot> vertices;std::vector<normal_slot> normals;
+    uint32_t generation=0;uint64_t vertex_table_reuses=0,normal_table_reuses=0,allocations=0;
+    size_t bytes()const{return vertices.capacity()*sizeof(vertex_slot)+normals.capacity()*sizeof(normal_slot);}
+    void release(){std::vector<vertex_slot>().swap(vertices);std::vector<normal_slot>().swap(normals);generation=0;}
+    bool begin(size_t capacity){
+        // The original half-full normal table is never larger than the
+        // vertex table. Oversized parts retain the original local allocation.
+        if(capacity>limit/(sizeof(vertex_slot)+sizeof(normal_slot))){release();return false;}
+        if(vertices.size()<capacity){std::vector<vertex_slot>().swap(vertices);vertices=std::vector<vertex_slot>(capacity);++allocations;}
+        else ++vertex_table_reuses;
+        if(bytes()>limit){release();return false;}
+        if(generation==UINT32_MAX){for(auto &s:vertices)s.generation=0;for(auto &s:normals)s.generation=0;generation=1;}
+        else ++generation;
+        return true;
+    }
+    bool prepare_normals(size_t capacity){
+        if(capacity>vertices.size()){release();return false;}
+        if(normals.size()<capacity){std::vector<normal_slot>().swap(normals);normals=std::vector<normal_slot>(capacity);++allocations;}
+        else ++normal_table_reuses;
+        if(bytes()>limit){release();return false;}
+        return true;
+    }
 };
+static_assert(sizeof(geometry_identity_slot<6>)==28&&sizeof(geometry_identity_slot<3>)==16,"original local hash record sizes");
+static_assert(sizeof(preparation_workspace::vertex_slot)==32&&sizeof(preparation_workspace::normal_slot)==20,"bounded transient generation tags");
 class builder {
-    bool reuse_preparation_=true;
-    preparation_counts *counts_=nullptr;
+    preparation_workspace *workspace_=nullptr;
+    bool prove_opaque_beams_=true,inside_closed_beam_=false,unknown_material_=false;
+    uint64_t open_materials_=0;size_t tracked_triangles_=0;
+    void open_material(uint16_t material){if(material<64)open_materials_|=uint64_t(1)<<material;else unknown_material_=true;}
+    void track_triangles(uint16_t material,size_t before){const size_t added=output.triangles.size()-before;tracked_triangles_+=added;
+        if(added&&!inside_closed_beam_)open_material(material);
+    }
+    static bool finite(point p){return std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z);}
+    struct closed_beam_scope {
+        builder &owner;uint16_t material;size_t first,expected;bool prior,proved;
+        closed_beam_scope(builder &value,uint16_t slot,bool valid,unsigned sides):owner(value),material(slot),first(value.output.triangles.size()),
+            expected(size_t(sides)*4),prior(value.inside_closed_beam_),proved(value.prove_opaque_beams_&&valid){owner.inside_closed_beam_=proved;}
+        ~closed_beam_scope(){if(proved&&owner.output.triangles.size()-first!=expected)owner.open_material(material);owner.inside_closed_beam_=prior;}
+    };
 public:
     model output;
     uint16_t paint=0,steel=0,dark=0,rubber=0,glass=0,fabric=0;
-    explicit builder(const ncmm_graphics_vehicle_part_v1 &p,bool reuse_preparation=true,preparation_counts *counts=nullptr):
-        reuse_preparation_(reuse_preparation),counts_(counts){
+    explicit builder(const ncmm_graphics_vehicle_part_v1 &p,preparation_workspace *workspace=nullptr,bool prove_opaque_beams=true):
+        workspace_(workspace),prove_opaque_beams_(prove_opaque_beams){
         const float wear=std::clamp(1-p.health,0.f,1.f);
         paint=add({{p.color[0]*(1-.25f*wear),p.color[1]*(1-.25f*wear),p.color[2]*(1-.25f*wear),1},p.material==NCMM_VM_DEFAULT?uint32_t(NCMM_VM_PAINT):p.material});
         steel=add({{.38f,.40f,.42f,1},NCMM_VM_METAL});dark=add({{.055f,.065f,.072f,1},NCMM_VM_PLASTIC});
@@ -111,113 +157,90 @@ public:
         fabric=add({{.13f,.15f,.17f,1},p.material==NCMM_VM_LEATHER?uint32_t(NCMM_VM_LEATHER):uint32_t(NCMM_VM_CLOTH)});
     }
     std::shared_ptr<const model> finish(){
+        bool opaque=false,safe=prove_opaque_beams_&&!unknown_material_&&tracked_triangles_==output.triangles.size();
+        if(safe)for(const auto &t:output.triangles){
+            if(t.material>=output.materials.size()){safe=false;break;}
+            const float alpha=output.materials[t.material].color[3];if(alpha<.99f)continue;
+            opaque=true;if(alpha!=1.f||t.material>=64||(open_materials_&(uint64_t(1)<<t.material))){safe=false;break;}
+        }
+        output.opaque_closed_beams=safe&&opaque;const bool cache_faces=output.closed_shell||output.opaque_closed_beams;
         if(!output.triangles.empty()){
             using key=std::array<uint32_t,6>;
-            // At most three distinct vertices per source triangle. One flat
-            // scratch allocation replaces a heap node per distinct vertex;
-            // the half-full table always has a free slot, even with collisions.
-            struct slot {key identity{};uint32_t index=UINT32_MAX;};
             size_t capacity=1;while(capacity<output.triangles.size()*6)capacity*=2;
-            std::vector<slot> unique(capacity);const size_t mask=capacity-1;
-            output.shared_vertices.reserve(output.triangles.size());
-            output.vertex_indices.reserve(output.triangles.size());
-            if(output.closed_shell)output.face_directions.reserve(output.triangles.size());
+            const bool reused=workspace_&&workspace_->begin(capacity);
+            output.shared_vertices.reserve(output.triangles.size());output.vertex_indices.reserve(output.triangles.size());
+            if(cache_faces)output.face_directions.reserve(output.triangles.size());
             output.minimum=output.maximum=output.triangles.front().vertices[0].position;
-            // Consecutive authored triangles commonly share two corners. Reuse
-            // only their complete six-float bit keys; all other corners still
-            // enter the original collision-resolving global table.
-            std::array<slot,3> previous{},current{};
-            for(const auto &t:output.triangles){std::array<uint32_t,3> indices{};
-                for(size_t n=0;n<3;++n){const auto &v=t.vertices[n];const auto p=v.position;
-                    output.minimum={std::min(output.minimum.x,p.x),std::min(output.minimum.y,p.y),std::min(output.minimum.z,p.z)};
-                    output.maximum={std::max(output.maximum.x,p.x),std::max(output.maximum.y,p.y),std::max(output.maximum.z,p.z)};
-                    const std::array<float,6> values{{p.x,p.y,p.z,v.normal.x,v.normal.y,v.normal.z}};
-                    key identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
-                    uint32_t repeated=UINT32_MAX;
-                    if(reuse_preparation_)for(const auto &prior:previous)if(prior.index!=UINT32_MAX&&prior.identity==identity){repeated=prior.index;break;}
-                    if(repeated!=UINT32_MAX){indices[n]=repeated;current[n]={identity,repeated};
-                        if(counts_)++counts_->vertex_reuses;
-                        continue;
+            const auto vertices=[&](auto &unique,uint32_t generation){const size_t mask=unique.size()-1;
+                for(const auto &t:output.triangles){std::array<uint32_t,3> indices{};
+                    for(size_t n=0;n<3;++n){const auto &v=t.vertices[n];const auto p=v.position;
+                        output.minimum={std::min(output.minimum.x,p.x),std::min(output.minimum.y,p.y),std::min(output.minimum.z,p.z)};
+                        output.maximum={std::max(output.maximum.x,p.x),std::max(output.maximum.y,p.y),std::max(output.maximum.z,p.z)};
+                        const std::array<float,6> values{{p.x,p.y,p.z,v.normal.x,v.normal.y,v.normal.z}};
+                        key identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
+                        uint64_t hash=1469598103934665603ull;for(uint32_t value:identity)hash=(hash^value)*1099511628211ull;
+                        hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
+                        size_t at=size_t(hash)&mask;while(geometry_occupied(unique[at],generation)&&unique[at].identity!=identity)at=(at+1)&mask;
+                        auto &found=unique[at];
+                        if(!geometry_occupied(found,generation)){found.identity=identity;found.index=uint32_t(output.shared_vertices.size());geometry_mark(found,generation);output.shared_vertices.push_back(v);}
+                        indices[n]=found.index;
                     }
-                    if(counts_)++counts_->vertex_hashes;
-                    uint64_t hash=1469598103934665603ull;for(uint32_t value:identity)hash=(hash^value)*1099511628211ull;
-                    // Regular grid floats often share all their low bits.
-                    // Mix the full identity before the power-of-two mask.
-                    hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
-                    size_t at=size_t(hash)&mask;while(unique[at].index!=UINT32_MAX&&unique[at].identity!=identity)at=(at+1)&mask;
-                    auto &found=unique[at];
-                    if(found.index==UINT32_MAX){found.identity=identity;found.index=uint32_t(output.shared_vertices.size());output.shared_vertices.push_back(v);}
-                    indices[n]=found.index;current[n]={identity,found.index};
+                    output.vertex_indices.push_back(indices);
+                    if(cache_faces){model::face_direction direction{};bool reversed=false;
+                        if(model::outward_face(t,direction.normal,&reversed))direction.flags=uint8_t(1u|(reversed?2u:0u));
+                        if(output.opaque_closed_beams&&!(output.materials[t.material].color[3]<.99f)){
+                            if(!(direction.flags&1u)||!finite(direction.normal))output.opaque_closed_beams=false;
+                            for(const auto &v:t.vertices)if(!finite(v.position)||!finite(v.normal))output.opaque_closed_beams=false;
+                        }
+                        output.face_directions.push_back(direction);}
                 }
-                previous=current;
-                output.vertex_indices.push_back(indices);
-                if(output.closed_shell){model::face_direction direction{};bool reversed=false;
-                    if(model::outward_face(t,direction.normal,&reversed))direction.flags=uint8_t(1u|(reversed?2u:0u));
-                    output.face_directions.push_back(direction);}
-            }
-            // Intern exact normal bits once per model. A flat half-full table
-            // avoids per-normal heap nodes, including imported smooth wheels.
-            struct normal_slot {std::array<uint32_t,3> identity{};uint32_t index=UINT32_MAX;};
+            };
+            if(reused)vertices(workspace_->vertices,workspace_->generation);
+            else{std::vector<geometry_identity_slot<6>> unique(capacity);vertices(unique,0);}
             size_t normal_capacity=1;while(normal_capacity<output.shared_vertices.size()*2)normal_capacity*=2;
-            std::vector<normal_slot> normals(normal_capacity);
             output.normal_indices.reserve(output.shared_vertices.size());
-            normal_slot previous_normal{};
-            for(const auto &v:output.shared_vertices){const std::array<float,3> values{{v.normal.x,v.normal.y,v.normal.z}};
-                std::array<uint32_t,3> identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
-                if(reuse_preparation_&&previous_normal.index!=UINT32_MAX&&previous_normal.identity==identity){
-                    output.normal_indices.push_back(previous_normal.index);
-                    if(counts_)++counts_->normal_reuses;
-                    continue;
+            const auto normals=[&](auto &unique,uint32_t generation){const size_t mask=unique.size()-1;
+                for(const auto &v:output.shared_vertices){const std::array<float,3> values{{v.normal.x,v.normal.y,v.normal.z}};
+                    std::array<uint32_t,3> identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
+                    uint64_t hash=1469598103934665603ull;for(uint32_t value:identity)hash=(hash^value)*1099511628211ull;
+                    hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
+                    size_t at=size_t(hash)&mask;while(geometry_occupied(unique[at],generation)&&unique[at].identity!=identity)at=(at+1)&mask;
+                    auto &found=unique[at];if(!geometry_occupied(found,generation)){found.identity=identity;found.index=uint32_t(output.shared_normals.size());geometry_mark(found,generation);output.shared_normals.push_back(v.normal);}
+                    output.normal_indices.push_back(found.index);
                 }
-                if(counts_)++counts_->normal_hashes;
-                uint64_t hash=1469598103934665603ull;for(uint32_t value:identity)hash=(hash^value)*1099511628211ull;
-                hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
-                size_t at=size_t(hash)&(normal_capacity-1);
-                while(normals[at].index!=UINT32_MAX&&normals[at].identity!=identity)at=(at+1)&(normal_capacity-1);
-                auto &found=normals[at];if(found.index==UINT32_MAX){found.identity=identity;found.index=uint32_t(output.shared_normals.size());output.shared_normals.push_back(v.normal);}
-                output.normal_indices.push_back(found.index);previous_normal={identity,found.index};
-            }
+            };
+            if(reused&&workspace_->prepare_normals(normal_capacity))normals(workspace_->normals,workspace_->generation);
+            else{std::vector<geometry_identity_slot<3>> unique(normal_capacity);normals(unique,0);}
+            if(!output.closed_shell&&!output.opaque_closed_beams){std::vector<model::face_direction> empty;output.face_directions.swap(empty);}
             output.normal_source=output.shared_vertices.data();output.face_source=output.triangles.data();
         }
         return std::make_shared<model>(std::move(output));
     }
     uint16_t add(material value){output.materials.push_back(value);return uint16_t(output.materials.size()-1);}
     void face(point a,point b,point c,point d,uint16_t material){
+        const size_t before=output.triangles.size();
         const auto area=cross(b-a,c-a);const auto n=unit(area);
         if(dot(area,area)>1e-14f)output.triangles.push_back({{{{a,n,0,0},{b,n,1,0},{c,n,1,1}}},material});
         const auto second=cross(c-a,d-a);
         if(dot(second,second)>1e-14f)output.triangles.push_back({{{{a,n,0,0},{c,n,1,1},{d,n,0,1}}},material});
+        track_triangles(material,before);
     }
     void smooth(point a,point b,point c,point d,point na,point nb,point nc,point nd,uint16_t material){
         output.triangles.push_back({{{{a,na,0,0},{b,nb,1,0},{c,nc,1,1}}},material});
         output.triangles.push_back({{{{a,na,0,0},{c,nc,1,1},{d,nd,0,1}}},material});
+        track_triangles(material,output.triangles.size()-2);
     }
     void beam(point from,point to,float width,float depth,uint16_t material,unsigned sides=8){
+        const float length=dot(to-from,to-from);
+        const bool closed=finite(from)&&finite(to)&&std::isfinite(length)&&length>1e-12f&&
+            std::isfinite(width)&&std::isfinite(depth)&&width>0&&depth>0&&sides>=3;
+        closed_beam_scope proof(*this,material,closed,sides);
         const auto axis=unit(to-from),u=unit(cross(axis,std::abs(axis.z)<.8f?point{0,0,1}:point{0,1,0})),v=unit(cross(axis,u));
-        if(!reuse_preparation_){
         for(unsigned i=0;i<sides;++i){const float a=2*pi*i/sides,b=2*pi*(i+1)/sides;
             const auto na=u*std::cos(a)+v*std::sin(a),nb=u*std::cos(b)+v*std::sin(b);
             const auto pa=u*(std::cos(a)*width*.5f)+v*(std::sin(a)*depth*.5f),pb=u*(std::cos(b)*width*.5f)+v*(std::sin(b)*depth*.5f);
-            if(counts_)counts_->beam_samples+=2;
             smooth(from+pa,to+pa,to+pb,from+pb,na,na,nb,nb,material);
             face(from,from+pb,from+pa,from,material);face(to,to+pa,to+pb,to,material);
-        }
-            return;
-        }
-        point previous_normal{},previous_point{};uint32_t previous_angle=0;bool have_previous=false;
-        for(unsigned i=0;i<sides;++i){const float a=2*pi*i/sides,b=2*pi*(i+1)/sides;
-            uint32_t angle_bits=0;std::memcpy(&angle_bits,&a,sizeof(angle_bits));point na{},pa{};
-            if(have_previous&&angle_bits==previous_angle){na=previous_normal;pa=previous_point;
-                if(counts_)++counts_->beam_reuses;
-            }else{na=u*std::cos(a)+v*std::sin(a);pa=u*(std::cos(a)*width*.5f)+v*(std::sin(a)*depth*.5f);
-                if(counts_)++counts_->beam_samples;
-            }
-            const auto nb=u*std::cos(b)+v*std::sin(b);
-            const auto pb=u*(std::cos(b)*width*.5f)+v*(std::sin(b)*depth*.5f);
-            if(counts_)++counts_->beam_samples;
-            smooth(from+pa,to+pa,to+pb,from+pb,na,na,nb,nb,material);
-            face(from,from+pb,from+pa,from,material);face(to,to+pa,to+pb,to,material);
-            previous_normal=nb;previous_point=pb;std::memcpy(&previous_angle,&b,sizeof(previous_angle));have_previous=true;
         }
     }
     // Rounded rectangular shells, used for manufactured seats/equipment only;
@@ -236,31 +259,14 @@ public:
     }
     void torus(point center,point u,point v,float major,float radial,float axial,uint16_t material,unsigned segments,unsigned rings){
         const auto axis=unit(cross(u,v));
-        auto sample=[&](unsigned i,unsigned j){if(counts_)++counts_->torus_samples;
-            const float a=2*pi*i/segments,b=2*pi*j/rings;
+        auto sample=[&](unsigned i,unsigned j){const float a=2*pi*i/segments,b=2*pi*j/rings;
             const auto radius=u*std::cos(a)+v*std::sin(a);
             return std::make_pair(center+radius*(major+radial*std::cos(b))+axis*(axial*std::sin(b)),
                 unit(radius*std::cos(b)+axis*std::sin(b)));};
-        if(!reuse_preparation_||!segments||!rings||rings>16){
         for(unsigned i=0;i<segments;++i)for(unsigned j=0;j<rings;++j){
             const auto a=sample(i,j),b=sample(i+1,j),c=sample(i+1,j+1),d=sample(i,j+1);
             smooth(a.first,b.first,c.first,d.first,a.second,b.second,c.second,d.second,material);
         }
-            return;
-        }
-        // Two fixed rows share exact (i,j) samples. Keep the final segment/ring
-        // samples separate: sin(2*pi) must never be replaced with sin(0).
-        using row=std::array<std::pair<point,point>,17>;
-        std::array<row,2> rows{};auto *current=&rows[0],*next=&rows[1];
-        for(unsigned j=0;j<=rings;++j)(*current)[j]=sample(0,j);
-        for(unsigned i=0;i<segments;++i){
-            for(unsigned j=0;j<=rings;++j)(*next)[j]=sample(i+1,j);
-            for(unsigned j=0;j<rings;++j){const auto &a=(*current)[j],&b=(*next)[j],&c=(*next)[j+1],&d=(*current)[j+1];
-                smooth(a.first,b.first,c.first,d.first,a.second,b.second,c.second,d.second,material);
-            }
-            std::swap(current,next);
-        }
-        if(counts_)counts_->torus_reuses+=size_t(segments)*rings*4-size_t(segments+1)*(rings+1);
     }
     void shift_pivot(point pivot){output.pivot=pivot;for(auto &t:output.triangles)for(auto &v:t.vertices)v.position=v.position-pivot;}
     void wheel_asset(vehicle_assets::id id,float radius,float width){
@@ -293,13 +299,13 @@ inline component classify(const ncmm_graphics_vehicle_part_v1 &p){const auto f=p
     return component::other;
 }
 inline std::shared_ptr<const model> generate(const snapshot &s,const topology &layout,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod,bool reference_subdivisions=false,
-    bool reference_preparation=false,preparation_counts *counts=nullptr){
+    preparation_workspace *workspace=nullptr,bool prove_opaque_beams=true){
     auto visual=p;
     // Native's standard door cyan is an operational map-symbol colour, not a
     // separate paint job. Use one actual body definition colour for these
     // generic doors; authored/custom part colours remain per-part values.
     if(layout.generic_door_paint(p))std::copy(layout.body_paint.begin(),layout.body_paint.end(),visual.color);
-    builder b(visual,!reference_preparation,counts);b.output.kind=classify(p);b.output.recipe=layout.recipe(p,lod);
+    builder b(visual,workspace,prove_opaque_beams);b.output.kind=classify(p);b.output.recipe=layout.recipe(p,lod);
     const auto closed_kind=b.output.kind;
     b.output.closed_shell=closed_kind==component::frame||closed_kind==component::seat||closed_kind==component::axle||
         closed_kind==component::tank||closed_kind==component::other||

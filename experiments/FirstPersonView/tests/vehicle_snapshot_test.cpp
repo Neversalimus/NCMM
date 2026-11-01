@@ -63,7 +63,7 @@ void verify_gpu_vertices(const first_person::vehicle::model &model){
         require(std::memcmp(values.data(),cached.data(),sizeof(values))==0,"interned normal inputs preserve signed zero and every source bit");
     }
     require(normal_reference.size()==model.shared_normals.size(),"normal reuse has no missing or extra local input");
-    require(model.face_directions.size()==(model.closed_shell?model.triangles.size():0),"only closed immutable shells store their exact local orientation proofs");
+    require(model.face_directions.size()==(model.opaque_shell()?model.triangles.size():0),"only closed immutable shells store their exact local orientation proofs");
     for(size_t index=0;index<model.triangles.size();++index){point expected{},actual{};bool before=false,after=false;
         const bool a=first_person::vehicle::model::unit_outward_face(model.triangles[index],expected,&before),b=model.unit_outward_face(index,actual,&after);
         const std::array<float,3> x{{expected.x,expected.y,expected.z}},y{{actual.x,actual.y,actual.z}};
@@ -900,5 +900,6 @@ int main(){
     }
     #include "vehicle_repeat_input_test.inc"
     #include "vehicle_preparation_test.inc"
+    #include "vehicle_opaque_beam_test.inc"
     std::printf("vehicle snapshot: %d checks passed\n",checks);
 }

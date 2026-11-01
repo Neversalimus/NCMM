@@ -1715,14 +1715,18 @@ class renderer {
             // have invisible back faces. Thin panels/glass and an inside eye
             // keep both sides; Native visibility and the GPU path are intact.
             const bool cull=options.cull_geometry&&!gpu_sink&&draw.geometry->closed_shell&&!draw.geometry->contains(local_eye);
+            const first_person::vehicle::point forward{cy*cp,sy*cp,sp};
+            const first_person::vehicle::point local_forward{first_person::vehicle::dot(forward,draw.placement.x),first_person::vehicle::dot(forward,draw.placement.y),first_person::vehicle::dot(forward,draw.placement.z)};
+            const bool opaque_beams=options.cull_geometry&&!gpu_sink&&draw.geometry->proved_opaque_beams()&&
+                !draw.geometry->contains(local_eye)&&draw.geometry->ahead_of_near_plane(local_eye,local_forward);
             const bool indexed=!gpu_sink&&draw.geometry->vertex_indices.size()==draw.geometry->triangles.size();
             if(indexed)prepared.assign(draw.geometry->shared_vertices.size(),{});
             const bool normal_indexed=indexed&&draw.geometry->indexed_normals();
             if(indexed)prepared_normals.assign(normal_indexed?draw.geometry->shared_normals.size():draw.geometry->shared_vertices.size(),{});
             std::vector<const material *> materials;if(borrow)materials.resize(draw.geometry->materials.size(),nullptr);
             for(size_t index=0;index<draw.geometry->triangles.size();++index){const auto &source=draw.geometry->triangles[index];
-                if(cull&&!draw.geometry->front_facing(index,local_eye))continue;
                 const auto &appearance=draw.geometry->materials[source.material];
+                if((cull||(opaque_beams&&appearance.color[3]==1.f))&&!draw.geometry->front_facing(index,local_eye))continue;
                 auto converted=[&]{material m{nullptr,{appearance.color[0],appearance.color[1],appearance.color[2]},appearance.color[3],false,false,false,draw.cell,vehicle_finish(appearance.kind)};
                     m.smooth=true;return m;};
                 auto prepare=[&](auto &t){

@@ -55,14 +55,14 @@ struct fixture {
         const v::topology shape(input,input.vehicles[0]);
         for(uint32_t i=0;i<20;++i){auto p=input.parts[0];p.features=i%4==0?NCMM_VP_WINDOW:i%4==1?NCMM_VP_WHEEL:i%4==2?NCMM_VP_CONTROLS:NCMM_VP_PANEL;
             p.wheel_radius=.32f;p.wheel_width=.18f;
-            const auto mesh=v::generate(input,shape,p,0);
+            const auto mesh=v::generate(input,shape,p,0,false,nullptr,false);
             vehicles.draws.push_back({mesh,v::rigid({12+float(i%5)*.4f,11.7f+float(i/5)*.4f,.12f},i*.37f),7,100+i,312,false,false,true});}
         v::builder tiny(input.parts[0]);
         for(unsigned i=0;i<20;++i){const float y=i*.03f;
             tiny.face({0,y,0},{0,y+.0008f,0},{0,y,.0008f},{0,y,0},tiny.paint);}
         vehicles.draws.push_back({tiny.finish(),v::rigid({12,12,1.2f},0),7,150,312,false,false,true});
         auto roof_part=input.parts[2];
-        vehicles.draws.push_back({v::generate(input,shape,roof_part,0),v::rigid({11.8f,12,0},.17f),7,151,312,false,false,true});
+        vehicles.draws.push_back({v::generate(input,shape,roof_part,0,false,nullptr,false),v::rigid({11.8f,12,0},.17f),7,151,312,false,false,true});
         // One shared model in distinct Native cells must not share its light,
         // picking owner or appearance storage across these component draws.
         auto neighbor=vehicles.draws[3];neighbor.cell=313;neighbor.part_id=160;neighbor.placement.origin.y+=.35f;
@@ -233,6 +233,7 @@ int main(){
         require(extra_vectors>0,"proved inactive road detail uses the existing exact opaque vector kernels");
 #endif
     }
+    #include "vehicle_opaque_beam_raster_test.inc"
     std::printf("vehicle raster: %d checks passed; full 1280x800 colour/depth/picking equivalence\n",checks);
     std::printf("vehicle projection logical bytes: %llu compact, %llu original; %u clipped records\n",
         static_cast<unsigned long long>(compact_bytes),static_cast<unsigned long long>(full_bytes),clipped);

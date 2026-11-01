@@ -522,19 +522,44 @@ new timing instrumentation and represent neither GPU execution time nor FPS.
 Every original473 frozen GPU readback, shader byte, depth/lighting/blend
 expression, validation gate, quality setting and deadline is retained.
 
-Cold model preparation shares only exact local primitive inputs. Consecutive
-beam segments reuse their previous endpoint only after comparing the original
-angle bits. Tori keep two fixed rows of at most17 samples; the final segment
-and ring stay separate from index zero, and larger/empty dimensions retain
-the original sampling loop. Every authored position, normal, UV and triangle
-remains in its original order. This retains all curvature and subdivisions.
+Cold model preparation retains the original angular samples, full bit-key
+hashes, collision resolution and first-corner insertion order. One observation
+can reuse only the temporary hash-table allocations, with a fresh generation
+for every newly generated model. A stale generation cannot return an earlier
+model's index. Wrap clears all stamps; oversized parts release shared scratch
+and use the original complete local tables. The combined temporary capacity
+is bounded to2 MiB and released when observe returns; no Native pointer or
+cross-frame table is retained, and the32 MiB model limit is unchanged.
 
-The model identity tables likewise reuse only the previous triangle's complete
-six-float bit keys or the immediately previous three-float normal key. All
-other identities use the original full hash and collision resolution. Bounds,
-first-corner UV ownership, insertion order and signed-zero distinctions remain.
-These small per-builder scratch values retain no Native pointer or cross-frame
-state and add no model-cache allocation. A private original-path option and
-optional data-only operation counters provide controls across600 full models
-and primitive edge cases. Actual frame-time acceptance still requires Native
-CI; counts of eliminated calculations do not establish FPS or a frame win.
+The earlier adjacent-identity/primitive-sample experiment did not remove the
+measured complete-frame regression and is retired from the product. Original
+model data is checked across600 shared-storage/local-table pairs and729 models
+against the exact saved prior source, including signed zeros, changed ordering,
+generation wrap, large-part fallback and complete scratch cleanup. These are
+data/geometry controls; they are not Native frame timings or game FPS.
+
+An open glass component can separately prove that every opaque surface comes
+from capped beams. The builder tracks all emitted triangles and materials;
+only finite, positive-width/depth beams with at least3 sides and exactly all
+side/cap triangles can provide that proof. Open opaque faces, missing caps,
+untracked triangles, unsupported material slots and fractional/nonfinite
+opaque alpha reject it. Transparent panes and cracks do not gain this proof.
+The additional immutable face table is charged to the same32 MiB model budget;
+copied/edited geometry cannot inherit its allocation-owned proof.
+
+Outside views beyond the near plane may reject only these hidden alpha-one
+rim faces. GPU submission keeps original corner order and every smooth-normal,
+position, UV and material bit. Only the existing outward rejection plane and
+flag differ. The original strict winding test still decides raster culling;
+unproved winding retains the two-sided pipeline. Transparent packets remain
+bit-identical, with no new shader, pipeline, binding, depth expression or pass.
+Inside/near views and every failed proof keep original geometry submission.
+
+All old CPU fixtures and54 old closed-GPU image pairs explicitly retain their
+old proof setting and source-count assertions. Twelve new complete1280x800 CPU
+buffer pairs and14 actual-device pairs compare against original two-sided
+geometry, including damaged glass, separate materials, inside/near fallback,
+open opaque faces and fractional alpha. The28 additional device readbacks are
+appended after every original473 readback, for501 total. Actual raster/device
+execution and performance acceptance are CI-only; local compilation and pure
+geometry/ray controls do not admit a release or establish a frame-time win.
