@@ -792,6 +792,46 @@ int main(){
             require(left!=shared.draws.end()&&right!=shared.draws.end()&&left->geometry==right->geometry,"production presentation actually reuses one equivalent roof model");
             require(left->part_id!=right->part_id&&left->placement.origin.x!=right->placement.origin.x,"shared local geometry never combines real Native identities or placements");
         }
+        {
+            // Definition/autotile aliases may share only immutable shape data.
+            // Each Native part keeps its submission, cell and exact placement.
+            auto aliases=canopy;aliases.enabled=true;
+            for(size_t i=0;i<aliases.parts.size();++i){auto &p=aliases.parts[i];p.cell_index=uint32_t(i);
+                std::strcpy(p.id,p.features==NCMM_VP_ROOF?(i%3?"roof_metal":"roof_wood"):(i%3?"hdframe":"wing_mirror"));
+                std::strcpy(p.variant,i%3==0?"vertical_T_left":i%3==1?"horizontal_2":"cross");}
+            auto canonical=aliases;
+            for(auto &p:canonical.parts){std::strcpy(p.id,p.features==NCMM_VP_ROOF?"roof":"frame");p.variant[0]=0;}
+            require(valid(aliases,64)&&valid(canonical,64),"alias constructions retain all independent bounded Native cells");
+            const first_person::vehicle::topology named(aliases,aliases.vehicles[0]);
+            const first_person::vehicle::topology basic(canonical,canonical.vehicles[0]);
+            for(size_t i=0;i<aliases.parts.size();++i)for(unsigned lod=0;lod<3;++lod)for(float health:{1.f,.7f,0.f})for(bool broken:{false,true}){
+                auto a=aliases.parts[i],b=canonical.parts[i];a.health=b.health=health;
+                if(broken){a.state|=NCMM_VP_BROKEN;b.state|=NCMM_VP_BROKEN;}
+                require(named.recipe(a,lod)==basic.recipe(b,lod),"ignored frame/roof strings share only bit-identical local geometry");
+                identical_model_data(*generate(aliases,named,a,lod),*generate(canonical,basic,b,lod));
+                auto changed=a;changed.color[0]+=.125f;
+                require(named.recipe(a,lod)!=named.recipe(changed,lod),"alias folding retains exact custom paint");
+                std::strcpy(changed.id,"dashboard");changed.color[0]=a.color[0];
+                require(named.recipe(a,lod)!=named.recipe(changed,lod),"dashboard priority never enters alias folding");
+            }
+            presentation named_draws,basic_draws;named_draws.input=aliases;basic_draws.input=canonical;
+            named_draws.observe({0,0,1.5f});basic_draws.observe({0,0,1.5f});
+            require(named_draws.draws.size()==aliases.parts.size()&&basic_draws.draws.size()==named_draws.draws.size(),
+                "shared alias shapes never combine or omit Native part submissions");
+            require(named_draws.generated==basic_draws.generated&&named_draws.reused==basic_draws.reused,
+                "autotile aliases cannot multiply immutable model generation");
+            std::set<int> cells;
+            for(size_t i=0;i<named_draws.draws.size();++i){const auto &a=named_draws.draws[i],&b=basic_draws.draws[i];
+                require(a.part_id==b.part_id&&a.vehicle_id==b.vehicle_id&&a.cell==b.cell&&a.roof_surface==b.roof_surface&&
+                    a.exterior_surface==b.exterior_surface&&a.surface_outside==b.surface_outside,
+                    "alias model sharing retains actual part identity and lighting/permission cell");
+                for(auto point:std::array<first_person::vehicle::point,4>{{{0,0,0},{1,0,0},{0,1,0},{0,0,1}}}){
+                    const auto x=a.placement.position(point),y=b.placement.position(point);
+                    require(x.x==y.x&&x.y==y.y&&x.z==y.z,"every alias placement axis retains its exact rigid pose");}
+                identical_model_data(*a.geometry,*b.geometry);cells.insert(a.cell);
+            }
+            require(cells.size()==aliases.parts.size(),"one shared model still supplies every distinct Native cell");
+        }
         for(int x:{0,2})for(int y:{0,1})for(unsigned lod=0;lod<3;++lod)for(float health:{1.f,.7f,0.f})for(bool broken:{false,true}){
             auto p=*std::find_if(canopy.parts.begin(),canopy.parts.end(),[&](const auto &v){return v.mount_x==x&&v.mount_y==y&&v.features==NCMM_VP_ROOF;});
             p.health=health;if(broken)p.state|=NCMM_VP_BROKEN;

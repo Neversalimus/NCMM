@@ -154,7 +154,19 @@ public:
         const mount at{p.mount_x,p.mount_y,p.mount_z};
         for(uint32_t f:{p.features,p.material,lod})add(f);
         add(p.surface_faces&15u);
-        for(const char *text:{p.id,p.variant}){const uint32_t length=uint32_t(std::strlen(text));add(length);for(;*text;++text)add(*text);}
+        constexpr uint32_t earlier_frame_roles=NCMM_VP_CONTROL_PANEL|NCMM_VP_CURTAIN|NCMM_VP_DOOR|NCMM_VP_WINDOW|
+            NCMM_VP_WHEEL|NCMM_VP_SEAT|NCMM_VP_AXLE|NCMM_VP_FLOAT|NCMM_VP_CONTROLS|NCMM_VP_SOLAR|NCMM_VP_ROOF|
+            NCMM_VP_ARMOR|NCMM_VP_PANEL|NCMM_VP_ENGINE|NCMM_VP_CARGO|NCMM_VP_TURRET|NCMM_VP_LIGHT|NCMM_VP_RACK|NCMM_VP_FUEL_TANK;
+        constexpr uint32_t earlier_roof_roles=NCMM_VP_CONTROL_PANEL|NCMM_VP_CURTAIN|NCMM_VP_DOOR|NCMM_VP_WINDOW|
+            NCMM_VP_WHEEL|NCMM_VP_SEAT|NCMM_VP_AXLE|NCMM_VP_FLOAT|NCMM_VP_CONTROLS|NCMM_VP_SOLAR;
+        const bool same_wide_frame=!narrow&&(p.features&NCMM_VP_FRAME)&&!(p.features&earlier_frame_roles)&&std::string_view(p.id)!="dashboard";
+        const bool same_roof=(p.features&NCMM_VP_ROOF)&&!(p.features&earlier_roof_roles)&&std::string_view(p.id)!="dashboard";
+        // These existing shape branches never consume the definition ID or
+        // autotile variant. Keep all appearance/topology inputs and every
+        // Native part/pose/cell outside this immutable geometry identity.
+        const char *shape_id=same_wide_frame?"@frame":same_roof?"@roof":p.id;
+        const char *shape_variant=same_wide_frame||same_roof?"":p.variant;
+        for(const char *text:{shape_id,shape_variant}){const uint32_t length=uint32_t(std::strlen(text));add(length);for(;*text;++text)add(*text);}
         // Door/wheel transforms and vehicle motion are deliberately absent.
         const uint32_t visual_state=p.state&(NCMM_VP_BROKEN|((p.features&NCMM_VP_LIGHT)?uint32_t(NCMM_VP_LIGHT_ON):0u)|
             ((p.features&NCMM_VP_CURTAIN)||((p.features&NCMM_VP_WINDOW)&&!(p.features&NCMM_VP_DOOR))?uint32_t(NCMM_VP_OPEN):0u));add(visual_state);add(p.health);
@@ -164,18 +176,13 @@ public:
             add(p.wheel_radius);add(p.wheel_width);if(caster_assembly(p))add(chassis);return h?h:1;
         }
         add(chassis);
-        constexpr uint32_t earlier_frame_roles=NCMM_VP_CONTROL_PANEL|NCMM_VP_CURTAIN|NCMM_VP_DOOR|NCMM_VP_WINDOW|
-            NCMM_VP_WHEEL|NCMM_VP_SEAT|NCMM_VP_AXLE|NCMM_VP_FLOAT|NCMM_VP_CONTROLS|NCMM_VP_SOLAR|NCMM_VP_ROOF|
-            NCMM_VP_ARMOR|NCMM_VP_PANEL|NCMM_VP_ENGINE|NCMM_VP_CARGO|NCMM_VP_TURRET|NCMM_VP_LIGHT|NCMM_VP_RACK|NCMM_VP_FUEL_TANK;
-        if(!narrow&&(p.features&NCMM_VP_FRAME)&&!(p.features&earlier_frame_roles)&&std::string_view(p.id)!="dashboard"){
+        if(same_wide_frame){
             // Wide frame beams are identical at every mount. Only the actual
             // optional floor plate depends on topology; retain it in the key.
             add(narrow);const bool open=kind==archetype::bicycle||kind==archetype::motorcycle||kind==archetype::boat;
             add(!open&&has(at,NCMM_VP_FLOOR|NCMM_VP_AISLE));return h?h:1;
         }
-        constexpr uint32_t earlier_roof_roles=NCMM_VP_CONTROL_PANEL|NCMM_VP_CURTAIN|NCMM_VP_DOOR|NCMM_VP_WINDOW|
-            NCMM_VP_WHEEL|NCMM_VP_SEAT|NCMM_VP_AXLE|NCMM_VP_FLOAT|NCMM_VP_CONTROLS|NCMM_VP_SOLAR;
-        if((p.features&NCMM_VP_ROOF)&&!(p.features&earlier_roof_roles)&&std::string_view(p.id)!="dashboard"){
+        if(same_roof){
             // Roof vertices use this transverse profile and four actual roof
             // neighbours. Longitudinal mount/world position and unrelated
             // equipment cannot change their local generated data. Share that
