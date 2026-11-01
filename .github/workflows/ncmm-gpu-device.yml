@@ -126,6 +126,9 @@ jobs:
       - name: Diagnose inputs after the original pixel gate fails
         if: ${{ failure() && steps.scratch_pixels.outcome == 'failure' }}
         run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-inputs --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp --trace-inputs
+      - name: Compare one fixed-function cull state after the unchanged primary completes
+        if: ${{ always() && (steps.scratch_pixels.outcome == 'failure' || steps.scratch_pixels.outcome == 'success') }}
+        run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output cull-none-inputs --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp --trace-inputs --diagnostic-no-fixed-cull
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -135,6 +138,7 @@ jobs:
             gpu-build/gpu-scene*
             scratch-pair/comparison.json
             scratch-inputs/comparison.json
+            cull-none-inputs/comparison.json
             scratch-pair/build.log
             scratch-pair/reference/run/
             scratch-pair/candidate/run/
@@ -171,7 +175,7 @@ jobs:
             'experiments/FirstPersonView/shaders/geometry_reflective_bound.frag':'2f5aa3d48520ec781971f17638f4b3ac4bb22ee5800d5364af52de4f87b75831',
             'experiments/FirstPersonView/shaders/geometry_plain_bound.frag':'285be0bf90990330814897eb0f15ae9eb3f0a8f9c2f9044034990577e3c0391f',
             'experiments/FirstPersonView/tests/opaque_span_order_test.inc':'62ecf71e5500ea7f21351bbf768cd7c0192cfd971b9a3c8936bced6e75f676b0',
-            'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'d08f99e471b53e02dfcac5af2eea70d58b4c5d3da0b79b073a463402adef3855',
+            'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'d5f0cd625a6db7f0a7c17bd5b683fb0761d796fcf87532658828ba25dfd2857b',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'e7ca95216b84c3bfdb34bcf9c2638a8d46696b8eda28014a5c18511c1e38a16d',
             'experiments/FirstPersonView/src/gpu_scene.hpp':'75263464ca66efd018c7840a13a62aa2be632056cc45cb2385234a106980177e',
             'experiments/FirstPersonView/src/hybrid_renderer.hpp':'1beaac1e74f235651c3ea1e1f6383bbdbc3584ad352610ba55919fb38f5f3216',
@@ -356,7 +360,7 @@ jobs:
             'experiments/FirstPersonView/src/raster_dispatch.hpp':'e59ef2bfd8d8a16363182ffa65b3cd6ae034be96ff9c497e78f7ffb6d65045b2',
             'experiments/FirstPersonView/tests/gpu_input_fingerprint.hpp':'6407914cc82d5250a9249085407181fca264c18725706ac57ab68d0b424867a4',
             'experiments/FirstPersonView/tests/gpu_scratch_capture.inc':'51b295e9e853867f1f124cc4b2ad634d44aac461fa16674ff3aec343d554f816',
-            'experiments/FirstPersonView/tests/test_compare_scratch_inputs.py':'2fd33a3e335d2fd4d90533f5539e8bd825844a2dc59d793dbc3aa81e0fb10f58',
+            'experiments/FirstPersonView/tests/test_compare_scratch_inputs.py':'ea77e830c86377ec9f55993df875b25b2b1cfd67769c694795c62c81ca71a1a8',
             'experiments/FirstPersonView/tests/vehicle_raster_test.cpp':'83094b537952c07c547812f34554a2c3fa745baec31bd1fc2979af1a4e70a1d2',
             'experiments/FirstPersonView/tests/vehicle_snapshot_test.cpp':'3e4e8e9708dc0e9103cca33f41b509330cc67980c1b15ee482ccea717456e2d2',
             'experiments/FirstPersonView/tests/verify_vehicle_gallery.py':'961098853a5997a6bd1f64f279023acf6a40b82f6f2ed480090ae92ec8d2fc7b',
@@ -387,7 +391,7 @@ jobs:
             'experiments/FirstPersonView/tests/vehicle_opaque_beam_gpu_test.inc':'45f9bed7b2bf7d84110cf54ddc00bc2e4f99a303c0098a17077143131933357e',
             'experiments/graphics_bridge/ncmm_graphics_vehicle_identity.hpp':'3216a71347c1194be6d0d451c97067e54d8fed54201850b898f47c0489acbc7d',
             'experiments/graphics_bridge/ncmm_graphics_vehicle_policy.hpp':'2bb832301adf21411270cc398f0b29486dd35c6cb9b7a41b96dd8bba9369e203',
-            'experiments/graphics_bridge/ncmm_graphics_vehicle_smoke.inc':'790c8e14ec4ddb9047e3498c9c6e243afeddb73e634c30e6adbba1114d0cdd8e',
+            'experiments/graphics_bridge/ncmm_graphics_vehicle_smoke.inc':'8a65954e8e1c1009a97497845f8ca2a32e8e8c7551aa6682b0b58e2f600145d5',
             'experiments/graphics_bridge/ncmm_graphics_vehicles.h':'6d43919a3e7e2db339dfeeff78a99177679ab51b7091382024674d5cdacc4fde',
             'experiments/graphics_bridge/ncmm_graphics_vehicles.inc':'76700563235b9042ba61561f1ae110719225fccee8d6d0ae2760dc54f8ed42f7',
             'experiments/graphics_bridge/test_vehicle_bridge.py':'276e4023f2ee4dea152a09ccd1d62b2d7afd17fb283521913da341cc3166fc05',

@@ -118,6 +118,15 @@ def reference_backend(candidate):
     return reference
 
 
+def diagnostic_no_fixed_cull_programs(programs):
+    """One diagnostic pipeline-state ablation, never the ordinary pixel gate."""
+    assert hashlib.sha256(programs.encode()).hexdigest()=='107487beb6fc0730e181e75709b643ad499f30b16b69b6faa9173ff46a403c40','Unreviewed diagnostic pipeline source'
+    before='if(cull){p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_BACK;'
+    after='if(cull){p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_NONE;'
+    assert programs.count(before)==1,'Diagnostic must change only the existing fixed-function cull state'
+    return programs.replace(before,after)
+
+
 def image_difference(left, right):
     result = dict(reference_bytes=len(left), candidate_bytes=len(right))
     shapes = [list(struct.unpack('<III', data[:12])) if len(data) >= 12 else None
@@ -214,13 +223,25 @@ def main():
     parser.add_argument('--shader-header',type=Path)
     parser.add_argument('--sanitize',action='store_true',help='Clang ASan/UBSan on Linux')
     parser.add_argument('--trace-inputs',action='store_true',help='Separate diagnostic experiment; never replaces the ordinary pixel gate')
-    args=parser.parse_args();repo=args.repository.resolve();out=args.output.resolve()
+    parser.add_argument('--diagnostic-no-fixed-cull',action='store_true',help='Separate traced ablation of fixed-function cull state; never replaces the primary gate')
+    args=parser.parse_args()
+    if args.diagnostic_no_fixed_cull and not args.trace_inputs:parser.error('The cull ablation requires separate --trace-inputs diagnostics')
+    repo=args.repository.resolve();out=args.output.resolve()
     assert not out.exists(),'Use a fresh directory; preserve earlier output'
     assert not (args.sanitize and os.name=='nt'),'Use the compiler-specific Windows ASan fixture'
     assert args.sdl_dir or args.toolchain_file,'Use the same explicit SDL configuration as the original GPU fixture'
     parent=repo/'experiments/FirstPersonView';backend=repo/'experiments/graphics_bridge/ncmm_gpu_backend.hpp'
     candidate=backend.read_text(encoding='utf-8').replace('\r\n','\n');reference=reference_backend(candidate)
     out.mkdir(parents=True);(out/'reference').mkdir();(out/'reference/ncmm_gpu_backend.hpp').write_text(reference,encoding='utf-8',newline='\n')
+    programs=(repo/'experiments/graphics_bridge/ncmm_gpu_programs.hpp').read_text(encoding='utf-8')
+    compiled_programs=diagnostic_no_fixed_cull_programs(programs) if args.diagnostic_no_fixed_cull else programs
+    if args.diagnostic_no_fixed_cull:
+        # Relocate an unchanged candidate backend so its quoted include finds
+        # precisely this one-state programs variant. Producer/reference/shaders
+        # and every existing scene assertion/readback remain unchanged.
+        (out/'candidate').mkdir()
+        (out/'candidate/ncmm_gpu_backend.hpp').write_text(candidate,encoding='utf-8',newline='\n')
+        (out/'candidate/ncmm_gpu_programs.hpp').write_text(compiled_programs,encoding='utf-8',newline='\n')
     capture = '#include "'+(parent/'tests/gpu_scratch_capture.inc').as_posix()+'"\n'
     capture += '#include "'+(parent/'tests/gpu_fixture_producer.hpp').as_posix()+'"\n#define scene_cache fixture_scene_cache\n'
     (out/'capture.cpp').write_text(capture+'#include "'+(parent/'tests/gpu_scene_test.cpp').as_posix()+'"\n',encoding='utf-8',newline='\n')
@@ -249,6 +270,11 @@ foreach(variant reference candidate)
 endforeach()
 '''
     (out/'CMakeLists.txt').write_text(cmake,encoding='utf-8',newline='\n')
+    if args.diagnostic_no_fixed_cull:
+        marker='  if(variant STREQUAL "reference")'
+        assert cmake.count(marker)==1
+        cmake=cmake.replace(marker,'  if(variant STREQUAL "candidate")\n    target_include_directories(scratch_${variant} BEFORE PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/candidate")\n  endif()\n'+marker)
+        (out/'CMakeLists.txt').write_text(cmake,encoding='utf-8',newline='\n')
     if args.trace_inputs:
         cmake=cmake.replace('  first_person_target(scratch_${variant})','  first_person_target(scratch_${variant})\n  target_compile_definitions(scratch_${variant} PRIVATE NCMM_GPU_CAPTURE_INPUTS=1)')
         (out/'CMakeLists.txt').write_text(cmake,encoding='utf-8',newline='\n')
@@ -294,6 +320,9 @@ endforeach()
                   candidate_backend_sha256=hashlib.sha256(candidate.encode()).hexdigest(),
                   compiled_with_sanitizers=args.sanitize,
                   semantic_input_trace=args.trace_inputs,
+                  diagnostic_program_ablation='fixed-cull-none' if args.diagnostic_no_fixed_cull else 'none',
+                  shipping_programs_sha256=hashlib.sha256(programs.encode()).hexdigest(),
+                  candidate_programs_sha256=hashlib.sha256(compiled_programs.encode()).hexdigest(),
                   existing_scene_test_sha256=sha(parent/'tests/gpu_scene_test.cpp'),
                   semantic_input_fingerprint_sha256=sha(parent/'tests/gpu_input_fingerprint.hpp'),
                   capture_instrumentation_sha256=sha(parent/'tests/gpu_scratch_capture.inc'),

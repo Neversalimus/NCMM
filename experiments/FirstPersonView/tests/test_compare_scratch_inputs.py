@@ -25,6 +25,16 @@ class Diagnostics(unittest.TestCase):
         self.assertNotIn('#define NCMM_GPU_GROUP_DEPTH_PROGRAM',source)
         self.assertNotIn('prefill_opaque_group(',source)
         self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'c5c6f97068422f45e6527331bb75e946c20ac3893850852180c202592f9400b7')
+    def test_diagnostic_fixed_cull_ablation_changes_only_one_pipeline_state(self):
+        programs=(Path(__file__).resolve().parents[2]/'graphics_bridge/ncmm_gpu_programs.hpp').read_text(encoding='utf-8')
+        changed=comparison.diagnostic_no_fixed_cull_programs(programs)
+        self.assertEqual(changed,programs.replace('if(cull){p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_BACK;','if(cull){p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_NONE;'))
+        with self.assertRaises(AssertionError):comparison.diagnostic_no_fixed_cull_programs(changed)
+    def test_diagnostic_fixed_cull_rejects_an_unrelated_pipeline_edit(self):
+        programs=(Path(__file__).resolve().parents[2]/'graphics_bridge/ncmm_gpu_programs.hpp').read_text(encoding='utf-8')
+        changed=programs.replace('SDL_GPU_FRONTFACE_CLOCKWISE','SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE')
+        self.assertNotEqual(programs,changed)
+        with self.assertRaises(AssertionError):comparison.diagnostic_no_fixed_cull_programs(changed)
     def test_reconstructed_reference_keeps_frozen_bytes(self):
         reference=comparison.reference_backend(self.backend())
         self.assertEqual(hashlib.sha256(reference.encode()).hexdigest(),'a0dd1aa83c05e1a51ac33854dedb54696e85616857d9da1f68bb30ee7fe9662a')

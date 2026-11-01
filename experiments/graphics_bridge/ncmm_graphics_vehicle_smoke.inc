@@ -189,9 +189,12 @@
                 if(n==0){
                     // Keep the normal occupied view; add an independent
                     // downward view of the same actual seat/installed controls.
+                    // Restore exact fixture state; another relative mouse-look
+                    // can accumulate an ulp and invalidate later camera pairs.
+                    const float saved_yaw=graphics_camera_yaw,saved_pitch=graphics_camera_pitch;
                     look(float(units::to_radians(car->face.dir())),-.95f);
                     pair("driver-controls",prototype);
-                    look(float(units::to_radians(car->face.dir())),-.04f);
+                    graphics_camera_yaw=saved_yaw;graphics_camera_pitch=saved_pitch;
                 }
                 get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();require(!get_avatar().in_vehicle,"vehicle_family_exit_failed");}
             camera(0,8,-.08f);
@@ -226,9 +229,12 @@
                 if(n==0){
                     // Keep the normal occupied view; add an independent
                     // downward view of the same actual seat/installed controls.
+                    // Restore exact fixture state; another relative mouse-look
+                    // can accumulate an ulp and invalidate later camera pairs.
+                    const float saved_yaw=graphics_camera_yaw,saved_pitch=graphics_camera_pitch;
                     look(float(units::to_radians(car->face.dir())),-.95f);
                     pair("driver-controls",prototype);
-                    look(float(units::to_radians(car->face.dir())),-.04f);
+                    graphics_camera_yaw=saved_yaw;graphics_camera_pitch=saved_pitch;
                 }
                 require(graphics_vehicle_scene.occupied_part&&graphics_vehicle_scene.eye_valid,"vehicle_seat_camera_missing");
                 get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();camera(0,8,-.08f);require(!get_avatar().in_vehicle,"vehicle_exit_failed");}
