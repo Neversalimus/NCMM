@@ -521,3 +521,20 @@ serial. These are bounded benchmark-only numeric diagnostics; they enable no
 new timing instrumentation and represent neither GPU execution time nor FPS.
 Every original473 frozen GPU readback, shader byte, depth/lighting/blend
 expression, validation gate, quality setting and deadline is retained.
+
+Cold model preparation shares only exact local primitive inputs. Consecutive
+beam segments reuse their previous endpoint only after comparing the original
+angle bits. Tori keep two fixed rows of at most17 samples; the final segment
+and ring stay separate from index zero, and larger/empty dimensions retain
+the original sampling loop. Every authored position, normal, UV and triangle
+remains in its original order. This retains all curvature and subdivisions.
+
+The model identity tables likewise reuse only the previous triangle's complete
+six-float bit keys or the immediately previous three-float normal key. All
+other identities use the original full hash and collision resolution. Bounds,
+first-corner UV ownership, insertion order and signed-zero distinctions remain.
+These small per-builder scratch values retain no Native pointer or cross-frame
+state and add no model-cache allocation. A private original-path option and
+optional data-only operation counters provide controls across600 full models
+and primitive edge cases. Actual frame-time acceptance still requires Native
+CI; counts of eliminated calculations do not establish FPS or a frame win.

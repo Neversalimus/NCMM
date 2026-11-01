@@ -899,5 +899,6 @@ int main(){
         }
     }
     #include "vehicle_repeat_input_test.inc"
+    #include "vehicle_preparation_test.inc"
     std::printf("vehicle snapshot: %d checks passed\n",checks);
 }

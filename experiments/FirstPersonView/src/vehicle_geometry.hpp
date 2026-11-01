@@ -92,11 +92,18 @@ struct model {
         shared_vertices.capacity()*sizeof(vertex)+vertex_indices.capacity()*sizeof(std::array<uint32_t,3>)+
         shared_normals.capacity()*sizeof(point)+normal_indices.capacity()*sizeof(uint32_t)+face_directions.capacity()*sizeof(face_direction);}
 };
+struct preparation_counts {
+    size_t beam_samples=0,torus_samples=0,vertex_hashes=0,normal_hashes=0;
+    size_t beam_reuses=0,torus_reuses=0,vertex_reuses=0,normal_reuses=0;
+};
 class builder {
+    bool reuse_preparation_=true;
+    preparation_counts *counts_=nullptr;
 public:
     model output;
     uint16_t paint=0,steel=0,dark=0,rubber=0,glass=0,fabric=0;
-    explicit builder(const ncmm_graphics_vehicle_part_v1 &p){
+    explicit builder(const ncmm_graphics_vehicle_part_v1 &p,bool reuse_preparation=true,preparation_counts *counts=nullptr):
+        reuse_preparation_(reuse_preparation),counts_(counts){
         const float wear=std::clamp(1-p.health,0.f,1.f);
         paint=add({{p.color[0]*(1-.25f*wear),p.color[1]*(1-.25f*wear),p.color[2]*(1-.25f*wear),1},p.material==NCMM_VM_DEFAULT?uint32_t(NCMM_VM_PAINT):p.material});
         steel=add({{.38f,.40f,.42f,1},NCMM_VM_METAL});dark=add({{.055f,.065f,.072f,1},NCMM_VM_PLASTIC});
@@ -116,12 +123,23 @@ public:
             output.vertex_indices.reserve(output.triangles.size());
             if(output.closed_shell)output.face_directions.reserve(output.triangles.size());
             output.minimum=output.maximum=output.triangles.front().vertices[0].position;
+            // Consecutive authored triangles commonly share two corners. Reuse
+            // only their complete six-float bit keys; all other corners still
+            // enter the original collision-resolving global table.
+            std::array<slot,3> previous{},current{};
             for(const auto &t:output.triangles){std::array<uint32_t,3> indices{};
                 for(size_t n=0;n<3;++n){const auto &v=t.vertices[n];const auto p=v.position;
                     output.minimum={std::min(output.minimum.x,p.x),std::min(output.minimum.y,p.y),std::min(output.minimum.z,p.z)};
                     output.maximum={std::max(output.maximum.x,p.x),std::max(output.maximum.y,p.y),std::max(output.maximum.z,p.z)};
                     const std::array<float,6> values{{p.x,p.y,p.z,v.normal.x,v.normal.y,v.normal.z}};
                     key identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
+                    uint32_t repeated=UINT32_MAX;
+                    if(reuse_preparation_)for(const auto &prior:previous)if(prior.index!=UINT32_MAX&&prior.identity==identity){repeated=prior.index;break;}
+                    if(repeated!=UINT32_MAX){indices[n]=repeated;current[n]={identity,repeated};
+                        if(counts_)++counts_->vertex_reuses;
+                        continue;
+                    }
+                    if(counts_)++counts_->vertex_hashes;
                     uint64_t hash=1469598103934665603ull;for(uint32_t value:identity)hash=(hash^value)*1099511628211ull;
                     // Regular grid floats often share all their low bits.
                     // Mix the full identity before the power-of-two mask.
@@ -129,8 +147,9 @@ public:
                     size_t at=size_t(hash)&mask;while(unique[at].index!=UINT32_MAX&&unique[at].identity!=identity)at=(at+1)&mask;
                     auto &found=unique[at];
                     if(found.index==UINT32_MAX){found.identity=identity;found.index=uint32_t(output.shared_vertices.size());output.shared_vertices.push_back(v);}
-                    indices[n]=found.index;
+                    indices[n]=found.index;current[n]={identity,found.index};
                 }
+                previous=current;
                 output.vertex_indices.push_back(indices);
                 if(output.closed_shell){model::face_direction direction{};bool reversed=false;
                     if(model::outward_face(t,direction.normal,&reversed))direction.flags=uint8_t(1u|(reversed?2u:0u));
@@ -142,14 +161,21 @@ public:
             size_t normal_capacity=1;while(normal_capacity<output.shared_vertices.size()*2)normal_capacity*=2;
             std::vector<normal_slot> normals(normal_capacity);
             output.normal_indices.reserve(output.shared_vertices.size());
+            normal_slot previous_normal{};
             for(const auto &v:output.shared_vertices){const std::array<float,3> values{{v.normal.x,v.normal.y,v.normal.z}};
                 std::array<uint32_t,3> identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
+                if(reuse_preparation_&&previous_normal.index!=UINT32_MAX&&previous_normal.identity==identity){
+                    output.normal_indices.push_back(previous_normal.index);
+                    if(counts_)++counts_->normal_reuses;
+                    continue;
+                }
+                if(counts_)++counts_->normal_hashes;
                 uint64_t hash=1469598103934665603ull;for(uint32_t value:identity)hash=(hash^value)*1099511628211ull;
                 hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
                 size_t at=size_t(hash)&(normal_capacity-1);
                 while(normals[at].index!=UINT32_MAX&&normals[at].identity!=identity)at=(at+1)&(normal_capacity-1);
                 auto &found=normals[at];if(found.index==UINT32_MAX){found.identity=identity;found.index=uint32_t(output.shared_normals.size());output.shared_normals.push_back(v.normal);}
-                output.normal_indices.push_back(found.index);
+                output.normal_indices.push_back(found.index);previous_normal={identity,found.index};
             }
             output.normal_source=output.shared_vertices.data();output.face_source=output.triangles.data();
         }
@@ -168,11 +194,30 @@ public:
     }
     void beam(point from,point to,float width,float depth,uint16_t material,unsigned sides=8){
         const auto axis=unit(to-from),u=unit(cross(axis,std::abs(axis.z)<.8f?point{0,0,1}:point{0,1,0})),v=unit(cross(axis,u));
+        if(!reuse_preparation_){
         for(unsigned i=0;i<sides;++i){const float a=2*pi*i/sides,b=2*pi*(i+1)/sides;
             const auto na=u*std::cos(a)+v*std::sin(a),nb=u*std::cos(b)+v*std::sin(b);
             const auto pa=u*(std::cos(a)*width*.5f)+v*(std::sin(a)*depth*.5f),pb=u*(std::cos(b)*width*.5f)+v*(std::sin(b)*depth*.5f);
+            if(counts_)counts_->beam_samples+=2;
             smooth(from+pa,to+pa,to+pb,from+pb,na,na,nb,nb,material);
             face(from,from+pb,from+pa,from,material);face(to,to+pa,to+pb,to,material);
+        }
+            return;
+        }
+        point previous_normal{},previous_point{};uint32_t previous_angle=0;bool have_previous=false;
+        for(unsigned i=0;i<sides;++i){const float a=2*pi*i/sides,b=2*pi*(i+1)/sides;
+            uint32_t angle_bits=0;std::memcpy(&angle_bits,&a,sizeof(angle_bits));point na{},pa{};
+            if(have_previous&&angle_bits==previous_angle){na=previous_normal;pa=previous_point;
+                if(counts_)++counts_->beam_reuses;
+            }else{na=u*std::cos(a)+v*std::sin(a);pa=u*(std::cos(a)*width*.5f)+v*(std::sin(a)*depth*.5f);
+                if(counts_)++counts_->beam_samples;
+            }
+            const auto nb=u*std::cos(b)+v*std::sin(b);
+            const auto pb=u*(std::cos(b)*width*.5f)+v*(std::sin(b)*depth*.5f);
+            if(counts_)++counts_->beam_samples;
+            smooth(from+pa,to+pa,to+pb,from+pb,na,na,nb,nb,material);
+            face(from,from+pb,from+pa,from,material);face(to,to+pa,to+pb,to,material);
+            previous_normal=nb;previous_point=pb;std::memcpy(&previous_angle,&b,sizeof(previous_angle));have_previous=true;
         }
     }
     // Rounded rectangular shells, used for manufactured seats/equipment only;
@@ -191,14 +236,31 @@ public:
     }
     void torus(point center,point u,point v,float major,float radial,float axial,uint16_t material,unsigned segments,unsigned rings){
         const auto axis=unit(cross(u,v));
-        auto sample=[&](unsigned i,unsigned j){const float a=2*pi*i/segments,b=2*pi*j/rings;
+        auto sample=[&](unsigned i,unsigned j){if(counts_)++counts_->torus_samples;
+            const float a=2*pi*i/segments,b=2*pi*j/rings;
             const auto radius=u*std::cos(a)+v*std::sin(a);
             return std::make_pair(center+radius*(major+radial*std::cos(b))+axis*(axial*std::sin(b)),
                 unit(radius*std::cos(b)+axis*std::sin(b)));};
+        if(!reuse_preparation_||!segments||!rings||rings>16){
         for(unsigned i=0;i<segments;++i)for(unsigned j=0;j<rings;++j){
             const auto a=sample(i,j),b=sample(i+1,j),c=sample(i+1,j+1),d=sample(i,j+1);
             smooth(a.first,b.first,c.first,d.first,a.second,b.second,c.second,d.second,material);
         }
+            return;
+        }
+        // Two fixed rows share exact (i,j) samples. Keep the final segment/ring
+        // samples separate: sin(2*pi) must never be replaced with sin(0).
+        using row=std::array<std::pair<point,point>,17>;
+        std::array<row,2> rows{};auto *current=&rows[0],*next=&rows[1];
+        for(unsigned j=0;j<=rings;++j)(*current)[j]=sample(0,j);
+        for(unsigned i=0;i<segments;++i){
+            for(unsigned j=0;j<=rings;++j)(*next)[j]=sample(i+1,j);
+            for(unsigned j=0;j<rings;++j){const auto &a=(*current)[j],&b=(*next)[j],&c=(*next)[j+1],&d=(*current)[j+1];
+                smooth(a.first,b.first,c.first,d.first,a.second,b.second,c.second,d.second,material);
+            }
+            std::swap(current,next);
+        }
+        if(counts_)counts_->torus_reuses+=size_t(segments)*rings*4-size_t(segments+1)*(rings+1);
     }
     void shift_pivot(point pivot){output.pivot=pivot;for(auto &t:output.triangles)for(auto &v:t.vertices)v.position=v.position-pivot;}
     void wheel_asset(vehicle_assets::id id,float radius,float width){
@@ -230,13 +292,14 @@ inline component classify(const ncmm_graphics_vehicle_part_v1 &p){const auto f=p
     if(f&NCMM_VP_FUEL_TANK)return component::tank;if(f&NCMM_VP_FRAME)return component::frame;
     return component::other;
 }
-inline std::shared_ptr<const model> generate(const snapshot &s,const topology &layout,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod,bool reference_subdivisions=false){
+inline std::shared_ptr<const model> generate(const snapshot &s,const topology &layout,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod,bool reference_subdivisions=false,
+    bool reference_preparation=false,preparation_counts *counts=nullptr){
     auto visual=p;
     // Native's standard door cyan is an operational map-symbol colour, not a
     // separate paint job. Use one actual body definition colour for these
     // generic doors; authored/custom part colours remain per-part values.
     if(layout.generic_door_paint(p))std::copy(layout.body_paint.begin(),layout.body_paint.end(),visual.color);
-    builder b(visual);b.output.kind=classify(p);b.output.recipe=layout.recipe(p,lod);
+    builder b(visual,!reference_preparation,counts);b.output.kind=classify(p);b.output.recipe=layout.recipe(p,lod);
     const auto closed_kind=b.output.kind;
     b.output.closed_shell=closed_kind==component::frame||closed_kind==component::seat||closed_kind==component::axle||
         closed_kind==component::tank||closed_kind==component::other||
