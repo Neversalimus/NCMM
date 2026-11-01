@@ -2,6 +2,7 @@
 #include "ncmm_graphics_trace.hpp"
 #include "hybrid_renderer.hpp"
 #include "gpu_packet.hpp"
+#include "vehicle_frame_caps.hpp"
 #include <chrono>
 #include <memory>
 #include <new>
@@ -102,7 +103,8 @@ class scene_cache {
         uint8_t empty_passes=0;
         int8_t opaque_cull_safe=-1;
     };
-    std::map<uint64_t,vehicle_template> vehicle_templates;
+    using vehicle_template_key=std::pair<uint64_t,uint8_t>;
+    std::map<vehicle_template_key,vehicle_template> vehicle_templates;
     resources assets;
     // Whole opaque cell templates keep floors and authored furniture in the
     // same draw. Repeated rooms never expand/hash every source triangle again.
@@ -152,7 +154,8 @@ class scene_cache {
         // Renderer images are immutable and owned for this collect() call.
         // Hash/copy each observed atlas image once, not once per triangle.
         std::map<const hybrid::image *,std::shared_ptr<const owned_texture>> prepared_textures;
-        bool world=true,cull_vehicle_shells=true;
+        bool world=true,cull_vehicle_shells=true,join_frame_caps=true;
+        std::vector<uint8_t> frame_cap_masks;
         std::array<vec,5> grass_planes{};vec grass_eye{};
         bool grass_visible(vec at,float height)const{
             const vec center=at+vec{.5f,.5f,height*.675f+.012f}-grass_eye,radius{.51f,.51f,height*.675f+.02f};
@@ -175,8 +178,8 @@ class scene_cache {
     public:
         bool failed=false,warming=false;uint32_t generated_cells=0;
         void fail(const char *reason){failed=true;if(cache.last_reason.empty())cache.last_reason=reason;}
-        collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel,const ncmm_world::coordinates &indexed,bool cull_shells):
-            cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(indexed),signatures(hashes),dirty_cells(s.base.cell_count,false),cull_vehicle_shells(cull_shells){
+        collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel,const ncmm_world::coordinates &indexed,bool cull_shells,bool join_caps):
+            cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(indexed),signatures(hashes),dirty_cells(s.base.cell_count,false),cull_vehicle_shells(cull_shells),join_frame_caps(join_caps){
             const auto &c=frame.scene.camera;grass_eye={c.eye[0],c.eye[1],c.eye[2]};
             const vec forward{c.forward[0],c.forward[1],c.forward[2]},right{c.right[0],c.right[1],c.right[2]},up{c.up[0],c.up[1],c.up[2]};
             const float h=c.projection[0]*.5f/c.projection[2],v=c.projection[1]*.5f/c.projection[2];
@@ -202,7 +205,12 @@ class scene_cache {
             auto &values=placed_props[cell];if(values.size()>=8){fail("GPU prop assembly budget exceeded");return true;}
             values.push_back(placed);return true;
         }
-        bool vehicle_component(const vehicle::submission &draw)override{
+        bool joins_vehicle_frame_caps()const override{return cull_vehicle_shells&&join_frame_caps;}
+        void prepare_vehicle_components(const std::vector<const vehicle::submission *> &permitted)override{
+            const auto &c=frame.scene.camera;
+            frame_cap_masks=vehicle::joined_frame_caps(permitted,{c.eye[0],c.eye[1],c.eye[2]},{c.forward[0],c.forward[1],c.forward[2]}).sides;
+        }
+        bool vehicle_component(const vehicle::submission &draw,size_t submission_index)override{
             if(!draw.geometry||draw.cell<0||size_t(draw.cell)>=scene.base.cell_count)return true;
             // Use the exact published GPU camera, including sub-tile/multi-Z
             // offsets. A renderer-side approximation cannot prove GPU faces
@@ -214,7 +222,8 @@ class scene_cache {
                 local_forward{vehicle::dot(forward,draw.placement.x),vehicle::dot(forward,draw.placement.y),vehicle::dot(forward,draw.placement.z)};
             const bool cull_closed=cull_vehicle_shells&&draw.geometry->closed_shell&&!draw.geometry->contains(local_eye)&&draw.geometry->ahead_of_near_plane(local_eye,local_forward);
             if(cache.vehicle_templates.size()>=2048)cache.vehicle_templates.clear();
-            auto &entry=cache.vehicle_templates[draw.geometry->recipe];
+            const uint8_t cap_mask=cull_closed&&draw.geometry->indexed_frame_caps()&&submission_index<frame_cap_masks.size()?frame_cap_masks[submission_index]:0;
+            auto &entry=cache.vehicle_templates[{draw.geometry->recipe,cap_mask}];
             if(entry.opaque_cull_safe<0){
                 bool safe=draw.geometry->closed_shell,opaque=false;
                 for(size_t index=0;index<draw.geometry->triangles.size();++index){const auto &t=draw.geometry->triangles[index];const auto alpha=draw.geometry->materials[t.material].color[3];
@@ -245,6 +254,7 @@ class scene_cache {
                         // GPU variants. Triangle/material/draw order stays put;
                         // GPU ray picking and the existing material flag then
                         // agree on the same authored outward geometric plane.
+                        const bool omit_cap=closed&&cap_mask&&(draw.geometry->frame_caps->sides[size_t(source_at-draw.geometry->triangles.begin())]&cap_mask);
                         const unsigned order[]={0u,oriented&&reversed?2u:1u,oriented&&reversed?1u:2u};
                         for(unsigned corner:order){const auto &value=source.vertices[corner];ncmm_gpu_vertex_v1 v{};
                             v.position[0]=value.position.x;v.position[1]=value.position.y;v.position[2]=value.position.z;
@@ -255,7 +265,10 @@ class scene_cache {
                             // reject a closed shell's invisible back face.
                             if(closed){v.face_normal[0]=outward.x;v.face_normal[1]=outward.y;v.face_normal[2]=outward.z;}
                             v.uv[0]=value.u;v.uv[1]=value.v;v.material=slot;
-                            builder.mesh.indices.push_back(corners.add(builder.mesh,v));}
+                            // Keep original vertex/material insertion order and
+                            // bounds even when only an internal cap index is omitted.
+                            const auto index=corners.add(builder.mesh,v);
+                            if(!omit_cap)builder.mesh.indices.push_back(index);}
                     }
                     if(builder.mesh.indices.empty())continue;
                     mesh=cache.assets.mesh(std::move(builder.mesh));
@@ -716,7 +729,7 @@ public:
         prop_template_builds=prop_template_reuses=0;prop_source_triangles=0;
         floor_template_builds=floor_template_reuses=0;floor_source_triangles=vehicle_pass_scans=0;
         signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;}
-    size_t bytes()const{return assets.bytes()+vehicle_templates.size()*(sizeof(uint64_t)+sizeof(vehicle_template)+3*sizeof(void *))+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+prop_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(prop_templates.empty()?0:prop_templates.bucket_count()*sizeof(void *))+floor_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(floor_templates.empty()?0:floor_templates.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes()+coordinate_index.bytes();}
+    size_t bytes()const{return assets.bytes()+vehicle_templates.size()*(sizeof(vehicle_template_key)+sizeof(vehicle_template)+3*sizeof(void *))+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+prop_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(prop_templates.empty()?0:prop_templates.bucket_count()*sizeof(void *))+floor_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(floor_templates.empty()?0:floor_templates.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes()+coordinate_index.bytes();}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
                hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr,hybrid::render_options options={}){
         last_reason.clear();
@@ -742,7 +755,7 @@ public:
         // current Host scene pointer remains inside this adapter's lifetime.
         ncmm_graphics_trace::cpu_zone geometry_zone("Geometry");
         const auto start=std::chrono::steady_clock::now();ncmm_world::coordinates indexed(levels,coordinate_index);
-        auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed,options.cull_geometry&&options.cull_gpu_vehicle_shells);
+        auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed,options.cull_geometry&&options.cull_gpu_vehicle_shells,options.join_gpu_frame_caps);
         hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,options,creatures,levels,&indexed).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
         if(statistics.viewmodel_errors){last_reason="PSX viewmodel grip could not be attached safely";return false;}
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);

@@ -21,6 +21,17 @@ struct vertex {point position,normal;float u=0,v=0;};
 struct material {std::array<float,4> color{};uint32_t kind=NCMM_VM_METAL;bool emissive=false;};
 struct triangle {std::array<vertex,3> vertices;uint16_t material=0;};
 enum class component {frame,roof,panel,door,glass,wheel,seat,controls,engine,cargo,armor,solar,turret,light,rack,tank,curtain,hull,axle,dashboard,other};
+// Private immutable proof for only the two original longitudinal frame rails.
+// Triangle/UV/material arrays remain the complete original geometry.
+struct frame_cap_data {
+    using section=std::array<std::array<uint32_t,6>,16>;
+    std::vector<uint8_t> sides;
+    section boundary{};
+    const triangle *source=nullptr;
+    const material *appearance=nullptr;
+    size_t material_count=0;
+    size_t bytes()const{return sizeof(*this)+sides.capacity()*sizeof(uint8_t);}
+};
 struct model {
     std::vector<triangle> triangles;
     std::vector<material> materials;
@@ -44,6 +55,10 @@ struct model {
     uint64_t recipe=0;
     point minimum{},maximum{};
     bool closed_shell=false;
+    std::shared_ptr<const frame_cap_data> frame_caps;
+    bool indexed_frame_caps()const{return frame_caps&&frame_caps->source==triangles.data()&&
+        frame_caps->appearance==materials.data()&&frame_caps->material_count==materials.size()&&
+        frame_caps->sides.size()==triangles.size();}
     bool contains(point p)const{return p.x>=minimum.x-.001f&&p.x<=maximum.x+.001f&&
         p.y>=minimum.y-.001f&&p.y<=maximum.y+.001f&&p.z>=minimum.z-.001f&&p.z<=maximum.z+.001f;}
     bool ahead_of_near_plane(point eye,point forward)const{
@@ -90,7 +105,8 @@ struct model {
     }
     size_t bytes()const{return sizeof(*this)+triangles.capacity()*sizeof(triangle)+materials.capacity()*sizeof(material)+
         shared_vertices.capacity()*sizeof(vertex)+vertex_indices.capacity()*sizeof(std::array<uint32_t,3>)+
-        shared_normals.capacity()*sizeof(point)+normal_indices.capacity()*sizeof(uint32_t)+face_directions.capacity()*sizeof(face_direction);}
+        shared_normals.capacity()*sizeof(point)+normal_indices.capacity()*sizeof(uint32_t)+face_directions.capacity()*sizeof(face_direction)+
+        (frame_caps?frame_caps->bytes():0);}
 };
 // Local hash buckets store only an index into the already owned exact
 // first-occurrence pool. A collision still compares every original identity
@@ -146,6 +162,32 @@ static_assert(sizeof(geometry_identity_slot<6>)==28&&sizeof(geometry_identity_sl
 static_assert(sizeof(preparation_workspace::vertex_slot)==32&&sizeof(preparation_workspace::normal_slot)==20,"bounded transient generation tags");
 class builder {
     preparation_workspace *workspace_=nullptr;
+    size_t frame_rails_begin_=SIZE_MAX,frame_rails_end_=0;
+    void prepare_frame_caps(){
+        if(!output.closed_shell||output.kind!=component::frame||frame_rails_begin_>=frame_rails_end_||frame_rails_end_>output.triangles.size())return;
+        for(size_t i=0;i<output.triangles.size();++i){point normal;
+            if(output.materials[output.triangles[i].material].color[3]!=1.f||!output.unit_outward_face(i,normal))return;}
+        auto caps=std::make_shared<frame_cap_data>();caps->sides.resize(output.triangles.size());
+        std::array<frame_cap_data::section,2> sections{};std::array<size_t,2> counts{};
+        for(size_t i=frame_rails_begin_;i<frame_rails_end_;++i){const auto &t=output.triangles[i];
+            int side=-1;
+            for(unsigned n=0;n<2;++n){const float x=n?.5f:-.5f;
+                if(t.vertices[0].position.x==x&&t.vertices[1].position.x==x&&t.vertices[2].position.x==x)side=int(n);}
+            if(side<0)continue;
+            point normal;if(!output.unit_outward_face(i,normal)||std::abs(normal.x)!=1.f||normal.y!=0||normal.z!=0||counts[size_t(side)]==16)return;
+            std::array<std::array<uint32_t,2>,3> yz{};
+            for(size_t corner=0;corner<3;++corner){const auto &p=t.vertices[corner].position;
+                std::memcpy(&yz[corner][0],&p.y,sizeof(float));std::memcpy(&yz[corner][1],&p.z,sizeof(float));}
+            std::sort(yz.begin(),yz.end());auto &identity=sections[size_t(side)][counts[size_t(side)]++];
+            for(size_t corner=0;corner<3;++corner){identity[corner*2]=yz[corner][0];identity[corner*2+1]=yz[corner][1];}
+            caps->sides[i]=uint8_t(1u<<unsigned(side));
+        }
+        if(counts[0]!=16||counts[1]!=16)return;
+        for(auto &section:sections)std::sort(section.begin(),section.end());
+        if(sections[0]!=sections[1])return;
+        caps->boundary=sections[0];caps->source=output.triangles.data();caps->appearance=output.materials.data();caps->material_count=output.materials.size();
+        output.frame_caps=std::move(caps);
+    }
 public:
     model output;
     uint16_t paint=0,steel=0,dark=0,rubber=0,glass=0,fabric=0;
@@ -156,6 +198,8 @@ public:
         rubber=add({{.025f,.029f,.032f,1},NCMM_VM_RUBBER});glass=add({{.23f,.34f,.38f,.19f},NCMM_VM_GLASS});
         fabric=add({{.13f,.15f,.17f,1},p.material==NCMM_VM_LEATHER?uint32_t(NCMM_VM_LEATHER):uint32_t(NCMM_VM_CLOTH)});
     }
+    void begin_frame_rails(){frame_rails_begin_=output.triangles.size();}
+    void end_frame_rails(){frame_rails_end_=output.triangles.size();}
     std::shared_ptr<const model> finish(){
         if(!output.triangles.empty()){
             using key=std::array<uint32_t,6>;
@@ -202,6 +246,7 @@ public:
             else{std::vector<geometry_compact_slot> unique(normal_capacity);normals(unique,0);}
             output.normal_source=output.shared_vertices.data();output.face_source=output.triangles.data();
         }
+        prepare_frame_caps();
         return std::make_shared<model>(std::move(output));
     }
     uint16_t add(material value){output.materials.push_back(value);return uint16_t(output.materials.size()-1);}
@@ -495,8 +540,10 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             if(std::abs(lower(at)-node.z)>1e-6f)b.beam({node.x,0,lower(at)},node,.035f,.035f,mat,8);
         }else{
             const auto mat=p.material==NCMM_VM_WOOD?b.paint:b.steel;
+            b.begin_frame_rails();
             b.beam({-.5f,-.31f,chassis},{.5f,-.31f,chassis},.075f,.10f,mat);
             b.beam({-.5f,.31f,chassis},{.5f,.31f,chassis},.075f,.10f,mat);
+            b.end_frame_rails();
             b.beam({0,-.4f,chassis},{0,.4f,chassis},.06f,.09f,mat);
         }
         const bool open_frame=layout.kind==archetype::bicycle||layout.kind==archetype::motorcycle||layout.kind==archetype::boat;

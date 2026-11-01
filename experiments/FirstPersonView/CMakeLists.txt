@@ -161,6 +161,14 @@ if(MSVC)
 endif()
 add_test(NAME first_person_vehicle_snapshot COMMAND first_person_vehicle_snapshot_tests)
 
+# Pure immutable frame-join geometry and permission controls, no SDL/device.
+add_executable(first_person_vehicle_frame_caps_tests tests/vehicle_frame_caps_test.cpp $<TARGET_OBJECTS:first_person_vehicle_assets>)
+target_link_libraries(first_person_vehicle_frame_caps_tests PRIVATE first_person_build_options)
+if(MSVC)
+  set_property(TARGET first_person_vehicle_frame_caps_tests PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+add_test(NAME first_person_vehicle_frame_caps COMMAND first_person_vehicle_frame_caps_tests)
+
 # Keep full software raster equivalence separate from pure vehicle data/math.
 add_executable(first_person_vehicle_raster_tests tests/vehicle_raster_test.cpp)
 first_person_target(first_person_vehicle_raster_tests)
@@ -341,6 +349,14 @@ if(FIRST_PERSON_BUILD_GPU_TESTS)
     target_compile_definitions(first_person_gpu_scene_tests PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
   endif()
   add_test(NAME first_person_gpu_scene COMMAND first_person_gpu_scene_tests gpu-scene)
+  # Separate device producer comparison keeps every original501 scratch image.
+  add_executable(first_person_gpu_frame_caps_tests tests/gpu_frame_caps_test.cpp)
+  first_person_target(first_person_gpu_frame_caps_tests)
+  target_link_libraries(first_person_gpu_frame_caps_tests PRIVATE SDL3::SDL3)
+  if(FIRST_PERSON_GPU_SHADER_HEADER)
+    target_compile_definitions(first_person_gpu_frame_caps_tests PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
+  endif()
+  add_test(NAME first_person_gpu_frame_caps COMMAND first_person_gpu_frame_caps_tests)
   # Developer compile target for the same test-only capture used by the paired
   # scratch-policy probe. Excluded from ordinary builds and test execution.
   file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/gpu_scratch_capture.cpp" CONTENT
@@ -353,7 +369,7 @@ if(FIRST_PERSON_BUILD_GPU_TESTS)
     target_compile_definitions(first_person_gpu_scratch_capture PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
   endif()
   if(WIN32 AND TARGET SDL3::SDL3-shared)
-    foreach(target first_person_gpu_probe_tests first_person_gpu_scene_tests)
+    foreach(target first_person_gpu_probe_tests first_person_gpu_scene_tests first_person_gpu_frame_caps_tests)
       add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:SDL3::SDL3-shared> $<TARGET_FILE_DIR:${target}>)
     endforeach()

@@ -95,7 +95,7 @@ struct render_options {
     // Sequential streaming remains a correctness reference: actual Native
     // measurements rejected its performance, so ordinary frames retain workers.
     bool stream_vehicle_raster=false,prune_vehicle_workers=true,prune_empty_vehicle_samples=true,prune_unused_vehicle_bands=true,compact_vehicle_records=true;
-    bool vector_vehicle_pixels=true,cull_gpu_vehicle_shells=true;
+    bool vector_vehicle_pixels=true,cull_gpu_vehicle_shells=true,join_gpu_frame_caps=true;
     bool borrow_vehicle_materials=true,zero_vehicle_grain=true;
     bool cache_static_vehicles=true;
 };
@@ -305,7 +305,9 @@ struct geometry_sink {
     virtual bool arms(const viewmodel::submission &){return false;}
     virtual bool item(const held::submission &){return false;}
     virtual bool prop(const prop_placement &,int){return false;}
-    virtual bool vehicle_component(const vehicle::submission &){return false;}
+    virtual bool joins_vehicle_frame_caps()const{return false;}
+    virtual void prepare_vehicle_components(const std::vector<const vehicle::submission *> &){}
+    virtual bool vehicle_component(const vehicle::submission &,size_t){return false;}
     // Optional producer shortcut for an otherwise empty opaque TOP-only cell.
     // The material has already passed all ground/rail/liquid overrides. CPU
     // and other sinks retain the ordinary quad/slab path by returning false.
@@ -1701,14 +1703,24 @@ class renderer {
         std::vector<prepared_vertex> prepared;
         struct prepared_normal {vec lit{};bool ready=false;};
         std::vector<prepared_normal> prepared_normals;
-        for(const auto &draw:metadata->vehicles->draws){
+        // The GPU planner receives only the exact Native permission set that
+        // this original loop will submit. A topology-only/hidden neighbour is
+        // never an occluder. CPU emission and its original culling stay intact.
+        if(gpu_sink&&gpu_sink->joins_vehicle_frame_caps()&&metadata->vehicles->draws.size()>=32){
+            std::vector<const vehicle::submission *> permitted(metadata->vehicles->draws.size(),nullptr);
+            for(size_t i=0;i<permitted.size();++i){const auto &draw=metadata->vehicles->draws[i];
+                if(draw.geometry&&visible(draw.cell)&&(!world_data||(world_flags(draw.cell)&((draw.roof_surface||draw.exterior_surface)?NCMM_WORLD_FLOOR_TOP:NCMM_WORLD_BODY_VISIBLE))))permitted[i]=&draw;}
+            gpu_sink->prepare_vehicle_components(permitted);
+        }
+        size_t vehicle_index=0;
+        for(const auto &draw:metadata->vehicles->draws){const size_t submission_index=vehicle_index++;
             if(!draw.geometry||!visible(draw.cell)||(world_data&&!(world_flags(draw.cell)&((draw.roof_surface||draw.exterior_surface)?NCMM_WORLD_FLOOR_TOP:NCMM_WORLD_BODY_VISIBLE))))continue;
             if(!gpu_sink){const auto bounds=draw.placement.bounds(draw.geometry->minimum,draw.geometry->maximum);
                 const vec low{bounds[0].x,bounds[0].y,bounds[0].z},high{bounds[1].x,bounds[1].y,bounds[1].z};
                 if(options.cull_geometry&&!in_view(low,high))continue;
                 if(options.stream_vehicle_raster)vehicle_screen_bounds(low,high);}
             ++f.vehicle_parts;f.triangles+=uint32_t(draw.geometry->triangles.size());
-            if(gpu_sink&&gpu_sink->vehicle_component(draw))continue;
+            if(gpu_sink&&gpu_sink->vehicle_component(draw,submission_index))continue;
             const first_person::vehicle::point to_eye{eye.x-draw.placement.origin.x,eye.y-draw.placement.origin.y,eye.z-draw.placement.origin.z};
             const first_person::vehicle::point local_eye{first_person::vehicle::dot(to_eye,draw.placement.x),first_person::vehicle::dot(to_eye,draw.placement.y),first_person::vehicle::dot(to_eye,draw.placement.z)};
             // Only closed component shells viewed from outside their bounds
