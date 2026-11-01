@@ -1120,6 +1120,73 @@ int main(){
         auto custom=s.parts.front();std::strcpy(custom.id,"mod_custom_controls");custom.features=NCMM_VP_ENGINE|NCMM_VP_CONTROLS;
         require(classify(custom)==component::controls,"unknown multi-flag controls retain the original fallback");
     }
+    {
+        using namespace first_person::vehicle;
+        // Independent separating-axis test on actual generated triangle
+        // positions. The old sloping paddle must reproduce the hull collision.
+        const auto intersects=[](const triangle &a,const triangle &b){
+            std::array<point,3> x{},y{},ex{},ey{};
+            for(unsigned i=0;i<3;++i){x[i]=a.vertices[i].position;y[i]=b.vertices[i].position;
+                ex[i]=a.vertices[(i+1)%3].position-x[i];ey[i]=b.vertices[(i+1)%3].position-y[i];}
+            for(unsigned k=0;k<3;++k){const auto value=[&](point p){return k==0?p.x:k==1?p.y:p.z;};
+                float lo=10000,hi=-10000,other_lo=10000,other_hi=-10000;
+                for(unsigned i=0;i<3;++i){lo=std::min(lo,value(x[i]));hi=std::max(hi,value(x[i]));
+                    other_lo=std::min(other_lo,value(y[i]));other_hi=std::max(other_hi,value(y[i]));}
+                if(hi<other_lo-1e-6f||other_hi<lo-1e-6f)return false;}
+            const point nx=cross(ex[0],ex[1]),ny=cross(ey[0],ey[1]);
+            std::vector<point> axes{nx,ny};
+            for(point u:ex){axes.push_back(cross(nx,u));for(point v:ey)axes.push_back(cross(u,v));}
+            for(point v:ey)axes.push_back(cross(ny,v));
+            for(point axis:axes){const float length=std::sqrt(dot(axis,axis));if(length<1e-12f)continue;
+                double lo=1e20,hi=-1e20,other_lo=1e20,other_hi=-1e20;
+                const auto projection=[&](point p){return double(axis.x)*p.x+double(axis.y)*p.y+double(axis.z)*p.z;};
+                for(unsigned i=0;i<3;++i){lo=std::min(lo,projection(x[i]));hi=std::max(hi,projection(x[i]));
+                    other_lo=std::min(other_lo,projection(y[i]));other_hi=std::max(other_hi,projection(y[i]));}
+                if(hi<other_lo-double(length)*1e-6||other_hi<lo-double(length)*1e-6)return false;
+            }
+            return true;
+        };
+        std::map<std::tuple<bool,unsigned,unsigned>,uint64_t> recipes;
+        for(bool wide:{false,true})for(unsigned neighbours=0;neighbours<4;++neighbours){
+            auto s=original;s.enabled=true;s.parts.clear();auto &body=s.vehicles[0];
+            body.min_x=-1;body.max_x=1;body.min_y=0;body.max_y=wide?1:0;
+            const auto install=[&](int x,int y,uint32_t flags,const char *id){auto p=original.parts[0];
+                p.part_id=800+s.parts.size();p.cell_index=int(s.parts.size());p.mount_x=x;p.mount_y=y;p.mount_z=0;
+                p.features=flags;p.state=NCMM_VP_EXISTS;p.surface_faces=0;p.health=1;p.material=NCMM_VM_WOOD;
+                std::strcpy(p.id,id);p.variant[0]=0;s.parts.push_back(p);};
+            for(int x=-1;x<=1;++x){install(x,0,NCMM_VP_FRAME,"frame_wood");
+                if(x==0||(x==1&&(neighbours&1))||(x==-1&&(neighbours&2)))install(x,0,NCMM_VP_FLOAT,"boat_board");}
+            if(wide)install(0,1,NCMM_VP_FRAME,"frame_wood");
+            install(0,0,NCMM_VP_SEAT|NCMM_VP_CARGO|NCMM_VP_FLOOR,"seat");
+            install(0,0,NCMM_VP_ENGINE|NCMM_VP_CONTROLS,"hand_paddles");
+            body.part_count=s.scene.part_count=uint32_t(s.parts.size());require(valid(s,64),"paddle clearance uses only actual finite installed parts");
+            const first_person::vehicle::topology shape(s,body);const auto paddle=s.parts.back();
+            for(unsigned lod=0;lod<3;++lod){const auto m=generate(s,shape,paddle,lod);recipes[{wide,neighbours,lod}]=m->recipe;
+                bool overlap=false,old_overlap=false;builder old(paddle);
+                old.beam({-.48f,.43f,shape.chassis+.54f},{.43f,.43f,shape.chassis+.08f},.028f,.028f,old.paint);
+                old.cushion({.46f,.43f,shape.chassis+.06f},{.29f,.14f,.035f},.035f,old.paint);const auto previous=old.finish();
+                require(m->triangles.size()==previous->triangles.size(),"paddle keeps its complete shaft and blade geometry at every LOD");
+                for(const auto &part:s.parts)if(part.features&NCMM_VP_FLOAT){const auto hull=generate(s,shape,part,lod);
+                    for(const auto &local:hull->triangles){auto world=local;for(auto &v:world.vertices){v.position.x+=part.mount_x;v.position.y+=part.mount_y;}
+                        for(const auto &t:m->triangles)overlap|=intersects(t,world);
+                        if(!wide&&neighbours==3)for(const auto &t:previous->triangles)old_overlap|=intersects(t,world);}
+                }
+                require(!overlap,"entire stowed paddle clears actual hull triangles after either or both end neighbours are removed");
+                if(!wide&&neighbours==3)require(old_overlap,"independent triangle test reproduces the original observed paddle/hull intersection");
+                for(const auto &t:m->triangles)for(const auto &v:t.vertices)require(std::isfinite(v.position.z)&&std::abs(dot(v.normal,v.normal)-1)<1e-5f,
+                    "rigid paddle placement keeps finite positions and unit normals");
+                auto removed=s;removed.parts.erase(std::remove_if(removed.parts.begin(),removed.parts.end(),[](const auto &p){return p.mount_x==0&&(p.features&NCMM_VP_FLOAT);}),removed.parts.end());
+                removed.vehicles[0].part_count=removed.scene.part_count=uint32_t(removed.parts.size());
+                const first_person::vehicle::topology dry(removed,removed.vehicles[0]);
+                require(dry.recipe(paddle,lod)!=m->recipe,"removing the actual supporting hull invalidates the paddle cache key");
+                const auto dry_model=generate(removed,dry,paddle,lod);require(dry_model->triangles.size()==previous->triangles.size(),"non-floating custom paddle preserves existing primitives");
+                for(size_t i=0;i<previous->triangles.size();++i)for(unsigned k=0;k<3;++k)require(std::memcmp(&dry_model->triangles[i].vertices[k],&previous->triangles[i].vertices[k],sizeof(first_person::vehicle::vertex))==0,
+                    "without a real flotation mount every original paddle geometry/normal/UV bit is retained");
+            }
+        }
+        for(unsigned lod=0;lod<3;++lod)for(unsigned a=0;a<4;++a)for(unsigned b=a+1;b<4;++b)
+            require(recipes.at({false,a,lod})!=recipes.at({false,b,lod}),"each real front/rear flotation dependency invalidates a tilted paddle independently");
+    }
     #include "vehicle_repeat_input_test.inc"
     #include "vehicle_preparation_test.inc"
     #include "vehicle_opaque_beam_test.inc"

@@ -191,6 +191,12 @@ public:
             for(unsigned side=0;side<4;++side)add(has(adjacent(at,side),NCMM_VP_ROOF));
             return h?h:1;
         }
+        if((p.features&NCMM_VP_ENGINE)&&std::string_view(p.id)=="hand_paddles"){
+            // The paddle's rigid rest depends on the real flotation mount
+            // and its two end neighbours, including dismantling/rebuilding.
+            add(narrow);add(has(at,NCMM_VP_FLOAT));
+            for(unsigned side:{0u,2u})add(has(adjacent(at,side),NCMM_VP_FLOAT));
+        }
         if((p.features&NCMM_VP_CONTROL_PANEL)||std::string_view(p.id)=="dashboard")add(narrow);
         if(p.features&(NCMM_VP_SEAT|NCMM_VP_FRAME))add(uint32_t(kind));
         if((p.features&NCMM_VP_LIGHT)&&(p.features&NCMM_VP_LIGHT_OMNI))add(cabin);

@@ -213,7 +213,9 @@
                 return (car->part_with_feature(car->part(a).mount,"CONTROLS",true)>=0)>(car->part_with_feature(car->part(b).mount,"CONTROLS",true)>=0);});
             const int mutation_side=car->part(door_index).mount.y()*2<=min_part_y+max_part_y?-8:8;
             const auto mutation_view=[&](){camera(0,mutation_side,-.08f);};
-            mutation_view();pair("mutation-before",prototype);
+            mutation_view();
+            const float mutation_yaw=graphics_camera_yaw,mutation_pitch=graphics_camera_pitch;
+            pair("mutation-before",prototype);
             car->open(get_map(),door_index);pair("open-door",prototype);
             const uint64_t opened=car->part(door_index).ncmm_graphics_part_id();
             const auto door=std::find_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[&](const auto &p){return p.part_id==opened;});
@@ -238,7 +240,12 @@
                 }
                 require(graphics_vehicle_scene.occupied_part&&graphics_vehicle_scene.eye_valid,"vehicle_seat_camera_missing");
                 get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();camera(0,8,-.08f);require(!get_avatar().in_vehicle,"vehicle_exit_failed");}
-            mutation_view();const auto hp=car->part(door_index).hp();car->set_hp(car->part(door_index),std::max(1,hp/3),true);
+            mutation_view();
+            // Boarding/exiting uses the real relative look action. Reuse the
+            // exact earlier fixture pose for damage comparisons; another
+            // relative round trip can land one ulp beside the same heading.
+            graphics_camera_yaw=mutation_yaw;graphics_camera_pitch=mutation_pitch;
+            const auto hp=car->part(door_index).hp();car->set_hp(car->part(door_index),std::max(1,hp/3),true);
             pair("damaged",prototype);car->set_hp(car->part(door_index),0,true);pair("broken-door",prototype);
             car->set_hp(car->part(door_index),hp,true);
             const int wheel_side=car->part(wheel_index).mount.y()*2<=min_part_y+max_part_y?-8:8;

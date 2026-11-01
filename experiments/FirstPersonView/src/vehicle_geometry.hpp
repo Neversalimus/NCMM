@@ -608,8 +608,23 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             return b.finish();
         }
         if(std::string_view(p.id)=="hand_paddles"){
-            b.beam({-.48f,.43f,chassis+.54f},{.43f,.43f,chassis+.08f},.028f,.028f,b.paint);
-            b.cushion({.46f,.43f,chassis+.06f},{.29f,.14f,.035f},.035f,b.paint);
+            if(layout.has(at,NCMM_VP_FLOAT)){
+                // Stow the real paddle along the gunwale, rather than drive
+                // its blade through the side. Exposed narrow hull ends have
+                // raised stems; one rigid tilt clears their convex rim.
+                const bool front=layout.narrow&&!layout.has(topology::adjacent(at,0),NCMM_VP_FLOAT),
+                    rear=layout.narrow&&!layout.has(topology::adjacent(at,2),NCMM_VP_FLOAT);
+                const float slope=.22f*(float(front)-float(rear)),c=1/std::sqrt(1+slope*slope),s=slope*c;
+                const float height=chassis+.54f+.11f*(float(front)+float(rear));
+                b.beam({-.48f,.43f,0},{.43f,.43f,0},.028f,.028f,b.paint);
+                b.cushion({.46f,.43f,0},{.29f,.14f,.035f},.035f,b.paint);
+                const auto incline=[&](point v){return point{v.x*c-v.z*s,v.y,v.x*s+v.z*c};};
+                for(auto &t:b.output.triangles)for(auto &v:t.vertices){
+                    v.position=incline(v.position)+point{0,0,height};v.normal=incline(v.normal);}
+            }else{
+                b.beam({-.48f,.43f,chassis+.54f},{.43f,.43f,chassis+.08f},.028f,.028f,b.paint);
+                b.cushion({.46f,.43f,chassis+.06f},{.29f,.14f,.035f},.035f,b.paint);
+            }
             return b.finish();
         }
         b.cushion({0,0,chassis+.20f},{.66f,.52f,.36f},.07f,b.steel);
