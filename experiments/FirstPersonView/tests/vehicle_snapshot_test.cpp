@@ -549,6 +549,52 @@ int main(){
         require(!separate.glazing_roof_join({0,0,0},.36f,.36f).found,"a diagonal roof on a disconnected frame cannot pull another construction's glazing");
     }
     {
+        using namespace first_person::vehicle;
+        auto cart=original;cart.enabled=true;cart.parts.clear();auto &v=cart.vehicles[0];v.min_x=v.max_x=v.min_y=v.max_y=0;
+        auto add=[&](int x,uint32_t features,const char *id){auto p=original.parts[0];
+            p.part_id=6000+cart.parts.size();p.mount_x=x;p.mount_y=p.mount_z=0;p.features=features;
+            p.state=NCMM_VP_EXISTS;p.surface_faces=0;p.material=NCMM_VM_METAL;p.variant[0]=0;std::strcpy(p.id,id);
+            cart.parts.push_back(p);return p;};
+        const auto frame=add(0,NCMM_VP_FRAME,"xlframe");
+        auto casters=add(0,NCMM_VP_WHEEL,"wheel_caster_large");casters.wheel_radius=.0762f;casters.wheel_width=.0254f;cart.parts.back()=casters;
+        auto basket=add(0,NCMM_VP_CARGO,"basketlg");std::strcpy(basket.variant,"cart");cart.parts.back()=basket;
+        v.part_count=cart.scene.part_count=uint32_t(cart.parts.size());const first_person::vehicle::topology layout(cart,v);
+        require(layout.caster_mount({0,0,0})&&caster_assembly(casters),"one Native wheel_caster_large is an actual shopping-cart caster set");
+        auto road=casters;std::strcpy(road.id,"wheel_wide");require(!caster_assembly(road),"a normal Native tyre never acquires four wheels by vehicle-name inference");
+        const auto chassis=generate(cart,layout,frame,0);require(chassis->minimum.y<-.3f&&chassis->maximum.y>.3f,"one-cell cart frame supports the real basket width rather than borrowing a bicycle centre tube");
+        const auto wheel=generate(cart,layout,casters,0);require(wheel->triangles.size()%4==0&&wheel->triangles.size()>400,"the caster-set mesh retains four complete units inside one actual part");
+        const size_t count=wheel->triangles.size()/4;
+        for(size_t group=1;group<4;++group)for(size_t n=0;n<count;++n)for(unsigned k=0;k<3;++k){
+            const auto &a=wheel->triangles[n].vertices[k],&b=wheel->triangles[group*count+n].vertices[k];
+            const point shift{group>=2?.62f:0.f,(group%2)?.60f:0.f,0};
+            require(dot((b.position-a.position)-shift,(b.position-a.position)-shift)<1e-12f&&dot(b.normal-a.normal,b.normal-a.normal)==0,
+                "all four caster units retain their own fixed contact positions, identical closed geometry and normals");}
+        verify_gpu_vertices(*wheel);
+        const auto cargo=generate(cart,layout,basket,0);require(cargo->minimum.x<-.54f&&cargo->maximum.z>layout.chassis+.74f,"the actual cart basket variant includes its rear push handle");
+        presentation moving;moving.input=cart;moving.observe({0,-3,2});require(moving.draws.size()==3,"one real caster set does not manufacture extra Native part submissions");
+        auto wheel_draw=[&]()->const submission&{for(const auto &d:moving.draws)if(d.part_id==casters.part_id)return d;std::abort();};
+        const auto first=wheel_draw().placement;moving.input.scene.seconds+=.1;moving.input.vehicles[0].origin_x+=.1f;moving.input.vehicles[0].native_velocity=1;
+        moving.observe({0,-3,2});const auto second=wheel_draw().placement;
+        require(second.x.z==first.x.z&&second.z.x==first.z.x&&second.origin.z==first.origin.z,"pushing a cart cannot roll its whole fork rectangle around one central axle and lift its contacts");
+        require(second.origin.x>first.origin.x&&moving.draws.size()==3,"caster set still follows real Native cart motion and keeps its identity");
+        auto no_set=cart;std::strcpy(no_set.parts[1].id,"wheel_wide");const first_person::vehicle::topology single(no_set,no_set.vehicles[0]);
+        require(layout.recipe(frame,0)!=single.recipe(frame,0),"changing a caster set into a normal wheel invalidates the dependent frame shape");
+        cart.parts.clear();v.min_x=-1;v.max_x=1;
+        const auto middle=add(0,NCMM_VP_FRAME,"xlframe");add(0,NCMM_VP_SEAT,"saddle");
+        for(int x:{-1,1}){add(x,NCMM_VP_FRAME,"xlframe");auto p=add(x,NCMM_VP_WHEEL|NCMM_VP_BICYCLE,"wheel_bicycle");p.wheel_radius=.33f;p.wheel_width=.04f;cart.parts.back()=p;}
+        add(1,NCMM_VP_AXLE|NCMM_VP_STEERABLE,"wheel_mount_light_steerable");v.part_count=cart.scene.part_count=uint32_t(cart.parts.size());
+        const first_person::vehicle::topology diamond(cart,v);require(diamond.kind==archetype::bicycle,"actual three-frame bicycle uses its installed wheel/saddle/steering topology");
+        const auto mesh=generate(cart,diamond,middle,0);
+        const point eye{.22f,-2,diamond.chassis+.02f+.25f*(.44f-.02f)},ray{0,1,0};
+        const auto hits=[&](const model &m){for(const auto &t:m.triangles)if(std::isfinite(reference_intersection(t,eye,ray)))return true;return false;};
+        require(hits(*mesh),"bicycle lower tube crosses the real crank-to-steering-head diagonal instead of leaving an empty rectangular front frame");
+        auto unsteered=cart;unsteered.parts.back().features=NCMM_VP_AXLE;const first_person::vehicle::topology straight(unsteered,unsteered.vehicles[0]);
+        require(diamond.recipe(middle,0)!=straight.recipe(middle,0),"neighbouring actual steering-mount changes must invalidate the centre-frame recipe");
+        auto gap=cart;gap.parts.erase(std::remove_if(gap.parts.begin(),gap.parts.end(),[](const auto &p){return p.mount_x==1&&(p.features&NCMM_VP_FRAME);}),gap.parts.end());
+        gap.vehicles[0].part_count=gap.scene.part_count=uint32_t(gap.parts.size());const first_person::vehicle::topology open(gap,gap.vehicles[0]);
+        require(!hits(*generate(gap,open,middle,0)),"removing an actual neighbouring frame removes the connecting tube instead of bridging a vacant mount");
+    }
+    {
         // Native bus side cells contain windshield + frame + roof, without a
         // separate quarterpanel. Exercise those actual flags and roof layout.
         using namespace first_person::vehicle;

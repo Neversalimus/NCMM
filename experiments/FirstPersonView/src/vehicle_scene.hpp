@@ -199,27 +199,30 @@ public:
                 if(kind==component::wheel){
                     // A mount identifies a Native cell, not an authored axle
                     // pivot. Fit the tire to that mount's actual outer contour.
-                    if(!t.narrow){const int sign=p.mount_y==t.max_y?1:p.mount_y==t.min_y?-1:0;
+                    const bool casters=caster_assembly(p);
+                    if(!t.narrow&&!casters){const int sign=p.mount_y==t.max_y?1:p.mount_y==t.min_y?-1:0;
                         local.y+=sign*std::max(0.f,.475f-p.wheel_width*.5f);}
                     local.z+=p.wheel_radius+.018f;
-                    const auto world_center=origin+rotate(local,v.yaw);
-                    const double x=double(input.scene.origin_x)+world_center.x,y=double(input.scene.origin_y)+world_center.y;
-                    if(!fresh){const double dx=x-pose.x,dy=y-pose.y;
-                        // Reset visual rolling on a discontinuity, never turn
-                        // a teleport/window rebase into fictitious wheel speed.
-                        if(dx*dx+dy*dy<16)pose.target+=float(dx*std::cos(v.yaw)+dy*std::sin(v.yaw))/p.wheel_radius;
-                        else pose.target=pose.angle;
-                        if(dx*dx+dy*dy<1e-10&&v.native_velocity==0)pose.target=pose.angle;
+                    if(!casters){
+                        const auto world_center=origin+rotate(local,v.yaw);
+                        const double x=double(input.scene.origin_x)+world_center.x,y=double(input.scene.origin_y)+world_center.y;
+                        if(!fresh){const double dx=x-pose.x,dy=y-pose.y;
+                            // Reset visual rolling on a discontinuity, never turn
+                            // a teleport/window rebase into fictitious wheel speed.
+                            if(dx*dx+dy*dy<16)pose.target+=float(dx*std::cos(v.yaw)+dy*std::sin(v.yaw))/p.wheel_radius;
+                            else pose.target=pose.angle;
+                            if(dx*dx+dy*dy<1e-10&&v.native_velocity==0)pose.target=pose.angle;
+                        }
+                        pose.x=x;pose.y=y;
+                        if(fresh)pose.target=pose.angle=0;
+                        if(p.state&NCMM_VP_BROKEN)pose.target=pose.angle=0;
+                        const float step=std::clamp(pose.target-pose.angle,-float(dt)*45.f,float(dt)*45.f);
+                        pose.angle+=step;roll=pose.angle;
+                        if(std::abs(pose.angle)>1024){const float turns=std::floor(pose.angle/(2*pi))*(2*pi);pose.angle-=turns;pose.target-=turns;roll=pose.angle;}
+                        active_animation|=std::abs(pose.target-pose.angle)>.0001f;
+                        exact_rest&=pose.target==pose.angle;
+                        if((p.features&NCMM_VP_STEERABLE)&&(v.flags&NCMM_VEHICLE_STEERING_KNOWN))yaw+=std::clamp(v.steering,-.8f,.8f);
                     }
-                    pose.x=x;pose.y=y;
-                    if(fresh)pose.target=pose.angle=0;
-                    if(p.state&NCMM_VP_BROKEN)pose.target=pose.angle=0;
-                    const float step=std::clamp(pose.target-pose.angle,-float(dt)*45.f,float(dt)*45.f);
-                    pose.angle+=step;roll=pose.angle;
-                    if(std::abs(pose.angle)>1024){const float turns=std::floor(pose.angle/(2*pi))*(2*pi);pose.angle-=turns;pose.target-=turns;roll=pose.angle;}
-                    active_animation|=std::abs(pose.target-pose.angle)>.0001f;
-                    exact_rest&=pose.target==pose.angle;
-                    if((p.features&NCMM_VP_STEERABLE)&&(v.flags&NCMM_VEHICLE_STEERING_KNOWN))yaw+=std::clamp(v.steering,-.8f,.8f);
                 }
                 pose.touched=frame;pose.seconds=input.scene.seconds;
                 if((kind==component::turret||(kind==component::light&&!(p.features&NCMM_VP_LIGHT_OMNI)))&&(p.state&NCMM_VP_DIRECTION_KNOWN))yaw+=p.direction;

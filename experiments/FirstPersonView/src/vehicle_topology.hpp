@@ -10,11 +10,14 @@
 namespace first_person::vehicle {
 using mount=std::tuple<int,int,int>;
 using archetype=ncmm_graphics_vehicle_policy::archetype;
+inline bool caster_assembly(const ncmm_graphics_vehicle_part_v1 &p){
+    return (p.features&NCMM_VP_WHEEL)&&std::string_view(p.id)=="wheel_caster_large";
+}
 struct station {
     uint32_t features=0;
     std::vector<uint32_t> parts;
     int component=-1;
-    bool separate_wall=false;
+    bool separate_wall=false,large_casters=false;
 };
 // Topology is built for the whole actual published construction before any
 // component is meshed. Missing/hidden mounts never become inferred panels.
@@ -38,6 +41,7 @@ public:
         for(uint32_t k=0;k<v.part_count;++k){const uint32_t index=v.first_part+k;const auto &p=s.parts[index];
             auto &node=mounts[{p.mount_x,p.mount_y,p.mount_z}];node.parts.push_back(index);node.features|=p.features;
             node.separate_wall|=(p.features&NCMM_VP_DOOR)||((p.features&NCMM_VP_PANEL)&&!(p.features&NCMM_VP_WINDOW));
+            node.large_casters|=caster_assembly(p);
             for(unsigned bit=0;bit<32;++bit)if(p.features&(1u<<bit))++feature_counts[bit];
             if(p.material==NCMM_VM_PAINT&&(p.features&(NCMM_VP_PANEL|NCMM_VP_ROOF))&&!(p.features&(NCMM_VP_DOOR|NCMM_VP_WINDOW))){
                 paints[{p.color[0],p.color[1],p.color[2]}]+=(p.features&NCMM_VP_PANEL)?2u:1u;}
@@ -67,6 +71,7 @@ public:
     uint32_t features(mount at)const{const auto found=mounts.find(at);return found==mounts.end()?0:found->second.features;}
     bool has(mount at,uint32_t f)const{return (features(at)&f)!=0;}
     bool outer(mount at,unsigned side)const{return !has(adjacent(at,side),NCMM_VP_FRAME);}
+    bool caster_mount(mount at)const{const auto node=mounts.find(at);return node!=mounts.end()&&node->second.large_casters;}
     float roof_height(mount at,float x,float y,float health=1)const{
         const auto [mx,my,mz]=at;(void)mx;(void)mz;
         const float span=std::max(1.f,float(max_y-min_y+1)),center=(max_y+min_y)*.5f;
@@ -156,7 +161,7 @@ public:
         for(float c:p.color)add(c);
         if(generic_door_paint(p))for(float c:body_paint)add(c);
         if((p.features&NCMM_VP_WHEEL)&&!(p.features&(NCMM_VP_DOOR|NCMM_VP_WINDOW))){
-            add(p.wheel_radius);add(p.wheel_width);return h?h:1;
+            add(p.wheel_radius);add(p.wheel_width);if(caster_assembly(p))add(chassis);return h?h:1;
         }
         add(chassis);
         constexpr uint32_t earlier_frame_roles=NCMM_VP_CONTROL_PANEL|NCMM_VP_CURTAIN|NCMM_VP_DOOR|NCMM_VP_WINDOW|
@@ -196,8 +201,9 @@ public:
                 if(wheel.z==p.mount_z&&wheel.y==p.mount_y&&std::abs(wheel.x-p.mount_x)<wheel.radius+.6f){add(wheel.x);add(wheel.radius);}}
         }else if(p.features&NCMM_VP_CARGO){for(unsigned side=0;side<4;++side)add(features(adjacent(at,side))&NCMM_VP_CARGO);}
         else if(p.features&(NCMM_VP_FRAME|NCMM_VP_CONTROLS|NCMM_VP_AXLE)){
-            add(narrow);add(features(at)&(NCMM_VP_FLOOR|NCMM_VP_AISLE|NCMM_VP_SEAT|NCMM_VP_WHEEL|NCMM_VP_STEERABLE));
-            for(unsigned side:{0u,2u})add(features(adjacent(at,side))&(NCMM_VP_FRAME|NCMM_VP_SEAT|NCMM_VP_WHEEL));
+            add(narrow);if(p.features&NCMM_VP_FRAME)add(caster_mount(at));
+            add(features(at)&(NCMM_VP_FLOOR|NCMM_VP_AISLE|NCMM_VP_SEAT|NCMM_VP_WHEEL|NCMM_VP_STEERABLE));
+            for(unsigned side:{0u,2u})add(features(adjacent(at,side))&(NCMM_VP_FRAME|NCMM_VP_SEAT|NCMM_VP_WHEEL|NCMM_VP_STEERABLE));
             for(const auto &row:sizes){const auto &wheel=row.second;if(wheel.x==p.mount_x&&wheel.y==p.mount_y&&wheel.z==p.mount_z)add(wheel.radius);}
         }
         return h?h:1;

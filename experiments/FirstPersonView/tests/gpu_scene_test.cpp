@@ -741,6 +741,10 @@ int main(int argc,char **argv){
     #include "glass_gpu_test.inc"
     #include "plain_gpu_test.inc"
     #include "vehicle_opaque_beam_gpu_test.inc"
+#if defined(NCMM_GPU_CONSERVATIVE_DEPTH_PROGRAM)
+    require(engine.conservative_depth_draws()>0,"original GPU controls actually exercise qualified conservative depth");
+    std::printf("Qualified conservative depth draws: %llu\n",(unsigned long long)engine.conservative_depth_draws());
+#endif
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();
     SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();

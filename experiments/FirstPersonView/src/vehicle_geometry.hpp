@@ -373,6 +373,22 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
     };
     if(kind==component::wheel){
         const float r=p.wheel_radius,w=p.wheel_width;const bool bicycle=(p.features&NCMM_VP_BICYCLE)!=0;
+        if(caster_assembly(p)){
+            // This Native component is explicitly a SET of shopping-cart
+            // casters. It stays one part/model/permission, not four Native parts.
+            // Its smooth circular tyres have no indexed tread or wheel spokes.
+            b.beam({0,-w*.5f,0},{0,w*.5f,0},2*r,2*r,(p.state&NCMM_VP_BROKEN)?b.steel:b.rubber,segments);
+            b.beam({0,-w*.58f,0},{0,w*.58f,0},r*.85f,r*.85f,b.steel,segments/2);
+            const float top=chassis-r-.018f,cap=std::max(r+.008f,top-.012f);
+            for(float side:{-1.f,1.f})b.beam({0,side*w*.78f,0},{-r*.27f,side*w*.78f,cap},.012f,.018f,b.steel,8);
+            b.beam({-r*.27f,-w*.78f,cap},{-r*.27f,w*.78f,cap},.014f,.014f,b.steel,8);
+            b.beam({-r*.27f,0,cap},{-r*.27f,0,top},.021f,.021f,b.steel,8);
+            b.cushion({-r*.27f,0,top},{.12f,.12f,.012f},.01f,b.steel);
+            const auto unit=b.output.triangles;b.output.triangles.clear();b.output.triangles.reserve(unit.size()*4);
+            for(float x:{-.31f,.31f})for(float y:{-.30f,.30f})for(auto triangle:unit){
+                for(auto &v:triangle.vertices)v.position=v.position+point{x,y,0};b.output.triangles.push_back(triangle);}
+            return b.finish();
+        }
         if(p.state&NCMM_VP_BROKEN){
             b.torus({}, {1,0,0},{0,0,1},r*.52f,r*.035f,w*.32f,b.steel,segments,6);
             for(unsigned n=0;n<6;++n){const float a=2*pi*n/6;b.beam({}, {std::cos(a)*r*.52f,0,std::sin(a)*r*.52f},r*.06f,r*.06f,b.steel,6);}
@@ -424,14 +440,26 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             for(unsigned side=0;side<4;++side)if(!layout.has(topology::adjacent(at,side),NCMM_VP_FLOAT)){active_side=side;panel(chassis-.14f,chassis+.48f,b.paint,false);}
         }
     }else if(kind==component::frame){
-        if(layout.narrow){
+        if(layout.narrow&&!layout.caster_mount(at)){
             const auto mat=p.material==NCMM_VM_PAINT?b.paint:b.steel;
             auto height=[&](mount where){return chassis+(layout.has(where,NCMM_VP_SEAT)? .43f:layout.has(where,NCMM_VP_STEERABLE)? .44f:layout.has(where,NCMM_VP_WHEEL)?-.10f:.24f);};
-            const point node{0,0,height(at)};
+            const bool bicycle=layout.kind==archetype::bicycle;
+            const auto lower=[&](mount where){
+                if(!bicycle)return chassis;
+                if(layout.has(where,NCMM_VP_STEERABLE))return height(where);
+                if(layout.has(where,NCMM_VP_WHEEL)&&!layout.has(where,NCMM_VP_SEAT))return chassis-.10f;
+                return chassis+.02f;
+            };
+            const auto head_x=[&](mount where){return bicycle&&layout.has(where,NCMM_VP_STEERABLE)?-.12f:0.f;};
+            const point node{head_x(at),0,height(at)};
             for(unsigned side:{0u,2u}){const auto other=topology::adjacent(at,side);if(!layout.has(other,NCMM_VP_FRAME))continue;
-                const point seam{side==0?.5f:-.5f,0,(height(at)+height(other))*.5f};b.beam(node,seam,.038f,.038f,mat,8);
-                b.beam({0,0,chassis},{seam.x,0,chassis},.032f,.032f,mat,8);}
-            b.beam({0,0,chassis},node,.035f,.035f,mat,8);
+                const float other_x=(side==0?1.f:-1.f)+head_x(other);
+                const point seam{(node.x+other_x)*.5f,0,(height(at)+height(other))*.5f};b.beam(node,seam,.038f,.038f,mat,8);
+                // Each installed half-tube meets its real neighbour. On a bike
+                // the lower tube joins the crank to the steering head/axle;
+                // it is not a rectangular rail below an empty front triangle.
+                b.beam({node.x,0,lower(at)},{seam.x,0,(lower(at)+lower(other))*.5f},.032f,.032f,mat,8);}
+            if(std::abs(lower(at)-node.z)>1e-6f)b.beam({node.x,0,lower(at)},node,.035f,.035f,mat,8);
         }else{
             b.beam({-.5f,-.31f,chassis},{.5f,-.31f,chassis},.075f,.10f,b.steel);
             b.beam({-.5f,.31f,chassis},{.5f,.31f,chassis},.075f,.10f,b.steel);
@@ -564,6 +592,13 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
                 for(float side:{-1.f,1.f}){b.beam({a,side*y,low},{a,side*y,high},.009f,.009f,wire,4);
                     b.beam({side*x,c,low},{side*x,c,high},.009f,.009f,wire,4);}
                 b.beam({a,-y,low},{a,y,low},.009f,.009f,wire,4);}
+            if(large&&std::string_view(p.variant)=="cart"){
+                for(float side:{-1.f,1.f}){
+                    b.beam({-x,side*y,low},{-.55f,side*y,high+.07f},.022f,.022f,b.steel,8);
+                    for(float fraction:{.33f,.67f})b.beam({-x,side*y,low+(high-low)*fraction},{x,side*y,low+(high-low)*fraction},.012f,.012f,wire,6);
+                }
+                b.beam({-.55f,-y,high+.07f},{-.55f,y,high+.07f},.035f,.035f,b.dark,12);
+            }
             return b.finish();
         }
         b.cushion({0,0,chassis+.04f},{.96f,.96f,.08f},.025f,b.dark);

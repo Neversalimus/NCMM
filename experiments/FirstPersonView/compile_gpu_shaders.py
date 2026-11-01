@@ -60,6 +60,17 @@ if detail.count('finish==7u')!=1 or detail.count('finish==8u')!=1 or 'if(finish=
 begin=detail.index('    if(finish==12u){float scale=');end=detail.index('    vec2 q=abs(n.z)>.5?',begin)
 if (a.source/'material_component.glsl').read_text(encoding='utf-8')!=detail[:begin]+detail[end:]:
     p.error('Component material changed ordinary detail or reflection arithmetic')
+# Bound variants retain every original fragment arithmetic instruction and
+# only declare the proved one-way depth relation. Original written depth stays.
+for role,ordinary_source in [('component',component),('reflective',reflective),('plain',plain)]:
+    bounded_source=ordinary_source.replace('layout(location=0) out vec4 out_color;','layout(depth_greater) out float gl_FragDepth;\nlayout(location=0) out vec4 out_color;')
+    if (a.source/('geometry_'+role+'_bound.frag')).read_text(encoding='utf-8')!=bounded_source:
+        p.error('Bounded fragment changed original colour/depth arithmetic')
+vertex=(a.source/'geometry.vert').read_text(encoding='utf-8')
+bounded_vertex=vertex.replace('pose_yaw=uintBitsToFloat(instance.state.w);texcoord=uv;gl_Position=project_point(world_position);','pose_yaw=0.0;texcoord=uv;gl_Position=project_point(world_position);\n    // Host proves a rigid zero-heading instance and packs a strict depth lower bound.\n    gl_Position.z=uintBitsToFloat(instance.state.w)*gl_Position.w;')
+if (a.source/'geometry_bound.vert').read_text(encoding='utf-8')!=bounded_vertex:
+    p.error('Bounded vertex changed rigid position, attributes or coverage')
+
 lines=['#pragma once','#include <cstddef>','namespace ncmm_gpu::shaders {']
 source_hash=hashlib.sha256()
 for source in sorted(a.source.glob('*')):
