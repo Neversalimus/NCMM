@@ -199,6 +199,26 @@ void verify_sampled_surface(const first_person::vehicle::model &actual,const fir
     }
 }
 }
+namespace equipment_seat_regression {
+namespace vehicle=first_person::vehicle;
+using namespace first_person::vehicle;
+struct xy {double x,y;};
+double cross(xy a,xy b,xy c){return (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);}
+bool within(xy p,const vehicle::triangle &t){
+ xy a{t.vertices[0].position.x,t.vertices[0].position.y},b{t.vertices[1].position.x,t.vertices[1].position.y},c{t.vertices[2].position.x,t.vertices[2].position.y};
+ if(std::abs(cross(a,b,c))<1e-12)return false;
+ double u=cross(a,b,p),v=cross(b,c,p),w=cross(c,a,p);return (u>=-1e-10&&v>=-1e-10&&w>=-1e-10)||(u<=1e-10&&v<=1e-10&&w<=1e-10);
+}
+size_t coincident_centroids(const vehicle::model &seat,const vehicle::model &equipment){
+ size_t count=0;
+ for(const auto &a:equipment.triangles){const auto x=a.vertices[0].position,y=a.vertices[1].position,z=a.vertices[2].position;
+  if(std::abs(double(x.z)-y.z)>1e-6||std::abs(double(x.z)-z.z)>1e-6||std::abs(cross({x.x,x.y},{y.x,y.y},{z.x,z.y}))<1e-12)continue;
+  for(const auto &b:seat.triangles){const auto q=b.vertices[0].position,v=b.vertices[1].position,w=b.vertices[2].position;
+   if(std::abs(double(q.z)-v.z)>1e-6||std::abs(double(q.z)-w.z)>1e-6||std::abs(double(q.z)-x.z)>1e-6)continue;
+   ++checks;if(within({(double(x.x)+y.x+z.x)/3,(double(x.y)+y.y+z.y)/3},b)){++count;break;}}
+ }return count;
+}
+}
 int main(){
     {
         using namespace first_person::vehicle;
@@ -1187,6 +1207,41 @@ int main(){
         for(unsigned lod=0;lod<3;++lod)for(unsigned a=0;a<4;++a)for(unsigned b=a+1;b<4;++b)
             require(recipes.at({false,a,lod})!=recipes.at({false,b,lod}),"each real front/rear flotation dependency invalidates a tilted paddle independently");
     }
+
+    {
+        using namespace first_person::vehicle;
+        // Actual horn_car and vehicle_alarm share a seat mount in the owned
+        // Native bus blueprint. Independent plane/centroid checks reproduce
+        // the old almost-coplanar top and keep their real housings clear.
+        for(bool wide:{false,true})for(bool broken:{false,true}){
+            auto s=original;auto &body=s.vehicles[0];s.enabled=true;
+            s.parts[1].features=NCMM_VP_SEAT|NCMM_VP_CARGO|NCMM_VP_FLOOR;s.parts[1].material=NCMM_VM_CLOTH;
+            if(wide){auto p=s.parts[0];p.part_id=810;p.cell_index=5;p.mount_y=1;s.parts.push_back(p);body.max_y=1;}
+            const auto append=[&](const char *id){auto p=s.parts[0];p.part_id=900+s.parts.size();p.cell_index=int(s.parts.size());p.features=0;p.material=NCMM_VM_METAL;
+                p.state=NCMM_VP_EXISTS|(broken?uint32_t(NCMM_VP_BROKEN):0u);p.health=broken?.55f:1.f;std::strcpy(p.id,id);p.variant[0]=0;s.parts.push_back(p);return p;};
+            const auto horn=append("horn_car"),alarm=append("vehicle_alarm");body.part_count=s.scene.part_count=uint32_t(s.parts.size());
+            require(valid(s,64),"seat/equipment regression uses finite independently identified installed parts");
+            const first_person::vehicle::topology shape(s,body);
+            for(unsigned lod=0;lod<3;++lod){const auto seat=generate(s,shape,s.parts[1],lod),sounder=generate(s,shape,horn,lod),security=generate(s,shape,alarm,lod);
+                require(sounder->kind==component::other&&security->kind==component::other&&sounder->recipe!=security->recipe,"two installed sound devices retain separate original identities");
+                for(const auto &p:{horn,alarm}){const auto m=generate(s,shape,p,lod);builder previous(p);
+                    previous.cushion({.20f,0,shape.chassis+.22f},{.16f,.14f,.11f},.025f,previous.steel);const auto old=previous.finish();
+                    if(wide)require(equipment_seat_regression::coincident_centroids(*seat,*old)>0,"independent triangle centroids reproduce original equipment on the seat top");
+                    require(equipment_seat_regression::coincident_centroids(*seat,*m)==0&&m->minimum.x-seat->maximum.x>.019f,"entire actual housing has more than19mm clearance from the occupied seat at all LODs");
+                    require(m->minimum.x>=-.5f&&m->maximum.x<=.5f&&m->minimum.y>=-.31f&&m->maximum.y<=.31f,"sounder and alarm remain within their real mount rather than moving onto a missing neighbour");
+                    for(const auto &t:m->triangles)for(const auto &v:t.vertices)require(std::isfinite(v.position.x)&&std::isfinite(v.position.y)&&std::isfinite(v.position.z)&&std::abs(dot(v.normal,v.normal)-1)<1e-5f,"housing geometry keeps finite positions and unit normals");
+                    verify_gpu_vertices(*m);
+                }
+                require(sounder->minimum.y-security->maximum.y>.25f,"the independent horn and alarm no longer occupy the same volume");
+                for(const char *id:{"muffler","beeper","mod_unknown_device"}){auto p=horn;std::strcpy(p.id,id);const auto m=generate(s,shape,p,lod);builder previous(p);
+                    previous.output.kind=component::other;previous.output.recipe=shape.recipe(p,lod);previous.output.closed_shell=true;
+                    previous.cushion({.20f,0,shape.chassis+.22f},{.16f,.14f,.11f},.025f,previous.steel);
+                    if(p.health<.85f&&lod<2)previous.add({{.16f,.13f,.10f,1},NCMM_VM_METAL});
+                    identical_model_data(*m,*previous.finish());}
+            }
+        }
+    }
+
     #include "vehicle_repeat_input_test.inc"
     #include "vehicle_preparation_test.inc"
     #include "vehicle_opaque_beam_test.inc"

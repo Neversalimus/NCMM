@@ -24,8 +24,7 @@ class Diagnostics(unittest.TestCase):
         source=self.backend()
         self.assertNotIn('#define NCMM_GPU_GROUP_DEPTH_PROGRAM',source)
         self.assertNotIn('prefill_opaque_group(',source)
-        self.assertEqual(hashlib.sha256(comparison.without_disjoint_order_backend(source).encode()).hexdigest(),'c5c6f97068422f45e6527331bb75e946c20ac3893850852180c202592f9400b7')
-        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'ef1c738bd92599d7ba9290b52c1bc01646f5de69eaaee56f7ec31dac6e6d0a94')
+        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'c5c6f97068422f45e6527331bb75e946c20ac3893850852180c202592f9400b7')
     def test_diagnostic_fixed_cull_ablation_changes_only_one_pipeline_state(self):
         programs=(Path(__file__).resolve().parents[2]/'graphics_bridge/ncmm_gpu_programs.hpp').read_text(encoding='utf-8')
         changed=comparison.diagnostic_no_fixed_cull_programs(programs)
@@ -82,18 +81,6 @@ class Diagnostics(unittest.TestCase):
         with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def test_changed_policy_guard_cannot_reconstruct(self):
         source=self.backend().replace('if(profiling_||policy_counts_){','if(profiling_&&policy_counts_){')
-        with self.assertRaises(AssertionError):comparison.reference_backend(source)
-    def test_changed_order_interval_guard_cannot_reconstruct(self):
-        source=self.backend().replace('order_safe&&bounded,order_lo,order_hi','order_safe,order_lo,order_hi')
-        self.assertNotEqual(source,self.backend())
-        with self.assertRaises(AssertionError):comparison.reference_backend(source)
-    def test_changed_order_offsets_cannot_reconstruct(self):
-        source=self.backend().replace('key.second,key.first,first,uint32_t(list.size()),winding,component,bounded,','key.second,key.first,0,uint32_t(list.size()),winding,component,bounded,')
-        self.assertNotEqual(source,self.backend())
-        with self.assertRaises(AssertionError):comparison.reference_backend(source)
-    def test_changed_order_counter_cannot_reconstruct(self):
-        source=self.backend().replace('recording_.opaque_depth_order_swaps=order_swaps;','recording_.opaque_depth_order_swaps=0;')
-        self.assertNotEqual(source,self.backend())
         with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def image(self,pixel):return struct.pack('<III',1,1,373694468)+bytes(pixel)
     def test_complete_equality(self):

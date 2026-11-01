@@ -44,7 +44,7 @@
         const auto p=get_map().get_bub(tripoint_abs_ms(subject.x()+dx,subject.y()+dy,z));
         get_avatar().setpos(get_map(),p,false);g->ter_view_p=p;look(std::atan2(float(-dy),float(-dx)),pitch);
     };
-    uint64_t registry_controls=0;
+    uint64_t registry_controls=0;bool vehicle_depth_pixels_verified=true;
     const auto verify_registry=[&](){
         map &world=get_map();const auto reference=world.get_vehicles(),actual=graphics_loaded_vehicles(world);
         require(reference.size()==actual.size(),"vehicle_loaded_registry_count_changed");
@@ -86,6 +86,19 @@
         evidence.member("occupied_vehicle",graphics_vehicle_scene.occupied_vehicle);evidence.member("occupied_part",graphics_vehicle_scene.occupied_part);
         evidence.member("occupied_eye_valid",bool(graphics_vehicle_scene.eye_valid));
         evidence.member("occupied_eye_xy",std::array<float,2>{graphics_vehicle_scene.eye_x,graphics_vehicle_scene.eye_y});
+        if(label=="driver-controls"&&gpu&&std::strcmp(mode,"modular")==0){
+            // Bounded actual Native evidence for the occupied mount, after
+            // the unchanged frame timer. No blueprint or inferred equipment.
+            const auto occupied=std::find_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return p.part_id==graphics_vehicle_scene.occupied_part;});
+            evidence.member("occupied_mount_parts");evidence.start_array();
+            if(occupied!=graphics_vehicle_parts.end())for(const auto &p:graphics_vehicle_parts){
+                if(p.vehicle_index!=occupied->vehicle_index||p.mount_x!=occupied->mount_x||p.mount_y!=occupied->mount_y||p.mount_z!=occupied->mount_z)continue;
+                evidence.start_object();evidence.member("id",std::string(p.id));evidence.member("part_id",p.part_id);
+                evidence.member("mount",std::array<int,3>{p.mount_x,p.mount_y,p.mount_z});
+                evidence.member("features",p.features);evidence.member("state",p.state);evidence.member("material",p.material);evidence.member("health",p.health);evidence.end_object();
+            }
+            evidence.end_array();
+        }
         evidence.member("vehicle_extraction_ms",graphics_vehicle_extraction_ms);evidence.member("vehicle_preparation_ms",graphics_vehicle_metrics.preparation_ms);
         evidence.member("native_global_eoc_queue_size",g->queued_global_effect_on_conditions.list.size());
         evidence.member("vehicle_discovery_body_cells",graphics_vehicle_discovery.body_cells);evidence.member("vehicle_discovery_floor_cells",graphics_vehicle_discovery.floor_cells);
@@ -122,7 +135,6 @@
                 evidence.member("batch_rejections",p.opaque_batch_rejections);evidence.member("reflective_draws",p.opaque_reflective_draws);
                 evidence.member("plain_draws",p.counted_plain_draws);evidence.member("glass_draws",p.counted_glass_draws);
                 evidence.member("bounded_depth_draws",p.bounded_depth_draws);
-                evidence.member("opaque_depth_order_swaps",p.opaque_depth_order_swaps);
                 evidence.member("component_triangles",p.opaque_component_triangles);evidence.member("winding_triangles",p.opaque_winding_triangles);evidence.end_object();
             }
             evidence.member("gpu_geometry_ms",metrics.geometry_ms);evidence.member("gpu_render_record_ms",metrics.render_record_ms);
@@ -148,6 +160,8 @@
             require(ids.erase(p.part_id)==1,"vehicle_snapshot_false_or_duplicate_part");
             for(const vpart_reference &ref:v.get_all_parts())if(ref.part().ncmm_graphics_part_id()==p.part_id){
                 require(bool(p.features&NCMM_VP_FRAME)==(ref.info().location.str()=="structure"),"vehicle_native_structure_location_not_mapped");
+                require(bool(p.features&NCMM_VP_FLOOR)==ref.has_feature("BOARDABLE"),"vehicle_native_boardable_floor_not_mapped");
+                require(bool(p.features&NCMM_VP_SEAT)==ref.has_feature("SEAT"),"vehicle_native_seat_not_mapped");
                 require(bool(p.features&NCMM_VP_CONTROL_PANEL)==ncmm_graphics_vehicle_policy::control_panel(ref.has_feature("CTRL_ELECTRONIC"),ref.has_feature("DOME_LIGHT")),"vehicle_electronic_appliance_misidentified_as_instruments");
                 require(p.mount_x==ref.part().mount.x()&&p.mount_y==ref.part().mount.y(),"vehicle_native_mount_changed");
                 const auto color=curses_color_to_SDL(ref.info().color);
@@ -332,8 +346,9 @@
     draw("world-empty","empty","gpu","modular",false);require(graphics_vehicle_parts.empty(),"vehicle_world_cleanup_failed");
     #include "ncmm_graphics_vehicle_qualification.inc"
     require(registry_controls>=14,"vehicle_loaded_registry_controls_missing");
-    evidence.end_array();evidence.member("native_loaded_registry_verified",true);evidence.member("native_loaded_registry_controls",registry_controls);evidence.member("success",true);evidence.member("native_parts_verified",true);evidence.member("native_driving_verified",true);
+    evidence.end_array();evidence.member("native_loaded_registry_verified",true);evidence.member("native_loaded_registry_controls",registry_controls);evidence.member("success",vehicle_depth_pixels_verified);evidence.member("depth_pixels_verified",vehicle_depth_pixels_verified);evidence.member("native_parts_verified",true);evidence.member("native_driving_verified",true);
     evidence.member("native_reload_lifecycle","quit_cleanup_setup_load");evidence.member("hardware_performance_qualified",false);
     evidence.end_object();stream.close();require(bool(stream),"vehicle_evidence_write_failed");
+    require(vehicle_depth_pixels_verified,"vehicle_depth_control_pixels_differ");
     press_f6();require(!graphics_view.enabled,"vehicle_f6_restore_failed");
 }

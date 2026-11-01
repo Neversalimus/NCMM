@@ -15,7 +15,6 @@ ncmm_gpu_matrix_v1 identity(){ncmm_gpu_matrix_v1 m{};for(unsigned n=0;n<4;++n)m.
 #include "opaque_span_order_test.inc"
 int main(){
     conservative_depth_test::run();
-    new_depth_order_test::run();
     opaque_span_alpha_test::run();
     for(uint32_t finish=0;finish<32;++finish)require(ncmm_gpu::reflective_component_finish(finish)==(finish==7||finish==8),"only the original shared paint/metal reflection branch admits the exact constant");
     require(!ncmm_gpu::reflective_component_finish(UINT32_MAX),"unknown finish values keep the general component program");

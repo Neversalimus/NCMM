@@ -8,6 +8,7 @@ from collections import defaultdict
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 
 PROTOTYPES = {'car','suv','cube_van','semi_truck','bus','pickup','motorcycle','bicycle',
@@ -58,6 +59,67 @@ def verify_memory(path, source, engine, module):
     assert tail<=tail_limit,('Native process resident memory grows after warmup',baseline,tail,tail_limit)
     assert max(peaks)<=peak_limit,('Native process transient memory exceeds the warmed budget',max(peaks),peak_limit)
     return dict(samples=len(samples),baseline_bytes=baseline,tail_bytes=tail,peak_bytes=max(peaks),tail_limit_bytes=tail_limit,peak_limit_bytes=peak_limit)
+
+
+
+def verify_depth_controls(report):
+    rows=[r for r in report['frames'] if r.get('label','').startswith('depth-control-')]
+    parity=[r for r in report['frames'] if r.get('label','').startswith('depth-parity-')]
+    assert len(rows)==196 and len(parity)==14,'Both Native scenes require seven complete alternating depth-control pairs'
+    groups={};cameras=defaultdict(set)
+    for row in rows:
+        match=re.fullmatch(r'depth-control-(parking|large)-([0-6])-(on|off)-([0-6])',row['label']);assert match,'Unknown depth-control label'
+        scene,pair,enabled,sample=match[1],int(match[2]),match[3]=='on',int(match[4]);key=scene,pair,enabled,sample
+        assert key not in groups and row['prototype']==scene and type(row['pair']) is int and row['pair']==pair and type(row['sample']) is int and row['sample']==sample
+        assert type(row['depth_enabled']) is bool and row['depth_enabled']==enabled and row['actual_gpu'] is True
+        assert (row['backend'],row['renderer'],row['frame_width'],row['frame_height'])==('gpu','modular',1280,800)
+        for field in ['full_frame_ms','synchronized_frame_ms']:
+            assert type(row[field]) in (int,float) and math.isfinite(row[field]) and row[field]>0
+        assert row['synchronized_frame_ms']>=row['full_frame_ms'],'Explicit completion cannot precede its complete Native frame'
+        assert type(row['bounded_depth_draws']) is int and ((row['bounded_depth_draws']>0) if enabled else row['bounded_depth_draws']==0),'The requested shader policy was not actually used'
+        assert type(row['gpu_frame_serial']) is int and row['gpu_frame_serial']>0
+        assert row['snapshot_vehicles']>0 and row['snapshot_parts']>0
+        cameras[scene,pair].add((tuple(row['camera_xyz']),row['yaw'],row['pitch'],row['eye_height'],row['snapshot_vehicles'],row['snapshot_parts']))
+        groups[key]=row
+    assert len(cameras)==14 and all(len(v)==1 for v in cameras.values()),'Depth control changed the actual Native camera or snapshot counts'
+    verified=set()
+    for row in parity:
+        match=re.fullmatch(r'depth-parity-(parking|large)-([0-6])',row['label']);assert match
+        key=match[1],int(match[2]);assert key not in verified and row['prototype']==key[0] and type(row['pair']) is int and row['pair']==key[1];verified.add(key)
+        assert row['pixels_equal'] is True and type(row['different_pixels']) is int and row['different_pixels']==0
+        assert type(row['compared_pixels']) is int and row['compared_pixels']==1280*800 and type(row['compared_bytes']) is int and row['compared_bytes']==1280*800*4
+    assert verified==set(cameras)
+    controls=[]
+    for scene in ['parking','large']:
+        pairs=[]
+        for pair in range(7):
+            value={}
+            for enabled in [False,True]:
+                samples=[groups[scene,pair,enabled,n] for n in range(7)]
+                assert len({r['gpu_frame_serial'] for r in samples})==7,'A depth control reused old GPU metrics instead of new submissions'
+                value['enabled' if enabled else 'disabled']={field:sorted(r[field] for r in samples)[3] for field in ['full_frame_ms','synchronized_frame_ms']}
+            pairs.append(dict(pair=pair,**value,ordinary_enabled_disabled_ratio=value['enabled']['full_frame_ms']/value['disabled']['full_frame_ms'],synchronized_enabled_disabled_ratio=value['enabled']['synchronized_frame_ms']/value['disabled']['synchronized_frame_ms']))
+        controls.append(dict(scene=scene,pairs=pairs))
+    return dict(success=True,actual_Native_scenes=2,paired_controls=14,timed_frames=196,full_normalized_pixel_pairs=14,compared_pixels=14*1280*800,scope='Separate same-process Native shader-policy control. Ordinary full-frame timing and frame plus explicit shared-device completion are reported separately; this is not hardware FPS and does not replace any original1120benchmark sample or900sresource qualification.',performance_accepted=False,hardware_FPS=False,controls=controls)
+
+
+def depth_control_self_test():
+    import copy
+    report={'frames':[]}
+    for scene in ['parking','large']:
+        for pair in range(7):
+            for enabled in [False,True]:
+                for sample in range(7):
+                    report['frames'].append(dict(label=f'depth-control-{scene}-{pair}-'+('on' if enabled else 'off')+f'-{sample}',prototype=scene,pair=pair,sample=sample,depth_enabled=enabled,actual_gpu=True,backend='gpu',renderer='modular',frame_width=1280,frame_height=800,full_frame_ms=1.,synchronized_frame_ms=2.,bounded_depth_draws=5 if enabled else 0,gpu_frame_serial=len(report['frames'])+1,camera_xyz=[0,0,0],yaw=0.,pitch=0.,eye_height=1.55,snapshot_vehicles=1,snapshot_parts=230))
+            report['frames'].append(dict(label=f'depth-parity-{scene}-{pair}',prototype=scene,pair=pair,pixels_equal=True,different_pixels=0,compared_pixels=1280*800,compared_bytes=1280*800*4))
+    assert verify_depth_controls(report)['timed_frames']==196
+    mutations=[lambda f:f.pop(0),lambda f:f.append(copy.deepcopy(f[0])),lambda f:f[0].update(pair=True),lambda f:f[0].update(sample=7),lambda f:f[0].update(depth_enabled='off'),lambda f:f[7].update(bounded_depth_draws=0),lambda f:f[0].update(bounded_depth_draws=1),lambda f:f[0].update(actual_gpu=False),lambda f:f[0].update(frame_width=640),lambda f:f[0].update(synchronized_frame_ms=.5),lambda f:f[0].update(full_frame_ms=float('nan')),lambda f:f.pop(14),lambda f:f[14].update(pixels_equal=False),lambda f:f[14].update(compared_pixels=1),lambda f:f[0].update(renderer='legacy'),lambda f:f[0].update(backend='cpu'),lambda f:f[0].update(yaw=.1),lambda f:f[1].update(gpu_frame_serial=f[0]['gpu_frame_serial'])]
+    for mutate in mutations:
+        changed=copy.deepcopy(report);mutate(changed['frames'])
+        try:verify_depth_controls(changed)
+        except (AssertionError,KeyError):pass
+        else:raise AssertionError('Invalid Native depth control was admitted')
+    return dict(success=True,pure_controls=1+len(mutations),local_GPU_Native_raster_or_game_execution=False)
 
 
 def verify(root, output, source, engine, module=None):
@@ -126,10 +188,7 @@ def verify(root, output, source, engine, module=None):
     assert len({tuple(r['camera_xyz']) for r in driving})>1,'Native driving never moved the actual passenger'
     assert len({r['yaw'] for r in driving})>1,'Native driving never changed the actual heading'
     assert benchmarks and soak is not None,'Full-frame series and completed 900-second Native soak are mandatory'
-    ordered=[r['gpu_policy']['opaque_depth_order_swaps'] for r in report['frames']
-             if r.get('prototype')=='large' and r.get('backend')=='gpu' and r.get('renderer')=='modular' and r.get('label','').startswith('bench-') and r['label']!='bench-prepare']
-    assert len(ordered)==56 and all(type(x) is int and x>=0 for x in ordered) and max(ordered)>0,'Actual Native bus must exercise the guarded disjoint-order path'
-
+    depth_control=verify_depth_controls(report)
     if benchmarks:
         for scene in ['empty','one','multiple','parking','large']:
             for backend in ['cpu','gpu']:
@@ -181,7 +240,7 @@ def verify(root, output, source, engine, module=None):
                 native_driving_verified=True,
                 cpu_internal_dimensions_verified=True,
                 capture_inventory=captures,review_inventory=inventory,
-                performance=performance,soak=soak,process_memory=memory,cold_definition='Native cache refresh and first frame after switching the vehicle renderer; device resources may be retained',
+                performance=performance,depth_control=depth_control,soak=soak,process_memory=memory,cold_definition='Native cache refresh and first frame after switching the vehicle renderer; device resources may be retained',
                 limitations=['Automated Native capture integrity does not establish visual acceptance.',
                              '640x480 visual captures and 1280x800 full-frame timings on CI adapters do not establish hardware FPS.',
                              'Interior comparisons pin the same actual Native seat eye across both renderers.'])
@@ -190,6 +249,9 @@ def verify(root, output, source, engine, module=None):
 
 
 if __name__=='__main__':
+    import sys
+    if sys.argv[1:]==['--self-test-depth-controls']:
+        print(json.dumps(depth_control_self_test()));raise SystemExit(0)
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True,type=Path)
     p.add_argument('--output',required=True,type=Path);p.add_argument('--source',required=True);p.add_argument('--engine',required=True);p.add_argument('--module-sha256')
     args=p.parse_args();result=verify(args.root,args.output,args.source,args.engine,args.module_sha256)

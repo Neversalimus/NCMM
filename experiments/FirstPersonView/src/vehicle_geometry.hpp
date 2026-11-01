@@ -692,6 +692,16 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         // its true mount. It cannot manufacture a cabin, glass or spare wheels.
         if(std::string_view(p.id).find("seatbelt")!=std::string_view::npos){
             b.beam({-.22f,-.24f,chassis+.25f},{-.24f,.24f,chassis+.88f},.035f,.008f,b.dark,4);
+        }else if(std::string_view(p.id)=="horn_car"){
+            // This installed sounder belongs beside the forward seat base,
+            // not on its cushion. Keep the real mount and independent part.
+            const point from{.36f,.23f,chassis+.135f},mouth{.47f,.23f,chassis+.135f};
+            b.beam(from,mouth,.10f,.10f,b.dark,lod==0?12:8);
+            b.torus(mouth,{0,1,0},{0,0,1},.043f,.008f,.008f,b.steel,lod==0?12:8,4);
+            b.beam({.38f,.23f,chassis+.0625f},{.38f,.23f,chassis+.10f},.025f,.025f,b.steel,4);
+        }else if(std::string_view(p.id)=="vehicle_alarm"){
+            b.cushion({.40f,-.15f,chassis+.125f},{.14f,.10f,.09f},.02f,b.dark);
+            b.beam({.40f,-.15f,chassis+.0625f},{.40f,-.15f,chassis+.10f},.025f,.025f,b.steel,4);
         }else b.cushion({.20f,0,chassis+.22f},{.16f,.14f,.11f},.025f,b.steel);
     }
     if(p.health<.85f&&lod<2&&kind!=component::wheel&&kind!=component::glass&&kind!=component::door){

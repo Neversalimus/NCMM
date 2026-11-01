@@ -4,15 +4,13 @@
 #include <array>
 #include <cmath>
 #include <optional>
-#include <vector>
 
 // Used only after proving an immutable unskinned rigid instance, zero heading
 // and exact opaque specialized ranges. Unproved inputs use the original program.
-// Original fragment depth/color remain unchanged. Optional disjoint command
-// ordering has its own separate proof and barriers below.
+// Original fragment depth/color and command order must remain unchanged.
 namespace ncmm_gpu::conservative_depth {
 using point=std::array<float,3>;
-inline std::optional<float> lower_bound(point low,point high,const ncmm_gpu_matrix_v1 &m,point eye,point forward,float far,float *upper=nullptr){
+inline std::optional<float> lower_bound(point low,point high,const ncmm_gpu_matrix_v1 &m,point eye,point forward,float far){
     if(!std::isfinite(far)||far<4||far>512)return {};
     double norm=0;
     for(unsigned i=0;i<3;++i){
@@ -44,27 +42,6 @@ inline std::optional<float> lower_bound(point low,point high,const ncmm_gpu_matr
     const double z=minimum-.125,f=far;
     const double value=f/(f-.08)-.08*f/((f-.08)*z)-.0001;
     if(!std::isfinite(value)||value<0||value>=1)return {};
-    if(upper){
-        // Same already-validated box and arithmetic domain. The old lower
-        // expression/result stay untouched; only callers requesting an order
-        // interval pay for this outward-padded far-depth calculation.
-        const double upper_z=maximum+.125;
-        *upper=float(f/(f-.08)-.08*f/((f-.08)*upper_z)+.0001);
-    }
     return float(value);
-}
-
-// A fractional/unproved draw is an order barrier. Only adjacent, completely
-// disjoint qualified intervals may exchange places, preserving all ties and
-// overlapping ranges. Operate on records, never their referenced instances.
-template<class Batch>inline uint64_t order_disjoint_opaque(std::vector<Batch> &batches){
-    if(batches.size()>256)return 0; // bounded optional work, original order otherwise
-    const auto proved=[](const Batch &b){return b.pass==NCMM_GPU_OPAQUE&&b.depth_order_safe&&
-        std::isfinite(b.depth_lo)&&std::isfinite(b.depth_hi)&&0<=b.depth_lo&&b.depth_lo<=b.depth_hi&&b.depth_hi<1;};
-    uint64_t swaps=0;
-    for(size_t i=1;i<batches.size();++i){if(!proved(batches[i]))continue;
-        size_t j=i;while(j&&proved(batches[j-1])&&batches[j].depth_hi<batches[j-1].depth_lo){
-            std::swap(batches[j],batches[j-1]);++swaps;--j;}}
-    return swaps;
 }
 }
