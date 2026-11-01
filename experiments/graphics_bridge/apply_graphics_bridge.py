@@ -761,7 +761,20 @@ void initialize();''')
         "        // Read-only loaded-submap probe; never calls load or mapgen.\n"
         "        bool ncmm_graphics_loaded( const tripoint_bub_ms &p ) const {\n"
         "            return inbounds( p ) && unsafe_get_submap_at( p ) != nullptr;\n"
-        "        }\n        int supports_zlevels() const {")
+        "        }\n"
+        "        // Borrow only the exact currently owned loaded column during this\n"
+        "        // synchronous graphics callback. No load, mapgen or retained pointer.\n"
+        "        struct ncmm_graphics_column {submap *const *data=nullptr;int z=0,count=0;};\n"
+        "        ncmm_graphics_column ncmm_graphics_loaded_column( int x, int y ) const {\n"
+        "            if( x < 0 || y < 0 || x >= my_MAPSIZE || y >= my_MAPSIZE ) return {};\n"
+        "            const int low = zlevels ? -OVERMAP_DEPTH : abs_sub.z();\n"
+        "            const int high = zlevels ? OVERMAP_HEIGHT : low;\n"
+        "            const auto first = get_nonant( tripoint_rel_sm{ x, y, low } );\n"
+        "            const auto last = get_nonant( tripoint_rel_sm{ x, y, high } );\n"
+        "            if( last < first || last - first != size_t( high - low ) || last >= grid.size() ) return {};\n"
+        "            return { grid.data() + first, low, high - low + 1 };\n"
+        "        }\n"
+        "        int supports_zlevels() const {")
     map_cpp=replace(read("map.cpp"), '#include "map.h"', '#include "map.h"\n#include "ncmm_loader.h"')
     map_cpp=patch_native_phase_scan(map_cpp,read("mapgen.cpp"),identity)
     updates["submap.h"]=patch_native_submap_phase(read("submap.h"),read("submap.cpp"),identity)

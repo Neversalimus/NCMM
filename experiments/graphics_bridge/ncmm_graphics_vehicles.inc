@@ -147,6 +147,31 @@ uint64_t graphics_vehicle_features(const vpart_reference &ref,uint64_t epoch)
         return bits;
     });
 }
+VehicleList graphics_loaded_vehicles( map &here )
+{
+    // Native's complete original x/y/z order and owned submap vehicle vectors.
+    // Validate two column bounds, then walk that same live contiguous storage.
+    // Missing/unproved storage retains the complete original Native query.
+    VehicleList result;
+    for( int x = 0; x < here.getmapsize(); ++x ) {
+        for( int y = 0; y < here.getmapsize(); ++y ) {
+            const auto column = here.ncmm_graphics_loaded_column( x, y );
+            if( !column.data || column.count <= 0 ) return here.get_vehicles();
+            for( int n = 0; n < column.count; ++n ) {
+                submap *current = column.data[n];
+                if( !current ) return here.get_vehicles();
+                for( const auto &elem : current->vehicles ) {
+                    elem->sm_pos.z() = column.z + n;
+                    wrapped_vehicle value;
+                    value.v = elem.get();
+                    value.pos = value.v->pos_bub( here );
+                    result.push_back( value );
+                }
+            }
+        }
+    }
+    return result;
+}
 void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
     const std::vector<tripoint_bub_ms> &positions,std::vector<ncmm_graphics_cell_v2> &details,
     const ncmm_graphics_multilevel_scene_v1 *world)
@@ -187,7 +212,7 @@ void graphics_prepare_vehicles(const ncmm_graphics_scene_v1 &base,
     // Enumerate real loaded vehicles and real parts directly. A 2D sprite or
     // veh_at cache on the viewer's level is not the source of a 3D vehicle's
     // existence. Permissions still come exclusively from the published world.
-    for(const auto &entry:here.get_vehicles()){
+    for(const auto &entry:graphics_loaded_vehicles(here)){
         if(++graphics_vehicle_discovery.vehicles>1024)break;
         const vehicle &v=*entry.v;unsigned tested=0;
         std::set<point_rel_ms> structural_mounts;unsigned mapped=0;

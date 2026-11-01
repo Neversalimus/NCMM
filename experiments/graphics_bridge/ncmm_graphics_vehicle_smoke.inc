@@ -44,8 +44,20 @@
         const auto p=get_map().get_bub(tripoint_abs_ms(subject.x()+dx,subject.y()+dy,z));
         get_avatar().setpos(get_map(),p,false);g->ter_view_p=p;look(std::atan2(float(-dy),float(-dx)),pitch);
     };
+    uint64_t registry_controls=0;
+    const auto verify_registry=[&](){
+        map &world=get_map();const auto reference=world.get_vehicles(),actual=graphics_loaded_vehicles(world);
+        require(reference.size()==actual.size(),"vehicle_loaded_registry_count_changed");
+        for(size_t n=0;n<reference.size();++n){
+            require(reference[n].v==actual[n].v&&reference[n].pos==actual[n].pos,"vehicle_loaded_registry_order_or_position_changed");
+        }
+        ++registry_controls;
+    };
     auto draw=[&](const std::string &label,const std::string &prototype,const char *backend,const char *mode,bool capture,bool refresh=true,bool record=true){
         if(graphics_gpu_engine)graphics_gpu_engine->count_policies(true);
+        // Agreement controls are outside the complete-frame timer and skip
+        // every construction-cold/warm benchmark label in both modes.
+        if(label.rfind("bench-",0)!=0)verify_registry();
         const auto begun=std::chrono::steady_clock::now();
         get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(backend);
         get_options().get_option("NCMM_FIRST_PERSON_VEHICLES").setValue(mode);
@@ -290,7 +302,8 @@
     for(const auto &v:get_map().get_vehicles())get_map().destroy_vehicle(v.v);
     draw("world-empty","empty","gpu","modular",false);require(graphics_vehicle_parts.empty(),"vehicle_world_cleanup_failed");
     #include "ncmm_graphics_vehicle_qualification.inc"
-    evidence.end_array();evidence.member("success",true);evidence.member("native_parts_verified",true);evidence.member("native_driving_verified",true);
+    require(registry_controls>=14,"vehicle_loaded_registry_controls_missing");
+    evidence.end_array();evidence.member("native_loaded_registry_verified",true);evidence.member("native_loaded_registry_controls",registry_controls);evidence.member("success",true);evidence.member("native_parts_verified",true);evidence.member("native_driving_verified",true);
     evidence.member("native_reload_lifecycle","quit_cleanup_setup_load");evidence.member("hardware_performance_qualified",false);
     evidence.end_object();stream.close();require(bool(stream),"vehicle_evidence_write_failed");
     press_f6();require(!graphics_view.enabled,"vehicle_f6_restore_failed");

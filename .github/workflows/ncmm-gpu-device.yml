@@ -52,7 +52,11 @@ jobs:
           cmake --build gpu-build --config Release --target first_person_gpu_probe_tests first_person_gpu_contract_tests first_person_gpu_scene_tests
           if($LASTEXITCODE -ne 0){throw 'GPU probe build failed.'}
       - name: Require real draw commands, hardware depth and ordinary SDL UI
+        id: device_tests
         run: ctest --test-dir gpu-build -C Release -R "gpu_probe|gpu_contract|gpu_scene" --output-on-failure
+      - name: Publish bounded original failure annotations
+        if: ${{ failure() && steps.device_tests.outcome == 'failure' }}
+        run: python -B experiments/FirstPersonView/tests/publish_device_failure_annotations.py --log gpu-build/Testing/Temporary/LastTest.log
       - name: Verify pure numeric scratch diagnostics
         run: python -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
       - name: Compare every existing normalized GPU image with the original scratch policy
@@ -106,10 +110,14 @@ jobs:
       - name: Compile owned SPIR-V shader programs
         run: python3 experiments/FirstPersonView/compile_gpu_shaders.py --glslang /usr/bin/glslangValidator --output "$PWD/gpu-shader-bytes.hpp"
       - name: Build and execute genuine Vulkan geometry and depth
+        id: device_tests
         run: |
           cmake -S experiments/FirstPersonView -B gpu-build -DCMAKE_BUILD_TYPE=Release -DSDL3_DIR="$PWD/gpu-sdl-build" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
           cmake --build gpu-build --parallel 2 --target first_person_gpu_probe_tests first_person_gpu_contract_tests first_person_gpu_scene_tests
           ctest --test-dir gpu-build -R "gpu_probe|gpu_contract|gpu_scene" --output-on-failure
+      - name: Publish bounded original failure annotations
+        if: ${{ failure() && steps.device_tests.outcome == 'failure' }}
+        run: python3 -B experiments/FirstPersonView/tests/publish_device_failure_annotations.py --log gpu-build/Testing/Temporary/LastTest.log
       - name: Verify pure numeric scratch diagnostics
         run: python3 -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
       - name: Compare every existing normalized Vulkan image with the original scratch policy
@@ -162,6 +170,7 @@ jobs:
             'experiments/FirstPersonView/tests/viewmodel_gpu_test.cpp':'4297305f7cc2f99026373322b42b6bcc07ec97c01da8af706a564296608bd3ef',
             'experiments/FirstPersonView/src/multilevel_geometry.inc':'3adae8955b66dc15c9faa2baddcb74b78afcc6702a4031227f85b472f22c4de4',
             'experiments/FirstPersonView/src/grass.inc':'d9ccc9eb4c0f0e0fb92f074cdee8bed96b27ea9a3f3f87a6c7262d8bdc16c5b8',
+            'experiments/FirstPersonView/tests/publish_device_failure_annotations.py':'f370663c29eea72670ee2266a30f8e327f41a408567d81f0a5fce32279e833d3',
             'experiments/FirstPersonView/tests/gpu_scene_test.cpp':'9ce668090e66c86bf6cbc5cf6c7f4b4fec85d58d00c066e6a7b0249c621547c2',
             'experiments/graphics_bridge/ncmm_graphics_grass.hpp':'f8ac493f441696db0e0f24453d605348346c418a767ff5272e002d0f52c45899',
             'experiments/graphics_bridge/ncmm_world_policy.hpp':'936cc107be1833a7d1011555b1cd041ce0f5e6c322c6c3615a10e88c8799478a',
@@ -252,7 +261,7 @@ jobs:
             'experiments/FirstPersonView/tests/snapshot_storage_test.cpp':'0c8e0267dcff19d08ea34ad0033899b5d82f283422f60bcbac7eba31cf86afff',
             'experiments/FirstPersonView/reports/night-static-boundary-preparation-20261027.json':'08a7888ac121a67ce4eecda0231242f309148cb643127d8c7bad3b31edc1029e',
             'experiments/FirstPersonView/tests/skyline_host_fixture.hpp':'3bd6b9ac14b72cbe1b9d6ae7907803fbe1acf64faa16c2645ee77e1b241984a0',
-            'experiments/graphics_bridge/apply_graphics_bridge.py':'0a441a3f99b74c3f5b99ea97bdb5c24790dd4260456e50b4b40125869e1001de',
+            'experiments/graphics_bridge/apply_graphics_bridge.py':'ccffba0f9ede2b0cd8308460cb68cc8bf7b04b2ac3884119262b0e769719ee85',
             'experiments/graphics_bridge/ncmm_graphics_lod.inc':'94a554a5343d3e5fbfe7506596e4079bcb98cd62e5b16abdc12f794aa8ee8321',
             'experiments/graphics_bridge/ncmm_graphics_multilevel.h':'5c8292ca3fca90fe8686cb32ce15cbd0bf8c78fc2e5ffc766d36af6a708741cd',
             'experiments/graphics_bridge/ncmm_world_lod.hpp':'e3fff61d1cc606d651e9b45c002e683b1b3e2ea2144005610a68df0aa3cafe60',
@@ -332,7 +341,7 @@ jobs:
             'experiments/FirstPersonView/assets/vehicles/source/wheel-truck.mtl':'45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060',
             'experiments/FirstPersonView/assets/vehicles/source/wheel-truck.obj':'b4deed247fef1a193cd59b6b0f5ae46e9effb554dcc000153df6a706830e6673',
             'experiments/FirstPersonView/src/vehicle_geometry.hpp':'db32ad7aba68c16a55f8df825c3ec13fa1b9782991f179111010489db55667e9',
-            'experiments/FirstPersonView/src/vehicle_scene.hpp':'06c607a97cd781cd180c1e8e9cbdf7c9d79dddbfb88b765a4b69c633e4eddc57',
+            'experiments/FirstPersonView/src/vehicle_scene.hpp':'c047241844abbcfb6fc25e57dd8c0e85e4000e0524d4c6db8856ae6415b9b74e',
             'experiments/FirstPersonView/src/vehicle_snapshot.hpp':'34e27bcb3dd07c003ecdeeb8d1b6e77e75f210788892e85e1744a887e418bcbd',
             'experiments/FirstPersonView/src/vehicle_topology.hpp':'5b347a00cf65789e82b5aad4aa6c2afc3e9849c652939550bd0b25bc3367220d',
             'experiments/FirstPersonView/tests/test_import_vehicle_components.py':'578c5d82130a6f872c844691c3b26ddca1a639e0a1a25dcd31b6251e84c32e9b',
@@ -370,9 +379,9 @@ jobs:
             'experiments/FirstPersonView/tests/vehicle_opaque_beam_gpu_test.inc':'41ad773b6a9f2490963a8c424e89e61ad34e3a2b64718f9b0700e3f311904d72',
             'experiments/graphics_bridge/ncmm_graphics_vehicle_identity.hpp':'3216a71347c1194be6d0d451c97067e54d8fed54201850b898f47c0489acbc7d',
             'experiments/graphics_bridge/ncmm_graphics_vehicle_policy.hpp':'2bb832301adf21411270cc398f0b29486dd35c6cb9b7a41b96dd8bba9369e203',
-            'experiments/graphics_bridge/ncmm_graphics_vehicle_smoke.inc':'ab7f1a6a525fbefde7cb4b526bf994d2643f39b784c5f8bd0228cee02966e454',
+            'experiments/graphics_bridge/ncmm_graphics_vehicle_smoke.inc':'9992ae7529368197de655383ccb5d10a66658aea05508f0b9ff39f9f26f896e3',
             'experiments/graphics_bridge/ncmm_graphics_vehicles.h':'6d43919a3e7e2db339dfeeff78a99177679ab51b7091382024674d5cdacc4fde',
-            'experiments/graphics_bridge/ncmm_graphics_vehicles.inc':'6d928ab689840607bd723020250fe7a457873a7253ae3e62ccd1bbb7f11057d9',
+            'experiments/graphics_bridge/ncmm_graphics_vehicles.inc':'76700563235b9042ba61561f1ae110719225fccee8d6d0ae2760dc54f8ed42f7',
             'experiments/graphics_bridge/test_vehicle_bridge.py':'276e4023f2ee4dea152a09ccd1d62b2d7afd17fb283521913da341cc3166fc05',
             'experiments/graphics_bridge/vehicle_bridge.py':'168a58e40e14542dbc6642fb02d58eba0606a49cc49091495b8e40fec238191f',
             'experiments/graphics_bridge/vehicle_interactions.py':'28039f99481b26a9331cbf66adcc295f49bb526245b29df836516368e6f7eb8f',
@@ -410,7 +419,11 @@ jobs:
           cmake -S experiments/FirstPersonView -B vertex-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++ -DSDL3_DIR="$PWD/gpu-sdl-build" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_SANITIZE=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
           cmake --build vertex-asan --parallel 2 --target first_person_gpu_resource_cache_tests first_person_gpu_scene_tests first_person_gpu_vertex_lease_edge_tests first_person_gpu_resource_failure_tests
       - name: Verify exact GPU bytes, lease lifetime, picking and depth without suppressions
+        id: device_tests
         run: ctest --test-dir vertex-asan -R '^first_person_gpu_(resource_cache|scene|vertex_lease_edge|resource_failure)$' --output-on-failure -V
+      - name: Publish bounded original failure annotations
+        if: ${{ failure() && steps.device_tests.outcome == 'failure' }}
+        run: python3 -B experiments/FirstPersonView/tests/publish_device_failure_annotations.py --log vertex-asan/Testing/Temporary/LastTest.log
       - name: Verify pure numeric scratch diagnostics
         run: python3 -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
       - name: Compare all normalized Vulkan images with ASan UBSan and exit leak checks

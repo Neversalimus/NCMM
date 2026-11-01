@@ -522,21 +522,30 @@ new timing instrumentation and represent neither GPU execution time nor FPS.
 Every original473 frozen GPU readback, shader byte, depth/lighting/blend
 expression, validation gate, quality setting and deadline is retained.
 
-Cold model preparation retains the original angular samples, full bit-key
-hashes, collision resolution and first-corner insertion order. One observation
-can reuse only the temporary hash-table allocations, with a fresh generation
-for every newly generated model. A stale generation cannot return an earlier
-model's index. Wrap clears all stamps; oversized parts release shared scratch
-and use the original complete local tables. The combined temporary capacity
-is bounded to2 MiB and released when observe returns; no Native pointer or
-cross-frame table is retained, and the32 MiB model limit is unchanged.
+Production model preparation uses the original local hash allocations,
+angular samples, complete bit-key hashes, collision resolution and first-corner
+order. The temporary cross-model workspace did not achieve accepted complete-
+frame performance and is retired from the production observation path. Its
+explicit data-only controls remain, including600 model pairs, signed zeros,
+ordering, generation wrap, oversized fallback and cleanup. All model data was
+also compared against729 saved-source models. These controls and retained
+experimental helpers are not Native frame-time or FPS qualification.
 
-The earlier adjacent-identity/primitive-sample experiment did not remove the
-measured complete-frame regression and is retired from the product. Original
-model data is checked across600 shared-storage/local-table pairs and729 models
-against the exact saved prior source, including signed zeros, changed ordering,
-generation wrap, large-part fallback and complete scratch cleanup. These are
-data/geometry controls; they are not Native frame timings or game FPS.
+The Native discovery query walks the same live loaded submap ownership as
+the original Native get_vehicles query, in exactly its x/y/z order. A guarded
+column view validates Native endpoints once and walks that same contiguous
+storage; it retains every loaded level and source position correction. No
+visibility cache or list of vehicle pointers survives the callback. Missing or
+unproved storage uses the entire original query. Both pinned Native index and
+query formulas are identical in the owned source. Actual CI gallery, mutation,
+motion, Z and reload draws compare complete Native registries outside timers;
+every benchmark label skips that extra agreement work in both modes.
+
+GPU test failures can publish up to8 original CTest assertion/sanitizer markers
+as bounded CI annotations. This reads the existing test journal inside CI;
+local tools inspect the resulting exact-head annotations only through CodeReview.
+Original CTest commands, exit codes, sanitizer settings, comparisons, deadlines
+and all blocking failure behavior remain unchanged.
 
 The additional opaque-beam culling experiment is retired. Its original CI
 software-raster comparison changed displayed pixels. Independent data controls
