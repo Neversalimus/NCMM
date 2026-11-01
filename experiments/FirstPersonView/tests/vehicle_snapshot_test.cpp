@@ -851,6 +851,37 @@ int main(){
         verify_sampled_surface(*actual,*reference);
     }
     {
+        using namespace first_person::vehicle;
+        auto canoe=original;canoe.enabled=true;canoe.parts.clear();auto &body=canoe.vehicles[0];
+        body.min_x=-1;body.max_x=2;body.min_y=body.max_y=0;
+        const auto install=[&](int x,uint32_t flags,const char *id){auto p=original.parts[0];p.part_id=500+canoe.parts.size();p.cell_index=uint32_t(canoe.parts.size());
+            p.mount_x=x;p.mount_y=p.mount_z=0;p.features=flags;p.state=NCMM_VP_EXISTS;p.health=1;p.material=NCMM_VM_WOOD;
+            p.color[0]=.6f;p.color[1]=.3f;p.color[2]=.1f;p.color[3]=1;std::strcpy(p.id,id);p.variant[0]=0;canoe.parts.push_back(p);};
+        for(int x=-1;x<=2;++x){install(x,NCMM_VP_FRAME,"frame_wood");install(x,NCMM_VP_FLOAT,"boat_board");
+            if(x==0||x==1)install(x,NCMM_VP_SEAT|NCMM_VP_CARGO|NCMM_VP_FLOOR,"seat");if(x==0)install(x,NCMM_VP_ENGINE,"hand_paddles");}
+        body.part_count=canoe.scene.part_count=uint32_t(canoe.parts.size());require(canoe.parts.size()==11&&valid(canoe,64),"canoe follows all eleven actual installed blueprint parts");
+        const first_person::vehicle::topology shape(canoe,body);require(shape.narrow&&shape.kind==archetype::boat,"narrow wooden flotation retains actual topology");
+        using seam=std::set<std::array<uint32_t,2>>;
+        const auto edge=[](const model &m,float x,size_t surfaces){seam out;
+            for(size_t i=0;i<surfaces;++i)for(const auto &v:m.triangles[i].vertices)if(v.position.x==x){const std::array<float,2> yz{{v.position.y,v.position.z}};std::array<uint32_t,2> bits{};std::memcpy(bits.data(),yz.data(),sizeof(bits));out.insert(bits);}return out;};
+        for(unsigned lod=0;lod<3;++lod){std::map<int,std::shared_ptr<const model>> hulls;const size_t surfaces=2*(lod==0?8:4)*(lod==0?12:6);
+            for(const auto &p:canoe.parts){const auto m=generate(canoe,shape,p,lod);
+                if(p.features&NCMM_VP_FRAME){for(const auto &t:m->triangles)require(m->materials[t.material].kind!=NCMM_VM_METAL,"authored wooden frames never substitute generic metal beams");}
+                if(!(p.features&NCMM_VP_FLOAT))continue;hulls.emplace(p.mount_x,m);
+                if(p.mount_x==body.min_x||p.mount_x==body.max_x){const float x=p.mount_x==body.min_x?-.5f:.5f;float width=0,low=100,high=-100;
+                    for(size_t i=0;i<surfaces;++i)for(const auto &v:m->triangles[i].vertices)if(v.position.x==x){width=std::max(width,std::abs(v.position.y));low=std::min(low,v.position.z);high=std::max(high,v.position.z);}
+                    require(width<.012f&&low>.19f&&high>.89f,"real wooden end parts retain a tapered raised stem and curved keel");}
+                for(const auto &t:m->triangles)for(const auto &v:t.vertices)require(std::isfinite(v.position.x)&&std::isfinite(v.position.y)&&std::isfinite(v.position.z)&&
+                    std::isfinite(v.normal.x)&&std::isfinite(v.normal.y)&&std::isfinite(v.normal.z)&&v.position.z>=0&&v.position.z<1.1f,"every canoe vertex and normal stays finite within its local hull envelope");
+            }
+            for(int x=body.min_x;x<body.max_x;++x)require(edge(*hulls.at(x),.5f,surfaces)==edge(*hulls.at(x+1),-.5f,surfaces),"every sampled hull seam shares exact neighbouring position bits");
+        }
+        auto isolated=canoe;isolated.parts={canoe.parts[1]};isolated.parts[0].mount_x=0;isolated.parts[0].cell_index=0;
+        isolated.vehicles[0].min_x=isolated.vehicles[0].max_x=0;isolated.vehicles[0].part_count=isolated.scene.part_count=1;
+        const first_person::vehicle::topology separate(isolated,isolated.vehicles[0]);require(valid(isolated,64),"dismantled canoe keeps only its real surviving flotation part");
+        for(unsigned lod=0;lod<3;++lod){const auto m=generate(isolated,separate,isolated.parts[0],lod);require(m->minimum.x>=-.514f&&m->maximum.x<=.514f,"new stems never recreate absent neighbouring Native parts");}
+    }
+    {
         auto names=original.parts[0];std::strcpy(names.id,"dashboard");std::strcpy(names.variant,"_extra");
         const auto a=topology.recipe(names,0);std::strcpy(names.id,"dashboard_extra");names.variant[0]=0;
         require(a!=topology.recipe(names,0),"part and variant string boundaries cannot alias different component recipes");

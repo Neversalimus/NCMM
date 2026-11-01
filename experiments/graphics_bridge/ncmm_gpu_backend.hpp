@@ -4,6 +4,7 @@
 #include "ncmm_gpu_programs.hpp"
 #include "ncmm_gpu_conservative_depth.hpp"
 #define NCMM_GPU_CONSERVATIVE_DEPTH_PROGRAM 1
+#define NCMM_GPU_GROUP_DEPTH_PROGRAM 1
 #include "ncmm_gpu_geometry.hpp"
 #include <chrono>
 #include <tuple>
@@ -20,7 +21,7 @@ struct recording_metrics {
     uint64_t opaque_component_draws=0,opaque_winding_draws=0,opaque_requested_winding_draws=0,opaque_range_rejections=0,opaque_batch_rejections=0,opaque_reflective_draws=0;
     uint64_t opaque_component_triangles=0,opaque_winding_triangles=0;
     uint64_t counted_plain_draws=0,counted_glass_draws=0;
-    uint64_t bounded_depth_draws=0;
+    uint64_t bounded_depth_draws=0,group_depth_draws=0,opaque_depth_spans=0;
     uint64_t bones=0,held_bones=0,static_upload_bytes=0,dynamic_geometry_bytes=0;
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
     uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
@@ -45,7 +46,8 @@ class backend {
     recording_metrics recording_{};
     bool policy_counts_=false;
     bool conservative_depth_enabled_=true;
-    uint64_t conservative_depth_draws_=0;
+    uint64_t conservative_depth_draws_=0,group_depth_draws_=0;
+    bool group_depth_enabled_=true;
     bool profiling_=false,white_ready_=false,cells_ready_=false,retirement_failed_=false;
     struct readback {SDL_GPUTransferBuffer *transfer=nullptr;SDL_GPUFence *fence=nullptr;uint64_t serial=0,generation=0;};
     std::array<readback,3> readbacks_{};
@@ -123,6 +125,28 @@ class backend {
         depth.stencil_load_op=SDL_GPU_LOADOP_DONT_CARE;depth.stencil_store_op=SDL_GPU_STOREOP_DONT_CARE;
         return SDL_BeginGPURenderPass(commands,colors,2,&depth);
     }
+    void prefill_opaque_group(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const batch &b){
+        if(!b.depth_bound)return;
+        auto *mesh=resources_.mesh(b.key);if(!mesh)return;
+        const auto begun=profiling_?clock::now():clock::time_point{};
+        SDL_GPUBufferBinding vertex{mesh->vertices,0},index{mesh->indices,0};SDL_BindGPUVertexBuffers(pass,0,&vertex,1);SDL_BindGPUIndexBuffer(pass,&index,SDL_GPU_INDEXELEMENTSIZE_32BIT);
+        const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));
+        for(const auto &range:mesh->ranges){const auto &m=mesh->materials[range.material];
+            const bool winding=b.winding_safe&&range.winding_safe;
+            SDL_BindGPUGraphicsPipeline(pass,winding?programs_.opaque_group_depth_culled:programs_.opaque_group_depth);
+            struct material {float color[4];uint32_t state[4];float impostor[4];} uniform{};
+            std::copy_n(m.color,4,uniform.color);uniform.state[0]=m.flags;uniform.state[1]=m.finish;uniform.state[2]=m.liquid;uniform.state[3]=m.banks;
+            uniform.impostor[0]=m.impostor_span;uniform.impostor[1]=m.impostor_yaw;
+            SDL_PushGPUFragmentUniformData(commands,1,&uniform,sizeof(uniform));
+            SDL_GPUTextureSamplerBinding textures[3]{};const uint64_t keys[]={m.texture_key,m.normal_key,m.depth_key};
+            for(int i=0;i<3;++i){const auto *t=resources_.texture(keys[i]);textures[i].texture=t?t->texture:white_;
+                textures[i].sampler=i?programs_.nearest:(m.flags&NCMM_GPU_CREATURE_VISUAL)?programs_.pixel_art:programs_.linear;}
+            SDL_BindGPUFragmentSamplers(pass,0,textures,3);SDL_DrawGPUIndexedPrimitives(pass,range.count,b.count,range.first,0,0);
+            ++metrics_.draw_calls;metrics_.triangles+=uint64_t(range.count/3)*b.count;
+            ++group_depth_draws_;if(profiling_||policy_counts_)++recording_.group_depth_draws;
+        }
+        if(profiling_)recording_.world_ms+=ms(begun);
+    }
     bool draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene,bool alpha_only=false){
         bool deferred_alpha=false;
         unsigned opaque_policy=0;
@@ -130,7 +154,28 @@ class backend {
         SDL_GPUBuffer *vertex_storage[]={instances_,bones_};SDL_BindGPUVertexStorageBuffers(pass,0,vertex_storage,2);
         SDL_GPUBuffer *fragment_storage[]={cells_,shadows_};SDL_BindGPUFragmentStorageBuffers(pass,0,fragment_storage,2);
         SDL_PushGPUVertexUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));
-        for(const auto &b:batches)if(b.pass==selected){auto *mesh=resources_.mesh(b.key);if(!mesh)continue;
+        size_t depth_span_end=0;
+        const auto opaque_batch=[&](const batch &b){
+            auto *mesh=resources_.mesh(b.key);
+            return b.pass==NCMM_GPU_OPAQUE&&mesh&&!mesh->ranges.empty()&&
+                std::all_of(mesh->ranges.begin(),mesh->ranges.end(),[](const mesh_range &r){return r.alpha_one;});
+        };
+        for(size_t at=0;at<batches.size();++at){const auto &b=batches[at];if(b.pass!=selected)continue;
+            if(selected==NCMM_GPU_OPAQUE&&group_depth_enabled_&&at>=depth_span_end){
+                // Fractional/depth-writing ranges are hard ordering barriers.
+                // Inside a maximal alpha-one span, every surviving fragment
+                // overwrites earlier colour. Prefill only the old bound-proved
+                // groups; keep every ordinary colour draw in its exact order.
+                size_t end=at;unsigned eligible=0;
+                while(end<batches.size()&&opaque_batch(batches[end])){eligible+=batches[end].depth_bound;++end;}
+                depth_span_end=end>at?end:at+1;
+                if(eligible){
+                    for(size_t i=at;i<end;++i)prefill_opaque_group(commands,pass,batches[i]);
+                    if(profiling_||policy_counts_)++recording_.opaque_depth_spans;
+                    opaque_policy=~0u;
+                }
+            }
+            auto *mesh=resources_.mesh(b.key);if(!mesh)continue;
             SDL_GPUBufferBinding vertex{mesh->vertices,0},index{mesh->indices,0};SDL_BindGPUVertexBuffers(pass,0,&vertex,1);SDL_BindGPUIndexBuffer(pass,&index,SDL_GPU_INDEXELEMENTSIZE_32BIT);
             const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));
             for(const auto &range:mesh->ranges){const auto &m=mesh->materials[range.material];
@@ -204,6 +249,8 @@ public:
     void count_policies(bool enabled=true){policy_counts_=enabled;}
     void conservative_depth(bool enabled=true){conservative_depth_enabled_=enabled;}
     uint64_t conservative_depth_draws()const{return conservative_depth_draws_;}
+    void group_depth(bool enabled=true){group_depth_enabled_=enabled;}
+    uint64_t group_depth_draws()const{return group_depth_draws_;}
     const recording_metrics &recording()const{return recording_;}
     void clear(){
         // SDL can still have composition commands queued against our output,

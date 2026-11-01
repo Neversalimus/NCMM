@@ -20,6 +20,11 @@ a=p.parse_args()
 # The optional component program deletes only branches excluded by the Host's
 # exact material/vertex/cell proof. Keep all used detail and depth expressions.
 ordinary=(a.source/'geometry.frag').read_text(encoding='utf-8')
+# The span scheduler may cross only exact-alpha-one/discard ranges. Renew
+# this review if ordinary alpha, texture priority, spill or contact fade changes.
+alpha_contract=ordinary[ordinary.index('void main(){'):ordinary.index('    color=material_detail(',ordinary.index('void main(){'))]
+if hashlib.sha256(alpha_contract.encode()).hexdigest()!='1f5b2e67a94da8d938f97190ee452ed4ad69707bf2a79a10cb10f454816d7ce8':
+    p.error('Opaque-span alpha-one proof requires renewed coverage review')
 component=ordinary
 distance='    if((flags&8192u)!=0u){float light=(.035+.82*sat(camera.sun.w))*(.72+.20*max(n.z,0.0)+.08*max(0.0,dot(n,camera.sun.xyz)));return vec3(light);}\n'
 if component.count(distance)!=1:p.error('Unreviewed component distance branch')
@@ -66,6 +71,11 @@ for role,ordinary_source in [('component',component),('reflective',reflective),(
     bounded_source=ordinary_source.replace('layout(location=0) out vec4 out_color;','layout(depth_greater) out float gl_FragDepth;\nlayout(location=0) out vec4 out_color;')
     if (a.source/('geometry_'+role+'_bound.frag')).read_text(encoding='utf-8')!=bounded_source:
         p.error('Bounded fragment changed original colour/depth arithmetic')
+# The prefill keeps the exact proved discard and written-depth expressions;
+# both render-target write masks are disabled, and colour draw order stays put.
+depth_only=bounded_source[:bounded_source.index('vec3 lighting(')]+'void main(){uint flags=(material.state.x&(512u|16384u))|8u;vec3 p=world_position;\n    if((flags&512u)!=0u&&dot(flat_normal,camera.eye.xyz-p)<=0.0)discard;\n    float z=view_point(p).z;\n    // Only depth is written by this pipeline. Both colour/ID masks are zero.\n    // Existing bound-proved groups are prefilled only inside an alpha-one span.\n    gl_FragDepth=depth_z(z);out_color=vec4(0);out_id=0u;\n}\n'
+if (a.source/'geometry_group_depth.frag').read_text(encoding='utf-8')!=depth_only:
+    p.error('Opaque-span prefill changed its exact depth/coverage expressions')
 vertex=(a.source/'geometry.vert').read_text(encoding='utf-8')
 bounded_vertex=vertex.replace('pose_yaw=uintBitsToFloat(instance.state.w);texcoord=uv;gl_Position=project_point(world_position);','pose_yaw=0.0;texcoord=uv;gl_Position=project_point(world_position);\n    // Host proves a rigid zero-heading instance and packs a strict depth lower bound.\n    gl_Position.z=uintBitsToFloat(instance.state.w)*gl_Position.w;')
 if (a.source/'geometry_bound.vert').read_text(encoding='utf-8')!=bounded_vertex:

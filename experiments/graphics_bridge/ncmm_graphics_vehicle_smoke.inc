@@ -122,6 +122,7 @@
                 evidence.member("batch_rejections",p.opaque_batch_rejections);evidence.member("reflective_draws",p.opaque_reflective_draws);
                 evidence.member("plain_draws",p.counted_plain_draws);evidence.member("glass_draws",p.counted_glass_draws);
                 evidence.member("bounded_depth_draws",p.bounded_depth_draws);
+                evidence.member("group_depth_draws",p.group_depth_draws);evidence.member("opaque_depth_spans",p.opaque_depth_spans);
                 evidence.member("component_triangles",p.opaque_component_triangles);evidence.member("winding_triangles",p.opaque_winding_triangles);evidence.end_object();
             }
             evidence.member("gpu_geometry_ms",metrics.geometry_ms);evidence.member("gpu_render_record_ms",metrics.render_record_ms);

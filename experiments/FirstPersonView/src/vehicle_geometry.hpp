@@ -444,22 +444,30 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         // seam; no hull is filled across an absent/dismantled Native mount.
         const unsigned slices=lod==0?8u:4u,rings=lod==0?12u:6u;
         const bool front=!layout.has(topology::adjacent(at,0),NCMM_VP_FLOAT),rear=!layout.has(topology::adjacent(at,2),NCMM_VP_FLOAT);
+        const bool wooden_canoe=layout.narrow&&std::string_view(p.id)=="boat_board";
         auto section=[&](float x,float angle){float width=.48f;
-            if(layout.narrow){if(front)width*=1-.88f*(x+.5f)*(x+.5f);if(rear)width*=1-.88f*(.5f-x)*(.5f-x);}
-            return point{x,-width*std::cos(angle),chassis+.48f-.62f*std::sin(angle)};};
+            const float taper=wooden_canoe?.98f:.88f;
+            if(layout.narrow){if(front)width*=1-taper*(x+.5f)*(x+.5f);if(rear)width*=1-taper*(.5f-x)*(.5f-x);}
+            // Rocker and raised stems belong only to the real narrow wooden
+            // hull part. Their displacement is zero at every installed seam;
+            // removing a neighbour exposes that part's own end, not a new part.
+            const float end=wooden_canoe?std::max(front?(x+.5f)*(x+.5f):0.f,rear?(.5f-x)*(.5f-x):0.f):0.f;
+            const float rise=end*(.14f+.08f*(1-std::sin(angle)));
+            return point{x,-width*std::cos(angle),chassis+.48f-.62f*std::sin(angle)+rise};};
         if(layout.narrow){
             for(unsigned i=0;i<slices;++i)for(unsigned j=0;j<rings;++j){const float x=-.5f+float(i)/slices,y=-.5f+float(i+1)/slices,a=pi*j/rings,c=pi*(j+1)/rings;
                 b.face(section(x,a),section(y,a),section(y,c),section(x,c),b.paint);}
             for(unsigned side:{0u,2u})if(side==0?front:rear){const float x=side==0?.5f:-.5f;
-                for(unsigned j=0;j<rings;++j)b.face({x,0,chassis+.48f},section(x,pi*j/rings),section(x,pi*(j+1)/rings),{x,0,chassis+.48f},b.paint);}
-            for(float a:{0.f,pi})for(unsigned i=0;i<slices;++i)b.beam(section(-.5f+float(i)/slices,a),section(-.5f+float(i+1)/slices,a),.025f,.025f,b.steel,6);
+                const point top{x,0,wooden_canoe?section(x,0).z:chassis+.48f};
+                for(unsigned j=0;j<rings;++j)b.face(top,section(x,pi*j/rings),section(x,pi*(j+1)/rings),top,b.paint);}
+            for(float a:{0.f,pi})for(unsigned i=0;i<slices;++i)b.beam(section(-.5f+float(i)/slices,a),section(-.5f+float(i+1)/slices,a),.025f,.025f,wooden_canoe?b.paint:b.steel,6);
         }else{
             b.face({-.5f,-.5f,chassis-.14f},{.5f,-.5f,chassis-.14f},{.5f,.5f,chassis-.14f},{-.5f,.5f,chassis-.14f},b.paint);
             for(unsigned side=0;side<4;++side)if(!layout.has(topology::adjacent(at,side),NCMM_VP_FLOAT)){active_side=side;panel(chassis-.14f,chassis+.48f,b.paint,false);}
         }
     }else if(kind==component::frame){
         if(layout.narrow&&!layout.caster_mount(at)){
-            const auto mat=p.material==NCMM_VM_PAINT?b.paint:b.steel;
+            const auto mat=p.material==NCMM_VM_PAINT||p.material==NCMM_VM_WOOD?b.paint:b.steel;
             auto height=[&](mount where){return chassis+(layout.has(where,NCMM_VP_SEAT)? .43f:layout.has(where,NCMM_VP_STEERABLE)? .44f:layout.has(where,NCMM_VP_WHEEL)?-.10f:.24f);};
             const bool bicycle=layout.kind==archetype::bicycle;
             const auto lower=[&](mount where){
@@ -479,9 +487,10 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
                 b.beam({node.x,0,lower(at)},{seam.x,0,(lower(at)+lower(other))*.5f},.032f,.032f,mat,8);}
             if(std::abs(lower(at)-node.z)>1e-6f)b.beam({node.x,0,lower(at)},node,.035f,.035f,mat,8);
         }else{
-            b.beam({-.5f,-.31f,chassis},{.5f,-.31f,chassis},.075f,.10f,b.steel);
-            b.beam({-.5f,.31f,chassis},{.5f,.31f,chassis},.075f,.10f,b.steel);
-            b.beam({0,-.4f,chassis},{0,.4f,chassis},.06f,.09f,b.steel);
+            const auto mat=p.material==NCMM_VM_WOOD?b.paint:b.steel;
+            b.beam({-.5f,-.31f,chassis},{.5f,-.31f,chassis},.075f,.10f,mat);
+            b.beam({-.5f,.31f,chassis},{.5f,.31f,chassis},.075f,.10f,mat);
+            b.beam({0,-.4f,chassis},{0,.4f,chassis},.06f,.09f,mat);
         }
         const bool open_frame=layout.kind==archetype::bicycle||layout.kind==archetype::motorcycle||layout.kind==archetype::boat;
         if(!open_frame&&layout.has(at,NCMM_VP_FLOOR|NCMM_VP_AISLE))b.cushion({0,0,chassis+.035f},{1,1,.055f},.025f,b.dark);

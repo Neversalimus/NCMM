@@ -84,4 +84,27 @@ inline bool winding_range(const ncmm_gpu_mesh_v1 &mesh,uint32_t material,uint32_
     }
     return surface;
 }
+// The ordinary fragment either discards or writes exact alpha one. This is
+// an order proof only; it does not change its shader, coverage, depth or ID.
+inline bool opaque_alpha_one_range(const ncmm_gpu_mesh_v1 &mesh,uint32_t material,uint32_t first,uint32_t count){
+    if(!mesh.vertices||!mesh.indices||!mesh.materials||material>=mesh.material_count||!count||count%3||
+       count>mesh.index_count||first>mesh.index_count-count)return false;
+    const auto &m=mesh.materials[material];
+    if(m.color[3]!=1.f||m.finish==16)return false;
+    constexpr uint32_t known=NCMM_GPU_TEXTURED|NCMM_GPU_CUTOUT|NCMM_GPU_OPAQUE_TEXTURE|NCMM_GPU_SMOOTH|
+        NCMM_GPU_CREATURE|NCMM_GPU_SPILL|NCMM_GPU_IMPOSTOR|NCMM_GPU_SILHOUETTE|NCMM_GPU_HELD_MATERIAL|
+        NCMM_GPU_CULL_BACK|NCMM_GPU_BILLBOARD|NCMM_GPU_CREATURE_VISUAL|NCMM_GPU_SLAB_UNDERSIDE|
+        NCMM_GPU_DISTANCE_LOD|NCMM_GPU_EMISSIVE;
+    for(uint32_t n=first;n<first+count;++n){
+        if(mesh.indices[n]>=mesh.vertex_count)return false;
+        const auto &v=mesh.vertices[mesh.indices[n]];if(v.material!=material)return false;
+        const uint32_t flags=m.flags|v.flags;
+        if((flags&~known)||(flags&NCMM_GPU_SPILL))return false;
+        // The impostor branch uses a nearest discard mask and leaves alpha
+        // unchanged. The ordinary texture branch preserves alpha only for
+        // OPAQUE_TEXTURE; CUTOUT alone still allows fractional filtered alpha.
+        if((flags&NCMM_GPU_TEXTURED)&&!(flags&(NCMM_GPU_IMPOSTOR|NCMM_GPU_OPAQUE_TEXTURE)))return false;
+    }
+    return true;
+}
 }
