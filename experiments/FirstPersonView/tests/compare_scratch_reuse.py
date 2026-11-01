@@ -11,9 +11,20 @@ REFERENCE_SHA256='a0dd1aa83c05e1a51ac33854dedb54696e85616857d9da1f68bb30ee7fe966
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+def without_disjoint_order_backend(reference):
+    """Remove only exact reviewed order metadata; keep the old frozen body."""
+    if '#define NCMM_GPU_DISJOINT_DEPTH_ORDER 1\n' not in reference:return reference
+    replacements=[('#define NCMM_GPU_CONSERVATIVE_DEPTH_PROGRAM 1\n', '#define NCMM_GPU_CONSERVATIVE_DEPTH_PROGRAM 1\n#define NCMM_GPU_DISJOINT_DEPTH_ORDER 1\n'), ('    uint64_t bounded_depth_draws=0;', '    uint64_t bounded_depth_draws=0;\n    uint64_t opaque_depth_order_swaps=0;'), ('    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false,component_safe=false,depth_bound=false;};', '    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false,component_safe=false,depth_bound=false,depth_order_safe=false;float depth_lo=0,depth_hi=1;};'), ('            if(bounded){depth_values.clear();depth_values.reserve(list.size());for(const auto &i:list){', '            float order_lo=1,order_hi=0;bool order_safe=bounded&&groups.size()<=256;\n            if(bounded){depth_values.clear();depth_values.reserve(list.size());for(const auto &i:list){'), ('                const auto value=conservative_depth::lower_bound(mesh->joints[0].lo,mesh->joints[0].hi,i.world,eye,forward,scene.camera.projection[3]);\n                if(!value){bounded=false;break;}depth_values.push_back(*value);', '                float upper=1;const auto value=conservative_depth::lower_bound(mesh->joints[0].lo,mesh->joints[0].hi,i.world,eye,forward,scene.camera.projection[3],order_safe?&upper:nullptr);\n                if(!value){bounded=false;break;}depth_values.push_back(*value);\n                if(order_safe){order_safe=std::isfinite(upper)&&*value<=upper&&upper<1;\n                    order_lo=std::min(order_lo,*value);order_hi=std::max(order_hi,upper);}'), ('            batches.push_back({key.second,key.first,first,uint32_t(list.size()),winding,component,bounded});instances.insert(instances.end(),list.begin(),list.end());', '            batches.push_back({key.second,key.first,first,uint32_t(list.size()),winding,component,bounded,order_safe&&bounded,order_lo,order_hi});instances.insert(instances.end(),list.begin(),list.end());'), ('        std::stable_sort(transparent.begin(),transparent.end(),[](const auto &a,const auto &b){return a.distance>b.distance;});', '        // No new pass/draw/upload: only certified disjoint alpha-one groups\n        // move nearer first. Unknown/overlapping groups remain order barriers.\n        const auto order_swaps=conservative_depth::order_disjoint_opaque(batches);\n        if(profiling_||policy_counts_)recording_.opaque_depth_order_swaps=order_swaps;\n        std::stable_sort(transparent.begin(),transparent.end(),[](const auto &a,const auto &b){return a.distance>b.distance;});')]
+    for before,after in reversed(replacements):
+        assert reference.count(after)==1,'Unreviewed disjoint depth-order reconstruction'
+        reference=reference.replace(after,before)
+    assert hashlib.sha256(reference.encode()).hexdigest()=='c5c6f97068422f45e6527331bb75e946c20ac3893850852180c202592f9400b7','Order inverse changed previous backend bytes'
+    return reference
+
+
 def reference_backend(candidate):
     """Pure reconstruction, always checked against the unchanged frozen digest."""
-    reference=candidate
+    reference=without_disjoint_order_backend(candidate)
     # Remove only the reviewed opaque-span addition. Hash each complete new
     # block before removal, then require the exact previous backend bytes.
     # Every older inverse recipe and the original final digest remain below.

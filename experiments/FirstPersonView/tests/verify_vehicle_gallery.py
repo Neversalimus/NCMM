@@ -126,6 +126,10 @@ def verify(root, output, source, engine, module=None):
     assert len({tuple(r['camera_xyz']) for r in driving})>1,'Native driving never moved the actual passenger'
     assert len({r['yaw'] for r in driving})>1,'Native driving never changed the actual heading'
     assert benchmarks and soak is not None,'Full-frame series and completed 900-second Native soak are mandatory'
+    ordered=[r['gpu_policy']['opaque_depth_order_swaps'] for r in report['frames']
+             if r.get('prototype')=='large' and r.get('backend')=='gpu' and r.get('renderer')=='modular' and r.get('label','').startswith('bench-') and r['label']!='bench-prepare']
+    assert len(ordered)==56 and all(type(x) is int and x>=0 for x in ordered) and max(ordered)>0,'Actual Native bus must exercise the guarded disjoint-order path'
+
     if benchmarks:
         for scene in ['empty','one','multiple','parking','large']:
             for backend in ['cpu','gpu']:
