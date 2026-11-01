@@ -18,4 +18,12 @@ inline first_person::vehicle::snapshot construction(unsigned columns=14,unsigned
 inline std::vector<const first_person::vehicle::submission *> permitted(const first_person::vehicle::presentation &view){
     std::vector<const first_person::vehicle::submission *> result;for(const auto &d:view.draws)result.push_back(&d);return result;
 }
+struct camera {first_person::vehicle::point eye;float yaw=0,pitch=0;};
+inline std::array<camera,10> cameras(){
+    return {{{{12.5f,23.5f,1.55f},-first_person::vehicle::pi*.5f,-.1f},{{12.5f,2.5f,1.55f},first_person::vehicle::pi*.5f,-.1f},
+        {{24.5f,18.5f,2.4f},-first_person::vehicle::pi*.8f,-.23f},{{2.5f,3.5f,2.4f},first_person::vehicle::pi*.2f,-.23f},
+        {{24.5f,11.5f,.35f},first_person::vehicle::pi,0},{{1.5f,11.5f,.35f},0,0},
+        {{12.5f,11.5f,1.55f},0,-.1f},{{12.5f,11.5f,.3f},0,0},
+        {{12.5f,11.5f,3.8f},-first_person::vehicle::pi*.5f,-1.3f},{{12.f,6.5f,.3f},first_person::vehicle::pi*.5f,0}}};
+}
 }

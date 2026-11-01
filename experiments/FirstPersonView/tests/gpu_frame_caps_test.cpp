@@ -39,12 +39,7 @@ int main(){
         auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image&&image->w==1280&&image->h==800,"no resolution cut");
         o.pixels.resize(1280*800);for(int y=0;y<800;++y)std::memcpy(o.pixels.data()+1280*y,static_cast<const char *>(image->pixels)+image->pitch*y,1280*4);
         SDL_DestroySurface(image);o.focus=engine.focus_cell();o.target=engine.metrics().target_cell;return o;};
-    struct view{v::point eye;float yaw,pitch;};
-    const view views[]={{{12.5f,23.5f,1.55f},-v::pi*.5f,-.1f},{{12.5f,2.5f,1.55f},v::pi*.5f,-.1f},
-        {{24.5f,18.5f,2.4f},-v::pi*.8f,-.23f},{{2.5f,3.5f,2.4f},v::pi*.2f,-.23f},
-        {{24.5f,11.5f,.35f},v::pi,0},{{1.5f,11.5f,.35f},0,0},
-        {{12.5f,11.5f,1.55f},0,-.1f},{{12.5f,11.5f,.3f},0,0},
-        {{12.5f,11.5f,7.5f},-v::pi*.5f,-1.3f},{{12.f,6.5f,.3f},v::pi*.5f,0}};
+    const auto views=frame_caps_fixture::cameras();
     std::ofstream report("frame-cap-device-controls.json");require(bool(report),"own dedicated device control receipt");
     report<<"{\"full_viewport\":[1280,800],\"original501_pipeline_unchanged\":true,\"pairs\":[";
     bool first=true,all_equal=true;unsigned pairs=0,active=0,fallback=0;uint64_t total_different=0;
@@ -55,9 +50,13 @@ int main(){
         if(variant==2)for(const auto &p:vehicles.input.parts)if(p.mount_x==6)cells[size_t(p.cell_index)].flags=0;
         if(variant==3)vehicles.input.vehicles[0].yaw=.37f;
         if(variant==4){vehicles.input.scene.world_epoch+=1;for(auto &p:vehicles.input.parts)p.health=.35f;}
-        for(unsigned n=0;n<sizeof(views)/sizeof(views[0]);++n){const auto &camera=views[n];source.base.camera_x=camera.eye.x;source.base.camera_y=camera.eye.y;metadata.view.eye_height=camera.eye.z;vehicles.observe(camera.eye);
+        for(unsigned n=0;n<views.size();++n){const auto &camera=views[n];source.base.camera_x=camera.eye.x;source.base.camera_y=camera.eye.y;metadata.view.eye_height=camera.eye.z;vehicles.observe(camera.eye);
             const auto submit=[&](bool join){fp::gpu::packet packet;fp::hybrid::render_options options;options.join_gpu_frame_caps=join;
-                require(cache.build(source,camera.yaw,camera.pitch,{},packet,statistics,engine.metrics(),{},&metadata,nullptr,1280,800,NCMM_GPU_FORCE,nullptr,options),cache.last_reason.c_str());
+                require(fp::hybrid::valid_scene(source,camera.yaw,camera.pitch),"dedicated fixture scene is valid before GPU work");
+                require(fp::hybrid::valid_presentation(metadata,625),"dedicated fixture presentation is valid before GPU work");
+                const bool built=cache.build(source,camera.yaw,camera.pitch,{},packet,statistics,engine.metrics(),{},&metadata,nullptr,1280,800,NCMM_GPU_FORCE,nullptr,options);
+                if(!built)std::fprintf(stderr,"Frame cap build context variant=%u view=%u join=%u\n",variant,n,unsigned(join));
+                require(built,cache.last_reason.c_str());
                 const auto &submission=packet.finish(nullptr);uint64_t triangles=0;
                 for(uint32_t i=0;i<submission.draw_count;++i)for(uint32_t j=0;j<submission.mesh_count;++j)if(submission.draws[i].mesh_key==submission.meshes[j].key)triangles+=submission.meshes[j].index_count/3;
                 require(engine.submit(submission),engine.metrics().reason);auto o=read();o.triangles=triangles;return o;};

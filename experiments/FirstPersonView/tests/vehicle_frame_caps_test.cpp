@@ -1,4 +1,5 @@
 #include "vehicle_frame_caps.hpp"
+#include "hybrid_renderer.hpp"
 #include "vehicle_frame_caps_fixture.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -56,5 +57,25 @@ int main(){
     auto moved=frame_caps_fixture::permitted(view);const auto mp=v::joined_frame_caps(moved,{140.5f,-40.5f,1.55f},forward);verify(moved,mp,{140.5f,-40.5f,1.55f},forward);require(mp.removed_triangles==1664,"world reset and teleport rebuild exact current joins");
     view.input.enabled=false;view.observe(eye);require(view.draws.empty()&&v::joined_frame_caps(frame_caps_fixture::permitted(view),eye,forward).sides.empty(),"retirement leaves no cap plan or borrowed pointers");
     auto small=frame_caps_fixture::construction(4,4);view.input=small;view.observe(eye);require(v::joined_frame_caps(frame_caps_fixture::permitted(view),eye,forward).sides.empty(),"small constructions pay no extra template variants");
+
+    // Run the exact production scene/presentation validators for all50device
+    // camera/part configurations without creating a device or a renderer.
+    std::vector<ncmm_graphics_cell_v1> cells(625);std::vector<ncmm_graphics_cell_v2> details(625);
+    ncmm_graphics_scene_v2 source{};source.struct_size=sizeof(source);source.base={sizeof(source.base),1280,800,25,25,12.5f,23.5f,cells.data(),625};source.details=details.data();source.detail_count=625;
+    first_person::hybrid::presentation_data metadata;metadata.view.struct_size=sizeof(metadata.view);metadata.view.body_scale=1;metadata.view.held_length=.6f;metadata.cells.resize(625);
+    for(unsigned variant=0;variant<5;++variant){auto actual=frame_caps_fixture::construction();
+        if(variant==1)for(auto &p:actual.parts)if(p.mount_x==6){p.state|=NCMM_VP_TOPOLOGY_ONLY;p.cell_index=-1;}
+        if(variant==3)actual.vehicles[0].yaw=.37f;
+        if(variant==4){++actual.scene.world_epoch;for(auto &p:actual.parts)p.health=.35f;}
+        require(v::valid(actual,625),"every dedicated device part fixture passes the original actual snapshot validator");
+        for(const auto &camera:frame_caps_fixture::cameras()){
+            source.base.camera_x=camera.eye.x;source.base.camera_y=camera.eye.y;metadata.view.eye_height=camera.eye.z;
+            require(first_person::hybrid::valid_scene(source,camera.yaw,camera.pitch),"every full device camera passes the unchanged source validator");
+            require(first_person::hybrid::valid_presentation(metadata,625),"every full device camera passes the unchanged presentation validator");
+        }
+    }
+    metadata.view.eye_height=7.5f;require(!first_person::hybrid::valid_presentation(metadata,625),"the original failing elevated fixture is rejected, never legalized by changing validation");
+    metadata.view.eye_height=.05f;require(!first_person::hybrid::valid_presentation(metadata,625),"the original lower eye-height bound remains required");
+    require(!first_person::hybrid::valid_scene(source,0,1.4f),"the original pitch bound remains required");
     std::printf("vehicle frame caps: %llu pure checks\n",(unsigned long long)checks);
 }

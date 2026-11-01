@@ -409,9 +409,9 @@ jobs:
             'experiments/FirstPersonView/tests/conservative_depth_bound_test.inc':'e7ad45193832ee7793858e88f196d6ff7ea623339bc433335f8dfe623b8f5639',
             'experiments/FirstPersonView/tests/reference/gpu_backend_opaque_span.hpp':'d502e3356f7ac6fe83c709313a97248af2d779ed40c31f85f59051328e0d93c0',
             'experiments/FirstPersonView/src/vehicle_frame_caps.hpp':'211d9ad6e17e9cb38104bc7011f60735167d6f38ce26cc4215d2819f3f359a98',
-            'experiments/FirstPersonView/tests/vehicle_frame_caps_fixture.hpp':'47755724d7e911c4ead5337057911bf6bec972b274bbfe95086101dac951d3fb',
-            'experiments/FirstPersonView/tests/vehicle_frame_caps_test.cpp':'d6a717129acc2ab629c3cfbcec0b9e124e29c75d24a58ffc90c50d7b5e8350c6',
-            'experiments/FirstPersonView/tests/gpu_frame_caps_test.cpp':'58e5e1803508da685e119847f4c572c0d7a4e90bbbe2e791430988e2221631c2',
+            'experiments/FirstPersonView/tests/vehicle_frame_caps_fixture.hpp':'b80a80a897be0610235579498c5ea89bf3cf9ffa33e53f76af20c4078486505f',
+            'experiments/FirstPersonView/tests/vehicle_frame_caps_test.cpp':'14cb7cbaa63118920516e1203a1a0c976e23a077b4e5a528afef10cbc1a53223',
+            'experiments/FirstPersonView/tests/gpu_frame_caps_test.cpp':'0c0a207d535fde86c8f8ee819ce4b31cdd002567ae7871266c5e68dcadb92987',
           }
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
