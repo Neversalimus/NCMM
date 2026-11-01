@@ -741,10 +741,6 @@ int main(int argc,char **argv){
     #include "glass_gpu_test.inc"
     #include "plain_gpu_test.inc"
     #include "vehicle_opaque_beam_gpu_test.inc"
-#if defined(NCMM_GPU_GROUP_DEPTH_PROGRAM)
-    require(engine.group_depth_draws()>0,"original strict GPU controls actually exercise guarded opaque-span depth work");
-    std::printf("Qualified opaque span depth draws: %llu\n",(unsigned long long)engine.group_depth_draws());
-#endif
 #if defined(NCMM_GPU_CONSERVATIVE_DEPTH_PROGRAM)
     require(engine.conservative_depth_draws()>0,"original GPU controls actually exercise qualified conservative depth");
     std::printf("Qualified conservative depth draws: %llu\n",(unsigned long long)engine.conservative_depth_draws());

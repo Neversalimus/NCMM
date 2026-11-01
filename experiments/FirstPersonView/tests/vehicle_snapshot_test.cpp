@@ -1100,6 +1100,26 @@ int main(){
                 require(shade==1.f&&std::memcmp(&old,&color,sizeof(color))==0,"independent original floor/hash/grain math is exactly the input colour at zero amplitude");}
         }
     }
+    {
+        using namespace first_person::vehicle;
+        auto s=original;s.vehicles[0].min_y=s.vehicles[0].max_y=0;
+        const first_person::vehicle::topology shape(s,s.vehicles[0]);
+        for(const char *id:{"foot_pedals","hand_paddles"})for(unsigned lod=0;lod<3;++lod){
+            auto p=s.parts.front();std::strcpy(p.id,id);p.features=NCMM_VP_ENGINE|NCMM_VP_CONTROLS;p.state=NCMM_VP_EXISTS;p.health=1;
+            require(classify(p)==component::engine,"actual Native ENGINE+CONTROLS manual drive reaches its dedicated geometry");
+            const auto routed=generate(s,shape,p,lod);auto engine=p;engine.features=NCMM_VP_ENGINE;
+            const auto expected=generate(s,shape,engine,lod);
+            require(routed->triangles.size()==expected->triangles.size()&&routed->kind==component::engine,"manual model count/role matches its existing dedicated geometry");
+            for(size_t at=0;at<routed->triangles.size();++at){const auto &a=routed->triangles[at],&b=expected->triangles[at];
+                require(a.material==b.material,"manual drive keeps original materials");
+                for(unsigned j=0;j<3;++j)require(std::memcmp(&a.vertices[j],&b.vertices[j],sizeof(first_person::vehicle::vertex))==0,"all manual drive geometry/normal/UV bits unchanged");
+            }
+            p.features=NCMM_VP_CONTROLS;require(classify(p)==component::controls,"name alone cannot claim an absent manual engine");
+            p.features=NCMM_VP_ENGINE|NCMM_VP_CONTROLS|NCMM_VP_SEAT;require(classify(p)==component::seat,"earlier actual installed roles retain their priority");
+        }
+        auto custom=s.parts.front();std::strcpy(custom.id,"mod_custom_controls");custom.features=NCMM_VP_ENGINE|NCMM_VP_CONTROLS;
+        require(classify(custom)==component::controls,"unknown multi-flag controls retain the original fallback");
+    }
     #include "vehicle_repeat_input_test.inc"
     #include "vehicle_preparation_test.inc"
     #include "vehicle_opaque_beam_test.inc"

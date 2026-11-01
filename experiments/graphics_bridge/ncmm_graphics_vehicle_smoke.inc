@@ -122,7 +122,6 @@
                 evidence.member("batch_rejections",p.opaque_batch_rejections);evidence.member("reflective_draws",p.opaque_reflective_draws);
                 evidence.member("plain_draws",p.counted_plain_draws);evidence.member("glass_draws",p.counted_glass_draws);
                 evidence.member("bounded_depth_draws",p.bounded_depth_draws);
-                evidence.member("group_depth_draws",p.group_depth_draws);evidence.member("opaque_depth_spans",p.opaque_depth_spans);
                 evidence.member("component_triangles",p.opaque_component_triangles);evidence.member("winding_triangles",p.opaque_winding_triangles);evidence.end_object();
             }
             evidence.member("gpu_geometry_ms",metrics.geometry_ms);evidence.member("gpu_render_record_ms",metrics.render_record_ms);
@@ -187,6 +186,13 @@
                 draw("seat-prime",prototype,"gpu","modular",false,true,false);
                 require(graphics_vehicle_scene.occupied_part&&graphics_vehicle_scene.eye_valid,"vehicle_family_seat_camera_missing");graphics_smoke_vehicle_eye=graphics_vehicle_scene.eye_z;
                 pair(n==0?"driver":"passenger",prototype);
+                if(n==0){
+                    // Keep the normal occupied view; add an independent
+                    // downward view of the same actual seat/installed controls.
+                    look(float(units::to_radians(car->face.dir())),-.95f);
+                    pair("driver-controls",prototype);
+                    look(float(units::to_radians(car->face.dir())),-.04f);
+                }
                 get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();require(!get_avatar().in_vehicle,"vehicle_family_exit_failed");}
             camera(0,8,-.08f);
         }
@@ -217,6 +223,13 @@
                 draw("seat-prime",prototype,"gpu","modular",false,true,false);
                 require(graphics_vehicle_scene.eye_valid,"vehicle_seat_prime_missing");graphics_smoke_vehicle_eye=graphics_vehicle_scene.eye_z;
                 pair(n==0?"driver":"passenger",prototype);
+                if(n==0){
+                    // Keep the normal occupied view; add an independent
+                    // downward view of the same actual seat/installed controls.
+                    look(float(units::to_radians(car->face.dir())),-.95f);
+                    pair("driver-controls",prototype);
+                    look(float(units::to_radians(car->face.dir())),-.04f);
+                }
                 require(graphics_vehicle_scene.occupied_part&&graphics_vehicle_scene.eye_valid,"vehicle_seat_camera_missing");
                 get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();camera(0,8,-.08f);require(!get_avatar().in_vehicle,"vehicle_exit_failed");}
             mutation_view();const auto hp=car->part(door_index).hp();car->set_hp(car->part(door_index),std::max(1,hp/3),true);

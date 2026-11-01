@@ -270,7 +270,14 @@ inline component classify(const ncmm_graphics_vehicle_part_v1 &p){const auto f=p
     if(f&NCMM_VP_DOOR)return component::door;if(f&NCMM_VP_WINDOW)return component::glass;
     if(f&NCMM_VP_WHEEL)return component::wheel;if(f&NCMM_VP_SEAT)return component::seat;
     if(f&NCMM_VP_AXLE)return component::axle;if(f&NCMM_VP_FLOAT)return component::hull;
-    if(f&NCMM_VP_CONTROLS)return component::controls;if(f&NCMM_VP_SOLAR)return component::solar;
+    if(f&NCMM_VP_CONTROLS){
+        // Native's real manual drives are both ENGINE and CONTROLS. Their
+        // existing crank/paddle geometry must precede generic handlebars;
+        // preceding seat/wheel/glass/etc. roles retain their original priority.
+        const std::string_view id(p.id);
+        if((f&NCMM_VP_ENGINE)&&(id=="foot_pedals"||id=="hand_paddles"))return component::engine;
+        return component::controls;
+    }if(f&NCMM_VP_SOLAR)return component::solar;
     if(f&NCMM_VP_ROOF)return component::roof;
     if(f&NCMM_VP_ARMOR)return component::armor;if(f&NCMM_VP_PANEL)return component::panel;
     if(f&NCMM_VP_ENGINE)return component::engine;if(f&NCMM_VP_CARGO)return component::cargo;

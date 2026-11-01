@@ -110,6 +110,7 @@ def verify(root, output, source, engine, module=None):
     for prototype in PROTOTYPES:
         assert {(prototype,v) for v in VIEWS} <= groups.keys(),prototype
         if prototype not in {'shopping_cart','truck_trailer'}:assert (prototype,'driver') in groups,(prototype,'missing Native occupied view')
+        if prototype not in {'shopping_cart','truck_trailer'}:assert (prototype,'driver-controls') in groups,(prototype,'missing actual occupied controls detail')
     assert {('car',v) for v in ['driver','passenger','open-door','damaged','broken-door','broken-wheel','removed-wheel',
                                'installed-armor','night','rain','fog','paint-red','paint-blue']} <= groups.keys()
     verify_mutation_views(groups)
@@ -157,7 +158,7 @@ def verify(root, output, source, engine, module=None):
     sheet('vehicle-exteriors.png',[(p,'front-three-quarter') for p in sorted(PROTOTYPES)])
     angle_keys=[(p,v) for p in sorted(PROTOTYPES) for v in sorted(VIEWS)]
     for offset in range(0,len(angle_keys),12):sheet('vehicle-angles-'+str(offset//12)+'.png',angle_keys[offset:offset+12],200,150)
-    sheet('vehicle-interiors.png',sorted(k for k in groups if k[1] in {'driver','passenger'}))
+    sheet('vehicle-interiors.png',sorted(k for k in groups if k[1] in {'driver','passenger','driver-controls'}))
     car_keys=sorted(k for k in groups if k[0]=='car' and not k[1].startswith(('moving-','activity-')))
     for offset in range(0,len(car_keys),12):sheet('vehicle-details-'+str(offset//12)+'.png',car_keys[offset:offset+12])
     sheet('vehicle-parking.png',[k for k in sorted(groups) if k[0]=='mixed' and not k[1].startswith('moving-')])
