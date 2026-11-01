@@ -217,6 +217,37 @@ int main(){
             mesh->shared_vertices.capacity()*sizeof(vertex)+mesh->vertex_indices.capacity()*sizeof(std::array<uint32_t,3>);
         require(mesh->bytes()==original+extra,"the existing model budget includes every optional allocation by capacity");
     }
+    {
+        // An independent map and the original full-key workspace path prove
+        // compact buckets through real collisions, duplicate corners and UVs.
+        using namespace first_person::vehicle;
+        ncmm_graphics_vehicle_part_v1 p{};p.health=1;
+        builder compact(p);preparation_workspace workspace;builder original(p,&workspace);
+        for(unsigned i=0;i<256;++i){triangle t{};
+            for(unsigned j=0;j<3;++j){const unsigned k=(i*3+j)%257;const float zero=(k&1)?-0.f:0.f;
+                t.vertices[j]={{float(k%17)*.125f,float(k/17)*.25f,float(k%5)*.0625f},
+                    {zero,float(k%3)*.5f,float(k%7)*.125f},float(i),float(j)};}
+            compact.output.triangles.push_back(t);original.output.triangles.push_back(t);
+        }
+        const auto a=compact.finish(),b=original.finish();identical_model_data(*a,*b);
+        require(a->vertex_indices==b->vertex_indices&&a->normal_indices==b->normal_indices,
+            "compact buckets retain exact first-insertion vertex and normal IDs");
+        verify_gpu_vertices(*a);verify_gpu_vertices(*b);
+        std::map<std::array<uint32_t,6>,uint32_t> reference;std::map<size_t,unsigned> buckets;
+        size_t capacity=1;while(capacity<a->triangles.size()*6)capacity*=2;
+        unsigned collisions=0;
+        for(size_t i=0;i<a->triangles.size();++i)for(unsigned j=0;j<3;++j){const auto &v=a->triangles[i].vertices[j];
+            const std::array<float,6> values{{v.position.x,v.position.y,v.position.z,v.normal.x,v.normal.y,v.normal.z}};
+            std::array<uint32_t,6> key{};std::memcpy(key.data(),values.data(),sizeof(key));
+            const auto id=reference.emplace(key,uint32_t(reference.size()));
+            require(a->vertex_indices[i][j]==id.first->second,"all six source float bits participate in compact identity");
+            if(id.second){uint64_t hash=1469598103934665603ull;for(uint32_t x:key)hash=(hash^x)*1099511628211ull;
+                hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
+                if(buckets[size_t(hash)&(capacity-1)]++)++collisions;}
+        }
+        require(collisions>0&&reference.size()==a->shared_vertices.size(),"the comparison exercises real hash collisions without losing any identity");
+        require(sizeof(geometry_compact_slot)==4,"temporary buckets retain only an owned pool index");
+    }
 #if NCMM_VEHICLE_PIXEL_SSE2
     {
         // Independent scalar arithmetic over plain numeric arrays. This does

@@ -92,12 +92,30 @@ struct model {
         shared_vertices.capacity()*sizeof(vertex)+vertex_indices.capacity()*sizeof(std::array<uint32_t,3>)+
         shared_normals.capacity()*sizeof(point)+normal_indices.capacity()*sizeof(uint32_t)+face_directions.capacity()*sizeof(face_direction);}
 };
+// Local hash buckets store only an index into the already owned exact
+// first-occurrence pool. A collision still compares every original identity
+// bit; the bucket does not duplicate positions/normals or change insertion order.
+struct geometry_compact_slot {uint32_t index=UINT32_MAX;};
+inline bool geometry_occupied(const geometry_compact_slot &s,uint32_t){return s.index!=UINT32_MAX;}
+inline void geometry_mark(geometry_compact_slot &,uint32_t){}
+template<size_t N>inline void geometry_store(geometry_compact_slot &,const std::array<uint32_t,N> &){}
+inline bool geometry_equal(const geometry_compact_slot &s,const std::array<uint32_t,6> &identity,const std::vector<vertex> &pool){
+    const auto &v=pool[s.index];const std::array<float,6> values{{v.position.x,v.position.y,v.position.z,v.normal.x,v.normal.y,v.normal.z}};
+    std::array<uint32_t,6> actual{};std::memcpy(actual.data(),values.data(),sizeof(actual));return actual==identity;
+}
+inline bool geometry_equal(const geometry_compact_slot &s,const std::array<uint32_t,3> &identity,const std::vector<point> &pool){
+    const auto &v=pool[s.index];const std::array<float,3> values{{v.x,v.y,v.z}};
+    std::array<uint32_t,3> actual{};std::memcpy(actual.data(),values.data(),sizeof(actual));return actual==identity;
+}
+static_assert(sizeof(geometry_compact_slot)==sizeof(uint32_t),"local hash storage is an exact owned pool index");
 template<size_t N>struct geometry_identity_slot {std::array<uint32_t,N> identity{};uint32_t index=UINT32_MAX;};
 template<size_t N>struct geometry_epoch_slot:geometry_identity_slot<N> {uint32_t generation=0;};
 template<size_t N>inline bool geometry_occupied(const geometry_identity_slot<N> &s,uint32_t){return s.index!=UINT32_MAX;}
 template<size_t N>inline bool geometry_occupied(const geometry_epoch_slot<N> &s,uint32_t generation){return s.generation==generation;}
 template<size_t N>inline void geometry_mark(geometry_identity_slot<N> &,uint32_t){}
 template<size_t N>inline void geometry_mark(geometry_epoch_slot<N> &s,uint32_t generation){s.generation=generation;}
+template<size_t N,class Pool>inline bool geometry_equal(const geometry_identity_slot<N> &s,const std::array<uint32_t,N> &identity,const Pool &){return s.identity==identity;}
+template<size_t N>inline void geometry_store(geometry_identity_slot<N> &s,const std::array<uint32_t,N> &identity){s.identity=identity;}
 struct preparation_workspace {
     using vertex_slot=geometry_epoch_slot<6>;using normal_slot=geometry_epoch_slot<3>;
     static constexpr size_t limit=2*1024*1024;
@@ -155,9 +173,9 @@ public:
                         key identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
                         uint64_t hash=1469598103934665603ull;for(uint32_t value:identity)hash=(hash^value)*1099511628211ull;
                         hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
-                        size_t at=size_t(hash)&mask;while(geometry_occupied(unique[at],generation)&&unique[at].identity!=identity)at=(at+1)&mask;
+                        size_t at=size_t(hash)&mask;while(geometry_occupied(unique[at],generation)&&!geometry_equal(unique[at],identity,output.shared_vertices))at=(at+1)&mask;
                         auto &found=unique[at];
-                        if(!geometry_occupied(found,generation)){found.identity=identity;found.index=uint32_t(output.shared_vertices.size());geometry_mark(found,generation);output.shared_vertices.push_back(v);}
+                        if(!geometry_occupied(found,generation)){geometry_store(found,identity);found.index=uint32_t(output.shared_vertices.size());geometry_mark(found,generation);output.shared_vertices.push_back(v);}
                         indices[n]=found.index;
                     }
                     output.vertex_indices.push_back(indices);
@@ -167,7 +185,7 @@ public:
                 }
             };
             if(reused)vertices(workspace_->vertices,workspace_->generation);
-            else{std::vector<geometry_identity_slot<6>> unique(capacity);vertices(unique,0);}
+            else{std::vector<geometry_compact_slot> unique(capacity);vertices(unique,0);}
             size_t normal_capacity=1;while(normal_capacity<output.shared_vertices.size()*2)normal_capacity*=2;
             output.normal_indices.reserve(output.shared_vertices.size());
             const auto normals=[&](auto &unique,uint32_t generation){const size_t mask=unique.size()-1;
@@ -175,13 +193,13 @@ public:
                     std::array<uint32_t,3> identity{};std::memcpy(identity.data(),values.data(),sizeof(identity));
                     uint64_t hash=1469598103934665603ull;for(uint32_t value:identity)hash=(hash^value)*1099511628211ull;
                     hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;hash*=0xc4ceb9fe1a85ec53ull;hash^=hash>>33;
-                    size_t at=size_t(hash)&mask;while(geometry_occupied(unique[at],generation)&&unique[at].identity!=identity)at=(at+1)&mask;
-                    auto &found=unique[at];if(!geometry_occupied(found,generation)){found.identity=identity;found.index=uint32_t(output.shared_normals.size());geometry_mark(found,generation);output.shared_normals.push_back(v.normal);}
+                    size_t at=size_t(hash)&mask;while(geometry_occupied(unique[at],generation)&&!geometry_equal(unique[at],identity,output.shared_normals))at=(at+1)&mask;
+                    auto &found=unique[at];if(!geometry_occupied(found,generation)){geometry_store(found,identity);found.index=uint32_t(output.shared_normals.size());geometry_mark(found,generation);output.shared_normals.push_back(v.normal);}
                     output.normal_indices.push_back(found.index);
                 }
             };
             if(reused&&workspace_->prepare_normals(normal_capacity))normals(workspace_->normals,workspace_->generation);
-            else{std::vector<geometry_identity_slot<3>> unique(normal_capacity);normals(unique,0);}
+            else{std::vector<geometry_compact_slot> unique(normal_capacity);normals(unique,0);}
             output.normal_source=output.shared_vertices.data();output.face_source=output.triangles.data();
         }
         return std::make_shared<model>(std::move(output));
