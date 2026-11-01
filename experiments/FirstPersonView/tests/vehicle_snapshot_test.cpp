@@ -549,6 +549,60 @@ int main(){
         require(!separate.glazing_roof_join({0,0,0},.36f,.36f).found,"a diagonal roof on a disconnected frame cannot pull another construction's glazing");
     }
     {
+        // Native bus side cells contain windshield + frame + roof, without a
+        // separate quarterpanel. Exercise those actual flags and roof layout.
+        using namespace first_person::vehicle;
+        auto bus=original;bus.parts.clear();auto &v=bus.vehicles[0];
+        v.min_x=-4;v.max_x=4;v.min_y=-1;v.max_y=1;
+        const auto add=[&](int x,int y,uint32_t features,const char *id){auto p=original.parts[0];
+            p.part_id=2000+bus.parts.size();p.mount_x=x;p.mount_y=y;p.mount_z=0;p.features=features;
+            p.state=NCMM_VP_EXISTS;p.surface_faces=0;p.material=NCMM_VM_PAINT;
+            p.color[0]=.8f;p.color[1]=.55f;p.color[2]=.1f;std::strcpy(p.id,id);p.variant[0]=0;
+            bus.parts.push_back(p);return p;};
+        for(int x=-4;x<=4;++x)for(int y=-1;y<=1;++y){add(x,y,NCMM_VP_FRAME,"hdframe");add(x,y,NCMM_VP_ROOF,"roof");}
+        auto side=add(0,-1,NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD|NCMM_VP_PANEL,"windshield");
+        std::strcpy(side.variant,"vertical_left");side.material=NCMM_VM_GLASS;bus.parts.back()=side;
+        const auto finish=[&](){v.part_count=bus.scene.part_count=uint32_t(bus.parts.size());};finish();
+        const first_person::vehicle::topology layout(bus,v);require(layout.kind==archetype::bus&&layout.glazing_body_section(side),
+            "an actual enclosed bus window owns its lower body section");
+        const auto painted=[](const model &m){return std::count_if(m.triangles.begin(),m.triangles.end(),[&](const auto &t){return m.materials[t.material].kind==NCMM_VM_PAINT;});};
+        for(unsigned lod=0;lod<3;++lod){const auto mesh=generate(bus,layout,side,lod);
+            require(painted(*mesh)>0,"the real side window no longer floats above an open lower body");
+            unsigned pane=0;for(const auto &t:mesh->triangles){const auto &mat=mesh->materials[t.material];
+                if(mat.kind==NCMM_VM_GLASS){++pane;for(const auto &a:t.vertices)
+                    require(std::abs(a.position.y+.455f)<1e-6f,"bus side glass stays upright at the actual outer roof edge");}
+                if(mat.kind==NCMM_VM_PAINT)require(mat.color[0]==layout.body_paint[0]&&mat.color[1]==layout.body_paint[1]&&mat.color[2]==layout.body_paint[2],
+                    "window waist uses the actual body paint, not blue glass colour");}
+            require(pane==2,"upright bus glazing retains one complete transparent pane at every LOD");}
+        add(0,-1,NCMM_VP_PANEL|NCMM_VP_HALF_PANEL,"halfboard");finish();
+        const first_person::vehicle::topology separate(bus,v);require(!separate.glazing_body_section(side)&&painted(*generate(bus,separate,side,0))==0,
+            "a separately installed quarterpanel is not duplicated by the glass");
+        require(layout.recipe(side,0)!=separate.recipe(side,0),"adding a real opaque wall invalidates its glazing recipe even when the combined PANEL bit was already present");
+        bus.parts.pop_back();finish();
+        auto wheel=add(0,-1,NCMM_VP_WHEEL,"wheel_wide");wheel.wheel_radius=.42f;wheel.wheel_width=.3f;bus.parts.back()=wheel;finish();
+        const first_person::vehicle::topology arch(bus,v);const auto arched=generate(bus,arch,side,0);unsigned samples=0;
+        for(const auto &t:arched->triangles)if(arched->materials[t.material].kind==NCMM_VM_PAINT)for(const auto &a:t.vertices)
+            if(std::abs(a.position.x)<1e-6f){++samples;const float radius=wheel.wheel_radius+.055f;
+                require(a.position.z>=wheel.wheel_radius+.018f+radius-1e-6f,"window waist retains the actual wheel opening instead of burying the tyre");}
+        require(samples>0&&layout.recipe(side,0)!=arch.recipe(side,0),"a real wheel changes the dependent waist arch and cache identity");
+        auto partition=side;partition.mount_y=0;std::strcpy(partition.variant,"vertical_right");
+        require(!arch.glazing_body_section(partition)&&painted(*generate(bus,arch,partition,0))==0,"interior glass cannot acquire an invented body wall");
+        auto transparent=side;transparent.features&=~uint32_t(NCMM_VP_PANEL);
+        require(!arch.glazing_body_section(transparent)&&painted(*generate(bus,arch,transparent,0))==0,"non-obstructing glass retains its transparent lower opening");
+        auto front=side;front.mount_x=4;front.mount_y=0;std::strcpy(front.variant,"front");
+        const auto screen=generate(bus,arch,front,0);bool leaned=false;
+        for(const auto &t:screen->triangles)if(screen->materials[t.material].kind==NCMM_VM_GLASS)for(const auto &a:t.vertices)
+            if(a.position.z>arch.chassis+1.f)leaned|=a.position.x<-.4f;
+        require(leaned,"a real longitudinal windscreen retains its deliberate inward rake");
+        auto roofless=bus;roofless.parts.erase(std::remove_if(roofless.parts.begin(),roofless.parts.end(),[](const auto &p){return bool(p.features&NCMM_VP_ROOF);}),roofless.parts.end());
+        roofless.vehicles[0].part_count=roofless.scene.part_count=uint32_t(roofless.parts.size());const first_person::vehicle::topology open(roofless,roofless.vehicles[0]);
+        require(!open.glazing_body_section(side)&&painted(*generate(roofless,open,side,0))==0,"removing actual roofs leaves a standalone transparent screen without a phantom waist");
+        auto removed=bus;removed.parts.erase(std::remove_if(removed.parts.begin(),removed.parts.end(),[](const auto &p){return bool(p.features&NCMM_VP_WINDOW);}),removed.parts.end());
+        removed.vehicles[0].part_count=removed.scene.part_count=uint32_t(removed.parts.size());const first_person::vehicle::topology gap(removed,removed.vehicles[0]);
+        unsigned glass_parts=0;for(const auto &p:removed.parts)if(generate(removed,gap,p,0)->kind==component::glass)++glass_parts;
+        require(glass_parts==0,"removing the actual window removes its waist too; topology never fills the vacant body cell");
+    }
+    {
         auto straight=original;straight.vehicles[0].min_x=-1;
         for(int x:{-1,1}){auto frame=original.parts[0];frame.mount_x=x;frame.part_id=200+x;straight.parts.push_back(frame);}
         auto panel=original.parts[0];panel.features=NCMM_VP_PANEL|NCMM_VP_HALF_PANEL;

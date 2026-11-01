@@ -198,6 +198,7 @@ def main():
     candidate=backend.read_text(encoding='utf-8').replace('\r\n','\n');reference=reference_backend(candidate)
     out.mkdir(parents=True);(out/'reference').mkdir();(out/'reference/ncmm_gpu_backend.hpp').write_text(reference,encoding='utf-8',newline='\n')
     capture = '#include "'+(parent/'tests/gpu_scratch_capture.inc').as_posix()+'"\n'
+    capture += '#include "'+(parent/'tests/gpu_fixture_producer.hpp').as_posix()+'"\n#define scene_cache fixture_scene_cache\n'
     (out/'capture.cpp').write_text(capture+'#include "'+(parent/'tests/gpu_scene_test.cpp').as_posix()+'"\n',encoding='utf-8',newline='\n')
     cmake='''cmake_minimum_required(VERSION 3.20)
 project(ScratchReusePixelComparison LANGUAGES CXX)
@@ -205,8 +206,13 @@ set(FIRST_PERSON_BUILD_GPU_TESTS OFF CACHE BOOL "Only explicit paired probes")
 set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
 add_subdirectory("'''+parent.as_posix()+'''" frozen EXCLUDE_FROM_ALL)
 find_package(SDL3 3.4 CONFIG REQUIRED)
+# One immutable producer object is linked into both independently compiled
+# backend controls. No LTO/IPO can specialize it for either backend.
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
+add_library(scratch_producer OBJECT "'''+(parent/'tests/gpu_fixture_producer.cpp').as_posix()+'''")
+first_person_target(scratch_producer)
 foreach(variant reference candidate)
-  add_executable(scratch_${variant} capture.cpp)
+  add_executable(scratch_${variant} capture.cpp $<TARGET_OBJECTS:scratch_producer>)
   first_person_target(scratch_${variant})
   target_link_libraries(scratch_${variant} PRIVATE SDL3::SDL3)
   if(variant STREQUAL "reference")
@@ -236,6 +242,9 @@ endforeach()
         subprocess.run(configure,env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
         subprocess.run([cmake_binary,'--build',str(out/'build'),'--config','RelWithDebInfo','--parallel','2','--target','scratch_reference','scratch_candidate'],
                        env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+    producer_objects=list((out/'build').rglob('gpu_fixture_producer.cpp.o'))+list((out/'build').rglob('gpu_fixture_producer.obj'))
+    assert len(producer_objects)==1,'Both controls require the one original producer object'
+    producer_object_sha256=sha(producer_objects[0])
     runs={}
     for variant in ('reference','candidate'):
         directory=out/variant/'run';directory.mkdir(parents=True)
@@ -263,7 +272,11 @@ endforeach()
                   semantic_input_trace=args.trace_inputs,
                   existing_scene_test_sha256=sha(parent/'tests/gpu_scene_test.cpp'),
                   semantic_input_fingerprint_sha256=sha(parent/'tests/gpu_input_fingerprint.hpp'),
-                  capture_instrumentation_sha256=sha(parent/'tests/gpu_scratch_capture.inc'))
+                  capture_instrumentation_sha256=sha(parent/'tests/gpu_scratch_capture.inc'),
+                  shared_producer_object_sha256=producer_object_sha256,
+                  shared_producer_source_sha256=sha(parent/'tests/gpu_fixture_producer.cpp'),
+                  shared_producer_header_sha256=sha(parent/'tests/gpu_fixture_producer.hpp'),
+                  shared_producer_compiled_once=True,shared_producer_IPO=False)
     result=write_comparison(out,runs,metadata)
     assert runs['reference']['images']==runs['candidate']['images'],'Complete pixel mismatch; outputs retained'
     if args.trace_inputs:assert result['semantic_submission_inputs_equal'],'Successful submission inputs differ; producer fingerprints retained'

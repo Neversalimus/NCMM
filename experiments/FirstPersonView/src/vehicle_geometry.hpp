@@ -353,7 +353,11 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         const bool shared_before=kind==component::glass&&layout.has(topology::adjacent(at,before),NCMM_VP_WINDSHIELD),
             shared_after=kind==component::glass&&layout.has(topology::adjacent(at,after),NCMM_VP_WINDSHIELD);
         const float u0=shared_before?-.5f:-.46f,u1=shared_after?.5f:.46f;
-        const float top=(p.features&NCMM_VP_WINDSHIELD)?-.48f:.36f;
+        // Native uses WINDSHIELD for side/rear glazing as well. Only a
+        // longitudinal screen leans across a mount; side glass meets its own
+        // outer roof edge instead of folding a metre into the passenger cabin.
+        const bool upright_side=(p.features&NCMM_VP_PANEL)&&(active_side==1||active_side==3);
+        const float top=(p.features&NCMM_VP_WINDSHIELD)?(upright_side?.455f:-.48f):.36f;
         const auto meet_roof=[&](point value){const auto join=layout.glazing_roof_join(at,value.x,value.y);
             return join.found?point{join.x,join.y,join.z}:value;};
         const auto a=side_point(u0,.455f,low),d=side_point(u1,.455f,low),
@@ -482,7 +486,13 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         const auto handle=side_point(handle_u,.523f,chassis+.59f),tangent=side_point(handle_u+.075f,.523f,chassis+.59f)-handle;
         b.beam(handle-tangent,handle+tangent,.032f,.026f,b.steel,6);
         b.shift_pivot(side_point(hinge,.47f,chassis));
-    }else if(kind==component::glass){window(chassis+.67f,chassis+layout.cabin-.08f);
+    }else if(kind==component::glass){
+        if(layout.glazing_body_section(p)){
+            const float wear=1-.25f*std::clamp(1-p.health,0.f,1.f);
+            const auto waist=b.add({{layout.body_paint[0]*wear,layout.body_paint[1]*wear,layout.body_paint[2]*wear,1},NCMM_VM_PAINT});
+            panel(chassis-.15f,chassis+.67f,waist,true);
+        }
+        window(chassis+.67f,chassis+layout.cabin-.08f);
     }else if(kind==component::seat){
         if(ncmm_graphics_vehicle_policy::compact_seat(layout.kind,p.id)){
             b.beam({0,0,chassis+.12f},{-.08f,0,chassis+.44f},.034f,.034f,b.steel);

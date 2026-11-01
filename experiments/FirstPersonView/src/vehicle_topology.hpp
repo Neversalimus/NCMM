@@ -14,6 +14,7 @@ struct station {
     uint32_t features=0;
     std::vector<uint32_t> parts;
     int component=-1;
+    bool separate_wall=false;
 };
 // Topology is built for the whole actual published construction before any
 // component is meshed. Missing/hidden mounts never become inferred panels.
@@ -36,6 +37,7 @@ public:
         std::vector<float> radii;unsigned dedicated_cargo=0;std::map<std::array<float,3>,unsigned> paints;
         for(uint32_t k=0;k<v.part_count;++k){const uint32_t index=v.first_part+k;const auto &p=s.parts[index];
             auto &node=mounts[{p.mount_x,p.mount_y,p.mount_z}];node.parts.push_back(index);node.features|=p.features;
+            node.separate_wall|=(p.features&NCMM_VP_DOOR)||((p.features&NCMM_VP_PANEL)&&!(p.features&NCMM_VP_WINDOW));
             for(unsigned bit=0;bit<32;++bit)if(p.features&(1u<<bit))++feature_counts[bit];
             if(p.material==NCMM_VM_PAINT&&(p.features&(NCMM_VP_PANEL|NCMM_VP_ROOF))&&!(p.features&(NCMM_VP_DOOR|NCMM_VP_WINDOW))){
                 paints[{p.color[0],p.color[1],p.color[2]}]+=(p.features&NCMM_VP_PANEL)?2u:1u;}
@@ -106,6 +108,19 @@ public:
         if(variant=="front")return 0;if(variant=="rear")return 2;
         return edge({p.mount_x,p.mount_y,p.mount_z});
     }
+    bool glazing_body_section(const ncmm_graphics_vehicle_part_v1 &p)const{
+        constexpr uint32_t assembly=NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD|NCMM_VP_PANEL;
+        if((p.features&assembly)!=assembly||narrow||kind==archetype::boat)return false;
+        const mount at{p.mount_x,p.mount_y,p.mount_z};const auto node=mounts.find(at);
+        if(node==mounts.end()||!(node->second.features&NCMM_VP_FRAME)||node->second.separate_wall||!outer(at,part_edge(p)))return false;
+        // Native bus/car side windows are complete obstructing body sections,
+        // often without a second quarterpanel at the same mount. Their waist
+        // belongs to that installed window, never to an absent neighbouring cell.
+        // Roofless screens and interior/custom glass partitions stay transparent.
+        for(int dx=-1;dx<=1;++dx)for(int dy=-1;dy<=1;++dy)
+            if(glazing_roof_candidate(at,{p.mount_x+dx,p.mount_y+dy,p.mount_z}))return true;
+        return false;
+    }
     bool hood(const ncmm_graphics_vehicle_part_v1 &p)const{
         return (p.features&NCMM_VP_HALF_PANEL)&&cabin_max_x>=cabin_min_x&&p.mount_x>cabin_max_x+1;
     }
@@ -170,6 +185,8 @@ public:
         const uint32_t shell=NCMM_VP_DOOR|NCMM_VP_WINDOW|NCMM_VP_ROOF|NCMM_VP_PANEL|NCMM_VP_ARMOR|NCMM_VP_SOLAR|NCMM_VP_FLOAT|NCMM_VP_CURTAIN;
         if((p.features&shell)&&!(p.features&(NCMM_VP_SEAT|NCMM_VP_CONTROLS))){
             add(cabin);for(int value:{p.mount_x,p.mount_y,p.mount_z,min_x,max_x,min_y,max_y,cabin_min_x,cabin_max_x})add(value);
+            if(p.features&NCMM_VP_WINDOW){const bool glazed_body=glazing_body_section(p);add(glazed_body);
+                if(glazed_body)for(float c:body_paint)add(c);}
             if(p.features&(NCMM_VP_DOOR|NCMM_VP_WINDOW))for(int dx=-1;dx<=1;++dx)for(int dy=-1;dy<=1;++dy)
                 add(glazing_roof_candidate(at,{p.mount_x+dx,p.mount_y+dy,p.mount_z}));
             add(features(at)&(NCMM_VP_ENGINE|NCMM_VP_SEAT|NCMM_VP_CONTROLS|NCMM_VP_HALF_PANEL|NCMM_VP_PANEL|NCMM_VP_DOOR));
