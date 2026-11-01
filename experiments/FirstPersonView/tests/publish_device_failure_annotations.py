@@ -7,7 +7,7 @@ import argparse
 from pathlib import Path
 import re
 
-MARKER=re.compile(r'(Full GPU scene failed:|GPU probe failed:|GPU contract check \d+ failed|GPU resource cache:|Vertex lease edge:|Allocation failure probe:|ERROR: (?:AddressSanitizer|LeakSanitizer):|runtime error:)')
+MARKER=re.compile(r'(Full GPU scene failed:|GPU probe failed:|GPU contract check \d+ failed|GPU resource cache:|Vertex lease edge:|Allocation failure probe:|ERROR: (?:AddressSanitizer|LeakSanitizer):|SUMMARY: (?:AddressSanitizer|UndefinedBehaviorSanitizer):|runtime error:)')
 
 def escape(value):
     return value.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
@@ -18,6 +18,7 @@ def messages(lines,limit=8):
         match=MARKER.search(line)
         if match:
             value=line[match.start():].strip()[:400]
+            if value.startswith("Allocation failure probe: checked="):continue
             if value not in seen:
                 found.append(value);seen.add(value)
                 if len(found)>=limit:break

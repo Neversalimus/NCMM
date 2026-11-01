@@ -2,12 +2,18 @@
         // This block is compiled locally but executed exclusively in CI.
         // Append after all original473 readbacks; do not replace old fixtures.
         namespace fp=first_person;namespace v=fp::vehicle;
+        // A new generation on this SAME live device must dispose its old
+        // children first. bind() otherwise intentionally abandons lost-device
+        // handles, which is not the lifetime transition exercised here.
+        engine.clear();
         auto *previous_target=SDL_GetRenderTarget(renderer);
         auto *target=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,1280,800);
         require(target&&SDL_SetRenderTarget(renderer,target),"allocate the full 1280x800 opaque-rim device control");
         require(engine.bind(renderer,9100),"opaque-rim comparison uses the existing CI device");
         constexpr unsigned side=9,count=side*side,cell=4*side+4;
-        std::array<ncmm_graphics_cell_v1,count> cells{};std::array<ncmm_graphics_cell_v2,count> details{};
+        // Keep this full-resolution fixture out of the already large main
+        // stack frame; both buffers retain identical value-initialized cells.
+        std::vector<ncmm_graphics_cell_v1> cells(count);std::vector<ncmm_graphics_cell_v2> details(count);
         for(unsigned i=0;i<count;++i){cells[i].flags=NCMM_GFX_VISIBLE;cells[i].light=1;std::strcpy(cells[i].terrain,"t_pavement");std::strcpy(details[i].ground,"t_pavement");}
         ncmm_graphics_scene_v2 source{};source.struct_size=sizeof(source);source.base={sizeof(source.base),1280,800,side,side,8.5f,4.5f,cells.data(),count};
         source.details=details.data();source.detail_count=count;source.environment.sun_x=.3f;source.environment.sun_y=.4f;source.environment.sun_z=.8f;
