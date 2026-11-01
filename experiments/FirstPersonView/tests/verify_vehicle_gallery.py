@@ -37,6 +37,39 @@ def verify_mutation_views(groups):
                 assert all(after[k]==before[k] for k in ('camera_xyz','yaw','pitch','eye_height')),('mutation camera changed',label,variant)
 
 
+
+def verify_fixture_camera(row):
+    """Published provider camera must match the requested fixture, not just its peer."""
+    for key in ('yaw','pitch','requested_yaw','requested_pitch'):
+        assert type(row[key]) in (int,float) and math.isfinite(row[key]),('invalid requested/published camera',key)
+    assert abs(row['requested_pitch'])<=1.2, 'Fixture requested an unrepresentable provider pitch'
+    assert abs(math.remainder(row['yaw']-row['requested_yaw'],math.tau))<=.000001, 'Provider yaw differs from requested fixture'
+    assert abs(row['pitch']-row['requested_pitch'])<=.000001, 'Provider pitch differs from requested fixture'
+    if row['label'] in {'driver','passenger','driver-controls'}:
+        target=-.95 if row['label']=='driver-controls' else -.04
+        assert abs(row['requested_pitch']-target)<=.000001, 'Occupied fixture intent is not its prescribed view'
+
+
+def fixture_camera_self_test():
+    import copy
+    good=dict(label='passenger',yaw=0.,pitch=-.04,requested_yaw=0.,requested_pitch=-.04)
+    verify_fixture_camera(good)
+    verify_fixture_camera(dict(good,label='driver-controls',pitch=-.95,requested_pitch=-.95))
+    verify_fixture_camera(dict(good,yaw=-math.pi,requested_yaw=math.pi))
+    mutations=[lambda r:r.update(pitch=-.95),lambda r:r.update(requested_pitch=-.95,pitch=-.95),
+               lambda r:r.update(yaw=.01),lambda r:r.update(requested_yaw=.01),
+               lambda r:r.update(pitch=True),lambda r:r.update(requested_pitch=True),
+               lambda r:r.update(yaw=float('nan')),lambda r:r.update(requested_yaw=float('inf')),
+               lambda r:r.pop('requested_pitch'),lambda r:r.pop('requested_yaw'),
+               lambda r:r.update(label='driver-controls'),lambda r:r.update(requested_pitch=1.3,pitch=1.3)]
+    for mutate in mutations:
+        row=copy.deepcopy(good);mutate(row)
+        try:verify_fixture_camera(row)
+        except (AssertionError,KeyError):pass
+        else:raise AssertionError('Invalid fixture camera admitted')
+    return dict(success=True,pure_controls=3+len(mutations),local_GPU_Native_raster_or_game_execution=False)
+
+
 def verify_memory(path, source, engine, module):
     from statistics import median
     report=json.loads(Path(path).read_text(encoding='utf-8-sig'))
@@ -167,6 +200,7 @@ def verify(root, output, source, engine, module=None):
         assert r['actual_gpu']==(r['backend']=='gpu')
         for name in ['yaw','pitch','eye_height','full_frame_ms']:
             assert isinstance(r[name],(int,float)) and math.isfinite(r[name])
+        verify_fixture_camera(r)
         assert r['full_frame_ms']>0
         if r['backend']=='cpu':verify_cpu_metrics(r)
         if r['renderer']=='modular' and r['snapshot_parts']:
@@ -266,8 +300,10 @@ def verify(root, output, source, engine, module=None):
 
 if __name__=='__main__':
     import sys
+    if sys.argv[1:]==['--self-test-fixture-camera']:
+        print(json.dumps(fixture_camera_self_test()));raise SystemExit(0)
     if sys.argv[1:]==['--self-test-depth-controls']:
-        print(json.dumps(depth_control_self_test()));raise SystemExit(0)
+        depth=depth_control_self_test();depth['fixture_camera_controls']=fixture_camera_self_test();print(json.dumps(depth));raise SystemExit(0)
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True,type=Path)
     p.add_argument('--output',required=True,type=Path);p.add_argument('--source',required=True);p.add_argument('--engine',required=True);p.add_argument('--module-sha256')
     args=p.parse_args();result=verify(args.root,args.output,args.source,args.engine,args.module_sha256)

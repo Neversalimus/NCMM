@@ -34,10 +34,22 @@
     evidence.member("intact_baseline_doors_closed",true);
     evidence.member("width",640);evidence.member("height",480);evidence.member("horizon_radius",NCMM_GRAPHICS_V2_RADIUS);
     evidence.member("frames");evidence.start_array();
+    float requested_yaw=graphics_camera_yaw,requested_pitch=graphics_camera_pitch;
     auto look=[&](float wanted,float pitch){
+        requested_yaw=wanted;requested_pitch=pitch;
         graphics_mouse_dx=std::remainder(wanted-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
         graphics_mouse_dy=(graphics_camera_pitch-pitch)/.003f;
         require(graphics_action("ncmm.view.mouse_look"),"vehicle_camera_action_failed");graphics_mouse_dx=graphics_mouse_dy=0;
+    };
+    // Restore through the same provider input callback, not Host globals.
+    // A second tiny correction can remove float cancellation from the first
+    // relative step. Keep exact published camera equality for mutation pairs.
+    auto restore_look=[&](float wanted,float pitch){
+        for(unsigned attempt=0;attempt<8;++attempt){
+            look(wanted,pitch);
+            if(graphics_camera_yaw==wanted&&graphics_camera_pitch==pitch)return;
+        }
+        require(false,"vehicle_exact_provider_camera_restore_failed");
     };
     auto camera=[&](int dx,int dy,float pitch,int elevation=0){
         const int z=subject.z()+elevation;if(get_map().get_abs_sub().z()!=z){g->vertical_shift(z);}
@@ -82,6 +94,7 @@
         evidence.member("frame_width",frame_width);evidence.member("frame_height",frame_height);
         evidence.member("camera_xyz",std::array<int,3>{get_avatar().pos_abs().x(),get_avatar().pos_abs().y(),get_avatar().pos_abs().z()});
         evidence.member("yaw",graphics_camera_yaw);evidence.member("pitch",graphics_camera_pitch);evidence.member("eye_height",graphics_presentation.eye_height);
+        evidence.member("requested_yaw",requested_yaw);evidence.member("requested_pitch",requested_pitch);
         evidence.member("actual_gpu",graphics_gpu_frame);evidence.member("snapshot_vehicles",graphics_vehicle_rows.size());evidence.member("snapshot_parts",graphics_vehicle_parts.size());
         evidence.member("occupied_vehicle",graphics_vehicle_scene.occupied_vehicle);evidence.member("occupied_part",graphics_vehicle_scene.occupied_part);
         evidence.member("occupied_eye_valid",bool(graphics_vehicle_scene.eye_valid));
@@ -204,12 +217,12 @@
                 if(n==0){
                     // Keep the normal occupied view; add an independent
                     // downward view of the same actual seat/installed controls.
-                    // Restore exact fixture state; another relative mouse-look
-                    // can accumulate an ulp and invalidate later camera pairs.
+                    // Restore the provider as well as the Host's publication;
+                    // exact correction keeps later mutation pairs comparable.
                     const float saved_yaw=graphics_camera_yaw,saved_pitch=graphics_camera_pitch;
                     look(float(units::to_radians(car->face.dir())),-.95f);
                     pair("driver-controls",prototype);
-                    graphics_camera_yaw=saved_yaw;graphics_camera_pitch=saved_pitch;
+                    restore_look(saved_yaw,saved_pitch);
                 }
                 get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();require(!get_avatar().in_vehicle,"vehicle_family_exit_failed");}
             camera(0,8,-.08f);
@@ -246,20 +259,19 @@
                 if(n==0){
                     // Keep the normal occupied view; add an independent
                     // downward view of the same actual seat/installed controls.
-                    // Restore exact fixture state; another relative mouse-look
-                    // can accumulate an ulp and invalidate later camera pairs.
+                    // Restore the provider as well as the Host's publication;
+                    // exact correction keeps later mutation pairs comparable.
                     const float saved_yaw=graphics_camera_yaw,saved_pitch=graphics_camera_pitch;
                     look(float(units::to_radians(car->face.dir())),-.95f);
                     pair("driver-controls",prototype);
-                    graphics_camera_yaw=saved_yaw;graphics_camera_pitch=saved_pitch;
+                    restore_look(saved_yaw,saved_pitch);
                 }
                 require(graphics_vehicle_scene.occupied_part&&graphics_vehicle_scene.eye_valid,"vehicle_seat_camera_missing");
                 get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();camera(0,8,-.08f);require(!get_avatar().in_vehicle,"vehicle_exit_failed");}
             mutation_view();
-            // Boarding/exiting uses the real relative look action. Reuse the
-            // exact earlier fixture pose for damage comparisons; another
-            // relative round trip can land one ulp beside the same heading.
-            graphics_camera_yaw=mutation_yaw;graphics_camera_pitch=mutation_pitch;
+            // Correct both provider state and Host publication to the exact
+            // earlier fixture pose before comparing damage mutations.
+            restore_look(mutation_yaw,mutation_pitch);
             const auto hp=car->part(door_index).hp();car->set_hp(car->part(door_index),std::max(1,hp/3),true);
             pair("damaged",prototype);car->set_hp(car->part(door_index),0,true);pair("broken-door",prototype);
             car->set_hp(car->part(door_index),hp,true);
