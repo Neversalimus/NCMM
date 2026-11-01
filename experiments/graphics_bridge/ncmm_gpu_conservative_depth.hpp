@@ -13,8 +13,13 @@ using point=std::array<float,3>;
 inline std::optional<float> lower_bound(point low,point high,const ncmm_gpu_matrix_v1 &m,point eye,point forward,float far){
     if(!std::isfinite(far)||far<4||far>512)return {};
     double norm=0;
-    for(unsigned i=0;i<3;++i){if(!std::isfinite(low[i])||!std::isfinite(high[i])||low[i]>high[i]||
-        !std::isfinite(eye[i])||std::abs(eye[i])>256||!std::isfinite(forward[i])||std::abs(forward[i])>1.001f)return {};norm+=double(forward[i])*forward[i];}
+    for(unsigned i=0;i<3;++i){
+        if(!std::isfinite(low[i])||!std::isfinite(high[i])||low[i]>high[i]||
+           !std::isfinite(eye[i])||std::abs(eye[i])>256||!std::isfinite(forward[i])||std::abs(forward[i])>1.001f){
+            return {};
+        }
+        norm+=double(forward[i])*forward[i];
+    }
     if(std::abs(norm-1)>.002)return {};
     for(float f:m.columns)if(!std::isfinite(f))return {};
     if(m.columns[3]!=0||m.columns[7]!=0||m.columns[11]!=0||m.columns[15]!=1)return {};
