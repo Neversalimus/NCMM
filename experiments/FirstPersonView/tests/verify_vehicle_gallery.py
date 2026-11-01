@@ -103,6 +103,14 @@ def verify_depth_controls(report):
     return dict(success=True,actual_Native_scenes=2,paired_controls=14,timed_frames=196,full_normalized_pixel_pairs=14,compared_pixels=14*1280*800,scope='Separate same-process Native shader-policy control. Ordinary full-frame timing and frame plus explicit shared-device completion are reported separately; this is not hardware FPS and does not replace any original1120benchmark sample or900sresource qualification.',performance_accepted=False,hardware_FPS=False,controls=controls)
 
 
+def ordinary_vehicle_frames(report):
+    # These supplemental records have their own mandatory complete validation.
+    # Preserve every original frame and its original checks without treating a
+    # whole-image parity record as a submitted render or benchmark sample.
+    depth_control=verify_depth_controls(report)
+    return [r for r in report['frames'] if not r.get('label','').startswith(('depth-control-','depth-parity-'))],depth_control
+
+
 def depth_control_self_test():
     import copy
     report={'frames':[]}
@@ -119,7 +127,15 @@ def depth_control_self_test():
         try:verify_depth_controls(changed)
         except (AssertionError,KeyError):pass
         else:raise AssertionError('Invalid Native depth control was admitted')
-    return dict(success=True,pure_controls=1+len(mutations),local_GPU_Native_raster_or_game_execution=False)
+    ordinary={'label':'bench-original','full_frame_ms':3.};soak={'label':'soak-summary','elapsed_seconds':900.}
+    mixed={'frames':[ordinary]+report['frames']+[soak]}
+    frames,control=ordinary_vehicle_frames(mixed)
+    assert len(frames)==2 and frames[0] is ordinary and frames[1] is soak and control['timed_frames']==196
+    changed=copy.deepcopy(mixed);changed['frames'][1]['depth_enabled']='off'
+    try:ordinary_vehicle_frames(changed)
+    except (AssertionError,KeyError):pass
+    else:raise AssertionError('Routing skipped validation of supplemental records')
+    return dict(success=True,pure_controls=3+len(mutations),local_GPU_Native_raster_or_game_execution=False)
 
 
 def verify(root, output, source, engine, module=None):
@@ -135,9 +151,10 @@ def verify(root, output, source, engine, module=None):
     assert len(source)==40 and len(engine)==40
     assert module is not None and len(module)==64 and all(c in '0123456789abcdef' for c in module)
     memory=verify_memory(root/'first-person-process-memory.json',source,engine,module)
+    frame_rows,depth_control=ordinary_vehicle_frames(report)
     groups=defaultdict(dict)
     captures=[];benchmarks=defaultdict(list);soak=None;records=set()
-    for r in report['frames']:
+    for r in frame_rows:
         if r['label']=='soak-summary':
             assert soak is None;soak=r
             assert 900<=r['requested_seconds']<=1800 and r['elapsed_seconds']>=r['requested_seconds']
@@ -188,7 +205,6 @@ def verify(root, output, source, engine, module=None):
     assert len({tuple(r['camera_xyz']) for r in driving})>1,'Native driving never moved the actual passenger'
     assert len({r['yaw'] for r in driving})>1,'Native driving never changed the actual heading'
     assert benchmarks and soak is not None,'Full-frame series and completed 900-second Native soak are mandatory'
-    depth_control=verify_depth_controls(report)
     if benchmarks:
         for scene in ['empty','one','multiple','parking','large']:
             for backend in ['cpu','gpu']:

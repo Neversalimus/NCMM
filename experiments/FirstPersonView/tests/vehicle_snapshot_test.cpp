@@ -1233,6 +1233,21 @@ int main(){
                     verify_gpu_vertices(*m);
                 }
                 require(sounder->minimum.y-security->maximum.y>.25f,"the independent horn and alarm no longer occupy the same volume");
+                std::array<std::shared_ptr<const model>,2> console;unsigned unit=0;
+                for(const char *id:{"integrated_heater_small","stereo"}){auto p=horn;std::strcpy(p.id,id);const auto m=generate(s,shape,p,lod);console[unit++]=m;builder previous(p);
+                    previous.output.kind=component::other;previous.output.recipe=shape.recipe(p,lod);previous.output.closed_shell=true;
+                    previous.cushion({.20f,0,shape.chassis+.22f},{.16f,.14f,.11f},.025f,previous.steel);
+                    if(p.health<.85f&&lod<2)previous.add({{.16f,.13f,.10f,1},NCMM_VM_METAL});
+                    const auto old=previous.finish();
+                    if(wide)require(equipment_seat_regression::coincident_centroids(*seat,*old)>0,"independent original small console unit reproduces the actual car lap-plane overlap");
+                    require(m->kind==component::other&&m->closed_shell&&m->recipe==old->recipe,"real small console units retain their independent original part role and cache identity");
+                    require(equipment_seat_regression::coincident_centroids(*seat,*m)==0&&m->minimum.x-seat->maximum.x>.019f,"every console-unit triangle clears the actual seat at all LODs");
+                    require(m->minimum.x>=-.5f&&m->maximum.x<=.5f&&m->minimum.y>=-.5f&&m->maximum.y<=.5f,"console equipment stays inside its own actual installed mount");
+                    for(const auto &t:m->triangles)for(const auto &v:t.vertices)require(std::isfinite(v.position.x)&&std::isfinite(v.position.y)&&std::isfinite(v.position.z)&&std::abs(dot(v.normal,v.normal)-1)<1e-5f,"console hardware retains finite positions and unit normals");
+                    verify_gpu_vertices(*m);
+                }
+                require(console[1]->minimum.y-console[0]->maximum.y>.14f,"actual radio and heater housings remain separate from one another");
+
                 for(const char *id:{"muffler","beeper","mod_unknown_device"}){auto p=horn;std::strcpy(p.id,id);const auto m=generate(s,shape,p,lod);builder previous(p);
                     previous.output.kind=component::other;previous.output.recipe=shape.recipe(p,lod);previous.output.closed_shell=true;
                     previous.cushion({.20f,0,shape.chassis+.22f},{.16f,.14f,.11f},.025f,previous.steel);
@@ -1240,6 +1255,48 @@ int main(){
                     identical_model_data(*m,*previous.finish());}
             }
         }
+    }
+
+
+    {
+        using namespace first_person::vehicle;
+        // Real seats can carry CARGO and map autotiles. Neither cargo neighbours
+        // nor a map-symbol suffix changes these already defined rigid shapes.
+        auto s=fixture();const auto source=s.parts[1];s.parts.clear();s.enabled=true;
+        for(unsigned n=0;n<6;++n){auto p=source;p.part_id=300+n;p.cell_index=int(n+1);p.mount_x=int(n);p.mount_y=int(n%3);
+            p.features=NCMM_VP_SEAT|NCMM_VP_CARGO|NCMM_VP_FLOOR;
+            std::strcpy(p.id,n%2?"seat_back":"seat");std::strcpy(p.variant,n%3==0?"windshield_front":n%3==1?"vertical_2_left":"horizontal");s.parts.push_back(p);}
+        auto neighbour=source;neighbour.part_id=399;neighbour.cell_index=20;neighbour.mount_x=0;neighbour.mount_y=-1;neighbour.features=NCMM_VP_CARGO;
+        std::strcpy(neighbour.id,"box");s.parts.push_back(neighbour);
+        auto &car=s.vehicles[0];car.part_count=s.scene.part_count=uint32_t(s.parts.size());car.min_x=0;car.max_x=5;car.min_y=-1;car.max_y=2;
+        require(valid(s,64),"independent seat cache fixture retains actual part IDs and bounded cells");
+        auto bare=s;bare.parts.pop_back();bare.vehicles[0].part_count=bare.scene.part_count=uint32_t(bare.parts.size());++bare.vehicles[0].structure_revision;
+        require(valid(bare,64),"removing unrelated real cargo preserves a valid independent seat construction");
+        for(const auto kind:{archetype::utility,archetype::bicycle,archetype::motorcycle,archetype::boat})for(unsigned lod=0;lod<3;++lod)for(float health:{1.f,.7f,0.f})for(bool broken:{false,true}){
+            first_person::vehicle::topology named(s,car),without_cargo(bare,bare.vehicles[0]);named.kind=without_cargo.kind=kind;
+            auto original=s.parts[0];original.health=health;if(broken)original.state|=NCMM_VP_BROKEN;
+            const auto expected=generate(s,named,original,lod);
+            for(unsigned n=0;n<6;++n){auto p=s.parts[n];p.health=health;if(broken)p.state|=NCMM_VP_BROKEN;
+                require(named.recipe(p,lod)==expected->recipe&&without_cargo.recipe(p,lod)==expected->recipe,"rigid seats share only their existing shape despite aliases, mount and unrelated cargo");
+                identical_model_data(*expected,*generate(s,named,p,lod));identical_model_data(*expected,*generate(bare,without_cargo,p,lod));}
+            auto changed=original;changed.color[0]+=.125f;require(named.recipe(changed,lod)!=expected->recipe,"seat sharing retains exact custom paint");
+            changed=original;changed.material=NCMM_VM_WOOD;require(named.recipe(changed,lod)!=expected->recipe,"seat sharing retains authored material");
+            changed=original;changed.features^=NCMM_VP_FLOOR;require(named.recipe(changed,lod)!=expected->recipe,"seat sharing retains actual boardable floor feature");
+            changed=original;std::strcpy(changed.id,"dashboard");require(named.recipe(changed,lod)!=expected->recipe&&classify(changed)==component::dashboard,"canonical dashboard override cannot enter seat sharing");
+            if(kind==archetype::utility||kind==archetype::boat){changed=original;std::strcpy(changed.id,"custom_saddle");require(named.recipe(changed,lod)!=expected->recipe,"compact saddle name keeps a different actual seat form");}
+            for(uint32_t role:{uint32_t(NCMM_VP_CONTROL_PANEL),uint32_t(NCMM_VP_CURTAIN),uint32_t(NCMM_VP_DOOR),uint32_t(NCMM_VP_WINDOW),uint32_t(NCMM_VP_WHEEL)}){
+                auto a=original,b=original;a.features|=role;b.features|=role;std::strcpy(b.id,"seat_alias");
+                require(classify(a)!=component::seat&&named.recipe(a,lod)!=named.recipe(b,lod),"every preceding component role retains its old full definition identity");}
+        }
+        presentation shared;shared.input=s;shared.observe({0,0,1.5f});std::shared_ptr<const model> mesh;std::set<uint64_t> parts;std::set<int> cells;
+        for(const auto &draw:shared.draws)if(draw.geometry->kind==component::seat){
+            if(mesh)require(mesh==draw.geometry,"production presentation actually reuses one equivalent rigid seat model");else mesh=draw.geometry;
+            parts.insert(draw.part_id);cells.insert(draw.cell);const auto &p=s.parts[size_t(draw.part_id-300)];
+            require(draw.vehicle_id==car.entity_id&&draw.cell==p.cell_index,"shared seat retains its own real vehicle and permission/light cell");
+            const auto expected=point{car.origin_x,car.origin_y,car.origin_z}+rotate({float(p.mount_x),float(p.mount_y),0},car.yaw);
+            require(dot(draw.placement.origin-expected,draw.placement.origin-expected)==0,"shared seat retains the exact real independent Native placement");
+        }
+        require(parts.size()==6&&cells.size()==6,"shared seat data never merges or omits installed parts or lighting cells");
     }
 
     #include "vehicle_repeat_input_test.inc"

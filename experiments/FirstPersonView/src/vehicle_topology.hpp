@@ -159,13 +159,15 @@ public:
             NCMM_VP_ARMOR|NCMM_VP_PANEL|NCMM_VP_ENGINE|NCMM_VP_CARGO|NCMM_VP_TURRET|NCMM_VP_LIGHT|NCMM_VP_RACK|NCMM_VP_FUEL_TANK;
         constexpr uint32_t earlier_roof_roles=NCMM_VP_CONTROL_PANEL|NCMM_VP_CURTAIN|NCMM_VP_DOOR|NCMM_VP_WINDOW|
             NCMM_VP_WHEEL|NCMM_VP_SEAT|NCMM_VP_AXLE|NCMM_VP_FLOAT|NCMM_VP_CONTROLS|NCMM_VP_SOLAR;
+        const bool same_seat=(p.features&NCMM_VP_SEAT)&&
+            !(p.features&(NCMM_VP_CONTROL_PANEL|NCMM_VP_CURTAIN|NCMM_VP_DOOR|NCMM_VP_WINDOW|NCMM_VP_WHEEL))&&std::string_view(p.id)!="dashboard";
         const bool same_wide_frame=!narrow&&(p.features&NCMM_VP_FRAME)&&!(p.features&earlier_frame_roles)&&std::string_view(p.id)!="dashboard";
         const bool same_roof=(p.features&NCMM_VP_ROOF)&&!(p.features&earlier_roof_roles)&&std::string_view(p.id)!="dashboard";
-        // These existing shape branches never consume the definition ID or
-        // autotile variant. Keep all appearance/topology inputs and every
-        // Native part/pose/cell outside this immutable geometry identity.
-        const char *shape_id=same_wide_frame?"@frame":same_roof?"@roof":p.id;
-        const char *shape_variant=same_wide_frame||same_roof?"":p.variant;
+        // Frame/roof branches ignore definition IDs; seat IDs select only
+        // the compact saddle form. Autotile strings do not affect these shapes.
+        // Real Native identities, poses and cells remain separate submissions.
+        const char *shape_id=same_wide_frame?"@frame":same_roof?"@roof":same_seat?(ncmm_graphics_vehicle_policy::compact_seat(kind,p.id)?"@saddle":"@seat"):p.id;
+        const char *shape_variant=same_wide_frame||same_roof||same_seat?"":p.variant;
         for(const char *text:{shape_id,shape_variant}){const uint32_t length=uint32_t(std::strlen(text));add(length);for(;*text;++text)add(*text);}
         // Door/wheel transforms and vehicle motion are deliberately absent.
         const uint32_t visual_state=p.state&(NCMM_VP_BROKEN|((p.features&NCMM_VP_LIGHT)?uint32_t(NCMM_VP_LIGHT_ON):0u)|
@@ -176,6 +178,12 @@ public:
             add(p.wheel_radius);add(p.wheel_width);if(caster_assembly(p))add(chassis);return h?h:1;
         }
         add(chassis);
+        if(same_seat){
+            // These existing rigid seat branches consume only their compact/
+            // full/boat form, chassis and the part appearance retained above.
+            // Cargo adjacency and map autotile strings cannot change a seat.
+            add(uint32_t(kind));return h?h:1;
+        }
         if(same_wide_frame){
             // Wide frame beams are identical at every mount. Only the actual
             // optional floor plate depends on topology; retain it in the key.

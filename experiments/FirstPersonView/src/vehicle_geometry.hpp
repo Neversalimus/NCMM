@@ -692,6 +692,17 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         // its true mount. It cannot manufacture a cabin, glass or spare wheels.
         if(std::string_view(p.id).find("seatbelt")!=std::string_view::npos){
             b.beam({-.22f,-.24f,chassis+.25f},{-.24f,.24f,chassis+.88f},.035f,.008f,b.dark,4);
+        }else if(std::string_view(p.id)=="integrated_heater_small"){
+            // This real under-console unit clears the cushion at its own mount.
+            b.cushion({.41f,-.24f,chassis+.16f},{.14f,.25f,.16f},.025f,b.dark);
+            b.beam({.41f,-.24f,chassis+.0625f},{.41f,-.24f,chassis+.10f},.025f,.025f,b.steel,4);
+            for(unsigned n=0;n<4;++n){const float z=chassis+.115f+.03f*n;
+                b.beam({.336f,-.34f,z},{.336f,-.14f,z},.007f,.012f,b.steel,4);}
+        }else if(std::string_view(p.id)=="stereo"){
+            b.cushion({.42f,.18f,chassis+.14f},{.12f,.28f,.12f},.018f,b.dark);
+            b.cushion({.352f,.18f,chassis+.155f},{.010f,.16f,.03f},.004f,b.rubber);
+            for(float y:{.075f,.285f})b.beam({.354f,y,chassis+.12f},{.335f,y,chassis+.12f},.026f,.026f,b.steel,8);
+            b.beam({.42f,.18f,chassis+.0625f},{.42f,.18f,chassis+.10f},.025f,.025f,b.steel,4);
         }else if(std::string_view(p.id)=="horn_car"){
             // This installed sounder belongs beside the forward seat base,
             // not on its cushion. Keep the real mount and independent part.
