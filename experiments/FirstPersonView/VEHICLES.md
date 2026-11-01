@@ -538,28 +538,20 @@ against the exact saved prior source, including signed zeros, changed ordering,
 generation wrap, large-part fallback and complete scratch cleanup. These are
 data/geometry controls; they are not Native frame timings or game FPS.
 
-An open glass component can separately prove that every opaque surface comes
-from capped beams. The builder tracks all emitted triangles and materials;
-only finite, positive-width/depth beams with at least3 sides and exactly all
-side/cap triangles can provide that proof. Open opaque faces, missing caps,
-untracked triangles, unsupported material slots and fractional/nonfinite
-opaque alpha reject it. Transparent panes and cracks do not gain this proof.
-The additional immutable face table is charged to the same32 MiB model budget;
-copied/edited geometry cannot inherit its allocation-owned proof.
+The additional opaque-beam culling experiment is retired. Its original CI
+software-raster comparison changed displayed pixels. Independent data controls
+also demonstrate unmatched exact seam edges in mathematically capped beams;
+that observation is not a claim about the particular differing pixels.
+Both production renderers again use their original closed-shell eligibility,
+face arithmetic, source order and two-sided glazing/rim path. The experiment
+adds no production proof, retained face table, shader, pipeline or depth pass.
 
-Outside views beyond the near plane may reject only these hidden alpha-one
-rim faces. GPU submission keeps original corner order and every smooth-normal,
-position, UV and material bit. Only the existing outward rejection plane and
-flag differ. The original strict winding test still decides raster culling;
-unproved winding retains the two-sided pipeline. Transparent packets remain
-bit-identical, with no new shader, pipeline, binding, depth expression or pass.
-Inside/near views and every failed proof keep original geometry submission.
-
-All old CPU fixtures and54 old closed-GPU image pairs explicitly retain their
-old proof setting and source-count assertions. Twelve new complete1280x800 CPU
-buffer pairs and14 actual-device pairs compare against original two-sided
-geometry, including damaged glass, separate materials, inside/near fallback,
-open opaque faces and fractional alpha. The28 additional device readbacks are
-appended after every original473 readback, for501 total. Actual raster/device
-execution and performance acceptance are CI-only; local compilation and pure
-geometry/ray controls do not admit a release or establish a frame-time win.
+Its scenes remain conservative regression controls. Twelve complete1280x800
+software-buffer pairs and14 actual-device pairs compare temporary-workspace
+geometry with original local-table geometry. Outside, damaged, inside, near,
+open-opaque and fractional-alpha cases retain all original triangles, culling
+flags and every corner/material bit. Both complete pixel and ownership gates
+remain exact; no opaque face-plane/flag fields are normalized away. The28
+additional readbacks follow all original473 readbacks, for501 total. Pure
+data controls prove scratch reuse and retain the original non-watertight seam.
+All raster/device execution and complete-frame admission remain CI-only.

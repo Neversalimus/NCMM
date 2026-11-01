@@ -44,10 +44,6 @@ struct model {
     uint64_t recipe=0;
     point minimum{},maximum{};
     bool closed_shell=false;
-    bool opaque_closed_beams=false;
-    bool proved_opaque_beams()const{return opaque_closed_beams&&face_source==triangles.data()&&
-        !triangles.empty()&&face_directions.size()==triangles.size();}
-    bool opaque_shell()const{return closed_shell||proved_opaque_beams();}
     bool contains(point p)const{return p.x>=minimum.x-.001f&&p.x<=maximum.x+.001f&&
         p.y>=minimum.y-.001f&&p.y<=maximum.y+.001f&&p.z>=minimum.z-.001f&&p.z<=maximum.z+.001f;}
     bool ahead_of_near_plane(point eye,point forward)const{
@@ -132,24 +128,10 @@ static_assert(sizeof(geometry_identity_slot<6>)==28&&sizeof(geometry_identity_sl
 static_assert(sizeof(preparation_workspace::vertex_slot)==32&&sizeof(preparation_workspace::normal_slot)==20,"bounded transient generation tags");
 class builder {
     preparation_workspace *workspace_=nullptr;
-    bool prove_opaque_beams_=true,inside_closed_beam_=false,unknown_material_=false;
-    uint64_t open_materials_=0;size_t tracked_triangles_=0;
-    void open_material(uint16_t material){if(material<64)open_materials_|=uint64_t(1)<<material;else unknown_material_=true;}
-    void track_triangles(uint16_t material,size_t before){const size_t added=output.triangles.size()-before;tracked_triangles_+=added;
-        if(added&&!inside_closed_beam_)open_material(material);
-    }
-    static bool finite(point p){return std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z);}
-    struct closed_beam_scope {
-        builder &owner;uint16_t material;size_t first,expected;bool prior,proved;
-        closed_beam_scope(builder &value,uint16_t slot,bool valid,unsigned sides):owner(value),material(slot),first(value.output.triangles.size()),
-            expected(size_t(sides)*4),prior(value.inside_closed_beam_),proved(value.prove_opaque_beams_&&valid){owner.inside_closed_beam_=proved;}
-        ~closed_beam_scope(){if(proved&&owner.output.triangles.size()-first!=expected)owner.open_material(material);owner.inside_closed_beam_=prior;}
-    };
 public:
     model output;
     uint16_t paint=0,steel=0,dark=0,rubber=0,glass=0,fabric=0;
-    explicit builder(const ncmm_graphics_vehicle_part_v1 &p,preparation_workspace *workspace=nullptr,bool prove_opaque_beams=true):
-        workspace_(workspace),prove_opaque_beams_(prove_opaque_beams){
+    explicit builder(const ncmm_graphics_vehicle_part_v1 &p,preparation_workspace *workspace=nullptr):workspace_(workspace){
         const float wear=std::clamp(1-p.health,0.f,1.f);
         paint=add({{p.color[0]*(1-.25f*wear),p.color[1]*(1-.25f*wear),p.color[2]*(1-.25f*wear),1},p.material==NCMM_VM_DEFAULT?uint32_t(NCMM_VM_PAINT):p.material});
         steel=add({{.38f,.40f,.42f,1},NCMM_VM_METAL});dark=add({{.055f,.065f,.072f,1},NCMM_VM_PLASTIC});
@@ -157,19 +139,12 @@ public:
         fabric=add({{.13f,.15f,.17f,1},p.material==NCMM_VM_LEATHER?uint32_t(NCMM_VM_LEATHER):uint32_t(NCMM_VM_CLOTH)});
     }
     std::shared_ptr<const model> finish(){
-        bool opaque=false,safe=prove_opaque_beams_&&!unknown_material_&&tracked_triangles_==output.triangles.size();
-        if(safe)for(const auto &t:output.triangles){
-            if(t.material>=output.materials.size()){safe=false;break;}
-            const float alpha=output.materials[t.material].color[3];if(alpha<.99f)continue;
-            opaque=true;if(alpha!=1.f||t.material>=64||(open_materials_&(uint64_t(1)<<t.material))){safe=false;break;}
-        }
-        output.opaque_closed_beams=safe&&opaque;const bool cache_faces=output.closed_shell||output.opaque_closed_beams;
         if(!output.triangles.empty()){
             using key=std::array<uint32_t,6>;
             size_t capacity=1;while(capacity<output.triangles.size()*6)capacity*=2;
             const bool reused=workspace_&&workspace_->begin(capacity);
             output.shared_vertices.reserve(output.triangles.size());output.vertex_indices.reserve(output.triangles.size());
-            if(cache_faces)output.face_directions.reserve(output.triangles.size());
+            if(output.closed_shell)output.face_directions.reserve(output.triangles.size());
             output.minimum=output.maximum=output.triangles.front().vertices[0].position;
             const auto vertices=[&](auto &unique,uint32_t generation){const size_t mask=unique.size()-1;
                 for(const auto &t:output.triangles){std::array<uint32_t,3> indices{};
@@ -186,12 +161,8 @@ public:
                         indices[n]=found.index;
                     }
                     output.vertex_indices.push_back(indices);
-                    if(cache_faces){model::face_direction direction{};bool reversed=false;
+                    if(output.closed_shell){model::face_direction direction{};bool reversed=false;
                         if(model::outward_face(t,direction.normal,&reversed))direction.flags=uint8_t(1u|(reversed?2u:0u));
-                        if(output.opaque_closed_beams&&!(output.materials[t.material].color[3]<.99f)){
-                            if(!(direction.flags&1u)||!finite(direction.normal))output.opaque_closed_beams=false;
-                            for(const auto &v:t.vertices)if(!finite(v.position)||!finite(v.normal))output.opaque_closed_beams=false;
-                        }
                         output.face_directions.push_back(direction);}
                 }
             };
@@ -211,30 +182,22 @@ public:
             };
             if(reused&&workspace_->prepare_normals(normal_capacity))normals(workspace_->normals,workspace_->generation);
             else{std::vector<geometry_identity_slot<3>> unique(normal_capacity);normals(unique,0);}
-            if(!output.closed_shell&&!output.opaque_closed_beams){std::vector<model::face_direction> empty;output.face_directions.swap(empty);}
             output.normal_source=output.shared_vertices.data();output.face_source=output.triangles.data();
         }
         return std::make_shared<model>(std::move(output));
     }
     uint16_t add(material value){output.materials.push_back(value);return uint16_t(output.materials.size()-1);}
     void face(point a,point b,point c,point d,uint16_t material){
-        const size_t before=output.triangles.size();
         const auto area=cross(b-a,c-a);const auto n=unit(area);
         if(dot(area,area)>1e-14f)output.triangles.push_back({{{{a,n,0,0},{b,n,1,0},{c,n,1,1}}},material});
         const auto second=cross(c-a,d-a);
         if(dot(second,second)>1e-14f)output.triangles.push_back({{{{a,n,0,0},{c,n,1,1},{d,n,0,1}}},material});
-        track_triangles(material,before);
     }
     void smooth(point a,point b,point c,point d,point na,point nb,point nc,point nd,uint16_t material){
         output.triangles.push_back({{{{a,na,0,0},{b,nb,1,0},{c,nc,1,1}}},material});
         output.triangles.push_back({{{{a,na,0,0},{c,nc,1,1},{d,nd,0,1}}},material});
-        track_triangles(material,output.triangles.size()-2);
     }
     void beam(point from,point to,float width,float depth,uint16_t material,unsigned sides=8){
-        const float length=dot(to-from,to-from);
-        const bool closed=finite(from)&&finite(to)&&std::isfinite(length)&&length>1e-12f&&
-            std::isfinite(width)&&std::isfinite(depth)&&width>0&&depth>0&&sides>=3;
-        closed_beam_scope proof(*this,material,closed,sides);
         const auto axis=unit(to-from),u=unit(cross(axis,std::abs(axis.z)<.8f?point{0,0,1}:point{0,1,0})),v=unit(cross(axis,u));
         for(unsigned i=0;i<sides;++i){const float a=2*pi*i/sides,b=2*pi*(i+1)/sides;
             const auto na=u*std::cos(a)+v*std::sin(a),nb=u*std::cos(b)+v*std::sin(b);
@@ -299,13 +262,13 @@ inline component classify(const ncmm_graphics_vehicle_part_v1 &p){const auto f=p
     return component::other;
 }
 inline std::shared_ptr<const model> generate(const snapshot &s,const topology &layout,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod,bool reference_subdivisions=false,
-    preparation_workspace *workspace=nullptr,bool prove_opaque_beams=true){
+    preparation_workspace *workspace=nullptr){
     auto visual=p;
     // Native's standard door cyan is an operational map-symbol colour, not a
     // separate paint job. Use one actual body definition colour for these
     // generic doors; authored/custom part colours remain per-part values.
     if(layout.generic_door_paint(p))std::copy(layout.body_paint.begin(),layout.body_paint.end(),visual.color);
-    builder b(visual,workspace,prove_opaque_beams);b.output.kind=classify(p);b.output.recipe=layout.recipe(p,lod);
+    builder b(visual,workspace);b.output.kind=classify(p);b.output.recipe=layout.recipe(p,lod);
     const auto closed_kind=b.output.kind;
     b.output.closed_shell=closed_kind==component::frame||closed_kind==component::seat||closed_kind==component::axle||
         closed_kind==component::tank||closed_kind==component::other||

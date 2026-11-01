@@ -212,11 +212,11 @@ class scene_cache {
                 forward{camera.forward[0],camera.forward[1],camera.forward[2]};
             const vehicle::point local_eye{vehicle::dot(to_eye,draw.placement.x),vehicle::dot(to_eye,draw.placement.y),vehicle::dot(to_eye,draw.placement.z)},
                 local_forward{vehicle::dot(forward,draw.placement.x),vehicle::dot(forward,draw.placement.y),vehicle::dot(forward,draw.placement.z)};
-            const bool cull_closed=cull_vehicle_shells&&draw.geometry->opaque_shell()&&!draw.geometry->contains(local_eye)&&draw.geometry->ahead_of_near_plane(local_eye,local_forward);
+            const bool cull_closed=cull_vehicle_shells&&draw.geometry->closed_shell&&!draw.geometry->contains(local_eye)&&draw.geometry->ahead_of_near_plane(local_eye,local_forward);
             if(cache.vehicle_templates.size()>=2048)cache.vehicle_templates.clear();
             auto &entry=cache.vehicle_templates[draw.geometry->recipe];
             if(entry.opaque_cull_safe<0){
-                bool safe=draw.geometry->opaque_shell(),opaque=false;
+                bool safe=draw.geometry->closed_shell,opaque=false;
                 for(size_t index=0;index<draw.geometry->triangles.size();++index){const auto &t=draw.geometry->triangles[index];const auto alpha=draw.geometry->materials[t.material].color[3];
                     if(alpha<.99f)continue;opaque=true;vehicle::point normal;
                     if(alpha!=1.f||!draw.geometry->unit_outward_face(index,normal)){safe=false;break;}}
@@ -237,13 +237,8 @@ class scene_cache {
                         ncmm_gpu_material_v1 material{};std::copy(appearance.color.begin(),appearance.color.end(),material.color);
                         material.flags=NCMM_GPU_SMOOTH|(appearance.emissive?uint32_t(NCMM_GPU_EMISSIVE):0u)|(closed?uint32_t(NCMM_GPU_CULL_BACK):0u);material.finish=uint32_t(hybrid::vehicle_finish(appearance.kind));
                         const uint32_t slot=builder.material(material);
-                        vehicle::point outward{};bool reversed=false;
-                        const bool plane=(draw.geometry->closed_shell||closed)&&draw.geometry->unit_outward_face(size_t(source_at-draw.geometry->triangles.begin()),outward,&reversed);
-                        const bool oriented=draw.geometry->closed_shell&&plane;
-                        // Newly proved opaque beam rims keep every original
-                        // corner/index order. Their outward plane enables the
-                        // existing fragment rejection; the unchanged strict
-                        // winding proof may retain two-sided rasterization.
+                        vehicle::point outward;bool reversed=false;
+                        const bool oriented=draw.geometry->closed_shell&&draw.geometry->unit_outward_face(size_t(source_at-draw.geometry->triangles.begin()),outward,&reversed);
                         // Normal hints historically allowed imported/beam
                         // corners with reversed winding. Normalize only their
                         // corner order, with every attribute attached, in BOTH

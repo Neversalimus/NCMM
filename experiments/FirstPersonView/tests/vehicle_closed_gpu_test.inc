@@ -20,11 +20,11 @@
         std::vector<std::shared_ptr<const fp::vehicle::model>> models;
         for(uint32_t feature:{uint32_t(NCMM_VP_FRAME|NCMM_VP_FLOOR),uint32_t(NCMM_VP_WHEEL),uint32_t(NCMM_VP_SEAT),
                               uint32_t(NCMM_VP_FUEL_TANK),uint32_t(NCMM_VP_PANEL),uint32_t(NCMM_VP_WINDOW)}){
-            part.features=feature;models.push_back(fp::vehicle::generate(construction,topology,part,0,false,nullptr,false));}
+            part.features=feature;models.push_back(fp::vehicle::generate(construction,topology,part,0));}
         fp::vehicle::builder cube(part);cube.output.recipe=0x434c4f534544u;cube.output.closed_shell=true;
         cube.cushion({0,0,0},{1.5f,1.5f,1.5f},.08f,cube.paint);models.push_back(cube.finish());
-        part.features=NCMM_VP_ROOF;part.state=NCMM_VP_EXISTS;models.push_back(fp::vehicle::generate(construction,topology,part,0,false,nullptr,false));
-        part.state|=NCMM_VP_BROKEN;models.push_back(fp::vehicle::generate(construction,topology,part,0,false,nullptr,false));
+        part.features=NCMM_VP_ROOF;part.state=NCMM_VP_EXISTS;models.push_back(fp::vehicle::generate(construction,topology,part,0));
+        part.state|=NCMM_VP_BROKEN;models.push_back(fp::vehicle::generate(construction,topology,part,0));
         struct observation {std::vector<uint32_t> pixels;int focus=-1,target=-1;};
         const auto read=[&](){observation result;
             require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"compose actual closed-surface device frame");
