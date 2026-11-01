@@ -18,6 +18,24 @@ class Diagnostics(unittest.TestCase):
         self.assertEqual(hashlib.sha256(reference.encode()).hexdigest(),'a0dd1aa83c05e1a51ac33854dedb54696e85616857d9da1f68bb30ee7fe9662a')
         self.assertNotIn('opaque_color_replacement(',reference)
         self.assertNotIn('bound_pipeline',reference)
+    def test_changed_span_alpha_barrier_cannot_reconstruct(self):
+        source=self.backend().replace('return r.alpha_one;','return true;')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_span_bound_guard_cannot_reconstruct(self):
+        source=self.backend().replace('if(!b.depth_bound)return;','if(!b.component_safe)return;')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_span_extra_work_accounting_cannot_reconstruct(self):
+        source=self.backend().replace('++metrics_.draw_calls;metrics_.triangles+=uint64_t(range.count/3)*b.count;','metrics_.triangles+=uint64_t(range.count/3)*b.count;',1)
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_span_policy_rebind_cannot_reconstruct(self):
+        source=self.backend().replace('opaque_policy=~0u;','opaque_policy=0;')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_span_prefill_colour_binding_cannot_reconstruct(self):
+        source=self.backend().replace('uniform.state[0]=m.flags;uniform.state[1]=m.finish;','uniform.state[0]=0;uniform.state[1]=m.finish;',1)
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_span_enable_guard_cannot_reconstruct(self):
+        source=self.backend().replace('selected==NCMM_GPU_OPAQUE&&group_depth_enabled_&&at>=depth_span_end','selected==NCMM_GPU_OPAQUE&&at>=depth_span_end')
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def test_changed_pipeline_policy_cannot_reconstruct(self):
         source=self.backend().replace('selected==NCMM_GPU_OPAQUE?programs_.opaque:','selected==NCMM_GPU_OPAQUE?programs_.transparent:')
         with self.assertRaises(AssertionError):comparison.reference_backend(source)
