@@ -24,7 +24,31 @@ class Diagnostics(unittest.TestCase):
         source=self.backend()
         self.assertNotIn('#define NCMM_GPU_GROUP_DEPTH_PROGRAM',source)
         self.assertNotIn('prefill_opaque_group(',source)
-        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'fe1f33252cd6cbf1f4625191d6bc3add0e08f29ceca1c180345aee1d6da4d788')
+        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'8c3fbf48ef85c348879cea40c8a4349371a8e516f6a1c66212f0732b20d27eae')
+    def test_changed_constant_shadow_default_cannot_reconstruct(self):
+        source=self.backend().replace('    bool reuse_constant_shadows_=true;','    bool reuse_constant_shadows_=false;')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_constant_shadow_resize_cannot_reconstruct(self):
+        source=self.backend().replace('shadow_size_<std::max(16u,scene.cell_count*4)','shadow_size_>std::max(16u,scene.cell_count*4)')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_constant_shadow_lifetime_cannot_reconstruct(self):
+        source=self.backend().replace('release_buffers(){constant_shadows_.invalidate();','release_buffers(){')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_constant_shadow_prefix_cannot_reconstruct(self):
+        source=self.backend().replace('constant_shadows_.submitted_constant(scene.cell_count);','constant_shadows_.submitted_constant(scene.cell_count+1);')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_constant_shadow_submit_guard_cannot_reconstruct(self):
+        source=self.backend().replace('!reuse_shadows&&reuse_constant_shadows_','reuse_shadows&&reuse_constant_shadows_')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_constant_shadow_dispatch_cannot_reconstruct(self):
+        source=self.backend().replace('if(reuse_shadows){++recording_.constant_shadow_reuses;}','if(!reuse_shadows){++recording_.constant_shadow_reuses;}')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
     def test_changed_empty_instance_copy_guard_cannot_reconstruct(self):
         source=self.backend().replace('if(!instances.empty()){','if(instances.empty()){')
         self.assertNotEqual(source,self.backend())

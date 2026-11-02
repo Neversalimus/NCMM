@@ -1,5 +1,7 @@
 #pragma once
 #include "ncmm_graphics_trace.hpp"
+#define NCMM_GPU_CONSTANT_SHADOW_CACHE 1
+#include "ncmm_gpu_constant_shadow.hpp"
 #include "ncmm_gpu_validation.hpp"
 #include "ncmm_gpu_programs.hpp"
 #include "ncmm_gpu_conservative_depth.hpp"
@@ -26,6 +28,7 @@ struct recording_metrics {
     uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
     uint64_t static_vertex_creations=0,static_vertex_reuses=0,static_vertex_pool_bytes=0;
     double cell_prepare_ms=0;
+    uint64_t shadow_dispatches=0,constant_shadow_reuses=0;
     uint64_t cell_upload_bytes=0,cell_cache_bytes=0;
     double retirement_ms=0;uint64_t retirement_calls=0;
 };
@@ -34,6 +37,8 @@ class backend {
     device_context context_;
     resource_cache resources_;
     bool compact_opaque_vertices_=true;
+    bool reuse_constant_shadows_=true;
+    constant_shadow_cache constant_shadows_;
     programs programs_;
     SDL_GPUTexture *world_=nullptr,*id_=nullptr,*held_depth_=nullptr,*effects_=nullptr,*effect_depth_=nullptr,*white_=nullptr;
     SDL_GPUBuffer *instances_=nullptr,*bones_=nullptr,*cells_=nullptr,*shadows_=nullptr,*counter_=nullptr;
@@ -60,7 +65,7 @@ class backend {
     void reason(const std::string &value){std::strncpy(metrics_.reason,value.c_str(),sizeof(metrics_.reason)-1);metrics_.reason[sizeof(metrics_.reason)-1]=0;}
     void release_targets(){auto *d=context_.device();if(d)for(auto *t:{world_,id_,held_depth_,effects_,effect_depth_,white_})if(t)SDL_ReleaseGPUTexture(d,t);
         world_=id_=held_depth_=effects_=effect_depth_=white_=nullptr;width_=height_=0;white_ready_=false;}
-    void release_buffers(){auto *d=context_.device();if(d){for(auto *b:{instances_,bones_,cells_,shadows_,counter_})if(b)SDL_ReleaseGPUBuffer(d,b);
+    void release_buffers(){constant_shadows_.invalidate();auto *d=context_.device();if(d){for(auto *b:{instances_,bones_,cells_,shadows_,counter_})if(b)SDL_ReleaseGPUBuffer(d,b);
             for(auto &r:readbacks_){if(r.fence)SDL_ReleaseGPUFence(d,r.fence);if(r.transfer)SDL_ReleaseGPUTransferBuffer(d,r.transfer);}
             if(frame_upload_)SDL_ReleaseGPUTransferBuffer(d,frame_upload_);}
         if(d&&completed_retirement_)SDL_ReleaseGPUFence(d,completed_retirement_);
@@ -202,6 +207,10 @@ public:
     ncmm_gpu_metrics_v1 metrics(){poll();metrics_.resource_epoch=resource_epoch_;return metrics_;}
     int32_t focus_cell()const{return focus_cell_;}
     void profile(bool enabled=true){profiling_=enabled;}
+    void reuse_constant_shadows(bool enabled=true){if(reuse_constant_shadows_!=enabled){reuse_constant_shadows_=enabled;constant_shadows_.invalidate();}}
+    // Private backend diagnostics for actual CI storage readback/lifetime controls.
+    SDL_GPUBuffer *constant_shadow_buffer()const{return shadows_;}
+    uint32_t constant_shadow_prefix()const{return constant_shadows_.initialized_prefix();}
     void count_policies(bool enabled=true){policy_counts_=enabled;}
     void conservative_depth(bool enabled=true){conservative_depth_enabled_=enabled;}
     uint64_t conservative_depth_draws()const{return conservative_depth_draws_;}
@@ -253,6 +262,8 @@ public:
         if(!SDL_FlushRenderer(context_.renderer())){context_.fail("flush SDL GPU state");reason(context_.reason());return false;}
         const double renderer_flush_ms=ms(renderer_flush_begin);
         if(!cells_||cell_size_<scene.cell_count*sizeof(gpu_cell))cells_ready_=false;
+        // A newly allocated or cycled backing buffer has no initialized prefix.
+        if(!shadows_||shadow_size_<std::max(16u,scene.cell_count*4))constant_shadows_.invalidate();
         if(!buffer(instances_,instance_size_,uint32_t(scene.draw_count*sizeof(instance)),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
            !buffer(bones_,bone_size_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
            !buffer(cells_,cell_size_,scene.cell_count*sizeof(gpu_cell),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ)||
@@ -383,9 +394,18 @@ public:
         auto phase_start=profiling_?clock::now():clock::time_point{};
         ncmm_graphics_trace::cpu_zone world_zone("World");
         if(trace)SDL_PushGPUDebugGroup(commands,"World");
-        SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=cycle_private_scratch();
-        auto *compute=SDL_BeginGPUComputePass(commands,nullptr,0,&shadow_binding,1);if(!compute)return stop("begin shadow compute pass");SDL_BindGPUComputePipeline(compute,programs_.shadow);
-        SDL_BindGPUComputeStorageBuffers(compute,0,&cells_,1);SDL_PushGPUComputeUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DispatchGPUCompute(compute,(scene.cell_count+63)/64,1,1);SDL_EndGPUComputePass(compute);
+        // XYZ lighting is already propagated by the Host. Its shadow program
+        // writes exactly1.0 for every cell; retain only a successfully submitted
+        // initialized prefix. Fragment programs still read this owned buffer.
+        const bool reuse_shadows=constant_shadows_.reusable(reuse_constant_shadows_,scene.camera.grid[3],scene.cell_count);
+        SDL_GPUComputePass *compute=nullptr;
+        if(reuse_shadows){++recording_.constant_shadow_reuses;}else{
+            constant_shadows_.invalidate();
+            SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=cycle_private_scratch();
+            compute=SDL_BeginGPUComputePass(commands,nullptr,0,&shadow_binding,1);if(!compute)return stop("begin shadow compute pass");SDL_BindGPUComputePipeline(compute,programs_.shadow);
+            SDL_BindGPUComputeStorageBuffers(compute,0,&cells_,1);SDL_PushGPUComputeUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DispatchGPUCompute(compute,(scene.cell_count+63)/64,1,1);SDL_EndGPUComputePass(compute);
+            ++recording_.shadow_dispatches;
+        }
         if(profiling_)recording_.shadow_ms=ms(phase_start);
         auto *pass=begin(commands,false,true);if(!pass){SDL_CancelGPUCommandBuffer(commands);context_.fail("begin world GPU pass");reason(context_.reason());return false;}
         SDL_BindGPUGraphicsPipeline(pass,programs_.sky);SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DrawGPUPrimitives(pass,3,1,0,0);++metrics_.draw_calls;
@@ -444,6 +464,7 @@ public:
         if(read){read->serial=scene.frame_serial;read->generation=readback_generation_;read->fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);success=read->fence!=nullptr;}else success=SDL_SubmitGPUCommandBuffer(commands);
         metrics_.submit_ms=ms(stage);
         if(!success){context_.fail("submit full GPU frame");const std::string error=context_.reason();invalidate();reason(error);return false;}
+        if(!reuse_shadows&&reuse_constant_shadows_&&scene.camera.grid[3]>.5f)constant_shadows_.submitted_constant(scene.cell_count);
         white_ready_=cells_ready_=true;
         metrics_.active=1;metrics_.cpu_raster_calls=0;metrics_.resource_epoch=resource_epoch_;metrics_.reason[0]=0;return true;
     }
