@@ -8,6 +8,7 @@ namespace ncmm_gpu {
 class programs {
     SDL_GPUDevice *device_=nullptr;
     std::array<SDL_GPUGraphicsPipeline *,18> rigid_geometry_{};
+    SDL_GPUGraphicsPipeline *material_palette_=nullptr;
     SDL_GPUGraphicsPipeline *make(SDL_GPUShader *vs,SDL_GPUShader *fs,bool geometry,
                                   const SDL_GPUTextureFormat *formats,uint32_t colors,bool depth,bool write_depth,bool blend,bool write_id,bool cull=false,bool rigid=false){
         if(!vs||!fs)return nullptr;
@@ -40,13 +41,13 @@ public:
     SDL_GPUGraphicsPipeline *opaque=nullptr,*opaque_culled=nullptr,*opaque_component=nullptr,*opaque_component_culled=nullptr,*opaque_reflective=nullptr,*opaque_reflective_culled=nullptr,*opaque_plain=nullptr,*opaque_plain_culled=nullptr,*opaque_component_bound=nullptr,*opaque_component_bound_culled=nullptr,*opaque_reflective_bound=nullptr,*opaque_reflective_bound_culled=nullptr,*opaque_plain_bound=nullptr,*opaque_plain_bound_culled=nullptr,*transparent=nullptr,*transparent_glass=nullptr,*held=nullptr,*held_alpha=nullptr,*sky=nullptr,*celestial=nullptr,*weather=nullptr,*volume=nullptr,*compose=nullptr;
     SDL_GPUComputePipeline *shadow=nullptr,*count=nullptr;
     SDL_GPUSampler *linear=nullptr,*nearest=nullptr,*pixel_art=nullptr;
-    void clear(){if(device_){for(auto *p:{opaque,opaque_culled,opaque_component,opaque_component_culled,opaque_reflective,opaque_reflective_culled,opaque_plain,opaque_plain_culled,opaque_component_bound,opaque_component_bound_culled,opaque_reflective_bound,opaque_reflective_bound_culled,opaque_plain_bound,opaque_plain_bound_culled,transparent,transparent_glass,held,held_alpha,sky,celestial,weather,volume,compose})if(p)SDL_ReleaseGPUGraphicsPipeline(device_,p);
+    void clear(){if(device_){if(material_palette_)SDL_ReleaseGPUGraphicsPipeline(device_,material_palette_);for(auto *p:{opaque,opaque_culled,opaque_component,opaque_component_culled,opaque_reflective,opaque_reflective_culled,opaque_plain,opaque_plain_culled,opaque_component_bound,opaque_component_bound_culled,opaque_reflective_bound,opaque_reflective_bound_culled,opaque_plain_bound,opaque_plain_bound_culled,transparent,transparent_glass,held,held_alpha,sky,celestial,weather,volume,compose})if(p)SDL_ReleaseGPUGraphicsPipeline(device_,p);
             for(auto *p:rigid_geometry_)if(p)SDL_ReleaseGPUGraphicsPipeline(device_,p);
             for(auto *p:{shadow,count})if(p)SDL_ReleaseGPUComputePipeline(device_,p);
             if(linear)SDL_ReleaseGPUSampler(device_,linear);
             if(nearest)SDL_ReleaseGPUSampler(device_,nearest);
             if(pixel_art)SDL_ReleaseGPUSampler(device_,pixel_art);}
-        opaque=opaque_culled=opaque_component=opaque_component_culled=opaque_reflective=opaque_reflective_culled=opaque_plain=opaque_plain_culled=opaque_component_bound=opaque_component_bound_culled=opaque_reflective_bound=opaque_reflective_bound_culled=opaque_plain_bound=opaque_plain_bound_culled=transparent=transparent_glass=held=held_alpha=sky=celestial=weather=volume=compose=nullptr;shadow=count=nullptr;linear=nearest=pixel_art=nullptr;rigid_geometry_={};device_=nullptr;}
+        opaque=opaque_culled=opaque_component=opaque_component_culled=opaque_reflective=opaque_reflective_culled=opaque_plain=opaque_plain_culled=opaque_component_bound=opaque_component_bound_culled=opaque_reflective_bound=opaque_reflective_bound_culled=opaque_plain_bound=opaque_plain_bound_culled=transparent=transparent_glass=held=held_alpha=sky=celestial=weather=volume=compose=nullptr;shadow=count=nullptr;linear=nearest=pixel_art=nullptr;rigid_geometry_={};material_palette_=nullptr;device_=nullptr;}
     void abandon(){device_=nullptr;clear();}
     // The index describes only the pre-existing geometry program/state.
     // It deliberately does not encode vertex layout; adjacent draws can share
@@ -62,6 +63,16 @@ public:
         const std::array<SDL_GPUGraphicsPipeline *,18> original{{opaque,opaque_culled,opaque_component,opaque_component_culled,opaque_reflective,opaque_reflective_culled,opaque_plain,opaque_plain_culled,
             opaque_component_bound,opaque_component_bound_culled,opaque_reflective_bound,opaque_reflective_bound_culled,opaque_plain_bound,opaque_plain_bound_culled,transparent,transparent_glass,held,held_alpha}};
         return original[index];
+    }
+    SDL_GPUGraphicsPipeline *material_palette()const{return material_palette_;}
+    bool prepare_material_palette(device_context &context){
+        if(!device_||device_!=context.device())return false;if(material_palette_)return true;
+        auto *vs=context.shader(shaders::geometry_palette_vert_spv,sizeof(shaders::geometry_palette_vert_spv),shaders::geometry_palette_vert_dxil,sizeof(shaders::geometry_palette_vert_dxil),SDL_GPU_SHADERSTAGE_VERTEX,0,2,2);
+        auto *fs=context.shader(shaders::geometry_palette_frag_spv,sizeof(shaders::geometry_palette_frag_spv),shaders::geometry_palette_frag_dxil,sizeof(shaders::geometry_palette_frag_dxil),SDL_GPU_SHADERSTAGE_FRAGMENT,3,2,2);
+        const SDL_GPUTextureFormat world[]={SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,SDL_GPU_TEXTUREFORMAT_R32_UINT};
+        material_palette_=make(vs,fs,true,world,2,true,true,false,true);
+        if(vs)SDL_ReleaseGPUShader(device_,vs);if(fs)SDL_ReleaseGPUShader(device_,fs);
+        return material_palette_!=nullptr||context.fail("create exact material palette program");
     }
     unsigned rigid_geometry_count()const{unsigned n=0;for(auto *p:rigid_geometry_)n+=p!=nullptr;return n;}
     bool prepare_rigid(device_context &context,unsigned index){

@@ -14,6 +14,44 @@ def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def reference_backend(candidate):
     """Pure reconstruction, always checked against the unchanged frozen digest."""
     reference=candidate
+    if "#define NCMM_GPU_MATERIAL_PALETTE 1\n" in reference:
+        palette_inverse=[
+        [
+                "    void use_material_palette(bool enabled=true){material_palette_enabled_=enabled;}\n    const recording_metrics &recording()const{return recording_;}\n",
+                "    const recording_metrics &recording()const{return recording_;}\n"
+        ],
+        [
+                "            batches.push_back({key.second,key.first,first,uint32_t(list.size()),winding,component,bounded});instances.insert(instances.end(),list.begin(),list.end());\n            if(material_palette_enabled_&&key.first==NCMM_GPU_OPAQUE&&component&&mesh&&mesh->material_palette_safe&&!mesh->dynamic&&!mesh->compacted&&\n               mesh->vertex_stride==sizeof(ncmm_gpu_vertex_v1)&&mesh->joint_count==1&&mesh->ranges.size()>=8&&list.size()<=16&&\n               std::all_of(list.begin(),list.end(),[](const instance &i){return i.reserved==0;})){\n                std::vector<ncmm_gpu_matrix_v1> poses;poses.reserve(list.size());for(const auto &i:list)poses.push_back(i.world);\n                const auto &vertices=mesh->vertex_data();\n                const ncmm_gpu_mesh_v1 source{key.second,vertices.data(),mesh->cpu_indices.data(),mesh->materials.data(),\n                    uint32_t(vertices.size()),uint32_t(mesh->cpu_indices.size()),uint32_t(mesh->materials.size()),0};\n                batches.back().palette=material_palette::instance_order(source,poses,scene.camera);\n            }\n",
+                "            batches.push_back({key.second,key.first,first,uint32_t(list.size()),winding,component,bounded});instances.insert(instances.end(),list.begin(),list.end());\n"
+        ],
+        [
+                "            const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));\n            if(b.palette){\n                const auto draw_start=profiling_?clock::now():clock::time_point{};\n                const auto uniform=material_palette::encode(mesh->materials);\n                SDL_BindGPUGraphicsPipeline(pass,programs_.material_palette());\n                SDL_PushGPUFragmentUniformData(commands,1,uniform.data(),uint32_t(sizeof(uniform)));\n                SDL_GPUTextureSamplerBinding textures[3]{{white_,programs_.linear},{white_,programs_.nearest},{white_,programs_.nearest}};\n                SDL_BindGPUFragmentSamplers(pass,0,textures,3);\n                const auto indices=uint32_t(mesh->gpu_index_data().size());\n                SDL_DrawGPUIndexedPrimitives(pass,indices,b.count,0,0,0);\n                ++metrics_.draw_calls;const uint64_t triangles=uint64_t(indices/3)*b.count;metrics_.triangles+=triangles;\n                ++recording_.material_palette_draws;recording_.material_palette_ranges_replaced+=mesh->ranges.size();\n                ++recording_.vertex72_draws;++recording_.material_uniform_pushes;++recording_.sampler_binds;\n                if(profiling_||policy_counts_){++recording_.opaque_component_draws;recording_.opaque_component_triangles+=triangles;}\n                // A palette upload has a different size and pipeline. The next\n                // original material range must rebind all its original state.\n                fragment_state.invalidate();++recording_.fragment_state_invalidations;opaque_policy=~0u;\n                if(profiling_)recording_.world_ms+=ms(draw_start);\n                continue;\n            }\n",
+                "            const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));\n"
+        ],
+        [
+                "    bool prepare_geometry_programs(const std::vector<batch> &batches){\n        if(std::any_of(batches.begin(),batches.end(),[](const batch &b){return b.palette;})&&!programs_.prepare_material_palette(context_))return false;\n",
+                "    bool prepare_geometry_programs(const std::vector<batch> &batches){\n"
+        ],
+        [
+                "    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false,component_safe=false,depth_bound=false,palette=false;};",
+                "    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false,component_safe=false,depth_bound=false;};"
+        ],
+        [
+                "    bool reuse_fragment_state_=true;\n    bool material_palette_enabled_=true;\n",
+                "    bool reuse_fragment_state_=true;\n"
+        ],
+        [
+                "    uint64_t glass_draws=0;\n    uint64_t material_palette_draws=0,material_palette_ranges_replaced=0;\n",
+                "    uint64_t glass_draws=0;\n"
+        ],
+        [
+                "#define NCMM_GPU_FRAGMENT_STATE_CACHE 1\n#define NCMM_GPU_MATERIAL_PALETTE 1\n",
+                "#define NCMM_GPU_FRAGMENT_STATE_CACHE 1\n"
+        ]
+]
+        for before,after in palette_inverse:
+            if reference.count(before)!=1:raise AssertionError("Unreviewed material palette backend change")
+            reference=reference.replace(before,after,1)
     # Undo only the pass-local binding reuse; retain every earlier inverse
     # and the unchanged original frozen backend digest.
     if "#define NCMM_GPU_FRAGMENT_STATE_CACHE 1\n" in reference:
@@ -174,7 +212,7 @@ def reference_backend(candidate):
 
 def diagnostic_no_fixed_cull_programs(programs):
     """One diagnostic pipeline-state ablation, never the ordinary pixel gate."""
-    assert hashlib.sha256(programs.encode()).hexdigest()=='46908cc5242e403c60909f1d71f07f9212ab03e52c64524995e299c4309518e0','Unreviewed diagnostic pipeline source'
+    assert hashlib.sha256(programs.encode()).hexdigest()=='c51c859e446f963c494642490c0d05052f4d71053ea1961eb2806183970cda7c','Unreviewed diagnostic pipeline source'
     before='if(cull){p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_BACK;'
     after='if(cull){p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_NONE;'
     assert programs.count(before)==1,'Diagnostic must change only the existing fixed-function cull state'

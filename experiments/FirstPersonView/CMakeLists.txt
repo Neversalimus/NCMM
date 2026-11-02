@@ -179,6 +179,9 @@ add_test(NAME first_person_vehicle_body_union COMMAND first_person_vehicle_body_
 add_executable(first_person_gpu_vehicle_body_data_tests tests/gpu_vehicle_body_data_test.cpp)
 first_person_target(first_person_gpu_vehicle_body_data_tests)
 add_test(NAME first_person_gpu_vehicle_body_data COMMAND first_person_gpu_vehicle_body_data_tests)
+add_executable(first_person_gpu_material_palette_data_tests tests/gpu_material_palette_data_test.cpp)
+first_person_target(first_person_gpu_material_palette_data_tests)
+add_test(NAME first_person_gpu_material_palette_data COMMAND first_person_gpu_material_palette_data_tests)
 
 # Pure original-packet/private-upload proof; never initializes SDL or a device.
 add_executable(first_person_gpu_vertex_pack_data_tests tests/gpu_vertex_pack_data_test.cpp)
@@ -429,6 +432,14 @@ if(FIRST_PERSON_BUILD_GPU_TESTS)
   endif()
   add_test(NAME first_person_gpu_vehicle_body COMMAND first_person_gpu_vehicle_body_tests)
   set_tests_properties(first_person_gpu_vehicle_body PROPERTIES WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+  add_executable(first_person_gpu_material_palette_tests tests/gpu_material_palette_test.cpp)
+  first_person_target(first_person_gpu_material_palette_tests)
+  target_link_libraries(first_person_gpu_material_palette_tests PRIVATE SDL3::SDL3)
+  if(FIRST_PERSON_GPU_SHADER_HEADER)
+    target_compile_definitions(first_person_gpu_material_palette_tests PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
+  endif()
+  add_test(NAME first_person_gpu_material_palette COMMAND first_person_gpu_material_palette_tests)
+  set_tests_properties(first_person_gpu_material_palette PROPERTIES WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
   # Developer compile target for the same test-only capture used by the paired
   # scratch-policy probe. Excluded from ordinary builds and test execution.
   file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/gpu_scratch_capture.cpp" CONTENT
@@ -441,7 +452,7 @@ if(FIRST_PERSON_BUILD_GPU_TESTS)
     target_compile_definitions(first_person_gpu_scratch_capture PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
   endif()
   if(WIN32 AND TARGET SDL3::SDL3-shared)
-    foreach(target first_person_gpu_probe_tests first_person_gpu_scene_tests first_person_gpu_frame_caps_tests first_person_gpu_vertex_pack_tests first_person_gpu_constant_shadow_tests first_person_gpu_rigid48_tests first_person_gpu_fragment_state_tests first_person_gpu_vehicle_body_tests)
+    foreach(target first_person_gpu_probe_tests first_person_gpu_scene_tests first_person_gpu_frame_caps_tests first_person_gpu_vertex_pack_tests first_person_gpu_constant_shadow_tests first_person_gpu_rigid48_tests first_person_gpu_fragment_state_tests first_person_gpu_vehicle_body_tests first_person_gpu_material_palette_tests)
       add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:SDL3::SDL3-shared> $<TARGET_FILE_DIR:${target}>)
     endforeach()

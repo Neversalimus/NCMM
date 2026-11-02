@@ -49,11 +49,11 @@ jobs:
         run: |
           cmake -S experiments/FirstPersonView -B gpu-build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR="$PWD/gpu-upstream/msvc-full-features/vcpkg_installed/x64-windows-static" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
           if($LASTEXITCODE -ne 0){throw 'GPU probe configuration failed.'}
-          cmake --build gpu-build --config Release --target first_person_gpu_probe_tests first_person_gpu_contract_tests first_person_gpu_scene_tests first_person_gpu_frame_caps_tests first_person_gpu_vertex_pack_tests first_person_gpu_vertex_pack_data_tests first_person_gpu_constant_shadow_tests first_person_gpu_constant_shadow_data_tests first_person_gpu_rigid48_tests first_person_gpu_rigid48_data_tests first_person_gpu_fragment_state_tests first_person_gpu_fragment_state_data_tests first_person_gpu_vehicle_body_tests first_person_gpu_vehicle_body_data_tests
+          cmake --build gpu-build --config Release --target first_person_gpu_probe_tests first_person_gpu_contract_tests first_person_gpu_scene_tests first_person_gpu_frame_caps_tests first_person_gpu_vertex_pack_tests first_person_gpu_vertex_pack_data_tests first_person_gpu_constant_shadow_tests first_person_gpu_constant_shadow_data_tests first_person_gpu_rigid48_tests first_person_gpu_rigid48_data_tests first_person_gpu_fragment_state_tests first_person_gpu_fragment_state_data_tests first_person_gpu_vehicle_body_tests first_person_gpu_vehicle_body_data_tests first_person_gpu_material_palette_tests first_person_gpu_material_palette_data_tests
           if($LASTEXITCODE -ne 0){throw 'GPU probe build failed.'}
       - name: Require real draw commands, hardware depth and ordinary SDL UI
         id: device_tests
-        run: ctest --test-dir gpu-build -C Release -R "gpu_probe|gpu_contract|gpu_scene|gpu_frame_caps|gpu_vertex_pack|gpu_constant_shadow|gpu_rigid48|gpu_fragment_state|gpu_vehicle_body" --output-on-failure
+        run: ctest --test-dir gpu-build -C Release -R "gpu_probe|gpu_contract|gpu_scene|gpu_frame_caps|gpu_vertex_pack|gpu_constant_shadow|gpu_rigid48|gpu_fragment_state|gpu_vehicle_body|gpu_material_palette" --output-on-failure
       - name: Publish bounded original failure annotations
         if: ${{ failure() && steps.device_tests.outcome == 'failure' }}
         run: python -B experiments/FirstPersonView/tests/publish_device_failure_annotations.py --log gpu-build/Testing/Temporary/LastTest.log
@@ -63,6 +63,8 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Original frozen-reference checks failed.'}
           python -B experiments/FirstPersonView/tests/verify_vehicle_gallery.py --self-test-depth-controls
           if($LASTEXITCODE -ne 0){throw 'Native depth-control guards failed.'}
+          python -B experiments/FirstPersonView/tests/material_palette_controls.py --self-test --report gpu-build/material-palette-device-controls.json
+          if($LASTEXITCODE -ne 0){throw 'Exact material palette controls failed.'}
       - name: Compare every existing normalized GPU image with the original scratch policy
         id: scratch_pixels
         shell: pwsh
@@ -88,6 +90,7 @@ jobs:
             gpu-build/rigid48-device-controls.json
             gpu-build/fragment-state-device-controls.json
             gpu-build/vehicle-body-device-controls.json
+            gpu-build/material-palette-device-controls.json
             scratch-pair/comparison.json
             scratch-inputs/comparison.json
             scratch-pair/build.log
@@ -123,8 +126,8 @@ jobs:
         id: device_tests
         run: |
           cmake -S experiments/FirstPersonView -B gpu-build -DCMAKE_BUILD_TYPE=Release -DSDL3_DIR="$PWD/gpu-sdl-build" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
-          cmake --build gpu-build --parallel 2 --target first_person_gpu_probe_tests first_person_gpu_contract_tests first_person_gpu_scene_tests first_person_gpu_frame_caps_tests first_person_gpu_vertex_pack_tests first_person_gpu_vertex_pack_data_tests first_person_gpu_constant_shadow_tests first_person_gpu_constant_shadow_data_tests first_person_gpu_rigid48_tests first_person_gpu_rigid48_data_tests first_person_gpu_fragment_state_tests first_person_gpu_fragment_state_data_tests first_person_gpu_vehicle_body_tests first_person_gpu_vehicle_body_data_tests
-          ctest --test-dir gpu-build -R "gpu_probe|gpu_contract|gpu_scene|gpu_frame_caps|gpu_vertex_pack|gpu_constant_shadow|gpu_rigid48|gpu_fragment_state|gpu_vehicle_body" --output-on-failure
+          cmake --build gpu-build --parallel 2 --target first_person_gpu_probe_tests first_person_gpu_contract_tests first_person_gpu_scene_tests first_person_gpu_frame_caps_tests first_person_gpu_vertex_pack_tests first_person_gpu_vertex_pack_data_tests first_person_gpu_constant_shadow_tests first_person_gpu_constant_shadow_data_tests first_person_gpu_rigid48_tests first_person_gpu_rigid48_data_tests first_person_gpu_fragment_state_tests first_person_gpu_fragment_state_data_tests first_person_gpu_vehicle_body_tests first_person_gpu_vehicle_body_data_tests first_person_gpu_material_palette_tests first_person_gpu_material_palette_data_tests
+          ctest --test-dir gpu-build -R "gpu_probe|gpu_contract|gpu_scene|gpu_frame_caps|gpu_vertex_pack|gpu_constant_shadow|gpu_rigid48|gpu_fragment_state|gpu_vehicle_body|gpu_material_palette" --output-on-failure
       - name: Publish bounded original failure annotations
         if: ${{ failure() && steps.device_tests.outcome == 'failure' }}
         run: python3 -B experiments/FirstPersonView/tests/publish_device_failure_annotations.py --log gpu-build/Testing/Temporary/LastTest.log
@@ -133,6 +136,7 @@ jobs:
           set -e
           python3 -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
           python3 -B experiments/FirstPersonView/tests/verify_vehicle_gallery.py --self-test-depth-controls
+          python3 -B experiments/FirstPersonView/tests/material_palette_controls.py --self-test --report gpu-build/material-palette-device-controls.json
       - name: Compare every existing normalized Vulkan image with the original scratch policy
         id: scratch_pixels
         run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-pair --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp
@@ -155,6 +159,7 @@ jobs:
             gpu-build/rigid48-device-controls.json
             gpu-build/fragment-state-device-controls.json
             gpu-build/vehicle-body-device-controls.json
+            gpu-build/material-palette-device-controls.json
             scratch-pair/comparison.json
             scratch-inputs/comparison.json
             cull-none-inputs/comparison.json
@@ -179,12 +184,12 @@ jobs:
           from pathlib import Path
           import hashlib,json,os
           files={
-            'experiments/FirstPersonView/CMakeLists.txt':'1008b7cec2cd08e3736500bfbf8d805fd48101e40644a694df75dfca191872b2',
+            'experiments/FirstPersonView/CMakeLists.txt':'4926d4e03c0650c3d816d31df9a30fb5b8d07dd8973f3a81f3063e5c176b6316',
             'experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp':'d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597',
             'experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp':'f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b',
-            'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'9c4110ead888bc75abf0bc7ba341613e97e07bdf6b05e17af610dc1ef1d04163',
+            'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'cfb4010910dea69f68d3535683ff0d5b92c7645a22bd3912aaaa7edf7b16f829',
             'experiments/graphics_bridge/ncmm_gpu_geometry.hpp':'0b4908e30c9855d78466fad31f9c194a057268d4d2a82d1397fb57c504618e9d',
-            'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'59cc1e80adb5c93fde5dd47d385542df1fd0478c4ed68419096ef1726afe1e93',
+            'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'08bd3d7bffb2cf51c1f4c2325e5942ccabaafa7e02168208dfff28bff4c76434',
             'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'3b5ce5f1c95e4a156be4dad5e6896c60217f557491156cf953952e7ec0a95dd4',
             'experiments/FirstPersonView/tests/gpu_fixture_producer.hpp':'922dc2bd588b86d8429ca65e0291341e9f40711a6916ae2a16539bb7461447cd',
             'experiments/FirstPersonView/tests/gpu_fixture_producer.cpp':'41a04bf77add9cd55600e3b3c495eaa8ad47885e0976361c968cea399aaa2a0b',
@@ -194,7 +199,7 @@ jobs:
             'experiments/FirstPersonView/shaders/geometry_reflective_bound.frag':'2f5aa3d48520ec781971f17638f4b3ac4bb22ee5800d5364af52de4f87b75831',
             'experiments/FirstPersonView/shaders/geometry_plain_bound.frag':'285be0bf90990330814897eb0f15ae9eb3f0a8f9c2f9044034990577e3c0391f',
             'experiments/FirstPersonView/tests/opaque_span_order_test.inc':'62ecf71e5500ea7f21351bbf768cd7c0192cfd971b9a3c8936bced6e75f676b0',
-            'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'ab857ed8955eeb12afc14062253482213dbd962c0baf768061786f3fd457cb0c',
+            'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'8fb44e5c2242e787ecb7a1bc4ddc3f30b84c4a4aa14aae73a33784db4257e6eb',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'e7ca95216b84c3bfdb34bcf9c2638a8d46696b8eda28014a5c18511c1e38a16d',
             'experiments/FirstPersonView/src/gpu_scene.hpp':'44a50c2f2f17955a03c8ba90b17da309efdb9edd782df0769b0911cd6388597e',
             'experiments/FirstPersonView/src/hybrid_renderer.hpp':'dc30ac6375ffdbe0f30f4bc73a279a5123fa606c91ad557043544d972b91fc4c',
@@ -277,7 +282,7 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_projectiles.h':'fe0917662db6932f84e90174b6c0970380fb560f0e31a8d715776c524f4829ac',
             'experiments/graphics_bridge/ncmm_graphics_projectiles.inc':'b66eaec1988ba9757950f13cb15dd49fed9903f26836918d56466a62ce7fc8f6',
             'experiments/graphics_bridge/ncmm_graphics_snapshot_cache.hpp':'200f3088ddf4c719d8df4d13b2350770dd632c648ad087f423d934adc4435e8b',
-            'experiments/graphics_bridge/test_apply_graphics_bridge.py':'91b3a806e185cd46024bcf84c521170fde050f68269e93c80804d0b01d82d35f',
+            'experiments/graphics_bridge/test_apply_graphics_bridge.py':'f13b57553b7ce3c7b3c81679e64d2dc763d86b71ffd2e557f8dc2addb512ba14',
             'experiments/FirstPersonView/tests/Test-CompilerWrapper.ps1':'3b8e80a9180241c2144a92f0902cfd4ab15c7b3d7d190ab375128ef7f5110633',
             'experiments/FirstPersonView/tests/multilevel_cache_test.cpp':'f49096300b96f8324507f21b39b762f299e7fe4678a64a9382e2e849d71a62ba',
             'experiments/graphics_bridge/ncmm_world_cache.hpp':'b4cbe4e3774dfdb17c2e395bf23a0a1bc9b51b840a551f06f54cbde0da3c9080',
@@ -292,7 +297,7 @@ jobs:
             'experiments/FirstPersonView/tests/snapshot_storage_test.cpp':'0c8e0267dcff19d08ea34ad0033899b5d82f283422f60bcbac7eba31cf86afff',
             'experiments/FirstPersonView/reports/night-static-boundary-preparation-20261027.json':'08a7888ac121a67ce4eecda0231242f309148cb643127d8c7bad3b31edc1029e',
             'experiments/FirstPersonView/tests/skyline_host_fixture.hpp':'3bd6b9ac14b72cbe1b9d6ae7907803fbe1acf64faa16c2645ee77e1b241984a0',
-            'experiments/graphics_bridge/apply_graphics_bridge.py':'5ec8f608e8ef6939775245195a75f5f7a69a034662c162aadd67a74dc9066ec5',
+            'experiments/graphics_bridge/apply_graphics_bridge.py':'56813187869e58e4ba5a202821e43ec9541c3d16fcaf7ac06859eac0c3f25b65',
             'experiments/graphics_bridge/ncmm_graphics_lod.inc':'94a554a5343d3e5fbfe7506596e4079bcb98cd62e5b16abdc12f794aa8ee8321',
             'experiments/graphics_bridge/ncmm_graphics_multilevel.h':'5c8292ca3fca90fe8686cb32ce15cbd0bf8c78fc2e5ffc766d36af6a708741cd',
             'experiments/graphics_bridge/ncmm_world_lod.hpp':'e3fff61d1cc606d651e9b45c002e683b1b3e2ea2144005610a68df0aa3cafe60',
@@ -379,22 +384,22 @@ jobs:
             'experiments/FirstPersonView/src/raster_dispatch.hpp':'e59ef2bfd8d8a16363182ffa65b3cd6ae034be96ff9c497e78f7ffb6d65045b2',
             'experiments/FirstPersonView/tests/gpu_input_fingerprint.hpp':'6407914cc82d5250a9249085407181fca264c18725706ac57ab68d0b424867a4',
             'experiments/FirstPersonView/tests/gpu_scratch_capture.inc':'51b295e9e853867f1f124cc4b2ad634d44aac461fa16674ff3aec343d554f816',
-            'experiments/FirstPersonView/tests/test_compare_scratch_inputs.py':'6191794810be265fed000d4061151ad336843ff34b5f2c1a0c744dc16b70d6b0',
+            'experiments/FirstPersonView/tests/test_compare_scratch_inputs.py':'de5c1402784deac68ffea71648231a5a8126b3e7de37fcad1c9944f45cd05a96',
             'experiments/FirstPersonView/tests/vehicle_raster_test.cpp':'83094b537952c07c547812f34554a2c3fa745baec31bd1fc2979af1a4e70a1d2',
             'experiments/FirstPersonView/tests/vehicle_snapshot_test.cpp':'2301689476bf252edebfda0eecf923603984dc64b8afc606205ce48961e1182d',
             'experiments/FirstPersonView/tests/verify_vehicle_gallery.py':'858f6f4614a9a51d924a328ec96cb38a7caa84275f191453780c2c889e0a040d',
             'experiments/FirstPersonView/tools/import_vehicle_components.py':'eb3ad1e712185cc10bd2c97329d6fd3a2f761a97e3a24277d616ff5de417c705',
             'experiments/graphics_bridge/ncmm_graphics_vehicle_qualification.inc':'916895a08857574ef3ca6b986531e315ceeda90aa455f6316ee323b1e603d40d',
             'experiments/FirstPersonView/tests/test_verify_vehicle_memory.py':'b0af49d13b6ac1886088021691c347e066f77bfbbd9604d8fc58d8157bdf04c9',
-            'experiments/graphics_bridge/ncmm_gpu_programs.hpp':'46908cc5242e403c60909f1d71f07f9212ab03e52c64524995e299c4309518e0',
+            'experiments/graphics_bridge/ncmm_gpu_programs.hpp':'c51c859e446f963c494642490c0d05052f4d71053ea1961eb2806183970cda7c',
             'experiments/FirstPersonView/src/vehicle_pixel_math.hpp':'6f13a39047bab9e3ec2edd6a972685a590aa5b712fd45202a217d18eead2aa50',
             'experiments/FirstPersonView/tests/vehicle_closed_gpu_test.inc':'92fc8435e427ae0404e4232fd2a293ca15c64884afd3b59915aae9e5d286f0c1',
             'experiments/graphics_bridge/ncmm_gpu_winding.hpp':'0a8b96d1974d469a8e5054592885f5593f441435b4c77b6ffec9d59e4f0c1d86',
             'experiments/FirstPersonView/tests/gpu_winding_test.cpp':'adef0fc010e67c151fe58762eb661a49e78a7249280b5fe6a39c18cd5188c7e2',
             'experiments/FirstPersonView/shaders/geometry.frag':'43e53abfafac39b9608d5bfe750fb679d1d18b2186a1e0d27ddd7fc7a27ee23d',
             'experiments/FirstPersonView/tests/opaque_depth_gpu_test.inc':'56ce286a261193f371656209cdcd577be6cd20650b05e9d58d857cf57171ea38',
-            'experiments/FirstPersonView/compile_gpu_shaders.py':'92cb007db80ac42883612f0979482485550ca7add61df03edcf0e884d7363741',
-            'experiments/graphics_bridge/ncmm_gpu_shader_bytes.hpp':'b1126f86c64acdd0d293f408557d8642f479093768a3b6bef2d568a826582b09',
+            'experiments/FirstPersonView/compile_gpu_shaders.py':'88434743e739bbf214e3c7ace062b3dcf27903e8c7e3594d1b89736529d75276',
+            'experiments/graphics_bridge/ncmm_gpu_shader_bytes.hpp':'0af90810395325aaf70a23370f1c2c2e4f2a0ff6d568a9a89b2e044e9bf19a3e',
             'experiments/FirstPersonView/tests/opaque_depth_fixture.hpp':'ef85c632ca889d821c1e309c956fbac64c6997e086b2219de8ef3ad0a007129f',
             'experiments/FirstPersonView/shaders/geometry_component.frag':'0834b531d2295ae62c88ec3299a2f8ed4c2fd77f7f7931be740d0f83e110bb4d',
             'experiments/FirstPersonView/shaders/material_component.glsl':'d89e40608abdb65103aa9d44f19ea044e105e30864d14c753caae107e81bcb07',
@@ -427,7 +432,7 @@ jobs:
             'experiments/graphics_bridge/ncmm_gpu_vertex_pack.hpp':'ba9ff899685cea070895ab6445ea7d55b96778ff554374ff9e1ee2c99b13edbb',
             'experiments/FirstPersonView/tests/gpu_vertex_pack_data_test.cpp':'d71cdab8a73817fc55365f33c1dbd8e82393b05fd7c452a79add040dc3b3b28b',
             'experiments/FirstPersonView/tests/gpu_vertex_pack_test.cpp':'761236a9dbe19e79d24cdc5bc715b068da98eeab7b3a0f1f3a57e1582cda8e84',
-            '.github/workflows/ncmm-first-person-prototype.yml':'14aafe082910305def1bcf92399d9b4a9fca628da0d72b20e60ed622b6c6826e',
+            '.github/workflows/ncmm-first-person-prototype.yml':'c178cb591316bde26a1109b7a6500ea0c524018d82dff3395fd01dc50dd13de8',
             'experiments/FirstPersonView/tests/gpu_constant_shadow_data_test.cpp':'aedff51708f5ca8ad48e0d1d36a1e2d254dca7f137ecc2a90598ec35b5e4ec2d',
             'experiments/FirstPersonView/tests/gpu_constant_shadow_test.cpp':'d7650d1ae13bd68ddc09f9d802dc0dc6dbc32a741dbf8758519eecf0fbfbbb72',
             'experiments/graphics_bridge/ncmm_gpu_constant_shadow.hpp':'9e6a2bbdd98b61813adc393fed166d794dd0ea3da7681dd6e064cc9f2eca6fcc',
@@ -448,6 +453,12 @@ jobs:
             'experiments/FirstPersonView/tests/vehicle_body_union_test.cpp':'f5208324b2333087f09c63d8029092dfca4f2b48145dbe48fb6ad355fe33142f',
               'experiments/FirstPersonView/tests/vehicle_cabin_blueprints_fixture.hpp': 'a8b438c5db0aca90dfec10a208d9e1ba69f901015855d924d51ee35d6d8c0248',
               'experiments/FirstPersonView/tests/vehicle_cabin_quality_controls.hpp': '723c2f5a29d4e3ef61638913268063d6b0fe7a08da45b1bdf1abb922d4ce93d4',
+              'experiments/FirstPersonView/shaders/geometry_palette.frag': '53223af2da4134a0c5fea4bfbdab5b26eec9b0912f7fda97e0594b9b515b2423',
+              'experiments/FirstPersonView/tests/gpu_material_palette_data_test.cpp': 'd33b47ca5fbbec44107472c72489cdb2b35a6367649026824dbd4495325b30df',
+              'experiments/FirstPersonView/tests/material_palette_controls.py': '9030880df05eb0d8de4a60b351728786285efb02cbc6cdcf14a0cd19275b3053',
+              'experiments/graphics_bridge/ncmm_gpu_material_palette.hpp': 'f32e1500c3ffa1b39b96eedbafea4f9e82e658b6e158ca319d1ef27502d2b8b7',
+              'experiments/FirstPersonView/tests/gpu_material_palette_test.cpp': '245bfb2dbe9d85dda20896f6bca27250cc123597d2b3a860cc302e94e6cb7c8e',
+              'experiments/FirstPersonView/shaders/geometry_palette.vert': '4a40bb3f925085f80058b7d27cddc5f25d9df5c7fd3bdf9848a0a27448fbec61',
           }
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
@@ -480,10 +491,10 @@ jobs:
       - name: Build actual GPU resource and scene tests with ASan and UBSan
         run: |
           cmake -S experiments/FirstPersonView -B vertex-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++ -DSDL3_DIR="$PWD/gpu-sdl-build" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_SANITIZE=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
-          cmake --build vertex-asan --parallel 2 --target first_person_gpu_resource_cache_tests first_person_gpu_scene_tests first_person_gpu_vertex_lease_edge_tests first_person_gpu_resource_failure_tests first_person_gpu_frame_caps_tests first_person_gpu_vertex_pack_tests first_person_gpu_vertex_pack_data_tests first_person_gpu_constant_shadow_tests first_person_gpu_constant_shadow_data_tests first_person_gpu_rigid48_tests first_person_gpu_rigid48_data_tests first_person_gpu_fragment_state_tests first_person_gpu_fragment_state_data_tests first_person_gpu_vehicle_body_tests first_person_gpu_vehicle_body_data_tests
+          cmake --build vertex-asan --parallel 2 --target first_person_gpu_resource_cache_tests first_person_gpu_scene_tests first_person_gpu_vertex_lease_edge_tests first_person_gpu_resource_failure_tests first_person_gpu_frame_caps_tests first_person_gpu_vertex_pack_tests first_person_gpu_vertex_pack_data_tests first_person_gpu_constant_shadow_tests first_person_gpu_constant_shadow_data_tests first_person_gpu_rigid48_tests first_person_gpu_rigid48_data_tests first_person_gpu_fragment_state_tests first_person_gpu_fragment_state_data_tests first_person_gpu_vehicle_body_tests first_person_gpu_vehicle_body_data_tests first_person_gpu_material_palette_tests first_person_gpu_material_palette_data_tests
       - name: Verify exact GPU bytes, lease lifetime, picking and depth without suppressions
         id: device_tests
-        run: ctest --test-dir vertex-asan -R '^first_person_gpu_(resource_cache|scene|vertex_lease_edge|resource_failure|frame_caps|vertex_pack|vertex_pack_data|constant_shadow|constant_shadow_data|rigid48|rigid48_data|fragment_state|fragment_state_data|vehicle_body|vehicle_body_data)$' --output-on-failure -V
+        run: ctest --test-dir vertex-asan -R '^first_person_gpu_(resource_cache|scene|vertex_lease_edge|resource_failure|frame_caps|vertex_pack|vertex_pack_data|constant_shadow|constant_shadow_data|rigid48|rigid48_data|fragment_state|fragment_state_data|vehicle_body|vehicle_body_data|material_palette|material_palette_data)$' --output-on-failure -V
       - name: Publish bounded original failure annotations
         if: ${{ failure() && steps.device_tests.outcome == 'failure' }}
         run: python3 -B experiments/FirstPersonView/tests/publish_device_failure_annotations.py --log vertex-asan/Testing/Temporary/LastTest.log
@@ -492,6 +503,7 @@ jobs:
           set -e
           python3 -B experiments/FirstPersonView/tests/test_compare_scratch_inputs.py
           python3 -B experiments/FirstPersonView/tests/verify_vehicle_gallery.py --self-test-depth-controls
+          python3 -B experiments/FirstPersonView/tests/material_palette_controls.py --self-test --report vertex-asan/material-palette-device-controls.json
       - name: Compare all normalized Vulkan images with ASan UBSan and exit leak checks
         id: scratch_pixels
         run: python3 -B experiments/FirstPersonView/tests/compare_scratch_reuse.py --repository . --output scratch-pair-asan --sdl-dir gpu-sdl-build --shader-header gpu-shader-bytes.hpp --sanitize
@@ -519,5 +531,6 @@ jobs:
             vertex-asan/rigid48-device-controls.json
             vertex-asan/fragment-state-device-controls.json
             vertex-asan/vehicle-body-device-controls.json
+            vertex-asan/material-palette-device-controls.json
             gpu-shader-bytes.hpp
           retention-days: 14

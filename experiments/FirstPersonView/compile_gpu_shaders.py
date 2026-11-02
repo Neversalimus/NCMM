@@ -71,6 +71,15 @@ bounded_vertex=vertex.replace('pose_yaw=uintBitsToFloat(instance.state.w);texcoo
 if (a.source/'geometry_bound.vert').read_text(encoding='utf-8')!=bounded_vertex:
     p.error('Bounded vertex changed rigid position, attributes or coverage')
 
+# Palette lookup preserves the complete existing component arithmetic and
+# both ordinary and bounded vertex clip expressions. It adds no early-depth
+# assertion; the caller supplies only a proved zero heading or depth bound.
+palette_vertex=vertex.replace('layout(location=6) flat out float pose_yaw;','layout(location=6) flat out float pose_yaw;\nlayout(location=7) flat out uint palette_index;').replace('void main(){Instance instance=','void main(){palette_index=material_index;Instance instance=')
+palette_vertex=palette_vertex.replace('texcoord=uv;gl_Position=project_point(world_position);','texcoord=uv;gl_Position=project_point(world_position);\n    // Caller proves either original zero heading or the same packed strict\n    // lower bound as geometry_bound.vert. Preserve its original clip position.\n    if(instance.state.w!=0u)gl_Position.z=uintBitsToFloat(instance.state.w)*gl_Position.w;')
+palette_fragment=component.replace('layout(set=3,binding=1,std140) uniform Material {vec4 color;uvec4 state;vec4 impostor;} material;','struct PaletteMaterial {vec4 color;uvec4 state;};\nlayout(set=3,binding=1,std140) uniform Palette {PaletteMaterial entries[128];} palette;').replace('layout(location=6) flat in float pose_yaw;','layout(location=6) flat in float pose_yaw;\nlayout(location=7) flat in uint palette_index;\n#define material palette.entries[palette_index]')
+if (a.source/'geometry_palette.vert').read_text(encoding='utf-8')!=palette_vertex:p.error('Palette vertex changed an existing position or varying expression')
+if (a.source/'geometry_palette.frag').read_text(encoding='utf-8')!=palette_fragment:p.error('Palette fragment changed existing component arithmetic')
+
 lines=['#pragma once','#include <cstddef>','namespace ncmm_gpu::shaders {']
 source_hash=hashlib.sha256()
 for source in sorted(a.source.glob('*')):

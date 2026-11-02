@@ -5,6 +5,7 @@
 #include "ncmm_gpu_constant_shadow.hpp"
 #include "ncmm_gpu_fragment_state.hpp"
 #define NCMM_GPU_FRAGMENT_STATE_CACHE 1
+#define NCMM_GPU_MATERIAL_PALETTE 1
 #include "ncmm_gpu_validation.hpp"
 #include "ncmm_gpu_programs.hpp"
 #include "ncmm_gpu_conservative_depth.hpp"
@@ -21,6 +22,7 @@ namespace ncmm_gpu {
 struct recording_metrics {
     double batching_pick_ms=0,shadow_ms=0,world_ms=0,creature_ms=0,held_ms=0,volume_ms=0,compose_ms=0;
     uint64_t glass_draws=0;
+    uint64_t material_palette_draws=0,material_palette_ranges_replaced=0;
     uint64_t plain_draws=0;
     uint64_t opaque_component_draws=0,opaque_winding_draws=0,opaque_requested_winding_draws=0,opaque_range_rejections=0,opaque_batch_rejections=0,opaque_reflective_draws=0;
     uint64_t opaque_component_triangles=0,opaque_winding_triangles=0;
@@ -44,6 +46,7 @@ class backend {
     bool compact_opaque_vertices_=true;
     bool rigid48_vertices_=true;
     bool reuse_fragment_state_=true;
+    bool material_palette_enabled_=true;
     bool reuse_constant_shadows_=true;
     constant_shadow_cache constant_shadows_;
     programs programs_;
@@ -66,7 +69,7 @@ class backend {
     struct gpu_cell {ncmm_gpu_cell_v1 appearance;float origin[4],lower_light[4];};
     static_assert(sizeof(gpu_cell)==112,"owned std430 world cell layout");
     std::vector<gpu_cell> cell_snapshot_;
-    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false,component_safe=false,depth_bound=false;};
+    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false,component_safe=false,depth_bound=false,palette=false;};
     using clock=std::chrono::steady_clock;
     static double ms(clock::time_point begin){return std::chrono::duration<double,std::milli>(clock::now()-begin).count();}
     void reason(const std::string &value){std::strncpy(metrics_.reason,value.c_str(),sizeof(metrics_.reason)-1);metrics_.reason[sizeof(metrics_.reason)-1]=0;}
@@ -149,6 +152,7 @@ class backend {
         return {winding,component,reflective,glass,plain,bounded,key,programs::geometry_index(selected,alpha_only,winding,component,reflective,glass,plain,bounded)};
     }
     bool prepare_geometry_programs(const std::vector<batch> &batches){
+        if(std::any_of(batches.begin(),batches.end(),[](const batch &b){return b.palette;})&&!programs_.prepare_material_palette(context_))return false;
         for(const auto &b:batches){const auto *mesh=resources_.mesh(b.key);if(!mesh||mesh->vertex_stride!=sizeof(rigid48::vertex))continue;
             for(const auto &range:mesh->ranges){const auto &material=mesh->materials[range.material];
                 const auto policy=range_policy(b,range,material,true,b.pass==NCMM_GPU_HELD&&material.color[3]<.999f);
@@ -168,6 +172,25 @@ class backend {
         for(const auto &b:batches)if(b.pass==selected){auto *mesh=resources_.mesh(b.key);if(!mesh)continue;
             SDL_GPUBufferBinding vertex{mesh->vertices,0},index{mesh->indices,0};SDL_BindGPUVertexBuffers(pass,0,&vertex,1);SDL_BindGPUIndexBuffer(pass,&index,SDL_GPU_INDEXELEMENTSIZE_32BIT);
             const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));
+            if(b.palette){
+                const auto draw_start=profiling_?clock::now():clock::time_point{};
+                const auto uniform=material_palette::encode(mesh->materials);
+                SDL_BindGPUGraphicsPipeline(pass,programs_.material_palette());
+                SDL_PushGPUFragmentUniformData(commands,1,uniform.data(),uint32_t(sizeof(uniform)));
+                SDL_GPUTextureSamplerBinding textures[3]{{white_,programs_.linear},{white_,programs_.nearest},{white_,programs_.nearest}};
+                SDL_BindGPUFragmentSamplers(pass,0,textures,3);
+                const auto indices=uint32_t(mesh->gpu_index_data().size());
+                SDL_DrawGPUIndexedPrimitives(pass,indices,b.count,0,0,0);
+                ++metrics_.draw_calls;const uint64_t triangles=uint64_t(indices/3)*b.count;metrics_.triangles+=triangles;
+                ++recording_.material_palette_draws;recording_.material_palette_ranges_replaced+=mesh->ranges.size();
+                ++recording_.vertex72_draws;++recording_.material_uniform_pushes;++recording_.sampler_binds;
+                if(profiling_||policy_counts_){++recording_.opaque_component_draws;recording_.opaque_component_triangles+=triangles;}
+                // A palette upload has a different size and pipeline. The next
+                // original material range must rebind all its original state.
+                fragment_state.invalidate();++recording_.fragment_state_invalidations;opaque_policy=~0u;
+                if(profiling_)recording_.world_ms+=ms(draw_start);
+                continue;
+            }
             for(const auto &range:mesh->ranges){const auto &m=mesh->materials[range.material];
                 if(selected==NCMM_GPU_HELD&&(m.color[3]<.999f)!=alpha_only){deferred_alpha|=m.color[3]<.999f;continue;}
                 // Component flags/coverage and every real cell are proved.
@@ -248,6 +271,7 @@ public:
     void count_policies(bool enabled=true){policy_counts_=enabled;}
     void conservative_depth(bool enabled=true){conservative_depth_enabled_=enabled;}
     uint64_t conservative_depth_draws()const{return conservative_depth_draws_;}
+    void use_material_palette(bool enabled=true){material_palette_enabled_=enabled;}
     const recording_metrics &recording()const{return recording_;}
     void clear(){
         // SDL can still have composition commands queued against our output,
@@ -360,6 +384,15 @@ public:
             }}
             const auto first=uint32_t(instances.size());
             batches.push_back({key.second,key.first,first,uint32_t(list.size()),winding,component,bounded});instances.insert(instances.end(),list.begin(),list.end());
+            if(material_palette_enabled_&&key.first==NCMM_GPU_OPAQUE&&component&&mesh&&mesh->material_palette_safe&&!mesh->dynamic&&!mesh->compacted&&
+               mesh->vertex_stride==sizeof(ncmm_gpu_vertex_v1)&&mesh->joint_count==1&&mesh->ranges.size()>=8&&list.size()<=16&&
+               std::all_of(list.begin(),list.end(),[](const instance &i){return i.reserved==0;})){
+                std::vector<ncmm_gpu_matrix_v1> poses;poses.reserve(list.size());for(const auto &i:list)poses.push_back(i.world);
+                const auto &vertices=mesh->vertex_data();
+                const ncmm_gpu_mesh_v1 source{key.second,vertices.data(),mesh->cpu_indices.data(),mesh->materials.data(),
+                    uint32_t(vertices.size()),uint32_t(mesh->cpu_indices.size()),uint32_t(mesh->materials.size()),0};
+                batches.back().palette=material_palette::instance_order(source,poses,scene.camera);
+            }
             // Only this all-qualified group uses the alternate vertex program.
             // Its private instance word carries a strict lower bound; the old
             // zero-heading value is preserved for every unproved group.

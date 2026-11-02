@@ -24,7 +24,32 @@ class Diagnostics(unittest.TestCase):
         source=self.backend()
         self.assertNotIn('#define NCMM_GPU_GROUP_DEPTH_PROGRAM',source)
         self.assertNotIn('prefill_opaque_group(',source)
-        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'59cc1e80adb5c93fde5dd47d385542df1fd0478c4ed68419096ef1726afe1e93')
+        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'08bd3d7bffb2cf51c1f4c2325e5942ccabaafa7e02168208dfff28bff4c76434')
+    def test_changed_palette_default_cannot_reconstruct(self):
+        source=self.backend().replace('bool material_palette_enabled_=true;','bool material_palette_enabled_=false;')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_palette_uniform_size_cannot_reconstruct(self):
+        source=self.backend().replace('uniform.data(),uint32_t(sizeof(uniform))','uniform.data(),32')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_palette_caller_proof_cannot_reconstruct(self):
+        source=self.backend().replace('batches.back().palette=material_palette::instance_order(source,poses,scene.camera);','batches.back().palette=true;')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_palette_state_reset_cannot_reconstruct(self):
+        source=self.backend().replace('fragment_state.invalidate();++recording_.fragment_state_invalidations;opaque_policy=~0u;','opaque_policy=~0u;')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_palette_cannot_leave_ordinary_zero_policy_bound_to_palette(self):
+        source=self.backend().replace('fragment_state.invalidate();++recording_.fragment_state_invalidations;opaque_policy=~0u;','fragment_state.invalidate();++recording_.fragment_state_invalidations;opaque_policy=0;')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
     def test_changed_fragment_state_default_cannot_reconstruct(self):
         source=self.backend().replace('    bool reuse_fragment_state_=true;','    bool reuse_fragment_state_=false;')
         self.assertNotEqual(source,self.backend())

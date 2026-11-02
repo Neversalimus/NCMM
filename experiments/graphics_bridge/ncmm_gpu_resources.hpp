@@ -3,6 +3,7 @@
 #include "ncmm_gpu_device.hpp"
 #include "ncmm_gpu_resource_diagnostics.hpp"
 #include "ncmm_gpu_winding.hpp"
+#include "ncmm_gpu_material_palette.hpp"
 #include "ncmm_gpu_vertex_pack.hpp"
 #include "ncmm_gpu_rigid48.hpp"
 #include <algorithm>
@@ -64,7 +65,7 @@ struct mesh_resource {
     std::vector<uint32_t> packed_indices;
     const vertex_contents &gpu_vertex_data()const{return packed_vertices?*packed_vertices:vertex_data();}
     const std::vector<uint32_t> &gpu_index_data()const{return compacted?packed_indices:cpu_indices;}
-    bool compacted=false;
+    bool compacted=false,material_palette_safe=false;
     uint32_t vertex_stride=sizeof(ncmm_gpu_vertex_v1);
     uint64_t gpu_vertex_bytes()const{return uint64_t(gpu_vertex_data().size())*vertex_stride;}
     std::vector<ncmm_gpu_material_v1> materials;
@@ -106,6 +107,7 @@ class resource_cache {
     bool mesh_data(const ncmm_gpu_mesh_v1 &source,mesh_resource &m){
         m.cpu_vertices.assign(source.vertices,source.vertices+source.vertex_count);m.materials.assign(source.materials,source.materials+source.material_count);
         m.joints.clear();m.joint_count=1;
+        m.material_palette_safe=material_palette::eligible(source);
         if(!material_indices(source,m.cpu_indices,m.ranges)){reason_="triangle references multiple materials";return false;}
         // The stable material order is already resolved. Prove every source
         // corner once; no normal tolerance or validator relaxation is involved.

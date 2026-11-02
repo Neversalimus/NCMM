@@ -172,6 +172,7 @@ class ApplyTests(unittest.TestCase):
                 self.assertIn("ncmm_gpu_constant_shadow.hpp",copied)
                 self.assertIn("ncmm_gpu_rigid48.hpp",copied)
                 self.assertIn("ncmm_gpu_fragment_state.hpp",copied)
+                self.assertIn("ncmm_gpu_material_palette.hpp",copied)
 
     def test_shadowcast_complete_primary_and_exact_square_dispatch(self):
         cpp, header = native_shadowcast_originals()
