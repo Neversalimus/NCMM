@@ -361,7 +361,7 @@ jobs:
             'experiments/FirstPersonView/assets/vehicles/source/wheel-default.obj':'c8ade934b7f340e1d52d2dfa168d170e3faf05a89055194d7a97602eaed6599d',
             'experiments/FirstPersonView/assets/vehicles/source/wheel-truck.mtl':'45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060',
             'experiments/FirstPersonView/assets/vehicles/source/wheel-truck.obj':'b4deed247fef1a193cd59b6b0f5ae46e9effb554dcc000153df6a706830e6673',
-            'experiments/FirstPersonView/src/vehicle_geometry.hpp':'8aff1d884d0c2b52074ab3d7ec6b5020a014e1595bbc18d469bf799231f7e3d9',
+            'experiments/FirstPersonView/src/vehicle_geometry.hpp':'c3a04e51c57c5919d6f4b0b8ebeddfa6d24d9c8915067228861030fbf6ab033a',
             'experiments/FirstPersonView/src/vehicle_scene.hpp':'d0dac5fe2c19e20e3fac9d2dbd98514299f9fd27ec4d055a019424ef56568845',
             'experiments/FirstPersonView/src/vehicle_snapshot.hpp':'34e27bcb3dd07c003ecdeeb8d1b6e77e75f210788892e85e1744a887e418bcbd',
             'experiments/FirstPersonView/src/vehicle_topology.hpp':'2a3590d2ab83d36e8ff38ae68ba66c7525eeb13088b4a6571ff20db9af207270',
@@ -371,8 +371,8 @@ jobs:
             'experiments/FirstPersonView/tests/gpu_scratch_capture.inc':'51b295e9e853867f1f124cc4b2ad634d44aac461fa16674ff3aec343d554f816',
             'experiments/FirstPersonView/tests/test_compare_scratch_inputs.py':'ea77e830c86377ec9f55993df875b25b2b1cfd67769c694795c62c81ca71a1a8',
             'experiments/FirstPersonView/tests/vehicle_raster_test.cpp':'83094b537952c07c547812f34554a2c3fa745baec31bd1fc2979af1a4e70a1d2',
-            'experiments/FirstPersonView/tests/vehicle_snapshot_test.cpp':'b9f291eb6ce38dce759db8c29a66f3ee9cd486faf6ba5c47c6cfbc1080a84cc1',
-            'experiments/FirstPersonView/tests/verify_vehicle_gallery.py':'07e244b491158b04703baaa461246326d13b6a04e57cf45b97dcd2fc634af402',
+            'experiments/FirstPersonView/tests/vehicle_snapshot_test.cpp':'94e50e9db4223b21f1a5c3ed2d33135699b77ae540b9cad1c7c35cb5db7359e7',
+            'experiments/FirstPersonView/tests/verify_vehicle_gallery.py':'c13a56228fb3b1e7aaefdbb8d4fc54b633e80c5c6d4f812774d7e90c03d9c5b0',
             'experiments/FirstPersonView/tools/import_vehicle_components.py':'eb3ad1e712185cc10bd2c97329d6fd3a2f761a97e3a24277d616ff5de417c705',
             'experiments/graphics_bridge/ncmm_graphics_vehicle_qualification.inc':'31c8b398fd65bd7ac1093f5376f5d2187398eeea4478007498395d9ece6f9e87',
             'experiments/FirstPersonView/tests/test_verify_vehicle_memory.py':'7a63df2d2c5029a3a31c41b84edab78325f8e5b11c114380cc0d96b88e6fe790',
@@ -400,7 +400,7 @@ jobs:
             'experiments/FirstPersonView/tests/vehicle_opaque_beam_gpu_test.inc':'45f9bed7b2bf7d84110cf54ddc00bc2e4f99a303c0098a17077143131933357e',
             'experiments/graphics_bridge/ncmm_graphics_vehicle_identity.hpp':'3216a71347c1194be6d0d451c97067e54d8fed54201850b898f47c0489acbc7d',
             'experiments/graphics_bridge/ncmm_graphics_vehicle_policy.hpp':'2bb832301adf21411270cc398f0b29486dd35c6cb9b7a41b96dd8bba9369e203',
-            'experiments/graphics_bridge/ncmm_graphics_vehicle_smoke.inc':'28efabddf2c4d54e87898f4733043d789345599a94e41871f9f59ad8d22fc97d',
+            'experiments/graphics_bridge/ncmm_graphics_vehicle_smoke.inc':'35a9a1934b2cb59479a68e17e794e513e5f93a6a5dbef02e6019c8be92ba93aa',
             'experiments/graphics_bridge/ncmm_graphics_vehicles.h':'6d43919a3e7e2db339dfeeff78a99177679ab51b7091382024674d5cdacc4fde',
             'experiments/graphics_bridge/ncmm_graphics_vehicles.inc':'76700563235b9042ba61561f1ae110719225fccee8d6d0ae2760dc54f8ed42f7',
             'experiments/graphics_bridge/test_vehicle_bridge.py':'276e4023f2ee4dea152a09ccd1d62b2d7afd17fb283521913da341cc3166fc05',
@@ -412,6 +412,7 @@ jobs:
             'experiments/FirstPersonView/tests/vehicle_frame_caps_fixture.hpp':'b80a80a897be0610235579498c5ea89bf3cf9ffa33e53f76af20c4078486505f',
             'experiments/FirstPersonView/tests/vehicle_frame_caps_test.cpp':'14cb7cbaa63118920516e1203a1a0c976e23a077b4e5a528afef10cbc1a53223',
             'experiments/FirstPersonView/tests/gpu_frame_caps_test.cpp':'0c0a207d535fde86c8f8ee819ce4b31cdd002567ae7871266c5e68dcadb92987',
+            'experiments/FirstPersonView/tests/vehicle_aisle_floor_test.inc':'116f51941504d411388cf2499d2caac96cb739c547136e6d60f53afeb6310e92',
           }
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name

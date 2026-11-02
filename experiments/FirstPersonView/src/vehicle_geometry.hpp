@@ -20,7 +20,7 @@ inline point rotate(point p,float yaw){const float c=std::cos(yaw),s=std::sin(ya
 struct vertex {point position,normal;float u=0,v=0;};
 struct material {std::array<float,4> color{};uint32_t kind=NCMM_VM_METAL;bool emissive=false;};
 struct triangle {std::array<vertex,3> vertices;uint16_t material=0;};
-enum class component {frame,roof,panel,door,glass,wheel,seat,controls,engine,cargo,armor,solar,turret,light,rack,tank,curtain,hull,axle,dashboard,other};
+enum class component {frame,roof,panel,door,glass,wheel,seat,controls,engine,cargo,armor,solar,turret,light,rack,tank,curtain,hull,axle,dashboard,other,floor};
 // Private immutable proof for only the two original longitudinal frame rails.
 // Triangle/UV/material arrays remain the complete original geometry.
 struct frame_cap_data {
@@ -329,6 +329,7 @@ inline component classify(const ncmm_graphics_vehicle_part_v1 &p){const auto f=p
     if(f&NCMM_VP_TURRET)return component::turret;
     if(f&NCMM_VP_LIGHT)return component::light;if(f&NCMM_VP_RACK)return component::rack;
     if(f&NCMM_VP_FUEL_TANK)return component::tank;if(f&NCMM_VP_FRAME)return component::frame;
+    if((f&(NCMM_VP_FLOOR|NCMM_VP_AISLE))==(NCMM_VP_FLOOR|NCMM_VP_AISLE))return component::floor;
     return component::other;
 }
 inline std::shared_ptr<const model> generate(const snapshot &s,const topology &layout,const ncmm_graphics_vehicle_part_v1 &p,unsigned lod,bool reference_subdivisions=false,
@@ -341,7 +342,7 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
     builder b(visual,workspace);b.output.kind=classify(p);b.output.recipe=layout.recipe(p,lod);
     const auto closed_kind=b.output.kind;
     b.output.closed_shell=closed_kind==component::frame||closed_kind==component::seat||closed_kind==component::axle||
-        closed_kind==component::tank||closed_kind==component::other||
+        closed_kind==component::tank||closed_kind==component::other||closed_kind==component::floor||
         ((closed_kind==component::wheel||closed_kind==component::roof)&&!(p.state&NCMM_VP_BROKEN));
     if(p.state&NCMM_VP_TOPOLOGY_ONLY)return b.finish();
     const auto kind=b.output.kind;const mount at{p.mount_x,p.mount_y,p.mount_z};
@@ -548,6 +549,20 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         }
         const bool open_frame=layout.kind==archetype::bicycle||layout.kind==archetype::motorcycle||layout.kind==archetype::boat;
         if(!open_frame&&layout.has(at,NCMM_VP_FLOOR|NCMM_VP_AISLE))b.cushion({0,0,chassis+.035f},{1,1,.055f},.025f,b.dark);
+    }else if(kind==component::floor){
+        // A real BOARDABLE+AISLE part is a thin walkable finish, not the
+        // neutral raised equipment box. Keep each part/cell as its own solid.
+        // Its lower face clears the existing frame support plate; matching
+        // full-width edges meet neighbouring aisle finishes without bevel gaps.
+        const float wear=std::clamp(1-p.health,0.f,1.f);
+        const auto finish=p.material==NCMM_VM_WOOD?b.paint:b.add({{.055f+.025f*wear,.065f+.025f*wear,.072f+.025f*wear,1},NCMM_VM_RUBBER});
+        const float low=chassis+.064f,high=chassis+.076f;
+        b.face({-.5f,-.5f,low},{-.5f,.5f,low},{.5f,.5f,low},{.5f,-.5f,low},finish);
+        b.face({-.5f,-.5f,high},{.5f,-.5f,high},{.5f,.5f,high},{-.5f,.5f,high},finish);
+        b.face({-.5f,-.5f,low},{.5f,-.5f,low},{.5f,-.5f,high},{-.5f,-.5f,high},finish);
+        b.face({.5f,-.5f,low},{.5f,.5f,low},{.5f,.5f,high},{.5f,-.5f,high},finish);
+        b.face({.5f,.5f,low},{-.5f,.5f,low},{-.5f,.5f,high},{.5f,.5f,high},finish);
+        b.face({-.5f,.5f,low},{-.5f,-.5f,low},{-.5f,-.5f,high},{-.5f,.5f,high},finish);
     }else if(kind==component::roof){
         unsigned nx=lod==0?6:3;const unsigned ny=lod==0?8:4;
         // roof_height has no X dependence on an intact interior roof mount.

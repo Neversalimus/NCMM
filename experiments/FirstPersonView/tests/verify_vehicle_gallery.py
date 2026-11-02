@@ -70,6 +70,100 @@ def fixture_camera_self_test():
     return dict(success=True,pure_controls=3+len(mutations),local_GPU_Native_raster_or_game_execution=False)
 
 
+
+def verify_native_frame_phases(row):
+    """Five disjoint wall intervals must exhaust this same actual Native frame."""
+    phases=row['native_frame_phases_ms']
+    assert type(phases) is dict and set(phases)=={'prepare','tile_draw','view_draw','flush_present','finish'}, 'Incomplete Native wall phase partition'
+    for name,value in phases.items():
+        assert type(value) in (int,float) and math.isfinite(value) and value>=0,('Invalid Native wall phase',name)
+    total=row['full_frame_ms']
+    assert type(total) in (int,float) and math.isfinite(total) and total>0
+    assert math.isclose(sum(phases.values()),total,rel_tol=0.000001,abs_tol=0.00001), 'Native wall phase partition omits or double counts complete frame time'
+
+
+def native_frame_phases_self_test():
+    import copy
+    good=dict(full_frame_ms=10.,native_frame_phases_ms=dict(prepare=2.,tile_draw=3.,view_draw=4.,flush_present=.5,finish=.5))
+    verify_native_frame_phases(good)
+    verify_native_frame_phases(dict(full_frame_ms=10.,native_frame_phases_ms=dict(prepare=0.,tile_draw=0.,view_draw=10.,flush_present=0.,finish=0.)))
+    mutations=[lambda r:r.pop('native_frame_phases_ms'),lambda r:r['native_frame_phases_ms'].pop('finish'),
+               lambda r:r['native_frame_phases_ms'].update(extra=0.),lambda r:r['native_frame_phases_ms'].update(view_draw=5.),
+               lambda r:r['native_frame_phases_ms'].update(view_draw=3.),lambda r:r['native_frame_phases_ms'].update(prepare=-1.),
+               lambda r:r['native_frame_phases_ms'].update(prepare=True),lambda r:r['native_frame_phases_ms'].update(prepare=float('nan')),
+               lambda r:r['native_frame_phases_ms'].update(finish=float('inf')),lambda r:r.update(full_frame_ms=0.),
+               lambda r:r.update(full_frame_ms=True),lambda r:r.update(full_frame_ms=float('nan'))]
+    for mutate in mutations:
+        row=copy.deepcopy(good);mutate(row)
+        try:verify_native_frame_phases(row)
+        except (AssertionError,KeyError):pass
+        else:raise AssertionError('Incomplete or double-counted Native wall phases admitted')
+    return dict(success=True,pure_controls=2+len(mutations),local_GPU_Native_raster_or_game_execution=False)
+
+
+
+def verify_aisle_floor_views(groups):
+    """The extra floor view uses the actual adjacent aisle and existing seat."""
+    variants={(b,m) for b in ['cpu','gpu'] for m in ['legacy','modular']}
+    assert ('bus','aisle-floor') in groups, 'Actual Native aisle view is missing'
+    rows=groups['bus','aisle-floor'];seats=groups['bus','passenger']
+    assert set(rows)==variants and set(seats)==variants, 'Incomplete actual aisle/seat matrix'
+    identities=set()
+    for variant,r in rows.items():
+        seat=seats[variant]
+        assert r['prototype']=='bus' and r['label']=='aisle-floor' and (r['backend'],r['renderer'])==variant
+        assert all(r[k]==seat[k] for k in ('camera_xyz','eye_height')), 'Aisle view moved the real occupied eye'
+        target=r['aisle_native_target']
+        assert type(target['part_id']) is int and target['part_id']>0
+        mount,delta=target['mount'],target['delta_xy']
+        assert type(mount) is list and len(mount)==3 and all(type(x) is int for x in mount) and mount[2]==0
+        assert type(delta) is list and len(delta)==2 and all(type(x) is int for x in delta) and sum(abs(x) for x in delta)==1
+        assert abs(math.remainder(r['requested_yaw']-math.atan2(delta[1],delta[0]),math.tau))<=.000001
+        assert abs(r['requested_pitch']+.75)<=.000001
+        verify_fixture_camera(r)
+        identities.add((target['part_id'],tuple(mount),tuple(delta)))
+        if variant[1]=='modular':
+            assert r['occupied_vehicle'] and r['occupied_part'] and r['occupied_eye_valid']
+            assert all(r[k]==seat[k] for k in ('occupied_vehicle','occupied_part','occupied_eye_valid','occupied_eye_xy'))
+            published=target['published']
+            assert published['part_id']==target['part_id'] and published['mount']==mount and published['id']=='aisle'
+            assert type(published['features']) is int and published['features']==(16384|524288)
+            assert type(published['state']) is int and published['state']&1 and not published['state']&128
+            assert type(published['cell_index']) is int and published['cell_index']>=0
+    assert len(identities)==1, 'Aisle part identity or real world direction changed between renderers'
+
+
+def aisle_floor_view_self_test():
+    import copy
+    rows={};seats={}
+    for b in ['cpu','gpu']:
+        for m in ['legacy','modular']:
+            seat=dict(camera_xyz=[10,20,0],eye_height=1.4548,occupied_vehicle=7,occupied_part=9,occupied_eye_valid=True,occupied_eye_xy=[1.,2.])
+            r=dict(seat,prototype='bus',label='aisle-floor',backend=b,renderer=m,yaw=-math.pi/2,pitch=-.75,requested_yaw=-math.pi/2,requested_pitch=-.75,
+                   aisle_native_target=dict(part_id=14,mount=[-1,1,0],delta_xy=[0,-1]))
+            if m=='modular':r['aisle_native_target']['published']=dict(part_id=14,mount=[-1,1,0],id='aisle',features=16384|524288,state=33,cell_index=4)
+            rows[b,m]=r;seats[b,m]=seat
+    good={('bus','aisle-floor'):rows,('bus','passenger'):seats};verify_aisle_floor_views(good)
+    def current(g):return g['bus','aisle-floor']['gpu','modular']
+    mutations=[lambda g:g.pop(('bus','aisle-floor')),lambda g:g['bus','aisle-floor'].pop(('cpu','legacy')),
+               lambda g:current(g).update(camera_xyz=[11,20,0]),lambda g:current(g).update(eye_height=1.55),
+               lambda g:current(g).update(requested_pitch=-.95,pitch=-.95),lambda g:current(g).update(requested_yaw=0.,yaw=0.),
+               lambda g:current(g)['aisle_native_target'].update(part_id=True),lambda g:current(g)['aisle_native_target'].update(delta_xy=[0,0]),
+               lambda g:current(g)['aisle_native_target'].update(delta_xy=[0,-2]),lambda g:current(g)['aisle_native_target'].update(mount=[-1,1,1]),
+               lambda g:current(g)['aisle_native_target']['published'].update(part_id=15),lambda g:current(g)['aisle_native_target']['published'].update(mount=[0,1,0]),
+               lambda g:current(g)['aisle_native_target']['published'].update(id='seat'),lambda g:current(g)['aisle_native_target']['published'].update(features=16384),
+               lambda g:current(g)['aisle_native_target']['published'].update(state=129),lambda g:current(g)['aisle_native_target']['published'].update(state=0),
+               lambda g:current(g)['aisle_native_target']['published'].update(cell_index=-1),lambda g:current(g)['aisle_native_target']['published'].update(cell_index=True),
+               lambda g:current(g).update(occupied_part=10),lambda g:current(g).update(occupied_eye_valid=False),
+               lambda g:current(g).update(occupied_eye_xy=[0.,0.]),lambda g:current(g).pop('aisle_native_target')]
+    for mutate in mutations:
+        bad=copy.deepcopy(good);mutate(bad)
+        try:verify_aisle_floor_views(bad)
+        except (AssertionError,KeyError):pass
+        else:raise AssertionError('Invented, hidden or incorrectly aimed aisle floor view admitted')
+    return dict(success=True,pure_controls=1+len(mutations),local_GPU_Native_raster_or_game_execution=False)
+
+
 def verify_memory(path, source, engine, module):
     from statistics import median
     report=json.loads(Path(path).read_text(encoding='utf-8-sig'))
@@ -201,6 +295,7 @@ def verify(root, output, source, engine, module=None):
         for name in ['yaw','pitch','eye_height','full_frame_ms']:
             assert isinstance(r[name],(int,float)) and math.isfinite(r[name])
         verify_fixture_camera(r)
+        verify_native_frame_phases(r)
         assert r['full_frame_ms']>0
         if r['backend']=='cpu':verify_cpu_metrics(r)
         if r['renderer']=='modular' and r['snapshot_parts']:
@@ -227,6 +322,7 @@ def verify(root, output, source, engine, module=None):
     assert {('car',v) for v in ['driver','passenger','open-door','damaged','broken-door','broken-wheel','removed-wheel',
                                'installed-armor','night','rain','fog','paint-red','paint-blue']} <= groups.keys()
     verify_mutation_views(groups)
+    verify_aisle_floor_views(groups)
     assert {('mixed','parking'),('mixed','after-motion'),('mixed','save-reload')} <= groups.keys()
     assert {('car','driving-'+str(step)) for step in range(8)} <= groups.keys()
     driving=[]
@@ -271,7 +367,8 @@ def verify(root, output, source, engine, module=None):
     sheet('vehicle-exteriors.png',[(p,'front-three-quarter') for p in sorted(PROTOTYPES)])
     angle_keys=[(p,v) for p in sorted(PROTOTYPES) for v in sorted(VIEWS)]
     for offset in range(0,len(angle_keys),12):sheet('vehicle-angles-'+str(offset//12)+'.png',angle_keys[offset:offset+12],200,150)
-    sheet('vehicle-interiors.png',sorted(k for k in groups if k[1] in {'driver','passenger','driver-controls'}))
+    sheet('vehicle-interiors.png',sorted(k for k in groups if k[1] in {'driver','passenger','driver-controls','aisle-floor'}))
+    sheet('vehicle-aisle.png',[('bus','aisle-floor')])
     car_keys=sorted(k for k in groups if k[0]=='car' and not k[1].startswith(('moving-','activity-')))
     for offset in range(0,len(car_keys),12):sheet('vehicle-details-'+str(offset//12)+'.png',car_keys[offset:offset+12])
     sheet('vehicle-parking.png',[k for k in sorted(groups) if k[0]=='mixed' and not k[1].startswith('moving-')])
@@ -300,10 +397,14 @@ def verify(root, output, source, engine, module=None):
 
 if __name__=='__main__':
     import sys
+    if sys.argv[1:]==['--self-test-aisle-floor-view']:
+        print(json.dumps(aisle_floor_view_self_test()));raise SystemExit(0)
+    if sys.argv[1:]==['--self-test-native-frame-phases']:
+        print(json.dumps(native_frame_phases_self_test()));raise SystemExit(0)
     if sys.argv[1:]==['--self-test-fixture-camera']:
         print(json.dumps(fixture_camera_self_test()));raise SystemExit(0)
     if sys.argv[1:]==['--self-test-depth-controls']:
-        depth=depth_control_self_test();depth['fixture_camera_controls']=fixture_camera_self_test();print(json.dumps(depth));raise SystemExit(0)
+        depth=depth_control_self_test();depth['fixture_camera_controls']=fixture_camera_self_test();depth['native_frame_phase_controls']=native_frame_phases_self_test();depth['aisle_floor_view_controls']=aisle_floor_view_self_test();print(json.dumps(depth));raise SystemExit(0)
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',required=True,type=Path)
     p.add_argument('--output',required=True,type=Path);p.add_argument('--source',required=True);p.add_argument('--engine',required=True);p.add_argument('--module-sha256')
     args=p.parse_args();result=verify(args.root,args.output,args.source,args.engine,args.module_sha256)

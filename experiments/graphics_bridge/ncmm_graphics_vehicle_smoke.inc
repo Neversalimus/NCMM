@@ -57,6 +57,9 @@
         get_avatar().setpos(get_map(),p,false);g->ter_view_p=p;look(std::atan2(float(-dy),float(-dx)),pitch);
     };
     uint64_t registry_controls=0;bool vehicle_depth_pixels_verified=true;
+    uint64_t aisle_target_id=0;
+    std::array<int,3> aisle_target_mount{};
+    std::array<int,2> aisle_target_delta{};
     const auto verify_registry=[&](){
         map &world=get_map();const auto reference=world.get_vehicles(),actual=graphics_loaded_vehicles(world);
         require(reference.size()==actual.size(),"vehicle_loaded_registry_count_changed");
@@ -76,16 +79,22 @@
         map &world=get_map();
         if(refresh){g->reset_light_level();world.invalidate_map_cache(get_avatar().posz());world.invalidate_visibility_cache();}
         world.build_map_cache(get_avatar().posz());world.update_visibility_cache(get_avatar().posz());
+        const auto native_prepared=std::chrono::steady_clock::now();
         std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;
         tilecontext->draw(point::zero,get_avatar().pos_bub(),frame_width,frame_height,overlays,blocks);
+        const auto tiles_drawn=std::chrono::steady_clock::now();
         require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderLogicalPresentation(renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&
             SDL_SetRenderScale(renderer,1,1)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"vehicle_canvas_bind_failed");
-        require(graphics_draw(0,0,frame_width,frame_height),"vehicle_actual_frame_failed");require(SDL_FlushRenderer(renderer),"vehicle_flush_failed");
+        require(graphics_draw(0,0,frame_width,frame_height),"vehicle_actual_frame_failed");
+        const auto view_drawn=std::chrono::steady_clock::now();
+        require(SDL_FlushRenderer(renderer),"vehicle_flush_failed");
         const bool gpu=std::strcmp(backend,"gpu")==0;
         require(!gpu||graphics_gpu_frame,"vehicle_gpu_fell_back");
         require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"vehicle_present_failed");
-        graphics_world_frame_presented();require(SDL_SetRenderTarget(renderer,canvas),"vehicle_capture_rebind_failed");++frames;
-        const double frame_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
+        graphics_world_frame_presented();require(SDL_SetRenderTarget(renderer,canvas),"vehicle_capture_rebind_failed");
+        const auto frame_presented=std::chrono::steady_clock::now();++frames;
+        const auto frame_finished=std::chrono::steady_clock::now();
+        const double frame_ms=std::chrono::duration<double,std::milli>(frame_finished-begun).count();
         if(frames%16==0){std::ofstream progress(game_root()/"ncmm"/"first-person-vehicle-progress.txt");
             progress<<"vehicles: frame="<<frames<<" scene="<<prototype<<" phase="<<label<<'\n';
             require(bool(progress),"vehicle_progress_write_failed");}
@@ -112,6 +121,26 @@
             }
             evidence.end_array();
         }
+        if(label=="aisle-floor"){
+            // Real Native part identity and permitted cell, never a synthetic
+            // floor or a request to reveal hidden vehicle contents. This is
+            // serialized after the same complete-frame timer as other views.
+            require(aisle_target_id!=0,"vehicle_aisle_target_not_selected");
+            evidence.member("aisle_native_target");evidence.start_object();
+            evidence.member("part_id",aisle_target_id);evidence.member("mount",aisle_target_mount);
+            evidence.member("delta_xy",aisle_target_delta);
+            if(std::strcmp(mode,"modular")==0){
+                const auto target=std::find_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[&](const auto &p){return p.part_id==aisle_target_id;});
+                require(target!=graphics_vehicle_parts.end()&&target->cell_index>=0&&!(target->state&NCMM_VP_TOPOLOGY_ONLY),"vehicle_aisle_target_not_Native_permitted");
+                require(target->features==uint32_t(NCMM_VP_FLOOR|NCMM_VP_AISLE),"vehicle_aisle_target_not_plain_boardable_floor");
+                require(target->mount_x==aisle_target_mount[0]&&target->mount_y==aisle_target_mount[1]&&target->mount_z==aisle_target_mount[2],"vehicle_aisle_target_mount_changed");
+                evidence.member("published");evidence.start_object();evidence.member("part_id",target->part_id);
+                evidence.member("mount",std::array<int,3>{target->mount_x,target->mount_y,target->mount_z});
+                evidence.member("features",target->features);evidence.member("state",target->state);
+                evidence.member("cell_index",target->cell_index);evidence.member("id",std::string(target->id));evidence.end_object();
+            }
+            evidence.end_object();
+        }
         evidence.member("vehicle_extraction_ms",graphics_vehicle_extraction_ms);evidence.member("vehicle_preparation_ms",graphics_vehicle_metrics.preparation_ms);
         evidence.member("native_global_eoc_queue_size",g->queued_global_effect_on_conditions.list.size());
         evidence.member("vehicle_discovery_body_cells",graphics_vehicle_discovery.body_cells);evidence.member("vehicle_discovery_floor_cells",graphics_vehicle_discovery.floor_cells);
@@ -132,6 +161,16 @@
         }
         evidence.member("native_lights_on",std::count_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[](const auto &p){return (p.state&NCMM_VP_LIGHT_ON)!=0;}));
         evidence.member("full_frame_ms",frame_ms);
+        // Serial wall intervals of this exact complete Native frame. They
+        // include Host work/presentation and are not GPU execution timestamps.
+        // Serialization stays outside the unchanged complete-frame timer.
+        const auto phase_ms=[](auto begin,auto end){return std::chrono::duration<double,std::milli>(end-begin).count();};
+        evidence.member("native_frame_phases_ms");evidence.start_object();
+        evidence.member("prepare",phase_ms(begun,native_prepared));
+        evidence.member("tile_draw",phase_ms(native_prepared,tiles_drawn));
+        evidence.member("view_draw",phase_ms(tiles_drawn,view_drawn));
+        evidence.member("flush_present",phase_ms(view_drawn,frame_presented));
+        evidence.member("finish",phase_ms(frame_presented,frame_finished));evidence.end_object();
         if(graphics_gpu_engine){const auto metrics=graphics_gpu_engine->metrics();
             evidence.member("device",std::string(metrics.device));evidence.member("software_device",bool(metrics.software_device));
             evidence.member("gpu_draw_calls",metrics.draw_calls);evidence.member("gpu_triangles",metrics.triangles);
@@ -223,6 +262,26 @@
                     look(float(units::to_radians(car->face.dir())),-.95f);
                     pair("driver-controls",prototype);
                     restore_look(saved_yaw,saved_pitch);
+                }
+                if(n==1&&std::strcmp(prototype,"bus")==0){
+                    // Look at a genuinely adjacent aisle from this same real
+                    // passenger seat and Native eye. Do not board an invented
+                    // position or change permission/collision/part data.
+                    int aisle_index=-1,nearest=1000000;
+                    for(const vpart_reference &p:car->get_all_parts()){
+                        if(p.part().removed||p.part().is_fake||p.info().id.str()!="aisle"||!p.has_feature("AISLE")||!p.has_feature("BOARDABLE"))continue;
+                        const auto at=p.pos_bub(get_map());const int distance=std::abs(at.x()-pos.x())+std::abs(at.y()-pos.y());
+                        if(distance>0&&distance<nearest){nearest=distance;aisle_index=int(p.part_index());}
+                    }
+                    require(aisle_index>=0&&nearest==1,"vehicle_real_adjacent_aisle_missing");
+                    const auto at=car->bub_part_pos(get_map(),aisle_index);
+                    aisle_target_id=car->part(aisle_index).ncmm_graphics_part_id();
+                    aisle_target_mount={car->part(aisle_index).mount.x(),car->part(aisle_index).mount.y(),0};
+                    aisle_target_delta={at.x()-pos.x(),at.y()-pos.y()};
+                    const float saved_yaw=graphics_camera_yaw,saved_pitch=graphics_camera_pitch;
+                    look(std::atan2(float(aisle_target_delta[1]),float(aisle_target_delta[0])),-.75f);
+                    pair("aisle-floor",prototype);
+                    restore_look(saved_yaw,saved_pitch);aisle_target_id=0;
                 }
                 get_map().unboard_vehicle(get_avatar().pos_bub());graphics_smoke_vehicle_eye.reset();require(!get_avatar().in_vehicle,"vehicle_family_exit_failed");}
             camera(0,8,-.08f);
