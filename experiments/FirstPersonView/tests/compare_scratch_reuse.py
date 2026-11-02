@@ -17,12 +17,20 @@ def reference_backend(candidate):
     # Empty visible groups and a zero-bone scene are valid public inputs.
     # The new backend avoids passing null+zero arrays to memcpy; retain the
     # exact historical backend in the frozen reference control nevertheless.
-    if 'if(!instances.empty())std::memcpy(mapped+offset,instances.data()' in reference:
-        for before,after in [
-            ('if(!instances.empty())std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));','std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));'),
-            ('if(scene.bone_count)std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));','std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));')]:
-            assert reference.count(before)==1,'Unreviewed empty-upload reconstruction'
-            reference=reference.replace(before,after,1)
+    if 'if(!instances.empty()){' in reference:
+        before=('        stage=clock::now();uint32_t offset=0;\n'
+            '        if(!instances.empty()){\n'
+            '            std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));\n'
+            '        }\n'
+            '        offset+=uint32_t(instances.size()*sizeof(instance));\n'
+            '        if(scene.bone_count){\n'
+            '            std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));\n'
+            '        }\n'
+            '        offset+=scene.bone_count*sizeof(ncmm_gpu_matrix_v1);')
+        after=('        stage=clock::now();uint32_t offset=0;std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));offset+=uint32_t(instances.size()*sizeof(instance));\n'
+            '        std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));offset+=scene.bone_count*sizeof(ncmm_gpu_matrix_v1);')
+        assert reference.count(before)==1,'Unreviewed empty-upload reconstruction'
+        reference=reference.replace(before,after,1)
         assert hashlib.sha256(reference.encode()).hexdigest()=='5ec8692d83d20a584923fa2c32842d3dde5aaa035307764654971419c897df3e','Empty-upload inverse changed source67'
     # Reverse only the three private packing opt-in edits. The reconstructed
     # backend never opts in, so the shared cache retains its original uploads.

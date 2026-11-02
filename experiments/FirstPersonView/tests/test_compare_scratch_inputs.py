@@ -24,13 +24,13 @@ class Diagnostics(unittest.TestCase):
         source=self.backend()
         self.assertNotIn('#define NCMM_GPU_GROUP_DEPTH_PROGRAM',source)
         self.assertNotIn('prefill_opaque_group(',source)
-        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'28ca371770048b16c1c446a096877d5fd83a237c030d58c8ba4076631c762f12')
+        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'fe1f33252cd6cbf1f4625191d6bc3add0e08f29ceca1c180345aee1d6da4d788')
     def test_changed_empty_instance_copy_guard_cannot_reconstruct(self):
-        source=self.backend().replace('if(!instances.empty())std::memcpy','if(instances.empty())std::memcpy')
+        source=self.backend().replace('if(!instances.empty()){','if(instances.empty()){')
         self.assertNotEqual(source,self.backend())
         with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def test_changed_empty_bone_copy_guard_cannot_reconstruct(self):
-        source=self.backend().replace('if(scene.bone_count)std::memcpy','if(!scene.bone_count)std::memcpy')
+        source=self.backend().replace('if(scene.bone_count){','if(!scene.bone_count){')
         self.assertNotEqual(source,self.backend())
         with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def test_original_cache_default_and_current_explicit_packing_are_separate(self):
