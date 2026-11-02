@@ -150,6 +150,19 @@ public:
             const bool left=!supported(p.mount_y-1),right=!supported(p.mount_y+1);
             if(left!=right)lateral=left?3u:1u;
         }
+        else{
+            // Door posts need not carry roof parts. Native often mounts the
+            // real roof over seats one column inboard of a corner screen.
+            // Only extend the proven outside edge of that same connected row;
+            // holes between roofs or a distant roof keep the old fallback.
+            int first=1001,last=-1001;
+            for(const auto &[at,node]:mounts){const auto [x,y,z]=at;
+                if(x!=p.mount_x+inward||z!=p.mount_z||node.component!=source->second.component||
+                   (node.features&(NCMM_VP_FRAME|NCMM_VP_ROOF))!=(NCMM_VP_FRAME|NCMM_VP_ROOF))continue;
+                first=std::min(first,y);last=std::max(last,y);
+            }
+            if(first<=last){if(p.mount_y==first-1)lateral=3;else if(p.mount_y==last+1)lateral=1;}
+        }
         for(const auto &[index,wheel]:sizes){(void)index;
             if(caster_mount({wheel.x,wheel.y,wheel.z})||wheel.z!=p.mount_z)return {};
             // Match the actual wheel placement in vehicle_scene, then reserve

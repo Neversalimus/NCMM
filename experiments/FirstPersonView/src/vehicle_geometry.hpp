@@ -762,7 +762,27 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
         b.cushion({.51f,0,chassis+.40f},{.18f,.26f,.18f},.055f,b.dark);
         const bool on=(p.state&NCMM_VP_LIGHT_ON)!=0;
         const auto lens=b.add({{on?.95f:.30f,on?.86f:.32f,on?.62f:.31f,1},NCMM_VM_GLASS,on});
-        b.face({.605f,-.10f,chassis+.33f},{.605f,.10f,chassis+.33f},{.605f,.10f,chassis+.47f},{.605f,-.10f,chassis+.47f},lens);
+        if(lod<2){
+            // These optical surfaces belong to this installed directional lamp.
+            // A rounded metal rim and shallow lens stay inside its original
+            // housing footprint and frontmost plane. Native power supplies
+            // emission; neither optics nor trim invent a light or a part.
+            const unsigned samples=lod==0?3u:2u,count=4*samples;
+            const float half_y=.112f,half_z=.078f,radius=.022f;
+            const auto rim=[&](unsigned index,float scale,float x){
+                const unsigned corner=index/samples,step=index%samples;
+                const float angle=pi*.5f*(float(corner)+float(step)/(samples-1));
+                const float y=(corner==0||corner==3?half_y-radius:-half_y+radius)+radius*std::cos(angle);
+                const float z=(corner<2?half_z-radius:-half_z+radius)+radius*std::sin(angle);
+                return point{x,y*scale,chassis+.40f+z*scale};
+            };
+            for(unsigned n=0;n<count;++n){const unsigned next=(n+1)%count;
+                b.face(rim(n,1,.6008f),rim(next,1,.6008f),rim(next,.88f,.6025f),rim(n,.88f,.6025f),b.steel);
+                b.face(rim(n,.88f,.6025f),rim(next,.88f,.6025f),rim(next,.76f,.604f),rim(n,.76f,.604f),lens);
+                const point center{.605f,0,chassis+.40f};
+                b.face(rim(n,.76f,.604f),rim(next,.76f,.604f),center,center,lens);
+            }
+        }else b.face({.605f,-.10f,chassis+.33f},{.605f,.10f,chassis+.33f},{.605f,.10f,chassis+.47f},{.605f,-.10f,chassis+.47f},lens);
     }else if(kind==component::turret){
         b.beam({0,0,chassis+.1f},{0,0,chassis+.60f},.20f,.20f,b.steel,12);
         b.cushion({0,0,chassis+.62f},{.43f,.30f,.21f},.05f,b.dark);

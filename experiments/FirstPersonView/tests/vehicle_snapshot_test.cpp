@@ -1,4 +1,5 @@
 #include "vehicle_snapshot.hpp"
+#include "vehicle_cabin_quality_controls.hpp"
 #include "vehicle_geometry.hpp"
 #include "vehicle_scene.hpp"
 #include "gpu_packet.hpp"
@@ -1444,5 +1445,7 @@ int main(){
     #include "vehicle_repeat_input_test.inc"
     #include "vehicle_preparation_test.inc"
     #include "vehicle_opaque_beam_test.inc"
+    vehicle_cabin_quality_controls::verify_roof_contour(require);
+    vehicle_cabin_quality_controls::verify_lamp_optics(require);
     std::printf("vehicle snapshot: %d checks passed\n",checks);
 }
