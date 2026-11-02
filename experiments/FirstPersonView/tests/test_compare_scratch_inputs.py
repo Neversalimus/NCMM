@@ -24,7 +24,15 @@ class Diagnostics(unittest.TestCase):
         source=self.backend()
         self.assertNotIn('#define NCMM_GPU_GROUP_DEPTH_PROGRAM',source)
         self.assertNotIn('prefill_opaque_group(',source)
-        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'5ec8692d83d20a584923fa2c32842d3dde5aaa035307764654971419c897df3e')
+        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'28ca371770048b16c1c446a096877d5fd83a237c030d58c8ba4076631c762f12')
+    def test_changed_empty_instance_copy_guard_cannot_reconstruct(self):
+        source=self.backend().replace('if(!instances.empty())std::memcpy','if(instances.empty())std::memcpy')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_empty_bone_copy_guard_cannot_reconstruct(self):
+        source=self.backend().replace('if(scene.bone_count)std::memcpy','if(!scene.bone_count)std::memcpy')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def test_original_cache_default_and_current_explicit_packing_are_separate(self):
         resource=(Path(__file__).resolve().parents[2]/'graphics_bridge/ncmm_gpu_resources.hpp').read_text(encoding='utf-8')
         self.assertIn('    bool compact_opaque_vertices_=false;',resource)

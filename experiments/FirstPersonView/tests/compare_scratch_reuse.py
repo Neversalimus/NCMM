@@ -14,6 +14,16 @@ def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def reference_backend(candidate):
     """Pure reconstruction, always checked against the unchanged frozen digest."""
     reference=candidate
+    # Empty visible groups and a zero-bone scene are valid public inputs.
+    # The new backend avoids passing null+zero arrays to memcpy; retain the
+    # exact historical backend in the frozen reference control nevertheless.
+    if 'if(!instances.empty())std::memcpy(mapped+offset,instances.data()' in reference:
+        for before,after in [
+            ('if(!instances.empty())std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));','std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));'),
+            ('if(scene.bone_count)std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));','std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));')]:
+            assert reference.count(before)==1,'Unreviewed empty-upload reconstruction'
+            reference=reference.replace(before,after,1)
+        assert hashlib.sha256(reference.encode()).hexdigest()=='5ec8692d83d20a584923fa2c32842d3dde5aaa035307764654971419c897df3e','Empty-upload inverse changed source67'
     # Reverse only the three private packing opt-in edits. The reconstructed
     # backend never opts in, so the shared cache retains its original uploads.
     # Require the exact source66 backend before any older frozen recipe runs.

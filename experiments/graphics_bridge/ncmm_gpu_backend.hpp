@@ -346,8 +346,8 @@ public:
         ncmm_graphics_trace::cpu_zone upload_zone("Upload");
         auto *transfer=frame_upload_;
         auto *mapped=static_cast<unsigned char *>(SDL_MapGPUTransferBuffer(context_.device(),transfer,true));if(!mapped){context_.fail("map frame transfer");reason(context_.reason());return false;}
-        stage=clock::now();uint32_t offset=0;std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));offset+=uint32_t(instances.size()*sizeof(instance));
-        std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));offset+=scene.bone_count*sizeof(ncmm_gpu_matrix_v1);
+        stage=clock::now();uint32_t offset=0;if(!instances.empty())std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));offset+=uint32_t(instances.size()*sizeof(instance));
+        if(scene.bone_count)std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));offset+=scene.bone_count*sizeof(ncmm_gpu_matrix_v1);
         if(cell_upload_size)std::memcpy(mapped+offset,cell_snapshot_.data(),cell_upload_size);
         offset+=cell_upload_size;
 

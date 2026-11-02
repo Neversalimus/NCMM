@@ -105,12 +105,18 @@ int main(){
                 const unsigned count=variant==3?64:5;
                 for(unsigned j=0;j<count;++j){auto mesh=grid();mesh.materials[0].color[0]=.1f+float(j%8)*.12f;mesh.materials[0].color[1]=.1f+float((j/8)%4)*.2f;mesh.materials[0].color[2]=.2f+float(j%5)*.15f;
                     if(variant==4){if(j==0)mesh.flags=NCMM_GPU_DYNAMIC_MESH;if(j==1)mesh.materials[0].color[3]=.5f;if(j==2)for(auto &vertex:mesh.vertices)vertex.uv[0]=vertex.uv[1]=0;if(j==3)mesh.materials[0].finish=12;if(j==4){mesh.vertices.resize(3);mesh.indices={0,1,2};}}
-                    mesh.key=gpu::mesh_key(mesh);auto owner=std::make_shared<gpu::owned_mesh>(std::move(mesh));packet.mesh(owner);
+                    mesh.key=mesh.flags&NCMM_GPU_DYNAMIC_MESH?0xfefd5041434b5631ull:gpu::mesh_key(mesh);auto owner=std::make_shared<gpu::owned_mesh>(std::move(mesh));packet.mesh(owner);
                     ncmm_gpu_draw_v1 draw{};draw.mesh_key=owner->key;draw.transform=gpu::identity();draw.transform.columns[12]=12.3f;draw.transform.columns[13]=11.3f;draw.transform.columns[14]=.7f+(variant==4?float(j)*.1f:0);draw.cell=287;draw.bone_count=1;draw.pass=owner->materials[0].color[3]<1?NCMM_GPU_TRANSPARENT:NCMM_GPU_OPAQUE;packet.draws.push_back(draw);}}
-            const auto &submission=packet.finish(nullptr);const std::vector<ncmm_gpu_draw_v1> original_draws(submission.draws,submission.draws+submission.draw_count);
-            const auto submit=[&](ncmm_gpu::backend &engine){require(engine.submit(submission),engine.metrics().reason);return read(engine);};
+            auto submission=packet.finish(nullptr);
+            if(variant==4&&n==9){submission.draws=nullptr;submission.draw_count=0;submission.bones=nullptr;submission.bone_count=0;}
+            std::vector<ncmm_gpu_draw_v1> original_draws;
+            if(submission.draw_count)original_draws.assign(submission.draws,submission.draws+submission.draw_count);
+            const auto submit=[&](ncmm_gpu::backend &engine){
+                const bool submitted=engine.submit(submission);
+                if(!submitted){const auto metrics=engine.metrics();report.flush();std::fprintf(stderr,"Vertex pack submit context variant=%u view=%u packed=%u\n",variant,n,unsigned(&engine==&current));require(false,metrics.reason);}
+                return read(engine);};
             observation a,b;if((variant+n)%2){b=submit(current);a=submit(original);}else{a=submit(original);b=submit(current);}
-            require(!std::memcmp(original_draws.data(),submission.draws,original_draws.size()*sizeof(original_draws[0])),"exact public source draw keys and order retained");
+            require(original_draws.empty()||!std::memcmp(original_draws.data(),submission.draws,original_draws.size()*sizeof(original_draws[0])),"exact public source draw keys and order retained");
             uint64_t saved=0,packed_meshes=0;for(uint32_t m=0;m<submission.mesh_count;++m){const auto &input=submission.meshes[m];const auto *before=original.resources().mesh(input.key),*after=current.resources().mesh(input.key);
                 require(before&&after&&!before->compacted,"reference cache uses complete original vertices for every identical public key");
                 require(before->cpu_indices==after->cpu_indices&&before->vertex_data().size()==after->vertex_data().size()&&!std::memcmp(before->vertex_data().data(),after->vertex_data().data(),before->vertex_data().size()*sizeof(ncmm_gpu_vertex_v1)),"complete original CPU picking arrays remain equal");
@@ -120,6 +126,7 @@ int main(){
             const bool match=!different&&a.focus==b.focus&&a.target==b.target;equal&=match;total_different+=different;++pairs;
             if(!first)report<<",";
             first=false;report<<"{\"variant\":"<<variant<<",\"view\":"<<n<<",\"saved_vertex_bytes\":"<<saved<<",\"packed_meshes\":"<<packed_meshes<<",\"pixels_equal\":"<<(different?"false":"true")<<",\"different_pixels\":"<<different<<",\"focus_equal\":"<<(a.focus==b.focus?"true":"false")<<",\"target_equal\":"<<(a.target==b.target?"true":"false")<<"}";
+            report.flush();require(bool(report),"retain each complete pair before any later failed control");
             if(!match)std::fprintf(stderr,"Vertex pack mismatch variant=%u view=%u pixels=%zu focus=%d/%d target=%d/%d\n",variant,n,different,a.focus,b.focus,a.target,b.target);
         }
     }

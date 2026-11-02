@@ -1,4 +1,5 @@
 #include "ncmm_gpu_vertex_pack.hpp"
+#include "ncmm_gpu_validation.hpp"
 #include "gpu_scene.hpp"
 #include "vehicle_frame_caps_fixture.hpp"
 #include <cstdio>
@@ -94,6 +95,13 @@ static void actual_packets(){
             require(!std::memcmp(draws.data(),scene.draws,draws.size()*sizeof(draws[0])),"all original public draw/mesh keys, passes, cells and transforms retained");}
     }
 }
-int main(){fallbacks();actual_packets();require(active>100&&corners>100000,"actual complete production packets positively exercise corner sharing");
+int main(){fallbacks();actual_packets();
+    ncmm_gpu_cell_v1 cell{};ncmm_gpu_scene_v1 empty{};empty.struct_size=sizeof(empty);empty.width=1280;empty.height=800;empty.mode=NCMM_GPU_FORCE;empty.cells=&cell;empty.cell_count=1;
+    empty.camera.projection[0]=1280;empty.camera.projection[1]=800;empty.camera.projection[2]=1;empty.camera.projection[3]=100;empty.camera.grid[0]=empty.camera.grid[1]=empty.camera.grid[2]=1;
+    require(ncmm_gpu::validate(empty)==nullptr,"a zero-draw, zero-bone scene with null arrays is a valid unchanged public contract");
+    empty.bone_count=1;require(std::strcmp(ncmm_gpu::validate(empty),"missing-scene-data")==0,"nonempty null bone data remains strictly rejected");
+    auto authored=grid(),dynamic=authored;dynamic.flags=NCMM_GPU_DYNAMIC_MESH;
+    require(gpu::mesh_key(authored)==gpu::mesh_key(dynamic)&&authored.key!=0xfefd5041434b5631ull,"authored static/dynamic test resources require distinct semantic keys, as the unchanged cache contract demands");
+    require(active>100&&corners>100000,"actual complete production packets positively exercise corner sharing");
     std::printf("{\"success\":true,\"checks\":%llu,\"meshes\":%llu,\"active_meshes\":%llu,\"ordered_corners\":%llu,\"original_active_vertices\":%llu,\"packed_active_vertices\":%llu,\"actual_packet_configurations\":100,\"whole_mesh_fallback_controls\":40,\"material_flag_controls\":32,\"material_finish_controls\":32,\"coplanar_color_keys\":64,\"no_device_or_raster\":true}\n",
         (unsigned long long)checks,(unsigned long long)meshes,(unsigned long long)active,(unsigned long long)corners,(unsigned long long)original_vertices,(unsigned long long)packed_vertices);}

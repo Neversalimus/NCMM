@@ -176,7 +176,7 @@ jobs:
             'experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp':'f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b',
             'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'eb3b13277378ba66e3be1682c02122c6a03072cffc8d58ccf949c56b44b1e462',
             'experiments/graphics_bridge/ncmm_gpu_geometry.hpp':'0b4908e30c9855d78466fad31f9c194a057268d4d2a82d1397fb57c504618e9d',
-            'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'5ec8692d83d20a584923fa2c32842d3dde5aaa035307764654971419c897df3e',
+            'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'28ca371770048b16c1c446a096877d5fd83a237c030d58c8ba4076631c762f12',
             'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'3b5ce5f1c95e4a156be4dad5e6896c60217f557491156cf953952e7ec0a95dd4',
             'experiments/FirstPersonView/tests/gpu_fixture_producer.hpp':'922dc2bd588b86d8429ca65e0291341e9f40711a6916ae2a16539bb7461447cd',
             'experiments/FirstPersonView/tests/gpu_fixture_producer.cpp':'41a04bf77add9cd55600e3b3c495eaa8ad47885e0976361c968cea399aaa2a0b',
@@ -186,7 +186,7 @@ jobs:
             'experiments/FirstPersonView/shaders/geometry_reflective_bound.frag':'2f5aa3d48520ec781971f17638f4b3ac4bb22ee5800d5364af52de4f87b75831',
             'experiments/FirstPersonView/shaders/geometry_plain_bound.frag':'285be0bf90990330814897eb0f15ae9eb3f0a8f9c2f9044034990577e3c0391f',
             'experiments/FirstPersonView/tests/opaque_span_order_test.inc':'62ecf71e5500ea7f21351bbf768cd7c0192cfd971b9a3c8936bced6e75f676b0',
-            'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'8b51562226bd659764e253b1a766837fffa35907946c7e80e52740d05e8303b1',
+            'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'cc9aaf6b13630f01f4ab870b5e9467b5efda6c49a0e1ce933cf25a57625c0004',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'e7ca95216b84c3bfdb34bcf9c2638a8d46696b8eda28014a5c18511c1e38a16d',
             'experiments/FirstPersonView/src/gpu_scene.hpp':'5cfdca67102d921dd3db6c0a923bbff4895ee303c922010399b41591498d0209',
             'experiments/FirstPersonView/src/hybrid_renderer.hpp':'69b3fdf955ba113e45021e788b748361a516018c0fa8988265a220a797ce67ef',
@@ -371,7 +371,7 @@ jobs:
             'experiments/FirstPersonView/src/raster_dispatch.hpp':'e59ef2bfd8d8a16363182ffa65b3cd6ae034be96ff9c497e78f7ffb6d65045b2',
             'experiments/FirstPersonView/tests/gpu_input_fingerprint.hpp':'6407914cc82d5250a9249085407181fca264c18725706ac57ab68d0b424867a4',
             'experiments/FirstPersonView/tests/gpu_scratch_capture.inc':'51b295e9e853867f1f124cc4b2ad634d44aac461fa16674ff3aec343d554f816',
-            'experiments/FirstPersonView/tests/test_compare_scratch_inputs.py':'dfa17ce9c535fe3adb8483e00ee142d606f1cc8340f5b1db3919071a4a369cb1',
+            'experiments/FirstPersonView/tests/test_compare_scratch_inputs.py':'8ea6052c75afa8743803a0a518287c89781ce23c5943acd2cab5f40609d5bdd5',
             'experiments/FirstPersonView/tests/vehicle_raster_test.cpp':'83094b537952c07c547812f34554a2c3fa745baec31bd1fc2979af1a4e70a1d2',
             'experiments/FirstPersonView/tests/vehicle_snapshot_test.cpp':'53a823cd26797ac27fa135c5abfd8f301f514487605da1c79979a5d2b79f8a13',
             'experiments/FirstPersonView/tests/verify_vehicle_gallery.py':'3ffe0fd4a716326e1bd6d1324be913b269c0c1ab1035354037a17077f513f7f0',
@@ -417,8 +417,8 @@ jobs:
             'experiments/FirstPersonView/tests/vehicle_aisle_floor_test.inc':'116f51941504d411388cf2499d2caac96cb739c547136e6d60f53afeb6310e92',
             'experiments/FirstPersonView/tests/vehicle_console_clearance_test.inc':'ead2a4b204c76e0e53eed8e84318286f09acf7f7f7363676c5fe2b296e2d10eb',
             'experiments/graphics_bridge/ncmm_gpu_vertex_pack.hpp':'ba9ff899685cea070895ab6445ea7d55b96778ff554374ff9e1ee2c99b13edbb',
-            'experiments/FirstPersonView/tests/gpu_vertex_pack_data_test.cpp':'d5cb3bb3a0a74c1bb813bb6aaaa9e8fdc152c931c9c1070793ba217983efa8b9',
-            'experiments/FirstPersonView/tests/gpu_vertex_pack_test.cpp':'8fe545864b57aa9269d46d13c285d24e5242b040c5cc59bf35e4560b25c6c863',
+            'experiments/FirstPersonView/tests/gpu_vertex_pack_data_test.cpp':'d71cdab8a73817fc55365f33c1dbd8e82393b05fd7c452a79add040dc3b3b28b',
+            'experiments/FirstPersonView/tests/gpu_vertex_pack_test.cpp':'761236a9dbe19e79d24cdc5bc715b068da98eeab7b3a0f1f3a57e1582cda8e84',
           }
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
