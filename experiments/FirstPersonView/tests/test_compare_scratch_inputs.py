@@ -24,7 +24,47 @@ class Diagnostics(unittest.TestCase):
         source=self.backend()
         self.assertNotIn('#define NCMM_GPU_GROUP_DEPTH_PROGRAM',source)
         self.assertNotIn('prefill_opaque_group(',source)
-        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'b557164a89f67619488652fd5ebd9c6fcc17217039ebeb41bb618edd38a434fa')
+        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'59cc1e80adb5c93fde5dd47d385542df1fd0478c4ed68419096ef1726afe1e93')
+    def test_changed_fragment_state_default_cannot_reconstruct(self):
+        source=self.backend().replace('    bool reuse_fragment_state_=true;','    bool reuse_fragment_state_=false;')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_fragment_state_lifetime_cannot_reconstruct(self):
+        source=self.backend().replace('        fragment_state_cache fragment_state;','        static fragment_state_cache fragment_state;')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_fragment_state_pipeline_reset_cannot_reconstruct(self):
+        source=self.backend().replace('                    fragment_state.invalidate();++recording_.fragment_state_invalidations;','                    ++recording_.fragment_state_invalidations;')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_fragment_state_uniform_bytes_cannot_reconstruct(self):
+        source=self.backend().replace('fragment_state.uniform_changed(&uniform,sizeof(uniform))','fragment_state.uniform_changed(&uniform,32)')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_fragment_state_uniform_guard_cannot_reconstruct(self):
+        source=self.backend().replace('if(!reuse_fragment_state_||fragment_state.uniform_changed','if(reuse_fragment_state_||fragment_state.uniform_changed')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_fragment_state_sampler_guard_cannot_reconstruct(self):
+        source=self.backend().replace('if(!reuse_fragment_state_||fragment_state.samplers_changed','if(reuse_fragment_state_||fragment_state.samplers_changed')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_fragment_state_sampler_identity_cannot_reconstruct(self):
+        source=self.backend().replace('{textures[2].texture,textures[2].sampler}','{textures[1].texture,textures[1].sampler}')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_fragment_state_toggle_cannot_reconstruct(self):
+        source=self.backend().replace('reuse_fragment_state_=enabled;','reuse_fragment_state_=!enabled;')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
     def test_changed_rigid48_default_cannot_reconstruct(self):
         source=self.backend().replace('    bool rigid48_vertices_=true;','    bool rigid48_vertices_=false;')
         with self.assertRaises(AssertionError): comparison.reference_backend(source)

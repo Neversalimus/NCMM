@@ -3,6 +3,8 @@
 #define NCMM_GPU_CONSTANT_SHADOW_CACHE 1
 #define NCMM_GPU_RIGID48_VERTEX_LAYOUT 1
 #include "ncmm_gpu_constant_shadow.hpp"
+#include "ncmm_gpu_fragment_state.hpp"
+#define NCMM_GPU_FRAGMENT_STATE_CACHE 1
 #include "ncmm_gpu_validation.hpp"
 #include "ncmm_gpu_programs.hpp"
 #include "ncmm_gpu_conservative_depth.hpp"
@@ -30,6 +32,7 @@ struct recording_metrics {
     uint64_t static_vertex_creations=0,static_vertex_reuses=0,static_vertex_pool_bytes=0;
     double cell_prepare_ms=0;
     uint64_t shadow_dispatches=0,constant_shadow_reuses=0;
+    uint64_t material_uniform_pushes=0,material_uniform_reuses=0,sampler_binds=0,sampler_binding_reuses=0,fragment_state_invalidations=0;
     uint64_t rigid48_draws=0,vertex72_draws=0,rigid48_pipeline_binds=0,rigid48_cached_programs=0;
     uint64_t cell_upload_bytes=0,cell_cache_bytes=0;
     double retirement_ms=0;uint64_t retirement_calls=0;
@@ -40,6 +43,7 @@ class backend {
     resource_cache resources_;
     bool compact_opaque_vertices_=true;
     bool rigid48_vertices_=true;
+    bool reuse_fragment_state_=true;
     bool reuse_constant_shadows_=true;
     constant_shadow_cache constant_shadows_;
     programs programs_;
@@ -155,6 +159,7 @@ class backend {
     }
     bool draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene,bool alpha_only=false){
         bool deferred_alpha=false;
+        fragment_state_cache fragment_state;
         unsigned opaque_policy=0;
         SDL_BindGPUGraphicsPipeline(pass,selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held);
         SDL_GPUBuffer *vertex_storage[]={instances_,bones_};SDL_BindGPUVertexStorageBuffers(pass,0,vertex_storage,2);
@@ -173,6 +178,7 @@ class backend {
                 const bool winding=policy.winding,component=policy.component,reflective=policy.reflective,glass=policy.glass,plain=policy.plain,bounded=policy.bounded;
                 if(policy.key!=opaque_policy){
                     SDL_BindGPUGraphicsPipeline(pass,programs_.geometry(policy.index,rigid));
+                    fragment_state.invalidate();++recording_.fragment_state_invalidations;
                     opaque_policy=policy.key;if(rigid)++recording_.rigid48_pipeline_binds;
                 }
                 if(rigid)++recording_.rigid48_draws;else ++recording_.vertex72_draws;
@@ -199,11 +205,18 @@ class backend {
                 struct material {float color[4];uint32_t state[4];float impostor[4];} uniform{};
                 std::copy_n(m.color,4,uniform.color);uniform.state[0]=m.flags;uniform.state[1]=m.finish;uniform.state[2]=m.liquid;uniform.state[3]=m.banks;
                 uniform.impostor[0]=m.impostor_span;uniform.impostor[1]=m.impostor_yaw;
-                SDL_PushGPUFragmentUniformData(commands,1,&uniform,sizeof(uniform));
+                static_assert(sizeof(uniform)==48,"original fragment material word layout");
+                if(!reuse_fragment_state_||fragment_state.uniform_changed(&uniform,sizeof(uniform))){
+                    SDL_PushGPUFragmentUniformData(commands,1,&uniform,sizeof(uniform));++recording_.material_uniform_pushes;
+                }else ++recording_.material_uniform_reuses;
                 SDL_GPUTextureSamplerBinding textures[3]{};const uint64_t keys[]={m.texture_key,m.normal_key,m.depth_key};
                 for(int i=0;i<3;++i){const auto *t=resources_.texture(keys[i]);textures[i].texture=t?t->texture:white_;
                     textures[i].sampler=i?programs_.nearest:(m.flags&NCMM_GPU_CREATURE_VISUAL)?programs_.pixel_art:programs_.linear;}
-                SDL_BindGPUFragmentSamplers(pass,0,textures,3);SDL_DrawGPUIndexedPrimitives(pass,range.count,b.count,range.first,0,0);
+                const std::array<fragment_binding_identity,3> bindings{{{textures[0].texture,textures[0].sampler},{textures[1].texture,textures[1].sampler},{textures[2].texture,textures[2].sampler}}};
+                if(!reuse_fragment_state_||fragment_state.samplers_changed(bindings)){
+                    SDL_BindGPUFragmentSamplers(pass,0,textures,3);++recording_.sampler_binds;
+                }else ++recording_.sampler_binding_reuses;
+                SDL_DrawGPUIndexedPrimitives(pass,range.count,b.count,range.first,0,0);
                 ++metrics_.draw_calls;metrics_.triangles+=uint64_t(range.count/3)*b.count;
                 if(creature_zone){SDL_PopGPUDebugGroup(commands);nvtxRangePop();}
                 if(profiling_){const double took=ms(draw_start);
@@ -223,6 +236,7 @@ public:
         rigid48_vertices_=enabled;return true;
     }
     unsigned rigid48_program_count()const{return programs_.rigid_geometry_count();}
+    void reuse_fragment_state(bool enabled=true){reuse_fragment_state_=enabled;}
     bool has(uint64_t key,uint32_t kind){return kind<=1&&resources_.has(key,kind==1);}
     ncmm_gpu_metrics_v1 metrics(){poll();metrics_.resource_epoch=resource_epoch_;return metrics_;}
     int32_t focus_cell()const{return focus_cell_;}
