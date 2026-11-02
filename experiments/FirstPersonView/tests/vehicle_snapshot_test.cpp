@@ -646,6 +646,66 @@ int main(){
         require(!hits(*generate(gap,open,middle,0)),"removing an actual neighbouring frame removes the connecting tube instead of bridging a vacant mount");
     }
     {
+        // A real front screen precedes the bonnet, so it is not the overall
+        // vehicle boundary. Its lower assembly belongs to that installed part.
+        using namespace first_person::vehicle;
+        auto cabin=original;cabin.parts.clear();auto &v=cabin.vehicles[0];v.first_part=0;
+        v.min_x=-1;v.max_x=2;v.min_y=-1;v.max_y=1;
+        const auto add=[&](int x,int y,uint32_t features,const char *id){auto p=original.parts[0];
+            p.part_id=50000+cabin.parts.size();p.mount_x=x;p.mount_y=y;p.mount_z=0;p.features=features;p.state=NCMM_VP_EXISTS;
+            p.surface_faces=0;p.health=1;p.material=NCMM_VM_PAINT;p.variant[0]=0;std::strcpy(p.id,id);cabin.parts.push_back(p);return p;};
+        const auto finish=[](snapshot &s){s.vehicles[0].part_count=s.scene.part_count=uint32_t(s.parts.size());};
+        for(int x=-1;x<=2;++x)for(int y=-1;y<=1;++y)add(x,y,NCMM_VP_FRAME,"frame");
+        for(int y=-1;y<=1;++y)add(0,y,NCMM_VP_ROOF,"roof");
+        add(0,0,NCMM_VP_SEAT|NCMM_VP_FLOOR,"seat");add(0,0,NCMM_VP_CONTROLS,"controls");
+        auto screen=add(1,0,NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD|NCMM_VP_PANEL,"windshield");screen.material=NCMM_VM_GLASS;cabin.parts.back()=screen;finish(cabin);
+        const first_person::vehicle::topology shape(cabin,v);require(!shape.outer({1,0,0},0)&&shape.cabin_screen_end(screen)&&shape.glazing_body_section(screen),
+            "an installed windscreen ends the cabin before the actual bonnet ends the vehicle");
+        const auto pan=[](const model &m,float z){return std::count_if(m.triangles.begin(),m.triangles.end(),[&](const auto &t){
+            return m.materials[t.material].kind==NCMM_VM_PLASTIC&&t.vertices[0].position.z==z&&t.vertices[1].position.z==z&&t.vertices[2].position.z==z;});};
+        const auto glass_words=[](const model &m){std::vector<std::array<uint32_t,8>> result;
+            for(const auto &t:m.triangles)if(m.materials[t.material].kind==NCMM_VM_GLASS)for(const auto &a:t.vertices){
+                const float values[]={a.position.x,a.position.y,a.position.z,a.normal.x,a.normal.y,a.normal.z,a.u,a.v};
+                std::array<uint32_t,8> words{};std::memcpy(words.data(),values,sizeof(values));result.push_back(words);}return result;};
+        for(unsigned lod=0;lod<3;++lod){auto clear=screen;clear.features&=~uint32_t(NCMM_VP_PANEL);
+            const auto assembled=generate(cabin,shape,screen,lod),transparent=generate(cabin,shape,clear,lod);
+            require(shape.cabin_screen_floor(screen)&&pan(*assembled,shape.chassis+.076f)==2,"every LOD closes the actual lower screen pan");
+            require(glass_words(*assembled)==glass_words(*transparent),"the lower assembly leaves every original glass position normal and UV word unchanged");
+            require(!shape.cabin_screen_floor(clear)&&pan(*transparent,shape.chassis+.076f)==0,"non-obstructing glass remains transparent below its pane");}
+        auto existing=add(1,0,NCMM_VP_FLOOR|NCMM_VP_AISLE,"aisle");finish(cabin);
+        const first_person::vehicle::topology floored(cabin,v);
+        require(floored.cabin_screen_end(screen)&&!floored.cabin_screen_floor(screen),"a separately installed real floor suppresses a second screen pan");
+        for(unsigned lod=0;lod<3;++lod){const auto window=generate(cabin,floored,screen,lod),floor=generate(cabin,floored,existing,lod);
+            require(pan(*window,floored.chassis+.076f)==0&&floor->kind==component::floor&&floor->triangles.size()==12,
+                "the actual aisle owns the sole complete floor surface at every LOD");}
+        cabin.parts.pop_back();finish(cabin);
+        auto door_screen=screen;door_screen.features|=NCMM_VP_DOOR;
+        require(!shape.cabin_screen_end(door_screen)&&!shape.cabin_screen_floor(door_screen),"a real door keeps its existing opening assembly and never acquires a fixed screen pan");
+        auto named=screen;std::strcpy(named.id,"modded_cabin_screen");require(shape.cabin_screen_floor(named),"unknown installed screen IDs use real structural flags, not a vehicle prefab name");
+        auto bare=cabin.parts[3];bare.mount_x=1;bare.mount_y=0;require(!shape.cabin_screen_floor(bare),"a bare frame cannot acquire a phantom floor part");
+        auto broken=screen;broken.state|=NCMM_VP_BROKEN;broken.health=0;require(!shape.cabin_screen_floor(broken)&&generate(cabin,shape,broken,0)->triangles.empty(),"broken installed glass never retains an inferred lower pan");
+        auto hidden=screen;hidden.state|=NCMM_VP_TOPOLOGY_ONLY;require(!shape.cabin_screen_floor(hidden)&&generate(cabin,shape,hidden,0)->triangles.empty(),"topology-only hidden parts never expose cabin geometry");
+        auto roofless=cabin;roofless.parts.erase(std::remove_if(roofless.parts.begin(),roofless.parts.end(),[](const auto &p){return bool(p.features&NCMM_VP_ROOF);}),roofless.parts.end());finish(roofless);
+        const first_person::vehicle::topology open(roofless,roofless.vehicles[0]);require(!open.cabin_screen_end(screen)&&!open.cabin_screen_floor(screen),"removing real roof support leaves the original standalone screen");
+        auto unsupported=cabin;unsupported.parts.erase(std::remove_if(unsupported.parts.begin(),unsupported.parts.end(),[](const auto &p){return p.mount_x==0&&bool(p.features&NCMM_VP_FRAME);}),unsupported.parts.end());finish(unsupported);
+        const first_person::vehicle::topology floating(unsupported,unsupported.vehicles[0]);require(!floating.cabin_screen_end(screen),"roof parts without inward connected structural frames cannot invent a cabin end");
+        add(1,0,NCMM_VP_PANEL|NCMM_VP_HALF_PANEL,"halfboard");finish(cabin);const first_person::vehicle::topology separate(cabin,v);
+        require(!separate.glazing_body_section(screen)&&!separate.cabin_screen_floor(screen),"a separately installed wall is never duplicated by the screen");
+        require(shape.recipe(screen,0)!=separate.recipe(screen,0),"installing a real wall invalidates the lower screen assembly");cabin.parts.pop_back();finish(cabin);
+        auto partition=screen;partition.mount_x=0;require(!shape.cabin_screen_end(partition)&&!shape.cabin_screen_floor(partition),"interior glass over a seat cannot become an exterior cabin end");
+        auto tire=add(1,1,NCMM_VP_WHEEL,"wheel");tire.wheel_radius=.25f;tire.wheel_width=.18f;cabin.parts.back()=tire;finish(cabin);
+        const first_person::vehicle::topology small(cabin,v);require(small.cabin_screen_floor(screen),"a separate narrow tyre leaves the real central footwell clear");
+        cabin.parts.back().wheel_width=1.8f;const first_person::vehicle::topology wide(cabin,v);require(!wide.cabin_screen_floor(screen),"a wide tyre's actual full steering envelope excludes the lower pan");
+        require(small.recipe(screen,0)!=wide.recipe(screen,0),"changing only a neighbouring tyre width invalidates the dependent floor recipe");
+        cabin.parts.back().mount_z=1;const first_person::vehicle::topology other_level(cabin,v);require(!other_level.cabin_screen_floor(screen),"unproved wheel mounts on another level retain the original open lower shape");
+        cabin.parts.back().mount_z=0;std::strcpy(cabin.parts.back().id,"wheel_caster_large");const first_person::vehicle::topology casters(cabin,v);require(!casters.cabin_screen_floor(screen),"caster assemblies keep their original uncertain lower clearance");
+        cabin.parts.pop_back();finish(cabin);auto narrow=cabin;for(auto &p:narrow.parts)p.mount_y=0;narrow.vehicles[0].min_y=narrow.vehicles[0].max_y=0;
+        const first_person::vehicle::topology single(narrow,narrow.vehicles[0]);require(!single.cabin_screen_end(screen)&&!single.cabin_screen_floor(screen),"narrow custom constructions never receive an inferred car floor");
+        auto removed=cabin;removed.parts.erase(std::remove_if(removed.parts.begin(),removed.parts.end(),[](const auto &p){return bool(p.features&NCMM_VP_WINDOW);}),removed.parts.end());finish(removed);
+        const first_person::vehicle::topology absent(removed,removed.vehicles[0]);unsigned panes=0;for(const auto &p:removed.parts)panes+=generate(removed,absent,p,0)->kind==component::glass;
+        require(panes==0,"removing the actual screen leaves no ghost screen assembly");
+    }
+    {
         // Native bus side cells contain windshield + frame + roof, without a
         // separate quarterpanel. Exercise those actual flags and roof layout.
         using namespace first_person::vehicle;

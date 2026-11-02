@@ -615,6 +615,17 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             const float wear=1-.25f*std::clamp(1-p.health,0.f,1.f);
             const auto waist=b.add({{layout.body_paint[0]*wear,layout.body_paint[1]*wear,layout.body_paint[2]*wear,1},NCMM_VM_PAINT});
             panel(chassis-.15f,chassis+.67f,waist,true);
+            if(layout.cabin_screen_floor(p)){
+                // This lower pan belongs to the actual obstructing screen/body
+                // assembly; it is never emitted on an empty or bare frame.
+                const float low=chassis+.064f,high=chassis+.076f;
+                b.face({-.5f,-.5f,low},{-.5f,.5f,low},{.5f,.5f,low},{.5f,-.5f,low},b.dark);
+                b.face({-.5f,-.5f,high},{.5f,-.5f,high},{.5f,.5f,high},{-.5f,.5f,high},b.dark);
+                b.face({-.5f,-.5f,low},{.5f,-.5f,low},{.5f,-.5f,high},{-.5f,-.5f,high},b.dark);
+                b.face({.5f,-.5f,low},{.5f,.5f,low},{.5f,.5f,high},{.5f,-.5f,high},b.dark);
+                b.face({.5f,.5f,low},{-.5f,.5f,low},{-.5f,.5f,high},{.5f,.5f,high},b.dark);
+                b.face({-.5f,.5f,low},{-.5f,-.5f,low},{-.5f,-.5f,high},{-.5f,.5f,high},b.dark);
+            }
         }
         window(chassis+.67f,chassis+layout.cabin-.08f);
     }else if(kind==component::seat){

@@ -26,7 +26,7 @@ public:
     std::map<mount,station> mounts;
     std::array<uint32_t,32> feature_counts{};
     std::vector<uint32_t> wheels;
-    struct wheel_size {int x,y,z;float radius;};
+    struct wheel_size {int x,y,z;float radius,width;};
     std::map<uint32_t,wheel_size> sizes;
     archetype kind=archetype::utility;
     int components=0,min_x=0,max_x=0,min_y=0,max_y=0;
@@ -48,7 +48,7 @@ public:
             if(p.features&(NCMM_VP_SEAT|NCMM_VP_CONTROLS|NCMM_VP_CONTROL_PANEL)){cabin_min_x=std::min(cabin_min_x,p.mount_x);cabin_max_x=std::max(cabin_max_x,p.mount_x);}
             if((p.features&NCMM_VP_CARGO)&&!(p.features&(NCMM_VP_SEAT|NCMM_VP_DOOR|NCMM_VP_CONTROLS|NCMM_VP_CONTROL_PANEL|NCMM_VP_ENGINE|NCMM_VP_PANEL)))++dedicated_cargo;
             if(p.features&NCMM_VP_WHEEL){wheels.push_back(index);radii.push_back(p.wheel_radius);
-                sizes.emplace(index,wheel_size{p.mount_x,p.mount_y,p.mount_z,p.wheel_radius});}}
+                sizes.emplace(index,wheel_size{p.mount_x,p.mount_y,p.mount_z,p.wheel_radius,p.wheel_width});}}
         chassis=ncmm_graphics_vehicle_policy::chassis(radii);
         if(!paints.empty()){body_paint=std::max_element(paints.begin(),paints.end(),[](const auto &a,const auto &b){return a.second<b.second;})->first;body_paint_known=true;}
         std::sort(radii.begin(),radii.end());
@@ -113,11 +113,39 @@ public:
         if(variant=="front")return 0;if(variant=="rear")return 2;
         return edge({p.mount_x,p.mount_y,p.mount_z});
     }
+    bool cabin_screen_end(const ncmm_graphics_vehicle_part_v1 &p)const{
+        constexpr uint32_t shell=NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD|NCMM_VP_PANEL;
+        if((p.features&shell)!=shell||(p.features&NCMM_VP_DOOR)||narrow||kind==archetype::boat||
+           (p.state&(NCMM_VP_BROKEN|NCMM_VP_TOPOLOGY_ONLY))||cabin_max_x<cabin_min_x)return false;
+        const mount at{p.mount_x,p.mount_y,p.mount_z};const auto node=mounts.find(at);
+        if(node==mounts.end()||!(node->second.features&NCMM_VP_FRAME)||node->second.separate_wall||node->second.component<0)return false;
+        const unsigned side=part_edge(p);
+        if(!((side==0&&p.mount_x==cabin_max_x+1)||(side==2&&p.mount_x==cabin_min_x-1)))return false;
+        // A real screen can end the cabin before the bonnet/trunk ends the
+        // vehicle. Its inward roof/frame must belong to this same construction.
+        const int inside=side==0?-1:1;
+        for(int dy=-1;dy<=1;++dy){const auto roof=mounts.find({p.mount_x+inside,p.mount_y+dy,p.mount_z});
+            if(roof!=mounts.end()&&(roof->second.features&(NCMM_VP_FRAME|NCMM_VP_ROOF))==(NCMM_VP_FRAME|NCMM_VP_ROOF)&&
+               roof->second.component==node->second.component)return true;}
+        return false;
+    }
+    bool cabin_screen_floor(const ncmm_graphics_vehicle_part_v1 &p)const{
+        if(!cabin_screen_end(p)||has({p.mount_x,p.mount_y,p.mount_z},NCMM_VP_FLOOR|NCMM_VP_AISLE))return false;
+        // Preserve every actual wheel opening, including wide tyres and the
+        // complete possible steering/rolling sweep. Uncertain caster assemblies
+        // retain the open original lower shape.
+        for(const auto &[index,wheel]:sizes){(void)index;if(caster_mount({wheel.x,wheel.y,wheel.z}))return false;
+            if(wheel.z!=p.mount_z)return false;
+            const float radius=std::hypot(wheel.radius*1.025f+.015f,wheel.width*.6f+.015f);
+            const float dx=std::max(0.f,std::abs(float(wheel.x-p.mount_x))-.5f),dy=std::max(0.f,std::abs(float(wheel.y-p.mount_y))-.5f);
+            if(dx*dx+dy*dy<=radius*radius)return false;}
+        return true;
+    }
     bool glazing_body_section(const ncmm_graphics_vehicle_part_v1 &p)const{
         constexpr uint32_t assembly=NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD|NCMM_VP_PANEL;
         if((p.features&assembly)!=assembly||narrow||kind==archetype::boat)return false;
         const mount at{p.mount_x,p.mount_y,p.mount_z};const auto node=mounts.find(at);
-        if(node==mounts.end()||!(node->second.features&NCMM_VP_FRAME)||node->second.separate_wall||!outer(at,part_edge(p)))return false;
+        if(node==mounts.end()||!(node->second.features&NCMM_VP_FRAME)||node->second.separate_wall||(!outer(at,part_edge(p))&&!cabin_screen_end(p)))return false;
         // Native bus/car side windows are complete obstructing body sections,
         // often without a second quarterpanel at the same mount. Their waist
         // belongs to that installed window, never to an absent neighbouring cell.
@@ -212,7 +240,10 @@ public:
         if((p.features&shell)&&!(p.features&(NCMM_VP_SEAT|NCMM_VP_CONTROLS))){
             add(cabin);for(int value:{p.mount_x,p.mount_y,p.mount_z,min_x,max_x,min_y,max_y,cabin_min_x,cabin_max_x})add(value);
             if(p.features&NCMM_VP_WINDOW){const bool glazed_body=glazing_body_section(p);add(glazed_body);
-                if(glazed_body)for(float c:body_paint)add(c);}
+                if(glazed_body)for(float c:body_paint)add(c);
+                // Only the new installed-screen floor changes this recipe.
+                // Every unrelated window and every bare frame keeps its key.
+                if(cabin_screen_floor(p)){const uint32_t floor_recipe=0x434f574cu;add(floor_recipe);}}
             if(p.features&(NCMM_VP_DOOR|NCMM_VP_WINDOW))for(int dx=-1;dx<=1;++dx)for(int dy=-1;dy<=1;++dy)
                 add(glazing_roof_candidate(at,{p.mount_x+dx,p.mount_y+dy,p.mount_z}));
             add(features(at)&(NCMM_VP_ENGINE|NCMM_VP_SEAT|NCMM_VP_CONTROLS|NCMM_VP_HALF_PANEL|NCMM_VP_PANEL|NCMM_VP_DOOR));

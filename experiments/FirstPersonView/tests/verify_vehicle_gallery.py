@@ -239,7 +239,85 @@ def verify_depth_controls(report):
     return dict(success=True,actual_Native_scenes=2,paired_controls=14,timed_frames=196,full_normalized_pixel_pairs=14,compared_pixels=14*1280*800,scope='Separate same-process Native shader-policy control. Ordinary full-frame timing and frame plus explicit shared-device completion are reported separately; this is not hardware FPS and does not replace any original1120benchmark sample or900sresource qualification.',performance_accepted=False,hardware_FPS=False,controls=controls)
 
 
+def verify_fragment_controls(report):
+    """Exact same-process Native cache on/off series; never hardware FPS."""
+    from statistics import median
+    rows=[r for r in report['frames'] if r.get('label','').startswith('fragment-control-')]
+    parity=[r for r in report['frames'] if r.get('label','').startswith('fragment-parity-')]
+    assert len(rows)==196 and len(parity)==14, 'Incomplete Native fragment-binding ablation'
+    fields={'label','prototype','backend','renderer','actual_gpu','frame_width','frame_height','pair','sample','slot',
+            'fragment_reuse','full_frame_ms','synchronized_frame_ms','gpu_frame_serial','gpu_draw_calls','gpu_triangles',
+            'uniform_pushes','uniform_reuses','sampler_binds','sampler_reuses','pipeline_invalidations','camera_xyz',
+            'yaw','pitch','eye_height','snapshot_vehicles','snapshot_parts','device','software_device'}
+    groups={};cameras=defaultdict(set);serials=defaultdict(list)
+    for r in rows:
+        assert type(r) is dict and set(r)==fields, 'Unexpected or missing Native fragment fields'
+        match=re.fullmatch(r'fragment-control-(parking|large)-([0-6])-(on|off)-([0-6])',r['label'])
+        assert match, 'Unknown Native fragment label'
+        scene,pair,enabled,sample=match[1],int(match[2]),match[3]=='on',int(match[4]);key=scene,pair,enabled,sample
+        assert key not in groups and r['prototype']==scene
+        for name,wanted in [('pair',pair),('sample',sample),('slot',(int(enabled)-pair)%2)]:
+            assert type(r[name]) is int and r[name]==wanted, ('Changed alternating Native fragment slot',name)
+        assert type(r['fragment_reuse']) is bool and r['fragment_reuse']==enabled and r['actual_gpu'] is True
+        assert r['backend']=='gpu' and r['renderer']=='modular'
+        assert type(r['frame_width']) is int and r['frame_width']==1280 and type(r['frame_height']) is int and r['frame_height']==800
+        for name in ('full_frame_ms','synchronized_frame_ms','yaw','pitch','eye_height'):
+            assert type(r[name]) in (int,float) and math.isfinite(r[name]), name
+        assert 0<r['full_frame_ms']<=r['synchronized_frame_ms'] and r['eye_height']>0
+        xyz=r['camera_xyz'];assert type(xyz) is list and len(xyz)==3 and all(type(x) is int for x in xyz)
+        assert type(r['device']) is str and 0<len(r['device'])<=127 and type(r['software_device']) is bool
+        for name in ('gpu_frame_serial','gpu_draw_calls','gpu_triangles','uniform_pushes','sampler_binds',
+                     'pipeline_invalidations','snapshot_vehicles','snapshot_parts'):
+            assert type(r[name]) is int and r[name]>0,name
+        for name in ('uniform_reuses','sampler_reuses'):
+            assert type(r[name]) is int and r[name]>=0,name
+            if not enabled:assert r[name]==0, 'Disabled binding cache still claims reuse'
+        cameras[scene,pair].add((tuple(xyz),r['yaw'],r['pitch'],r['eye_height'],r['snapshot_vehicles'],r['snapshot_parts'],r['device'],r['software_device']))
+        serials[scene,pair].append(r['gpu_frame_serial']);groups[key]=r
+    assert len(cameras)==14 and all(len(v)==1 for v in cameras.values()), 'Native fragment camera, snapshot or device changed'
+    assert all(len(v)==14 and all(a<b for a,b in zip(v,v[1:])) for v in serials.values()), 'Native fragment measurements reused or reordered submissions'
+    verified=set();saved_uniforms=0;saved_samplers=0
+    parity_fields={'label','prototype','pair','pixels_equal','different_pixels','compared_pixels','compared_bytes','disabled_serials','enabled_serials'}
+    for r in parity:
+        assert type(r) is dict and set(r)==parity_fields, 'Incomplete Native fragment parity'
+        match=re.fullmatch(r'fragment-parity-(parking|large)-([0-6])',r['label']);assert match
+        scene,pair=match[1],int(match[2]);key=scene,pair
+        assert key not in verified and r['prototype']==scene and type(r['pair']) is int and r['pair']==pair;verified.add(key)
+        assert r['pixels_equal'] is True and type(r['different_pixels']) is int and r['different_pixels']==0
+        for name,wanted in [('compared_pixels',1280*800),('compared_bytes',1280*800*4)]:assert type(r[name]) is int and r[name]==wanted
+        for enabled,name in [(False,'disabled_serials'),(True,'enabled_serials')]:
+            value=r[name]
+            assert type(value) is list and len(value)==2 and all(type(x) is int for x in value)
+            assert value==[groups[scene,pair,enabled,0]['gpu_frame_serial'],groups[scene,pair,enabled,6]['gpu_frame_serial']], 'Native fragment parity uses stale submissions'
+        pair_samplers=0
+        for sample in range(7):
+            off,on=groups[scene,pair,False,sample],groups[scene,pair,True,sample]
+            assert all(off[n]==on[n] for n in ['gpu_draw_calls','gpu_triangles','pipeline_invalidations']), 'Native fragment ablation changed submitted geometry or pipeline transitions'
+            assert off['uniform_pushes']==on['uniform_pushes']+on['uniform_reuses'], 'Native fragment uniform accounting changed'
+            assert off['sampler_binds']==on['sampler_binds']+on['sampler_reuses'], 'Native fragment sampler accounting changed'
+            saved_uniforms+=on['uniform_reuses'];saved_samplers+=on['sampler_reuses'];pair_samplers+=on['sampler_reuses']
+        assert pair_samplers>0, 'Enabled Native fragment binding cache never reused a real binding'
+    assert verified==set(cameras)
+    controls=[]
+    for scene in ['parking','large']:
+        pairs=[]
+        for pair in range(7):
+            policy={}
+            for enabled in [False,True]:
+                samples=[groups[scene,pair,enabled,n] for n in range(7)]
+                policy['enabled' if enabled else 'disabled']={n:median(r[n] for r in samples) for n in ['full_frame_ms','synchronized_frame_ms']}
+            pairs.append(dict(pair=pair,**policy,ordinary_enabled_disabled_ratio=policy['enabled']['full_frame_ms']/policy['disabled']['full_frame_ms'],synchronized_enabled_disabled_ratio=policy['enabled']['synchronized_frame_ms']/policy['disabled']['synchronized_frame_ms']))
+        controls.append(dict(scene=scene,pairs=pairs))
+    return dict(success=True,actual_Native_scenes=2,paired_controls=14,timed_frames=196,full_normalized_pixel_pairs=14,
+                compared_pixels=14*1280*800,actual_uniform_uploads_saved=saved_uniforms,actual_sampler_binds_saved=saved_samplers,
+                scope='Separate same-process Native binding-cache control. Ordinary frame and explicit shared-device completion are distinct measurements. Original1120benchmarks, depth controls and900sresource qualification remain mandatory.',
+                performance_accepted=False,hardware_FPS=False,controls=controls)
+
+
 def ordinary_vehicle_frames(report):
+    if any(r.get('label','').startswith(('fragment-control-','fragment-parity-')) for r in report['frames']):
+        verify_fragment_controls(report)
+        report=dict(report,frames=[r for r in report['frames'] if not r.get('label','').startswith(('fragment-control-','fragment-parity-'))])
     # These supplemental records have their own mandatory complete validation.
     # Preserve every original frame and its original checks without treating a
     # whole-image parity record as a submitted render or benchmark sample.
@@ -287,6 +365,8 @@ def verify(root, output, source, engine, module=None):
     assert len(source)==40 and len(engine)==40
     assert module is not None and len(module)==64 and all(c in '0123456789abcdef' for c in module)
     memory=verify_memory(root/'first-person-process-memory.json',source,engine,module)
+    fragment_control=verify_fragment_controls(report)
+    assert report['fragment_pixels_verified'] is True
     frame_rows,depth_control=ordinary_vehicle_frames(report)
     groups=defaultdict(dict)
     captures=[];benchmarks=defaultdict(list);soak=None;records=set()
@@ -396,7 +476,7 @@ def verify(root, output, source, engine, module=None):
                 native_driving_verified=True,
                 cpu_internal_dimensions_verified=True,
                 capture_inventory=captures,review_inventory=inventory,
-                performance=performance,depth_control=depth_control,soak=soak,process_memory=memory,cold_definition='Native cache refresh and first frame after switching the vehicle renderer; device resources may be retained',
+                performance=performance,depth_control=depth_control,fragment_control=fragment_control,soak=soak,process_memory=memory,cold_definition='Native cache refresh and first frame after switching the vehicle renderer; device resources may be retained',
                 limitations=['Automated Native capture integrity does not establish visual acceptance.',
                              '640x480 visual captures and 1280x800 full-frame timings on CI adapters do not establish hardware FPS.',
                              'Interior comparisons pin the same actual Native seat eye across both renderers.'])

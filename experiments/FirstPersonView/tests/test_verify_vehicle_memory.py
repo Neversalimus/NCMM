@@ -81,4 +81,85 @@ class MutationViewTests(unittest.TestCase):
         verify_mutation_views(groups)
 
 
+from verify_vehicle_gallery import verify_fragment_controls,ordinary_vehicle_frames
+
+
+class NativeFragmentControlTests(unittest.TestCase):
+    def receipt(self):
+        report={'frames':[]};serial=0
+        for scene in ['parking','large']:
+            for pair in range(7):
+                bounds={}
+                for slot in range(2):
+                    enabled=bool((pair+slot)%2);first=serial+1
+                    for sample in range(7):
+                        serial+=1
+                        report['frames'].append(dict(label=f'fragment-control-{scene}-{pair}-{"on" if enabled else "off"}-{sample}',
+                            prototype=scene,backend='gpu',renderer='modular',actual_gpu=True,frame_width=1280,frame_height=800,
+                            pair=pair,sample=sample,slot=slot,fragment_reuse=enabled,full_frame_ms=10.,synchronized_frame_ms=11.,
+                            gpu_frame_serial=serial,gpu_draw_calls=250,gpu_triangles=26000,
+                            uniform_pushes=200 if enabled else 250,uniform_reuses=50 if enabled else 0,
+                            sampler_binds=100 if enabled else 250,sampler_reuses=150 if enabled else 0,pipeline_invalidations=70,
+                            camera_xyz=[60,68,0],yaw=0.,pitch=-.1,eye_height=1.55,snapshot_vehicles=1,snapshot_parts=231,
+                            device='pure fixture, no device execution',software_device=True))
+                    bounds[enabled]=[first,serial]
+                report['frames'].append(dict(label=f'fragment-parity-{scene}-{pair}',prototype=scene,pair=pair,
+                    pixels_equal=True,different_pixels=0,compared_pixels=1280*800,compared_bytes=1280*800*4,
+                    disabled_serials=bounds[False],enabled_serials=bounds[True]))
+        return report
+
+    def test_complete_alternating_controls_and_exact_work_accounting(self):
+        got=verify_fragment_controls(self.receipt())
+        self.assertEqual((got['timed_frames'],got['paired_controls'],got['full_normalized_pixel_pairs']),(196,14,14))
+        self.assertEqual((got['actual_uniform_uploads_saved'],got['actual_sampler_binds_saved']),(4900,14700))
+        self.assertFalse(got['performance_accepted']);self.assertFalse(got['hardware_FPS'])
+
+    def test_incomplete_stale_scaled_or_uncounted_measurements_are_rejected(self):
+        mutations=[lambda r:r['frames'].pop(),lambda r:r['frames'].pop(0),lambda r:r['frames'].append(r['frames'][0]),
+            lambda r:r['frames'][0].update(label='fragment-control-large-0-off-0'),
+            lambda r:r['frames'][0].update(pair=True),lambda r:r['frames'][0].update(sample=True),
+            lambda r:r['frames'][0].update(slot=1),lambda r:r['frames'][0].update(fragment_reuse=0),
+            lambda r:r['frames'][0].update(actual_gpu=False),lambda r:r['frames'][0].update(backend='cpu'),
+            lambda r:r['frames'][0].update(renderer='legacy'),lambda r:r['frames'][0].update(frame_width=960),
+            lambda r:r['frames'][0].update(frame_height=600),lambda r:r['frames'][0].update(full_frame_ms=float('nan')),
+            lambda r:r['frames'][0].update(full_frame_ms=0),lambda r:r['frames'][0].update(full_frame_ms=True),
+            lambda r:r['frames'][0].update(synchronized_frame_ms=9),lambda r:r['frames'][0].update(eye_height=-1),
+            lambda r:r['frames'][0].update(camera_xyz=[60,68,True]),lambda r:r['frames'][0].update(device=''),
+            lambda r:r['frames'][0].update(software_device=1),lambda r:r['frames'][0].update(snapshot_parts=0),
+            lambda r:r['frames'][0].update(snapshot_vehicles=True),lambda r:r['frames'][1].update(gpu_frame_serial=1),
+            lambda r:r['frames'][0].update(uniform_reuses=1),lambda r:r['frames'][7].update(uniform_pushes=199),
+            lambda r:r['frames'][7].update(sampler_binds=99),lambda r:r['frames'][7].update(pipeline_invalidations=69),
+            lambda r:r['frames'][7].update(gpu_triangles=25999),lambda r:r['frames'][7].update(gpu_draw_calls=249),
+            lambda r:r['frames'][7].update(camera_xyz=[60,69,0]),lambda r:r['frames'][7].update(sampler_reuses=True),
+            lambda r:r['frames'][14].update(pixels_equal=False),lambda r:r['frames'][14].update(different_pixels=True),
+            lambda r:r['frames'][14].update(compared_pixels=640*480),lambda r:r['frames'][14].update(compared_bytes=0),
+            lambda r:r['frames'][14].update(enabled_serials=[1,7]),lambda r:r['frames'][14].update(disabled_serials=[True,7]),
+            lambda r:r['frames'][14].pop('pixels_equal'),lambda r:r['frames'][7].update(extra_unverified_field=0)]
+        for index,mutate in enumerate(mutations):
+            r=self.receipt();mutate(r)
+            with self.subTest(index=index),self.assertRaises((AssertionError,KeyError)):verify_fragment_controls(r)
+
+    def test_policy_that_never_reuses_a_binding_is_rejected(self):
+        r=self.receipt()
+        for row in r['frames']:
+            if row.get('fragment_reuse'):row.update(sampler_binds=250,sampler_reuses=0)
+        with self.assertRaises(AssertionError):verify_fragment_controls(r)
+
+    def test_existing_ordinary_frame_router_cannot_skip_malformed_supplement(self):
+        # Supply the complete old depth matrix too: failure must come from the
+        # new malformed group, not from an unrelated missing original receipt.
+        r=self.receipt();depth=[]
+        for row in r['frames']:
+            item=dict(row);item['label']=item['label'].replace('fragment-control-','depth-control-').replace('fragment-parity-','depth-parity-')
+            if 'fragment_reuse' in item:
+                item['depth_enabled']=item['fragment_reuse'];item['bounded_depth_draws']=2 if item['fragment_reuse'] else 0
+            depth.append(item)
+        ordinary={'label':'bench-original'}
+        r['frames']+=depth+[ordinary]
+        frames,old=ordinary_vehicle_frames(r)
+        self.assertEqual(frames,[ordinary]);self.assertEqual(old['timed_frames'],196)
+        r['frames'][7]['uniform_pushes']=199
+        with self.assertRaises(AssertionError):ordinary_vehicle_frames(r)
+
+
 if __name__=='__main__':unittest.main()

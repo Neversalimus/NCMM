@@ -86,6 +86,63 @@
             }
         }
 
+        if(scene=="parking"||scene=="large"){
+            // CI-only same-process binding-cache ablation. Every original
+            // Modular/Legacy benchmark, depth pair and resource test remains.
+            struct fragment_policy_restore {~fragment_policy_restore(){if(graphics_gpu_engine)graphics_gpu_engine->reuse_fragment_state(true);}} restore_fragment_policy;
+            for(unsigned pair_index=0;pair_index<7;++pair_index){
+                std::array<std::vector<unsigned char>,2> pixels;
+                std::array<uint64_t,2> first_serial{},last_serial{};
+                for(unsigned slot=0;slot<2;++slot){
+                    const bool enabled=(pair_index+slot)%2;const unsigned policy=enabled?1:0;
+                    draw("bench-fragment-prime",scene,"gpu","modular",false,false,false);
+                    require(graphics_gpu_engine!=nullptr,"vehicle_fragment_control_backend_missing");
+                    graphics_gpu_engine->reuse_fragment_state(enabled);
+                    draw("bench-fragment-warmup",scene,"gpu","modular",false,false,false);
+                    auto *device=SDL_GetGPURendererDevice(renderer);
+                    require(device&&SDL_WaitForGPUIdle(device),"vehicle_fragment_control_warmup_failed");
+                    for(unsigned sample=0;sample<7;++sample){
+                        const auto begun=std::chrono::steady_clock::now();
+                        const double ordinary=draw("bench-fragment-timed",scene,"gpu","modular",false,false,false);
+                        require(SDL_WaitForGPUIdle(device),"vehicle_fragment_control_completion_failed");
+                        const double synchronized=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
+                        const auto metrics=graphics_gpu_engine->metrics();const auto &recording=graphics_gpu_engine->recording();
+                        require(graphics_gpu_frame&&metrics.active,"vehicle_fragment_control_fell_back");
+                        if(sample==0)first_serial[policy]=metrics.frame_serial;
+                        last_serial[policy]=metrics.frame_serial;
+                        evidence.start_object();
+                        evidence.member("label","fragment-control-"+scene+"-"+std::to_string(pair_index)+(enabled?"-on-":"-off-")+std::to_string(sample));
+                        evidence.member("prototype",scene);evidence.member("backend","gpu");evidence.member("renderer","modular");evidence.member("actual_gpu",true);
+                        evidence.member("frame_width",frame_width);evidence.member("frame_height",frame_height);
+                        evidence.member("pair",pair_index);evidence.member("sample",sample);evidence.member("slot",slot);evidence.member("fragment_reuse",enabled);
+                        evidence.member("full_frame_ms",ordinary);evidence.member("synchronized_frame_ms",synchronized);
+                        evidence.member("gpu_frame_serial",metrics.frame_serial);evidence.member("gpu_draw_calls",metrics.draw_calls);evidence.member("gpu_triangles",metrics.triangles);
+                        evidence.member("uniform_pushes",recording.material_uniform_pushes);evidence.member("uniform_reuses",recording.material_uniform_reuses);
+                        evidence.member("sampler_binds",recording.sampler_binds);evidence.member("sampler_reuses",recording.sampler_binding_reuses);
+                        evidence.member("pipeline_invalidations",recording.fragment_state_invalidations);
+                        evidence.member("camera_xyz",std::array<int,3>{get_avatar().pos_abs().x(),get_avatar().pos_abs().y(),get_avatar().pos_abs().z()});
+                        evidence.member("yaw",graphics_camera_yaw);evidence.member("pitch",graphics_camera_pitch);evidence.member("eye_height",graphics_presentation.eye_height);
+                        evidence.member("snapshot_vehicles",graphics_vehicle_rows.size());evidence.member("snapshot_parts",graphics_vehicle_parts.size());
+                        evidence.member("device",std::string(metrics.device));evidence.member("software_device",bool(metrics.software_device));evidence.end_object();
+                    }
+                    SDL_Surface *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"vehicle_fragment_control_readback_failed");
+                    SDL_Surface *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);
+                    require(image&&image->w==frame_width&&image->h==frame_height,"vehicle_fragment_control_readback_shape_failed");
+                    pixels[policy].resize(size_t(frame_width)*frame_height*4);
+                    for(int y=0;y<frame_height;++y)std::memcpy(pixels[policy].data()+size_t(y)*frame_width*4,static_cast<const unsigned char *>(image->pixels)+size_t(y)*image->pitch,size_t(frame_width)*4);
+                    SDL_DestroySurface(image);
+                }
+                const bool equal=pixels[0]==pixels[1];vehicle_fragment_pixels_verified&=equal;size_t different=0;
+                require(pixels[0].size()==pixels[1].size(),"vehicle_fragment_control_pixel_size_changed");
+                if(!equal)for(size_t n=0;n<pixels[0].size();n+=4)different+=std::memcmp(pixels[0].data()+n,pixels[1].data()+n,4)!=0;
+                evidence.start_object();evidence.member("label","fragment-parity-"+scene+"-"+std::to_string(pair_index));
+                evidence.member("prototype",scene);evidence.member("pair",pair_index);evidence.member("pixels_equal",equal);
+                evidence.member("different_pixels",different);evidence.member("compared_pixels",size_t(frame_width)*frame_height);evidence.member("compared_bytes",pixels[0].size());
+                evidence.member("disabled_serials",std::array<uint64_t,2>{first_serial[0],last_serial[0]});
+                evidence.member("enabled_serials",std::array<uint64_t,2>{first_serial[1],last_serial[1]});evidence.end_object();stream.flush();
+            }
+        }
+
         if(scene!="empty"){pair("fullsize",scene);}
     }
     clear_cars();vehicle *custom=create("car",0,0);

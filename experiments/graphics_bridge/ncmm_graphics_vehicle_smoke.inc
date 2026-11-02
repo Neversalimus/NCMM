@@ -56,7 +56,7 @@
         const auto p=get_map().get_bub(tripoint_abs_ms(subject.x()+dx,subject.y()+dy,z));
         get_avatar().setpos(get_map(),p,false);g->ter_view_p=p;look(std::atan2(float(-dy),float(-dx)),pitch);
     };
-    uint64_t registry_controls=0;bool vehicle_depth_pixels_verified=true;
+    uint64_t registry_controls=0;bool vehicle_depth_pixels_verified=true,vehicle_fragment_pixels_verified=true;
     uint64_t aisle_target_id=0;
     std::array<int,3> aisle_target_mount{},aisle_target_absolute{};
     std::array<int,2> aisle_target_delta{};
@@ -424,9 +424,10 @@
     draw("world-empty","empty","gpu","modular",false);require(graphics_vehicle_parts.empty(),"vehicle_world_cleanup_failed");
     #include "ncmm_graphics_vehicle_qualification.inc"
     require(registry_controls>=14,"vehicle_loaded_registry_controls_missing");
-    evidence.end_array();evidence.member("native_loaded_registry_verified",true);evidence.member("native_loaded_registry_controls",registry_controls);evidence.member("success",vehicle_depth_pixels_verified);evidence.member("depth_pixels_verified",vehicle_depth_pixels_verified);evidence.member("native_parts_verified",true);evidence.member("native_driving_verified",true);
+    evidence.end_array();evidence.member("native_loaded_registry_verified",true);evidence.member("native_loaded_registry_controls",registry_controls);evidence.member("success",vehicle_depth_pixels_verified&&vehicle_fragment_pixels_verified);evidence.member("depth_pixels_verified",vehicle_depth_pixels_verified);evidence.member("fragment_pixels_verified",vehicle_fragment_pixels_verified);evidence.member("native_parts_verified",true);evidence.member("native_driving_verified",true);
     evidence.member("native_reload_lifecycle","quit_cleanup_setup_load");evidence.member("hardware_performance_qualified",false);
     evidence.end_object();stream.close();require(bool(stream),"vehicle_evidence_write_failed");
     require(vehicle_depth_pixels_verified,"vehicle_depth_control_pixels_differ");
+    require(vehicle_fragment_pixels_verified,"vehicle_fragment_control_pixels_differ");
     press_f6();require(!graphics_view.enabled,"vehicle_f6_restore_failed");
 }
