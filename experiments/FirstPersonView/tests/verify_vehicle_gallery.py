@@ -118,6 +118,10 @@ def verify_aisle_floor_views(groups):
         mount,delta=target['mount'],target['delta_xy']
         assert type(mount) is list and len(mount)==3 and all(type(x) is int for x in mount) and mount[2]==0
         assert type(delta) is list and len(delta)==2 and all(type(x) is int for x in delta) and sum(abs(x) for x in delta)==1
+        absolute=target['absolute_xyz']
+        assert type(absolute) is list and len(absolute)==3 and all(type(x) is int for x in absolute)
+        assert absolute[2]==r['camera_xyz'][2], 'Aisle target is on another actual level'
+        assert absolute[:2]==[r['camera_xyz'][0]+delta[0],r['camera_xyz'][1]+delta[1]], 'Aisle target/direction use stale bubble coordinates'
         assert abs(math.remainder(r['requested_yaw']-math.atan2(delta[1],delta[0]),math.tau))<=.000001
         assert abs(r['requested_pitch']+.75)<=.000001
         verify_fixture_camera(r)
@@ -140,7 +144,7 @@ def aisle_floor_view_self_test():
         for m in ['legacy','modular']:
             seat=dict(camera_xyz=[10,20,0],eye_height=1.4548,occupied_vehicle=7,occupied_part=9,occupied_eye_valid=True,occupied_eye_xy=[1.,2.])
             r=dict(seat,prototype='bus',label='aisle-floor',backend=b,renderer=m,yaw=-math.pi/2,pitch=-.75,requested_yaw=-math.pi/2,requested_pitch=-.75,
-                   aisle_native_target=dict(part_id=14,mount=[-1,1,0],delta_xy=[0,-1]))
+                   aisle_native_target=dict(part_id=14,mount=[-1,1,0],delta_xy=[0,-1],absolute_xyz=[10,19,0]))
             if m=='modular':r['aisle_native_target']['published']=dict(part_id=14,mount=[-1,1,0],id='aisle',features=16384|524288,state=33,cell_index=4)
             rows[b,m]=r;seats[b,m]=seat
     good={('bus','aisle-floor'):rows,('bus','passenger'):seats};verify_aisle_floor_views(good)
@@ -155,7 +159,12 @@ def aisle_floor_view_self_test():
                lambda g:current(g)['aisle_native_target']['published'].update(state=129),lambda g:current(g)['aisle_native_target']['published'].update(state=0),
                lambda g:current(g)['aisle_native_target']['published'].update(cell_index=-1),lambda g:current(g)['aisle_native_target']['published'].update(cell_index=True),
                lambda g:current(g).update(occupied_part=10),lambda g:current(g).update(occupied_eye_valid=False),
-               lambda g:current(g).update(occupied_eye_xy=[0.,0.]),lambda g:current(g).pop('aisle_native_target')]
+               lambda g:current(g).update(occupied_eye_xy=[0.,0.]),lambda g:current(g).pop('aisle_native_target'),
+               lambda g:current(g)['aisle_native_target'].pop('absolute_xyz'),
+               lambda g:current(g)['aisle_native_target'].update(absolute_xyz=[10,19]),
+               lambda g:current(g)['aisle_native_target'].update(absolute_xyz=[10,19,True]),
+               lambda g:current(g)['aisle_native_target'].update(absolute_xyz=[10,19,1]),
+               lambda g:current(g)['aisle_native_target'].update(absolute_xyz=[22,19,0])]
     for mutate in mutations:
         bad=copy.deepcopy(good);mutate(bad)
         try:verify_aisle_floor_views(bad)

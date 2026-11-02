@@ -58,7 +58,7 @@
     };
     uint64_t registry_controls=0;bool vehicle_depth_pixels_verified=true;
     uint64_t aisle_target_id=0;
-    std::array<int,3> aisle_target_mount{};
+    std::array<int,3> aisle_target_mount{},aisle_target_absolute{};
     std::array<int,2> aisle_target_delta{};
     const auto verify_registry=[&](){
         map &world=get_map();const auto reference=world.get_vehicles(),actual=graphics_loaded_vehicles(world);
@@ -128,7 +128,7 @@
             require(aisle_target_id!=0,"vehicle_aisle_target_not_selected");
             evidence.member("aisle_native_target");evidence.start_object();
             evidence.member("part_id",aisle_target_id);evidence.member("mount",aisle_target_mount);
-            evidence.member("delta_xy",aisle_target_delta);
+            evidence.member("delta_xy",aisle_target_delta);evidence.member("absolute_xyz",aisle_target_absolute);
             if(std::strcmp(mode,"modular")==0){
                 const auto target=std::find_if(graphics_vehicle_parts.begin(),graphics_vehicle_parts.end(),[&](const auto &p){return p.part_id==aisle_target_id;});
                 require(target!=graphics_vehicle_parts.end()&&target->cell_index>=0&&!(target->state&NCMM_VP_TOPOLOGY_ONLY),"vehicle_aisle_target_not_Native_permitted");
@@ -267,17 +267,24 @@
                     // Look at a genuinely adjacent aisle from this same real
                     // passenger seat and Native eye. Do not board an invented
                     // position or change permission/collision/part data.
+                    // Native boarding calls update_map(), so the earlier
+                    // bubble-local `pos` may belong to an obsolete map origin.
+                    // Select and aim using the current absolute real seat/part.
+                    const auto seated=get_avatar().pos_abs();
+                    require(car->abs_part_pos(seats[n])==seated,"vehicle_aisle_view_left_actual_seat");
                     int aisle_index=-1,nearest=1000000;
                     for(const vpart_reference &p:car->get_all_parts()){
                         if(p.part().removed||p.part().is_fake||p.info().id.str()!="aisle"||!p.has_feature("AISLE")||!p.has_feature("BOARDABLE"))continue;
-                        const auto at=p.pos_bub(get_map());const int distance=std::abs(at.x()-pos.x())+std::abs(at.y()-pos.y());
+                        const auto at=p.pos_abs();if(at.z()!=seated.z())continue;
+                        const int distance=std::abs(at.x()-seated.x())+std::abs(at.y()-seated.y());
                         if(distance>0&&distance<nearest){nearest=distance;aisle_index=int(p.part_index());}
                     }
                     require(aisle_index>=0&&nearest==1,"vehicle_real_adjacent_aisle_missing");
-                    const auto at=car->bub_part_pos(get_map(),aisle_index);
+                    const auto at=car->abs_part_pos(aisle_index);
                     aisle_target_id=car->part(aisle_index).ncmm_graphics_part_id();
                     aisle_target_mount={car->part(aisle_index).mount.x(),car->part(aisle_index).mount.y(),0};
-                    aisle_target_delta={at.x()-pos.x(),at.y()-pos.y()};
+                    aisle_target_delta={at.x()-seated.x(),at.y()-seated.y()};
+                    aisle_target_absolute={at.x(),at.y(),at.z()};
                     const float saved_yaw=graphics_camera_yaw,saved_pitch=graphics_camera_pitch;
                     look(std::atan2(float(aisle_target_delta[1]),float(aisle_target_delta[0])),-.75f);
                     pair("aisle-floor",prototype);
