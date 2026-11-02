@@ -33,6 +33,7 @@ class backend {
     int32_t focus_cell_=-1;
     device_context context_;
     resource_cache resources_;
+    bool compact_opaque_vertices_=true;
     programs programs_;
     SDL_GPUTexture *world_=nullptr,*id_=nullptr,*held_depth_=nullptr,*effects_=nullptr,*effect_depth_=nullptr,*white_=nullptr;
     SDL_GPUBuffer *instances_=nullptr,*bones_=nullptr,*cells_=nullptr,*shadows_=nullptr,*counter_=nullptr;
@@ -193,7 +194,7 @@ class backend {
         return deferred_alpha;
     }
 public:
-    backend(){metrics_.struct_size=sizeof(metrics_);metrics_.gpu_ms=-1;metrics_.target_cell=-1;}
+    explicit backend(bool compact_opaque_vertices=true):compact_opaque_vertices_(compact_opaque_vertices){metrics_.struct_size=sizeof(metrics_);metrics_.gpu_ms=-1;metrics_.target_cell=-1;}
     ~backend(){clear();}
     SDL_Texture *output()const{return metrics_.active?context_.output():nullptr;}
     resource_cache &resources(){return resources_;}
@@ -224,7 +225,7 @@ public:
     }
     void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;}
     bool bind(SDL_Renderer *renderer,uint64_t generation){if(generation_&&generation_!=generation)abandon();generation_=generation;
-        if(!context_.bind(renderer,generation)){reason(context_.reason());metrics_.active=0;return false;}resources_.bind(context_.device());context_.describe(metrics_);return true;}
+        if(!context_.bind(renderer,generation)){reason(context_.reason());metrics_.active=0;return false;}resources_.bind(context_.device());if(!resources_.use_compact_opaque_vertices(compact_opaque_vertices_)){reason(resources_.reason());return false;}context_.describe(metrics_);return true;}
     bool available(){return context_.device()!=nullptr;}
     void cpu_frame(){metrics_.active=0;}
     void invalidate(){auto *renderer=context_.renderer();uint64_t generation=generation_;clear();if(renderer)bind(renderer,generation);}

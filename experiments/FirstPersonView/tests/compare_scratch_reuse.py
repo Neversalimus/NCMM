@@ -14,6 +14,19 @@ def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def reference_backend(candidate):
     """Pure reconstruction, always checked against the unchanged frozen digest."""
     reference=candidate
+    # Reverse only the three private packing opt-in edits. The reconstructed
+    # backend never opts in, so the shared cache retains its original uploads.
+    # Require the exact source66 backend before any older frozen recipe runs.
+    if '    bool compact_opaque_vertices_=true;\n' in reference:
+        for before,after in [
+            ('    bool compact_opaque_vertices_=true;\n',''),
+            ('    explicit backend(bool compact_opaque_vertices=true):compact_opaque_vertices_(compact_opaque_vertices){metrics_.struct_size=sizeof(metrics_);metrics_.gpu_ms=-1;metrics_.target_cell=-1;}',
+             '    backend(){metrics_.struct_size=sizeof(metrics_);metrics_.gpu_ms=-1;metrics_.target_cell=-1;}'),
+            ('resources_.bind(context_.device());if(!resources_.use_compact_opaque_vertices(compact_opaque_vertices_)){reason(resources_.reason());return false;}context_.describe(metrics_);return true;',
+             'resources_.bind(context_.device());context_.describe(metrics_);return true;')]:
+            assert reference.count(before)==1,'Unreviewed private vertex packing reconstruction'
+            reference=reference.replace(before,after,1)
+        assert hashlib.sha256(reference.encode()).hexdigest()=='c5c6f97068422f45e6527331bb75e946c20ac3893850852180c202592f9400b7','Vertex packing inverse changed the source66 backend'
     # Remove only the reviewed opaque-span addition. Hash each complete new
     # block before removal, then require the exact previous backend bytes.
     # Every older inverse recipe and the original final digest remain below.

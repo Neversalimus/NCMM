@@ -3,6 +3,7 @@
 #include "ncmm_gpu_device.hpp"
 #include "ncmm_gpu_resource_diagnostics.hpp"
 #include "ncmm_gpu_winding.hpp"
+#include "ncmm_gpu_vertex_pack.hpp"
 #include <algorithm>
 #include <array>
 #include <map>
@@ -58,6 +59,11 @@ struct mesh_resource {
     const vertex_contents *static_vertices=nullptr;
     const vertex_contents &vertex_data()const{return static_vertices?*static_vertices:cpu_vertices;}
     std::vector<uint32_t> cpu_indices;
+    const vertex_contents *packed_vertices=nullptr;
+    std::vector<uint32_t> packed_indices;
+    const vertex_contents &gpu_vertex_data()const{return packed_vertices?*packed_vertices:vertex_data();}
+    const std::vector<uint32_t> &gpu_index_data()const{return compacted?packed_indices:cpu_indices;}
+    bool compacted=false;
     std::vector<ncmm_gpu_material_v1> materials;
     std::vector<mesh_range> ranges;
     std::vector<bounds> joints;
@@ -76,7 +82,7 @@ struct texture_resource {
 };
 class resource_cache {
     struct immutable_index {SDL_GPUBuffer *buffer=nullptr;uint64_t references=0,bytes=0;};
-    struct immutable_vertex {SDL_GPUBuffer *buffer=nullptr;uint64_t references=0,bytes=0;};
+    struct immutable_vertex {SDL_GPUBuffer *buffer=nullptr;uint64_t references=0,bytes=0;vertex_contents packed;};
     SDL_GPUDevice *device_=nullptr;
     uint64_t bytes_=0,clock_=0,static_upload_bytes_=0;
     uint64_t static_index_creations_=0,static_index_reuses_=0;
@@ -87,6 +93,10 @@ class resource_cache {
     // ranges remain owned by each mesh; dynamic meshes never share indices.
     std::map<std::vector<uint32_t>,immutable_index> immutable_indices_;
     std::map<vertex_contents,immutable_vertex,vertex_contents_less> immutable_vertices_;
+    // Keys remain the complete original CPU vertices for picking and stable
+    // ownership. Packed GPU bytes have separate leases from unproved meshes.
+    std::map<vertex_contents,immutable_vertex,vertex_contents_less> compact_vertices_;
+    bool compact_opaque_vertices_=false;
     std::set<uint64_t> used_meshes_,used_textures_;
     std::string reason_;
     bool mesh_data(const ncmm_gpu_mesh_v1 &source,mesh_resource &m){
@@ -117,12 +127,12 @@ class resource_cache {
         }return true;
     }
     void release(mesh_resource &m){
-        if(m.static_vertices){auto vertex=immutable_vertices_.find(*m.static_vertices);
-            if(vertex!=immutable_vertices_.end()&&--vertex->second.references==0){
+        if(m.static_vertices){auto &pool=m.compacted?compact_vertices_:immutable_vertices_;auto vertex=pool.find(*m.static_vertices);
+            if(vertex!=pool.end()&&--vertex->second.references==0){
                 if(device_)SDL_ReleaseGPUBuffer(device_,vertex->second.buffer);
-                bytes_-=vertex->second.bytes;immutable_vertices_.erase(vertex);}}
+                bytes_-=vertex->second.bytes;pool.erase(vertex);}}
         else if(device_&&m.vertices)SDL_ReleaseGPUBuffer(device_,m.vertices);
-        if(m.shared_indices){auto index=immutable_indices_.find(m.cpu_indices);
+        if(m.shared_indices){auto index=immutable_indices_.find(m.gpu_index_data());
             if(index!=immutable_indices_.end()&&--index->second.references==0){
                 if(device_)SDL_ReleaseGPUBuffer(device_,index->second.buffer);
                 bytes_-=index->second.bytes;immutable_indices_.erase(index);}}
@@ -144,14 +154,21 @@ public:
     uint64_t static_index_pool_bytes()const{uint64_t n=0;for(const auto &[key,index]:immutable_indices_)n+=index.bytes;return n;}
     uint64_t static_vertex_creations()const{return static_vertex_creations_;}
     uint64_t static_vertex_reuses()const{return static_vertex_reuses_;}
-    uint64_t static_vertex_pool_bytes()const{uint64_t n=0;for(const auto &[key,vertex]:immutable_vertices_)n+=vertex.bytes;return n;}
-    uint64_t cpu_bytes()const{uint64_t n=0;for(const auto &[k,m]:meshes_)n+=sizeof(mesh_resource)+m.cpu_vertices.capacity()*sizeof(ncmm_gpu_vertex_v1)+m.cpu_indices.capacity()*4+m.materials.capacity()*sizeof(ncmm_gpu_material_v1)+m.joints.capacity()*sizeof(bounds)+m.ranges.capacity()*sizeof(mesh_range);
+    uint64_t static_vertex_pool_bytes()const{uint64_t n=0;for(const auto &[key,vertex]:immutable_vertices_)n+=vertex.bytes;for(const auto &[key,vertex]:compact_vertices_)n+=vertex.bytes;return n;}
+    uint64_t cpu_bytes()const{uint64_t n=0;for(const auto &[k,m]:meshes_)n+=sizeof(mesh_resource)+m.cpu_vertices.capacity()*sizeof(ncmm_gpu_vertex_v1)+(m.cpu_indices.capacity()+m.packed_indices.capacity())*4+m.materials.capacity()*sizeof(ncmm_gpu_material_v1)+m.joints.capacity()*sizeof(bounds)+m.ranges.capacity()*sizeof(mesh_range);
         for(const auto &[k,t]:textures_)n+=t.pixels.capacity()*4;
         for(const auto &[key,index]:immutable_indices_)n+=sizeof(immutable_index)+key.capacity()*4;
-        for(const auto &[key,vertex]:immutable_vertices_)n+=sizeof(immutable_vertex)+key.capacity()*sizeof(ncmm_gpu_vertex_v1);
+        for(const auto &[key,vertex]:immutable_vertices_)n+=sizeof(immutable_vertex)+(key.capacity()+vertex.packed.capacity())*sizeof(ncmm_gpu_vertex_v1);
+        for(const auto &[key,vertex]:compact_vertices_)n+=sizeof(immutable_vertex)+(key.capacity()+vertex.packed.capacity())*sizeof(ncmm_gpu_vertex_v1);
         return n;}
+    // The shared cache defaults to the original representation. Only the new
+    // backend explicitly opts in; the frozen reference keeps its old uploads.
+    bool use_compact_opaque_vertices(bool enabled){
+        if(!meshes_.empty()&&compact_opaque_vertices_!=enabled){reason_="cannot switch vertex packing with live resources";return false;}
+        compact_opaque_vertices_=enabled;return true;
+    }
     void bind(SDL_GPUDevice *device){device_=device;}
-    void clear(){for(auto &[k,m]:meshes_)release(m);for(auto &[k,t]:textures_)release(t);meshes_.clear();textures_.clear();immutable_indices_.clear();immutable_vertices_.clear();used_meshes_.clear();used_textures_.clear();bytes_=static_upload_bytes_=static_index_creations_=static_index_reuses_=static_vertex_creations_=static_vertex_reuses_=0;}
+    void clear(){for(auto &[k,m]:meshes_)release(m);for(auto &[k,t]:textures_)release(t);meshes_.clear();textures_.clear();immutable_indices_.clear();immutable_vertices_.clear();compact_vertices_.clear();used_meshes_.clear();used_textures_.clear();bytes_=static_upload_bytes_=static_index_creations_=static_index_reuses_=static_vertex_creations_=static_vertex_reuses_=0;}
     void abandon(){device_=nullptr;clear();}
     mesh_resource *mesh(uint64_t key){auto i=meshes_.find(key);return i==meshes_.end()?nullptr:&i->second;}
     texture_resource *texture(uint64_t key){auto i=textures_.find(key);return i==textures_.end()?nullptr:&i->second;}
@@ -201,31 +218,34 @@ public:
                 ~pending_mesh(){if(pending)owner.release(mesh);}
             } rollback{*this,m};
             m.touched=++clock_;m.dynamic=source.reserved&NCMM_GPU_DYNAMIC_MESH;{diagnostic_span phase(resource_capture,diagnostic_phase::mesh_data_cpu);if(!mesh_data(source,m))return false;}
-            const uint64_t vertex_bytes=uint64_t(source.vertex_count)*sizeof(ncmm_gpu_vertex_v1),index_bytes=uint64_t(source.index_count)*4;
+            auto packed=compact_opaque_vertices_?vertex_pack::compact(source,m.cpu_indices):vertex_pack::payload{};
+            m.compacted=packed.active;if(m.compacted)m.packed_indices=std::move(packed.indices);
+            auto &vertex_pool=m.compacted?compact_vertices_:immutable_vertices_;
+            const uint64_t vertex_bytes=uint64_t(m.compacted?packed.vertices.size():source.vertex_count)*sizeof(ncmm_gpu_vertex_v1),index_bytes=uint64_t(source.index_count)*4;
             auto required=[&]{return m.dynamic?size:
-                (immutable_vertices_.count(m.cpu_vertices)?0:vertex_bytes)+(immutable_indices_.count(m.cpu_indices)?0:index_bytes);};
+                (vertex_pool.count(m.cpu_vertices)?0:vertex_bytes)+(immutable_indices_.count(m.gpu_index_data())?0:index_bytes);};
             // Reserving can evict the last lease of either shared allocation.
             // Recalculate until both exact-content lookups remain affordable.
             uint64_t needed=required();
             for(;;){if(!reserve(needed,limit))return false;const uint64_t after=required();if(after<=needed)break;needed=after;}
-            auto shared=immutable_indices_.find(m.cpu_indices);
-            auto vertex=immutable_vertices_.find(m.cpu_vertices);
-            m.vertex_capacity=source.vertex_count*sizeof(ncmm_gpu_vertex_v1);m.index_capacity=source.index_count*4;
+            auto shared=immutable_indices_.find(m.gpu_index_data());
+            auto vertex=vertex_pool.find(m.cpu_vertices);
+            m.vertex_capacity=uint32_t(vertex_bytes);m.index_capacity=source.index_count*4;
             SDL_GPUBufferCreateInfo info{};info.usage=SDL_GPU_BUFFERUSAGE_VERTEX;info.size=m.vertex_capacity;
-            if(!m.dynamic&&vertex!=immutable_vertices_.end()){
-                m.vertices=vertex->second.buffer;++vertex->second.references;m.static_vertices=&vertex->first;
+            if(!m.dynamic&&vertex!=vertex_pool.end()){
+                m.vertices=vertex->second.buffer;++vertex->second.references;m.static_vertices=&vertex->first;m.packed_vertices=m.compacted?&vertex->second.packed:nullptr;
                 m.upload_vertices=false;++static_vertex_reuses_;vertex_contents().swap(m.cpu_vertices);
             }else{
                 {diagnostic_span phase(resource_capture,diagnostic_phase::vertex_create);m.vertices=SDL_CreateGPUBuffer(device_,&info);}
                 if(!m.vertices){reason_="create vertex/index buffers: "+std::string(SDL_GetError());return false;}
-                if(!m.dynamic){auto inserted=immutable_vertices_.emplace(std::move(m.cpu_vertices),immutable_vertex{m.vertices,1,vertex_bytes});
-                    m.static_vertices=&inserted.first->first;bytes_+=vertex_bytes;++static_vertex_creations_;}}
+                if(!m.dynamic){auto inserted=vertex_pool.emplace(std::move(m.cpu_vertices),immutable_vertex{m.vertices,1,vertex_bytes,std::move(packed.vertices)});
+                    m.static_vertices=&inserted.first->first;m.packed_vertices=m.compacted?&inserted.first->second.packed:nullptr;bytes_+=vertex_bytes;++static_vertex_creations_;}}
             if(!m.dynamic&&shared!=immutable_indices_.end()){
                 m.indices=shared->second.buffer;++shared->second.references;m.shared_indices=true;m.upload_indices=false;++static_index_reuses_;
             }else{
                 info.usage=SDL_GPU_BUFFERUSAGE_INDEX;info.size=source.index_count*4;{diagnostic_span phase(resource_capture,diagnostic_phase::index_create);m.indices=SDL_CreateGPUBuffer(device_,&info);}
                 if(!m.indices){reason_="create vertex/index buffers: "+std::string(SDL_GetError());return false;}
-                if(!m.dynamic){immutable_indices_.emplace(m.cpu_indices,immutable_index{m.indices,1,index_bytes});bytes_+=index_bytes;m.shared_indices=true;++static_index_creations_;}}
+                if(!m.dynamic){immutable_indices_.emplace(m.gpu_index_data(),immutable_index{m.indices,1,index_bytes});bytes_+=index_bytes;m.shared_indices=true;++static_index_creations_;}}
             m.bytes=(m.static_vertices?0:vertex_bytes)+(m.shared_indices?0:index_bytes);
             m.ready=!m.upload_vertices&&!m.upload_indices;
             bytes_+=m.bytes;upload_bytes+=(m.upload_vertices?vertex_bytes:0)+(m.upload_indices?index_bytes:0);new_meshes.push_back(source.key);
@@ -245,8 +265,8 @@ public:
                     // unpremultiplies its sample before straight-alpha blending.
                     data[offset++]=uint8_t((pixel>>24)*alpha/255);data[offset++]=uint8_t(((pixel>>16)&255)*alpha/255);
                     data[offset++]=uint8_t(((pixel>>8)&255)*alpha/255);data[offset++]=uint8_t(alpha);}}
-            for(auto key:new_meshes){const auto &m=*mesh(key);size_t n=m.upload_vertices?m.vertex_data().size()*sizeof(ncmm_gpu_vertex_v1):0;if(n)std::memcpy(data+offset,m.vertex_data().data(),n);offset+=n;
-                if(m.upload_indices){n=m.cpu_indices.size()*4;std::memcpy(data+offset,m.cpu_indices.data(),n);offset+=n;}}}
+            for(auto key:new_meshes){const auto &m=*mesh(key);size_t n=m.upload_vertices?m.gpu_vertex_data().size()*sizeof(ncmm_gpu_vertex_v1):0;if(n)std::memcpy(data+offset,m.gpu_vertex_data().data(),n);offset+=n;
+                if(m.upload_indices){n=m.gpu_index_data().size()*4;std::memcpy(data+offset,m.gpu_index_data().data(),n);offset+=n;}}}
             {diagnostic_span phase(resource_capture,diagnostic_phase::transfer_unmap);SDL_UnmapGPUTransferBuffer(device_,transfer);}
             SDL_GPUCommandBuffer *commands=nullptr;{diagnostic_span phase(resource_capture,diagnostic_phase::upload_acquire);commands=SDL_AcquireGPUCommandBuffer(device_);}
             if(!commands){SDL_ReleaseGPUTransferBuffer(device_,transfer);reason_="acquire resource upload commands: "+std::string(SDL_GetError());return false;}
@@ -256,15 +276,15 @@ public:
             if(!copy){SDL_CancelGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);reason_="begin resource upload pass: "+std::string(SDL_GetError());return false;}
             for(auto key:new_textures){auto &t=*texture(key);SDL_GPUTextureTransferInfo from{};from.transfer_buffer=transfer;from.offset=uint32_t(offset);from.pixels_per_row=t.width;from.rows_per_layer=t.height;
                 SDL_GPUTextureRegion to{};to.texture=t.texture;to.w=t.width;to.h=t.height;to.d=1;SDL_UploadToGPUTexture(copy,&from,&to,false);offset+=size_t(t.width)*t.height*4;}
-            for(auto key:new_meshes){auto &m=*mesh(key);SDL_GPUTransferBufferLocation from{transfer,uint32_t(offset)};uint32_t n=m.upload_vertices?uint32_t(m.vertex_data().size()*sizeof(ncmm_gpu_vertex_v1)):0;
+            for(auto key:new_meshes){auto &m=*mesh(key);SDL_GPUTransferBufferLocation from{transfer,uint32_t(offset)};uint32_t n=m.upload_vertices?uint32_t(m.gpu_vertex_data().size()*sizeof(ncmm_gpu_vertex_v1)):0;
                 SDL_GPUBufferRegion to{m.vertices,0,n};if(n)SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;
-                if(m.upload_indices){from.offset=uint32_t(offset);n=uint32_t(m.cpu_indices.size()*4);to={m.indices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;}}
+                if(m.upload_indices){from.offset=uint32_t(offset);n=uint32_t(m.gpu_index_data().size()*4);to={m.indices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;}}
             SDL_EndGPUCopyPass(copy);for(auto key:new_textures)if(texture(key)->levels>1)SDL_GenerateMipmapsForGPUTexture(commands,texture(key)->texture);
             if(ncmm_graphics_trace::enabled())SDL_PopGPUDebugGroup(commands);}
             bool ok=false;{diagnostic_span phase(resource_capture,diagnostic_phase::upload_submit_release);ok=SDL_SubmitGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);}
             if(!ok){reason_="submit resource uploads: "+std::string(SDL_GetError());return false;}
             for(auto key:new_textures){auto &t=*texture(key);t.ready=true;static_upload_bytes_+=uint64_t(t.width)*t.height*4;}
-            for(auto key:new_meshes){auto &m=*mesh(key);m.ready=true;if(!m.dynamic)static_upload_bytes_+=(m.upload_vertices?m.vertex_data().size()*sizeof(ncmm_gpu_vertex_v1):0)+(m.upload_indices?m.cpu_indices.size()*4:0);}
+            for(auto key:new_meshes){auto &m=*mesh(key);m.ready=true;if(!m.dynamic)static_upload_bytes_+=(m.upload_vertices?m.gpu_vertex_data().size()*sizeof(ncmm_gpu_vertex_v1):0)+(m.upload_indices?m.gpu_index_data().size()*4:0);}
             metrics.upload_bytes+=upload_bytes;
         }
         bool complete=true;

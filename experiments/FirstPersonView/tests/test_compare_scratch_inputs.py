@@ -24,7 +24,24 @@ class Diagnostics(unittest.TestCase):
         source=self.backend()
         self.assertNotIn('#define NCMM_GPU_GROUP_DEPTH_PROGRAM',source)
         self.assertNotIn('prefill_opaque_group(',source)
-        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'c5c6f97068422f45e6527331bb75e946c20ac3893850852180c202592f9400b7')
+        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'5ec8692d83d20a584923fa2c32842d3dde5aaa035307764654971419c897df3e')
+    def test_original_cache_default_and_current_explicit_packing_are_separate(self):
+        resource=(Path(__file__).resolve().parents[2]/'graphics_bridge/ncmm_gpu_resources.hpp').read_text(encoding='utf-8')
+        self.assertIn('    bool compact_opaque_vertices_=false;',resource)
+        self.assertNotIn('compact_opaque_vertices_',comparison.reference_backend(self.backend()))
+        self.assertIn('resources_.use_compact_opaque_vertices(compact_opaque_vertices_)',self.backend())
+    def test_changed_packing_default_cannot_reconstruct(self):
+        source=self.backend().replace('backend(bool compact_opaque_vertices=true)','backend(bool compact_opaque_vertices=false)')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_changed_packing_failure_guard_cannot_reconstruct(self):
+        source=self.backend().replace('if(!resources_.use_compact_opaque_vertices(compact_opaque_vertices_))','if(resources_.use_compact_opaque_vertices(compact_opaque_vertices_))')
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
+    def test_unrelated_packing_inverse_backend_edit_cannot_reconstruct(self):
+        source=self.backend().replace('metrics_.gpu_ms=-1;','metrics_.gpu_ms=0;',1)
+        self.assertNotEqual(source,self.backend())
+        with self.assertRaises(AssertionError):comparison.reference_backend(source)
     def test_diagnostic_fixed_cull_ablation_changes_only_one_pipeline_state(self):
         programs=(Path(__file__).resolve().parents[2]/'graphics_bridge/ncmm_gpu_programs.hpp').read_text(encoding='utf-8')
         changed=comparison.diagnostic_no_fixed_cull_programs(programs)
