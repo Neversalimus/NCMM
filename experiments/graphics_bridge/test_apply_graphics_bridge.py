@@ -168,6 +168,7 @@ class ApplyTests(unittest.TestCase):
                 self.assertIn("ncmm_gpu_conservative_depth.hpp",copied)
                 self.assertIn("ncmm_gpu_programs.hpp",copied)
                 self.assertIn("ncmm_gpu_resources.hpp",copied)
+                self.assertIn("ncmm_gpu_vertex_pack.hpp",copied)
 
     def test_shadowcast_complete_primary_and_exact_square_dispatch(self):
         cpp, header = native_shadowcast_originals()
