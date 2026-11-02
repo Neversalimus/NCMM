@@ -615,16 +615,34 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             const float wear=1-.25f*std::clamp(1-p.health,0.f,1.f);
             const auto waist=b.add({{layout.body_paint[0]*wear,layout.body_paint[1]*wear,layout.body_paint[2]*wear,1},NCMM_VM_PAINT});
             panel(chassis-.15f,chassis+.67f,waist,true);
-            if(layout.cabin_screen_floor(p)){
+            if(const auto pan=layout.cabin_screen_pan(p)){
                 // This lower pan belongs to the actual obstructing screen/body
                 // assembly; it is never emitted on an empty or bare frame.
                 const float low=chassis+.064f,high=chassis+.076f;
-                b.face({-.5f,-.5f,low},{-.5f,.5f,low},{.5f,.5f,low},{.5f,-.5f,low},b.dark);
-                b.face({-.5f,-.5f,high},{.5f,-.5f,high},{.5f,.5f,high},{-.5f,.5f,high},b.dark);
-                b.face({-.5f,-.5f,low},{.5f,-.5f,low},{.5f,-.5f,high},{-.5f,-.5f,high},b.dark);
-                b.face({.5f,-.5f,low},{.5f,.5f,low},{.5f,.5f,high},{.5f,-.5f,high},b.dark);
-                b.face({.5f,.5f,low},{-.5f,.5f,low},{-.5f,.5f,high},{.5f,.5f,high},b.dark);
-                b.face({-.5f,.5f,low},{-.5f,-.5f,low},{-.5f,-.5f,high},{-.5f,.5f,high},b.dark);
+                if(!pan.liner){
+                    b.face({-.5f,-.5f,low},{-.5f,.5f,low},{.5f,.5f,low},{.5f,-.5f,low},b.dark);
+                    b.face({-.5f,-.5f,high},{.5f,-.5f,high},{.5f,.5f,high},{-.5f,.5f,high},b.dark);
+                    b.face({-.5f,-.5f,low},{.5f,-.5f,low},{.5f,-.5f,high},{-.5f,-.5f,high},b.dark);
+                    b.face({.5f,-.5f,low},{.5f,.5f,low},{.5f,.5f,high},{.5f,-.5f,high},b.dark);
+                    b.face({.5f,.5f,low},{-.5f,.5f,low},{-.5f,.5f,high},{.5f,.5f,high},b.dark);
+                    b.face({-.5f,.5f,low},{-.5f,-.5f,low},{-.5f,-.5f,high},{-.5f,.5f,high},b.dark);
+                }else{
+                    // One closed L section: retain the clear floor and form a
+                    // thin inner wheelwell wall, with no coplanar box overlap.
+                    const bool left=pan.liner==3;
+                    const float outer=left?pan.low:pan.high,inner=outer+(left?.012f:-.012f),other=left?pan.high:pan.low;
+                    const std::array<point,6> profile{{{0,outer,low},{0,other,low},{0,other,high},
+                        {0,inner,high},{0,inner,chassis+.67f},{0,outer,chassis+.67f}}};
+                    const auto at=[&](unsigned i,float x){return profile[i]+point{x,0,0};};
+                    for(unsigned i=0;i<6;++i){const unsigned j=(i+1)%6;
+                        if(left)b.face(at(i,-.5f),at(j,-.5f),at(j,.5f),at(i,.5f),b.dark);
+                        else b.face(at(j,-.5f),at(i,-.5f),at(i,.5f),at(j,.5f),b.dark);}
+                    for(unsigned i=1;i<5;++i){
+                        if(left){b.face(at(0,-.5f),at(i+1,-.5f),at(i,-.5f),at(i,-.5f),b.dark);
+                            b.face(at(0,.5f),at(i,.5f),at(i+1,.5f),at(i+1,.5f),b.dark);}
+                        else{b.face(at(0,-.5f),at(i,-.5f),at(i+1,-.5f),at(i+1,-.5f),b.dark);
+                            b.face(at(0,.5f),at(i+1,.5f),at(i,.5f),at(i,.5f),b.dark);}}
+                }
             }
         }
         window(chassis+.67f,chassis+layout.cabin-.08f);

@@ -129,18 +129,48 @@ public:
                roof->second.component==node->second.component)return true;}
         return false;
     }
-    bool cabin_screen_floor(const ncmm_graphics_vehicle_part_v1 &p)const{
-        if(!cabin_screen_end(p)||has({p.mount_x,p.mount_y,p.mount_z},NCMM_VP_FLOOR|NCMM_VP_AISLE))return false;
-        // Preserve every actual wheel opening, including wide tyres and the
-        // complete possible steering/rolling sweep. Uncertain caster assemblies
-        // retain the open original lower shape.
-        for(const auto &[index,wheel]:sizes){(void)index;if(caster_mount({wheel.x,wheel.y,wheel.z}))return false;
-            if(wheel.z!=p.mount_z)return false;
+    struct screen_pan {
+        float low=0,high=0;
+        unsigned liner=0;
+        explicit operator bool()const{return high>low;}
+    };
+    screen_pan cabin_screen_pan(const ncmm_graphics_vehicle_part_v1 &p)const{
+        if(!cabin_screen_end(p)||has({p.mount_x,p.mount_y,p.mount_z},NCMM_VP_FLOOR|NCMM_VP_AISLE))return {};
+        screen_pan result{-.5f,.5f,0};
+        const int inward=part_edge(p)==0?-1:1;
+        const auto support=mounts.find({p.mount_x+inward,p.mount_y,p.mount_z});
+        const auto source=mounts.find({p.mount_x,p.mount_y,p.mount_z});
+        const auto supported=[&](int y){const auto found=mounts.find({p.mount_x+inward,y,p.mount_z});
+            return found!=mounts.end()&&(found->second.features&(NCMM_VP_FRAME|NCMM_VP_ROOF))==(NCMM_VP_FRAME|NCMM_VP_ROOF)&&
+                found->second.component==source->second.component;};
+        // Use the actual inward cabin roof contour. A separately mounted mirror
+        // can extend the overall frame bounds beyond the cabin's side edge.
+        unsigned lateral=0;
+        if(support!=mounts.end()&&supported(p.mount_y)){
+            const bool left=!supported(p.mount_y-1),right=!supported(p.mount_y+1);
+            if(left!=right)lateral=left?3u:1u;
+        }
+        for(const auto &[index,wheel]:sizes){(void)index;
+            if(caster_mount({wheel.x,wheel.y,wheel.z})||wheel.z!=p.mount_z)return {};
+            // Match the actual wheel placement in vehicle_scene, then reserve
+            // its complete steering/rolling sphere, independent of animation.
+            const int sign=wheel.y==max_y?1:wheel.y==min_y?-1:0;
+            const float cy=float(wheel.y-p.mount_y)+sign*std::max(0.f,.475f-wheel.width*.5f);
             const float radius=std::hypot(wheel.radius*1.025f+.015f,wheel.width*.6f+.015f);
-            const float dx=std::max(0.f,std::abs(float(wheel.x-p.mount_x))-.5f),dy=std::max(0.f,std::abs(float(wheel.y-p.mount_y))-.5f);
-            if(dx*dx+dy*dy<=radius*radius)return false;}
-        return true;
+            const float dx=std::max(0.f,std::abs(float(wheel.x-p.mount_x))-.5f);
+            const float dy=cy<result.low?result.low-cy:cy>result.high?cy-result.high:0;
+            if(dx*dx+dy*dy>radius*radius)continue;
+            // Only an unambiguous outside wheel can trim a lateral cabin pan.
+            // Central/uncertain wheel openings keep their original fallback.
+            if(lateral==3&&cy<=0)result.low=std::max(result.low,cy+radius+.005f);
+            else if(lateral==1&&cy>=0)result.high=std::min(result.high,cy-radius-.005f);
+            else return {};
+            if(result.high-result.low<.04f)return {};
+            result.liner=lateral;
+        }
+        return result;
     }
+    bool cabin_screen_floor(const ncmm_graphics_vehicle_part_v1 &p)const{return bool(cabin_screen_pan(p));}
     bool glazing_body_section(const ncmm_graphics_vehicle_part_v1 &p)const{
         constexpr uint32_t assembly=NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD|NCMM_VP_PANEL;
         if((p.features&assembly)!=assembly||narrow||kind==archetype::boat)return false;
@@ -243,7 +273,9 @@ public:
                 if(glazed_body)for(float c:body_paint)add(c);
                 // Only the new installed-screen floor changes this recipe.
                 // Every unrelated window and every bare frame keeps its key.
-                if(cabin_screen_floor(p)){const uint32_t floor_recipe=0x434f574cu;add(floor_recipe);}}
+                const auto pan=cabin_screen_pan(p);
+                if(pan){const uint32_t floor_recipe=0x434f574cu;add(floor_recipe);
+                    if(pan.liner){const uint32_t arch_recipe=0x41524348u;add(arch_recipe);add(pan.low);add(pan.high);add(pan.liner);}}}
             if(p.features&(NCMM_VP_DOOR|NCMM_VP_WINDOW))for(int dx=-1;dx<=1;++dx)for(int dy=-1;dy<=1;++dy)
                 add(glazing_roof_candidate(at,{p.mount_x+dx,p.mount_y+dy,p.mount_z}));
             add(features(at)&(NCMM_VP_ENGINE|NCMM_VP_SEAT|NCMM_VP_CONTROLS|NCMM_VP_HALF_PANEL|NCMM_VP_PANEL|NCMM_VP_DOOR));

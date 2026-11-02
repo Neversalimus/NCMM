@@ -219,7 +219,87 @@ size_t coincident_centroids(const vehicle::model &seat,const vehicle::model &equ
  }return count;
 }
 }
+// Geometry, topology and exact edge arithmetic only. No raster/device code.
+static void wheelwell_checks(){
+    using namespace first_person::vehicle;
+    snapshot s;s.enabled=true;s.scene.struct_size=sizeof(s.scene);s.scene.version=1;s.scene.world_epoch=1;s.scene.revision=1;s.scene.level_height=3.2f;
+    ncmm_graphics_vehicle_v1 v{};v.entity_id=9;v.structure_revision=v.state_revision=1;v.legacy_group=9;v.min_x=-1;v.max_x=2;v.min_y=-1;v.max_y=1;
+    const auto add=[&](int x,int y,uint32_t flags,const char *id){ncmm_graphics_vehicle_part_v1 p{};
+        p.part_id=s.parts.size()+1;p.cell_index=int(s.parts.size());p.mount_x=x;p.mount_y=y;p.features=flags;p.state=NCMM_VP_EXISTS;p.health=1;
+        p.wheel_radius=.32f;p.wheel_width=.18f;p.material=NCMM_VM_PAINT;p.color[0]=p.color[1]=p.color[2]=.6f;p.color[3]=1;
+        std::strcpy(p.id,id);s.parts.push_back(p);return p;};
+    for(int x=-1;x<=2;++x)for(int y=-1;y<=1;++y)add(x,y,NCMM_VP_FRAME,"frame");
+    for(int y=-1;y<=1;++y)add(0,y,NCMM_VP_ROOF,"roof");
+    add(0,0,NCMM_VP_SEAT|NCMM_VP_FLOOR,"seat");add(0,0,NCMM_VP_CONTROLS,"controls");
+    auto left=add(1,-1,NCMM_VP_WINDOW|NCMM_VP_WINDSHIELD|NCMM_VP_PANEL,"windshield");left.material=NCMM_VM_GLASS;s.parts.back()=left;
+    auto right=add(1,1,left.features,"windshield");right.material=NCMM_VM_GLASS;s.parts.back()=right;
+    auto central=add(1,0,left.features,"windshield");central.material=NCMM_VM_GLASS;s.parts.back()=central;
+    auto tyre=add(1,-1,NCMM_VP_WHEEL|NCMM_VP_STEERABLE,"wheel");tyre.material=NCMM_VM_RUBBER;s.parts.back()=tyre;
+    const size_t tyre_index=s.parts.size()-1;
+    const auto finish=[&](snapshot &a){a.vehicles[0].part_count=a.scene.part_count=uint32_t(a.parts.size());a.scene.vehicle_count=1;};
+    s.vehicles.push_back(v);finish(s);
+    using words=std::array<uint32_t,3>;
+    const auto bits=[](first_person::vehicle::point a){words out{};const std::array<float,3> values{{a.x,a.y,a.z}};std::memcpy(out.data(),values.data(),sizeof(values));return out;};
+    unsigned trimmed=0,empty=0,full=0;
+    for(int side:{-1,1})for(int wheel_x:{0,1})for(unsigned mirror=0;mirror<2;++mirror)for(float radius:{.06f,.25f,.32f,.6f,1.2f})for(float width:{.04f,.18f,.3556f,.8f,1.8f}){
+        auto a=s;a.parts[tyre_index].mount_x=wheel_x;a.parts[tyre_index].mount_y=side;a.parts[tyre_index].wheel_radius=radius;a.parts[tyre_index].wheel_width=width;
+        if(mirror){a.vehicles[0].min_y=-2;a.vehicles[0].max_y=2;auto p=a.parts[tyre_index];p.part_id=1000;p.features=NCMM_VP_FRAME;p.mount_y=side*2;std::strcpy(p.id,"wing_mirror");a.parts.push_back(p);}
+        const auto wheel=a.parts[tyre_index];
+        finish(a);const topology layout(a,a.vehicles[0]);const auto screen=side<0?left:right;
+        const auto pan=layout.cabin_screen_pan(screen);const int shift=wheel.mount_y==layout.max_y?1:wheel.mount_y==layout.min_y?-1:0;
+        const float cy=float(wheel.mount_y-screen.mount_y)+shift*std::max(0.f,.475f-width*.5f);
+        const float envelope=std::hypot(radius*1.025f+.015f,width*.6f+.015f);
+        if(!pan){++empty;continue;}
+        require(pan.low>=-.5f&&pan.high<=.5f&&pan.high>pan.low,"a clear cabin pan remains inside its real mount");
+        const float nearest_y=cy<pan.low?pan.low-cy:cy>pan.high?cy-pan.high:0;
+        const float nearest_x=std::max(0.f,std::abs(float(wheel_x-screen.mount_x))-.5f);
+        require(nearest_x*nearest_x+nearest_y*nearest_y>envelope*envelope,"the complete pan and liner clear the actual wheel sphere with a positive margin");
+        if(!pan.liner){++full;continue;}++trimmed;
+        require(pan.liner==(side<0?3u:1u),"inner wheelwell follows the actual supported cabin side, including a mirror outside it");
+        require(layout.recipe(screen,0)!=topology(s,s.vehicles[0]).recipe(screen,0)||
+            (side==-1&&wheel_x==1&&mirror==0&&radius==.32f&&width==.18f),"changed actual tyre clearances participate in the floor recipe");
+        for(unsigned lod=0;lod<3;++lod){
+            const auto m=generate(a,layout,screen,lod);auto clear=screen;clear.features&=~uint32_t(NCMM_VP_PANEL);
+            const auto pane=generate(a,layout,clear,lod);require(m->triangles.size()>pane->triangles.size()+20,"actual body remains separate from the new floor and unchanged glass");
+            const size_t last=m->triangles.size()-pane->triangles.size(),first=last-20;
+            std::map<std::pair<words,words>,std::pair<unsigned,int>> edges;double volume=0;
+            for(size_t ti=first;ti<last;++ti){const auto &t=m->triangles[ti];
+                require(m->materials[t.material].kind==NCMM_VM_PLASTIC&&m->materials[t.material].color[3]==1.f,"the wheelwell is an opaque installed inner body surface");
+                volume+=dot(t.vertices[0].position,cross(t.vertices[1].position,t.vertices[2].position))/6.;
+                for(unsigned j=0;j<3;++j){const auto p=t.vertices[j].position;
+                    require(std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z)&&p.y>=pan.low&&p.y<=pan.high&&
+                        p.z>=layout.chassis+.064f&&p.z<=layout.chassis+.67f,"all wheelwell vertices stay inside their proved clear section");
+                    auto u=bits(p),q=bits(t.vertices[(j+1)%3].position);const int direction=u<q?1:-1;if(q<u)std::swap(u,q);
+                    auto &edge=edges[{u,q}];++edge.first;edge.second+=direction;}}
+            require(volume>0,"the L section has outward winding and positive enclosed volume");
+            for(const auto &edge:edges)require(edge.second.first==2&&edge.second.second==0,"each exact wheelwell edge has two opposite incident triangles without cracks or coplanar boxes");
+            for(unsigned broken=0;broken<2;++broken){auto p=wheel;p.state=NCMM_VP_EXISTS|(broken?uint32_t(NCMM_VP_BROKEN):0u);
+                const auto mesh=generate(a,layout,p,lod);
+                for(const auto &corner:mesh->shared_vertices){const auto local=corner.position;
+                    require(dot(local,local)<=envelope*envelope,"every actual wheel triangle lies in the reserved convex steering and rolling sphere");
+                    for(float steer:{-.8f,-.4f,0.f,.4f,.8f})for(unsigned step=0;step<8;++step){const auto placed=rigid({0,cy,radius+.018f},steer,2*pi*step/8).position(local);
+                        require(placed.y<pan.low||placed.y>pan.high,"actual rotating and steering tyre vertices never enter the retained floor or upright liner");}}}
+        }
+        auto wide=a;wide.parts[tyre_index].wheel_width=3;const topology blocked(wide,wide.vehicles[0]);
+        require(!blocked.cabin_screen_floor(screen),"a wheel that leaves no usable floor retains the original open fallback");
+    }
+    require(trimmed>20&&empty>0&&full>0,"the clearance matrix exercises trimmed, full and excluded supported pans");
+    auto a=s;a.parts[tyre_index].wheel_width=.3556f;finish(a);const topology original_layout(a,a.vehicles[0]);
+    require(bool(original_layout.cabin_screen_pan(left))&&original_layout.cabin_screen_pan(left).liner==3,"a representative real side wheel acquires a clear footwell and inner liner");
+    auto installed=left;installed.part_id=1001;installed.features=NCMM_VP_FLOOR|NCMM_VP_AISLE;a.parts.push_back(installed);finish(a);const topology with_floor(a,a.vehicles[0]);
+    require(!with_floor.cabin_screen_floor(left),"an actual installed floor retains sole ownership of its surface");
+    a.parts.pop_back();finish(a);auto broken=left;broken.state|=NCMM_VP_BROKEN;broken.health=0;
+    require(!original_layout.cabin_screen_floor(broken)&&generate(a,original_layout,broken,0)->triangles.empty(),"a broken screen never leaves a phantom wheelwell");
+    auto hidden=left;hidden.state|=NCMM_VP_TOPOLOGY_ONLY;require(!original_layout.cabin_screen_floor(hidden),"hidden screen geometry stays absent");
+    auto door=left;door.features|=NCMM_VP_DOOR;require(!original_layout.cabin_screen_floor(door),"opening door semantics never acquire an immovable liner");
+    auto bare=left;bare.features=NCMM_VP_FRAME;require(!original_layout.cabin_screen_floor(bare),"no liner is inferred from a bare frame");
+    a.parts[tyre_index].wheel_width=1.8f;const topology center_blocked(a,a.vehicles[0]);require(!center_blocked.cabin_screen_floor(central),"a wheel encroaching on a central screen remains excluded");
+    a.parts[tyre_index].mount_z=1;const topology level_unknown(a,a.vehicles[0]);require(!level_unknown.cabin_screen_floor(left),"uncertain wheel mount levels keep the original fallback");
+    a.parts[tyre_index].mount_z=0;std::strcpy(a.parts[tyre_index].id,"wheel_caster_large");const topology caster_unknown(a,a.vehicles[0]);require(!caster_unknown.cabin_screen_floor(left),"caster assemblies retain their existing independent shape");
+}
+
 int main(){
+    wheelwell_checks();
     {
         using namespace first_person::vehicle;
         ncmm_graphics_vehicle_part_v1 part{};part.health=1;builder b(part);b.output.closed_shell=true;

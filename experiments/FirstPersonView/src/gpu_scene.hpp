@@ -3,6 +3,7 @@
 #include "hybrid_renderer.hpp"
 #include "gpu_packet.hpp"
 #include "vehicle_frame_caps.hpp"
+#include "vehicle_body_occlusion.hpp"
 #include <chrono>
 #include <memory>
 #include <new>
@@ -105,6 +106,7 @@ class scene_cache {
     };
     using vehicle_template_key=std::pair<uint64_t,uint8_t>;
     std::map<vehicle_template_key,vehicle_template> vehicle_templates;
+    vehicle::body_occlusion_cache body_occlusion;
     resources assets;
     // Whole opaque cell templates keep floors and authored furniture in the
     // same draw. Repeated rooms never expand/hash every source triangle again.
@@ -154,8 +156,9 @@ class scene_cache {
         // Renderer images are immutable and owned for this collect() call.
         // Hash/copy each observed atlas image once, not once per triangle.
         std::map<const hybrid::image *,std::shared_ptr<const owned_texture>> prepared_textures;
-        bool world=true,cull_vehicle_shells=true,join_frame_caps=true;
+        bool world=true,cull_vehicle_shells=true,join_frame_caps=true,cull_vehicle_bodies=true;
         std::vector<uint8_t> frame_cap_masks;
+        const std::vector<uint8_t> *body_opaque_passes=nullptr;
         std::array<vec,5> grass_planes{};vec grass_eye{};
         bool grass_visible(vec at,float height)const{
             const vec center=at+vec{.5f,.5f,height*.675f+.012f}-grass_eye,radius{.51f,.51f,height*.675f+.02f};
@@ -178,8 +181,8 @@ class scene_cache {
     public:
         bool failed=false,warming=false;uint32_t generated_cells=0;
         void fail(const char *reason){failed=true;if(cache.last_reason.empty())cache.last_reason=reason;}
-        collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel,const ncmm_world::coordinates &indexed,bool cull_shells,bool join_caps):
-            cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(indexed),signatures(hashes),dirty_cells(s.base.cell_count,false),cull_vehicle_shells(cull_shells),join_frame_caps(join_caps){
+        collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel,const ncmm_world::coordinates &indexed,bool cull_shells,bool join_caps,bool cull_bodies):
+            cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(indexed),signatures(hashes),dirty_cells(s.base.cell_count,false),cull_vehicle_shells(cull_shells),join_frame_caps(join_caps),cull_vehicle_bodies(cull_bodies){
             const auto &c=frame.scene.camera;grass_eye={c.eye[0],c.eye[1],c.eye[2]};
             const vec forward{c.forward[0],c.forward[1],c.forward[2]},right{c.right[0],c.right[1],c.right[2]},up{c.up[0],c.up[1],c.up[2]};
             const float h=c.projection[0]*.5f/c.projection[2],v=c.projection[1]*.5f/c.projection[2];
@@ -206,9 +209,13 @@ class scene_cache {
             values.push_back(placed);return true;
         }
         bool joins_vehicle_frame_caps()const override{return cull_vehicle_shells&&join_frame_caps;}
+        bool occludes_vehicle_bodies()const override{return cull_vehicle_bodies;}
         void prepare_vehicle_components(const std::vector<const vehicle::submission *> &permitted)override{
             const auto &c=frame.scene.camera;
-            frame_cap_masks=vehicle::joined_frame_caps(permitted,{c.eye[0],c.eye[1],c.eye[2]},{c.forward[0],c.forward[1],c.forward[2]}).sides;
+            if(joins_vehicle_frame_caps())frame_cap_masks=vehicle::joined_frame_caps(permitted,{c.eye[0],c.eye[1],c.eye[2]},{c.forward[0],c.forward[1],c.forward[2]}).sides;
+            if(cull_vehicle_bodies){const uint64_t epoch=metadata&&metadata->vehicles?metadata->vehicles->input.scene.world_epoch:cache.world_epoch;
+                const auto &plan=cache.body_occlusion.observe(permitted,{c.eye[0],c.eye[1],c.eye[2]},{c.forward[0],c.forward[1],c.forward[2]},c.projection[2],epoch);
+                body_opaque_passes=&plan.opaque_passes;}
         }
         bool vehicle_component(const vehicle::submission &draw,size_t submission_index)override{
             if(!draw.geometry||draw.cell<0||size_t(draw.cell)>=scene.base.cell_count)return true;
@@ -232,6 +239,10 @@ class scene_cache {
                 entry.opaque_cull_safe=int8_t(safe&&opaque);
             }
             for(uint32_t pass=0;pass<2;++pass){if(entry.empty_passes&(1u<<pass))continue;
+                // Omit only a wholly hidden opaque pass. Every surviving mesh,
+                // content key, material/corner/index order and alpha pass stays
+                // exactly as in the original producer, including cap variants.
+                if(pass==0&&body_opaque_passes&&submission_index<body_opaque_passes->size()&&(*body_opaque_passes)[submission_index])continue;
                 const bool closed=cull_closed&&pass==0&&entry.opaque_cull_safe>0;
                 const unsigned variant=closed?2:pass;
                 auto mesh=entry.meshes[variant].lock();
@@ -723,13 +734,13 @@ public:
     uint64_t signature_neighbor_queries=0,signature_reused_cells=0,signature_neighborhood_marks=0;
     uint64_t signature_content_reuses=0,signature_content_hashes=0,signature_content_updates=0,signature_content_allocation_bytes=0;
     std::string last_reason;
-    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();vehicle_templates.clear();arm_meshes={};item_meshes.clear();sight_mount.reset();lawns={};prop_templates=decltype(prop_templates){};floor_templates=decltype(floor_templates){};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
+    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();vehicle_templates.clear();body_occlusion.clear();arm_meshes={};item_meshes.clear();sight_mount.reset();lawns={};prop_templates=decltype(prop_templates){};floor_templates=decltype(floor_templates){};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
         signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_positions=std::vector<signature_position>{};signature_dirty_slots=std::vector<uint8_t>{};signature_reuses=0;
         clear_normalized();coordinate_index.clear();
         prop_template_builds=prop_template_reuses=0;prop_source_triangles=0;
         floor_template_builds=floor_template_reuses=0;floor_source_triangles=vehicle_pass_scans=0;
         signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;}
-    size_t bytes()const{return assets.bytes()+vehicle_templates.size()*(sizeof(vehicle_template_key)+sizeof(vehicle_template)+3*sizeof(void *))+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+prop_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(prop_templates.empty()?0:prop_templates.bucket_count()*sizeof(void *))+floor_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(floor_templates.empty()?0:floor_templates.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes()+coordinate_index.bytes();}
+    size_t bytes()const{return body_occlusion.bytes()+assets.bytes()+vehicle_templates.size()*(sizeof(vehicle_template_key)+sizeof(vehicle_template)+3*sizeof(void *))+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+prop_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(prop_templates.empty()?0:prop_templates.bucket_count()*sizeof(void *))+floor_templates.size()*(sizeof(uint64_t)+sizeof(std::weak_ptr<const owned_mesh>)+2*sizeof(void *))+(floor_templates.empty()?0:floor_templates.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes()+coordinate_index.bytes();}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
                hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr,hybrid::render_options options={}){
         last_reason.clear();
@@ -755,7 +766,7 @@ public:
         // current Host scene pointer remains inside this adapter's lifetime.
         ncmm_graphics_trace::cpu_zone geometry_zone("Geometry");
         const auto start=std::chrono::steady_clock::now();ncmm_world::coordinates indexed(levels,coordinate_index);
-        auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed,options.cull_geometry&&options.cull_gpu_vehicle_shells,options.join_gpu_frame_caps);
+        auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed,options.cull_geometry&&options.cull_gpu_vehicle_shells,options.join_gpu_frame_caps,options.cull_geometry&&options.cull_gpu_vehicle_bodies);
         hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,options,creatures,levels,&indexed).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
         if(statistics.viewmodel_errors){last_reason="PSX viewmodel grip could not be attached safely";return false;}
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);

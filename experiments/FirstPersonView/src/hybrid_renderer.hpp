@@ -96,6 +96,7 @@ struct render_options {
     // measurements rejected its performance, so ordinary frames retain workers.
     bool stream_vehicle_raster=false,prune_vehicle_workers=true,prune_empty_vehicle_samples=true,prune_unused_vehicle_bands=true,compact_vehicle_records=true;
     bool vector_vehicle_pixels=true,cull_gpu_vehicle_shells=true,join_gpu_frame_caps=true;
+    bool cull_gpu_vehicle_bodies=true; // Whole opaque passes only; private control/reference policy.
     bool borrow_vehicle_materials=true,zero_vehicle_grain=true;
     bool cache_static_vehicles=true;
 };
@@ -306,6 +307,7 @@ struct geometry_sink {
     virtual bool item(const held::submission &){return false;}
     virtual bool prop(const prop_placement &,int){return false;}
     virtual bool joins_vehicle_frame_caps()const{return false;}
+    virtual bool occludes_vehicle_bodies()const{return false;}
     virtual void prepare_vehicle_components(const std::vector<const vehicle::submission *> &){}
     virtual bool vehicle_component(const vehicle::submission &,size_t){return false;}
     // Optional producer shortcut for an otherwise empty opaque TOP-only cell.
@@ -1706,7 +1708,7 @@ class renderer {
         // The GPU planner receives only the exact Native permission set that
         // this original loop will submit. A topology-only/hidden neighbour is
         // never an occluder. CPU emission and its original culling stay intact.
-        if(gpu_sink&&gpu_sink->joins_vehicle_frame_caps()&&metadata->vehicles->draws.size()>=32){
+        if(gpu_sink&&(gpu_sink->joins_vehicle_frame_caps()||gpu_sink->occludes_vehicle_bodies())&&metadata->vehicles->draws.size()>=32){
             std::vector<const vehicle::submission *> permitted(metadata->vehicles->draws.size(),nullptr);
             for(size_t i=0;i<permitted.size();++i){const auto &draw=metadata->vehicles->draws[i];
                 if(draw.geometry&&visible(draw.cell)&&(!world_data||(world_flags(draw.cell)&((draw.roof_surface||draw.exterior_surface)?NCMM_WORLD_FLOOR_TOP:NCMM_WORLD_BODY_VISIBLE))))permitted[i]=&draw;}
