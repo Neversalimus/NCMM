@@ -4,6 +4,7 @@
 #include "ncmm_gpu_resource_diagnostics.hpp"
 #include "ncmm_gpu_winding.hpp"
 #include "ncmm_gpu_vertex_pack.hpp"
+#include "ncmm_gpu_rigid48.hpp"
 #include <algorithm>
 #include <array>
 #include <map>
@@ -64,6 +65,8 @@ struct mesh_resource {
     const vertex_contents &gpu_vertex_data()const{return packed_vertices?*packed_vertices:vertex_data();}
     const std::vector<uint32_t> &gpu_index_data()const{return compacted?packed_indices:cpu_indices;}
     bool compacted=false;
+    uint32_t vertex_stride=sizeof(ncmm_gpu_vertex_v1);
+    uint64_t gpu_vertex_bytes()const{return uint64_t(gpu_vertex_data().size())*vertex_stride;}
     std::vector<ncmm_gpu_material_v1> materials;
     std::vector<mesh_range> ranges;
     std::vector<bounds> joints;
@@ -97,6 +100,7 @@ class resource_cache {
     // ownership. Packed GPU bytes have separate leases from unproved meshes.
     std::map<vertex_contents,immutable_vertex,vertex_contents_less> compact_vertices_;
     bool compact_opaque_vertices_=false;
+    bool rigid48_vertices_=false;
     std::set<uint64_t> used_meshes_,used_textures_;
     std::string reason_;
     bool mesh_data(const ncmm_gpu_mesh_v1 &source,mesh_resource &m){
@@ -167,6 +171,10 @@ public:
         if(!meshes_.empty()&&compact_opaque_vertices_!=enabled){reason_="cannot switch vertex packing with live resources";return false;}
         compact_opaque_vertices_=enabled;return true;
     }
+    bool use_rigid48_vertices(bool enabled){
+        if((!meshes_.empty()||!compact_vertices_.empty())&&rigid48_vertices_!=enabled){reason_="cannot switch rigid vertex layout with live resources";return false;}
+        rigid48_vertices_=enabled;return true;
+    }
     void bind(SDL_GPUDevice *device){device_=device;}
     void clear(){for(auto &[k,m]:meshes_)release(m);for(auto &[k,t]:textures_)release(t);meshes_.clear();textures_.clear();immutable_indices_.clear();immutable_vertices_.clear();compact_vertices_.clear();used_meshes_.clear();used_textures_.clear();bytes_=static_upload_bytes_=static_index_creations_=static_index_reuses_=static_vertex_creations_=static_vertex_reuses_=0;}
     void abandon(){device_=nullptr;clear();}
@@ -220,8 +228,9 @@ public:
             m.touched=++clock_;m.dynamic=source.reserved&NCMM_GPU_DYNAMIC_MESH;{diagnostic_span phase(resource_capture,diagnostic_phase::mesh_data_cpu);if(!mesh_data(source,m))return false;}
             auto packed=compact_opaque_vertices_?vertex_pack::compact(source,m.cpu_indices):vertex_pack::payload{};
             m.compacted=packed.active;if(m.compacted)m.packed_indices=std::move(packed.indices);
+            if(m.compacted&&rigid48_vertices_&&rigid48::eligible(packed.vertices))m.vertex_stride=sizeof(rigid48::vertex);
             auto &vertex_pool=m.compacted?compact_vertices_:immutable_vertices_;
-            const uint64_t vertex_bytes=uint64_t(m.compacted?packed.vertices.size():source.vertex_count)*sizeof(ncmm_gpu_vertex_v1),index_bytes=uint64_t(source.index_count)*4;
+            const uint64_t vertex_bytes=uint64_t(m.compacted?packed.vertices.size():source.vertex_count)*m.vertex_stride,index_bytes=uint64_t(source.index_count)*4;
             auto required=[&]{return m.dynamic?size:
                 (vertex_pool.count(m.cpu_vertices)?0:vertex_bytes)+(immutable_indices_.count(m.gpu_index_data())?0:index_bytes);};
             // Reserving can evict the last lease of either shared allocation.
@@ -233,6 +242,7 @@ public:
             m.vertex_capacity=uint32_t(vertex_bytes);m.index_capacity=source.index_count*4;
             SDL_GPUBufferCreateInfo info{};info.usage=SDL_GPU_BUFFERUSAGE_VERTEX;info.size=m.vertex_capacity;
             if(!m.dynamic&&vertex!=vertex_pool.end()){
+                if(vertex->second.bytes!=vertex_bytes){reason_="immutable vertex layout lease mismatch";return false;}
                 m.vertices=vertex->second.buffer;++vertex->second.references;m.static_vertices=&vertex->first;m.packed_vertices=m.compacted?&vertex->second.packed:nullptr;
                 m.upload_vertices=false;++static_vertex_reuses_;vertex_contents().swap(m.cpu_vertices);
             }else{
@@ -265,7 +275,16 @@ public:
                     // unpremultiplies its sample before straight-alpha blending.
                     data[offset++]=uint8_t((pixel>>24)*alpha/255);data[offset++]=uint8_t(((pixel>>16)&255)*alpha/255);
                     data[offset++]=uint8_t(((pixel>>8)&255)*alpha/255);data[offset++]=uint8_t(alpha);}}
-            for(auto key:new_meshes){const auto &m=*mesh(key);size_t n=m.upload_vertices?m.gpu_vertex_data().size()*sizeof(ncmm_gpu_vertex_v1):0;if(n)std::memcpy(data+offset,m.gpu_vertex_data().data(),n);offset+=n;
+            for(auto key:new_meshes){const auto &m=*mesh(key);size_t n=m.upload_vertices?size_t(m.gpu_vertex_bytes()):0;
+                if(n){
+                    if(m.vertex_stride==sizeof(rigid48::vertex)){
+                        if(!rigid48::encode(m.gpu_vertex_data(),data+offset,n)){
+                            SDL_UnmapGPUTransferBuffer(device_,transfer);SDL_ReleaseGPUTransferBuffer(device_,transfer);
+                            reason_="unproved rigid vertex layout during upload";return false;
+                        }
+                    }else{std::memcpy(data+offset,m.gpu_vertex_data().data(),n);}
+                }
+                offset+=n;
                 if(m.upload_indices){n=m.gpu_index_data().size()*4;std::memcpy(data+offset,m.gpu_index_data().data(),n);offset+=n;}}}
             {diagnostic_span phase(resource_capture,diagnostic_phase::transfer_unmap);SDL_UnmapGPUTransferBuffer(device_,transfer);}
             SDL_GPUCommandBuffer *commands=nullptr;{diagnostic_span phase(resource_capture,diagnostic_phase::upload_acquire);commands=SDL_AcquireGPUCommandBuffer(device_);}
@@ -276,7 +295,7 @@ public:
             if(!copy){SDL_CancelGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);reason_="begin resource upload pass: "+std::string(SDL_GetError());return false;}
             for(auto key:new_textures){auto &t=*texture(key);SDL_GPUTextureTransferInfo from{};from.transfer_buffer=transfer;from.offset=uint32_t(offset);from.pixels_per_row=t.width;from.rows_per_layer=t.height;
                 SDL_GPUTextureRegion to{};to.texture=t.texture;to.w=t.width;to.h=t.height;to.d=1;SDL_UploadToGPUTexture(copy,&from,&to,false);offset+=size_t(t.width)*t.height*4;}
-            for(auto key:new_meshes){auto &m=*mesh(key);SDL_GPUTransferBufferLocation from{transfer,uint32_t(offset)};uint32_t n=m.upload_vertices?uint32_t(m.gpu_vertex_data().size()*sizeof(ncmm_gpu_vertex_v1)):0;
+            for(auto key:new_meshes){auto &m=*mesh(key);SDL_GPUTransferBufferLocation from{transfer,uint32_t(offset)};uint32_t n=m.upload_vertices?uint32_t(m.gpu_vertex_bytes()):0;
                 SDL_GPUBufferRegion to{m.vertices,0,n};if(n)SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;
                 if(m.upload_indices){from.offset=uint32_t(offset);n=uint32_t(m.gpu_index_data().size()*4);to={m.indices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;}}
             SDL_EndGPUCopyPass(copy);for(auto key:new_textures)if(texture(key)->levels>1)SDL_GenerateMipmapsForGPUTexture(commands,texture(key)->texture);
@@ -284,7 +303,7 @@ public:
             bool ok=false;{diagnostic_span phase(resource_capture,diagnostic_phase::upload_submit_release);ok=SDL_SubmitGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);}
             if(!ok){reason_="submit resource uploads: "+std::string(SDL_GetError());return false;}
             for(auto key:new_textures){auto &t=*texture(key);t.ready=true;static_upload_bytes_+=uint64_t(t.width)*t.height*4;}
-            for(auto key:new_meshes){auto &m=*mesh(key);m.ready=true;if(!m.dynamic)static_upload_bytes_+=(m.upload_vertices?m.gpu_vertex_data().size()*sizeof(ncmm_gpu_vertex_v1):0)+(m.upload_indices?m.gpu_index_data().size()*4:0);}
+            for(auto key:new_meshes){auto &m=*mesh(key);m.ready=true;if(!m.dynamic)static_upload_bytes_+=(m.upload_vertices?m.gpu_vertex_bytes():0)+(m.upload_indices?m.gpu_index_data().size()*4:0);}
             metrics.upload_bytes+=upload_bytes;
         }
         bool complete=true;

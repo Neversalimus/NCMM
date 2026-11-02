@@ -179,6 +179,10 @@ add_executable(first_person_gpu_constant_shadow_data_tests tests/gpu_constant_sh
 first_person_target(first_person_gpu_constant_shadow_data_tests)
 add_test(NAME first_person_gpu_constant_shadow_data COMMAND first_person_gpu_constant_shadow_data_tests)
 
+add_executable(first_person_gpu_rigid48_data_tests tests/gpu_rigid48_data_test.cpp)
+first_person_target(first_person_gpu_rigid48_data_tests)
+add_test(NAME first_person_gpu_rigid48_data COMMAND first_person_gpu_rigid48_data_tests)
+
 # Keep full software raster equivalence separate from pure vehicle data/math.
 add_executable(first_person_vehicle_raster_tests tests/vehicle_raster_test.cpp)
 first_person_target(first_person_vehicle_raster_tests)
@@ -385,6 +389,14 @@ if(FIRST_PERSON_BUILD_GPU_TESTS)
   endif()
   add_test(NAME first_person_gpu_constant_shadow COMMAND first_person_gpu_constant_shadow_tests)
   set_tests_properties(first_person_gpu_constant_shadow PROPERTIES WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+  add_executable(first_person_gpu_rigid48_tests tests/gpu_rigid48_test.cpp)
+  first_person_target(first_person_gpu_rigid48_tests)
+  target_link_libraries(first_person_gpu_rigid48_tests PRIVATE SDL3::SDL3)
+  if(FIRST_PERSON_GPU_SHADER_HEADER)
+    target_compile_definitions(first_person_gpu_rigid48_tests PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
+  endif()
+  add_test(NAME first_person_gpu_rigid48 COMMAND first_person_gpu_rigid48_tests)
+  set_tests_properties(first_person_gpu_rigid48 PROPERTIES WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
   # Developer compile target for the same test-only capture used by the paired
   # scratch-policy probe. Excluded from ordinary builds and test execution.
   file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/gpu_scratch_capture.cpp" CONTENT
@@ -397,7 +409,7 @@ if(FIRST_PERSON_BUILD_GPU_TESTS)
     target_compile_definitions(first_person_gpu_scratch_capture PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
   endif()
   if(WIN32 AND TARGET SDL3::SDL3-shared)
-    foreach(target first_person_gpu_probe_tests first_person_gpu_scene_tests first_person_gpu_frame_caps_tests first_person_gpu_vertex_pack_tests first_person_gpu_constant_shadow_tests)
+    foreach(target first_person_gpu_probe_tests first_person_gpu_scene_tests first_person_gpu_frame_caps_tests first_person_gpu_vertex_pack_tests first_person_gpu_constant_shadow_tests first_person_gpu_rigid48_tests)
       add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:SDL3::SDL3-shared> $<TARGET_FILE_DIR:${target}>)
     endforeach()

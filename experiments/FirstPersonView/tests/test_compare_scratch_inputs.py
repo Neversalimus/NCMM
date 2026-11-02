@@ -24,7 +24,43 @@ class Diagnostics(unittest.TestCase):
         source=self.backend()
         self.assertNotIn('#define NCMM_GPU_GROUP_DEPTH_PROGRAM',source)
         self.assertNotIn('prefill_opaque_group(',source)
-        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'8c3fbf48ef85c348879cea40c8a4349371a8e516f6a1c66212f0732b20d27eae')
+        self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),'b557164a89f67619488652fd5ebd9c6fcc17217039ebeb41bb618edd38a434fa')
+    def test_changed_rigid48_default_cannot_reconstruct(self):
+        source=self.backend().replace('    bool rigid48_vertices_=true;','    bool rigid48_vertices_=false;')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_rigid48_layout_rebind_cannot_reconstruct(self):
+        source=self.backend().replace('|(unsigned(rigid)<<6)','')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_rigid48_held_alpha_cannot_reconstruct(self):
+        source=self.backend().replace('alpha_only?programs_.held_alpha:programs_.held','alpha_only?programs_.held:programs_.held_alpha')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_rigid48_preflight_cannot_reconstruct(self):
+        source=self.backend().replace('if(!prepare_geometry_programs(batches))','if(false)')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_rigid48_proof_cannot_reconstruct(self):
+        source=self.backend().replace('mesh->vertex_stride!=sizeof(rigid48::vertex)','mesh->vertex_stride==sizeof(rigid48::vertex)')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_changed_rigid48_kind_cannot_reconstruct(self):
+        source=self.backend().replace('programs::geometry_index(selected,alpha_only,winding,component,reflective,glass,plain,bounded)','programs::geometry_index(selected,alpha_only,winding,component,reflective,glass,plain,false)')
+        with self.assertRaises(AssertionError): comparison.reference_backend(source)
+
+    def test_diagnostic_rejects_changed_rigid48_pitch(self):
+        programs=(Path(__file__).resolve().parents[2]/'graphics_bridge/ncmm_gpu_programs.hpp').read_text(encoding='utf-8')
+        changed=programs.replace('layout.pitch=rigid?sizeof(rigid48::vertex):sizeof(ncmm_gpu_vertex_v1);','layout.pitch=sizeof(ncmm_gpu_vertex_v1);')
+        self.assertNotEqual(changed,programs)
+        with self.assertRaises(AssertionError):comparison.diagnostic_no_fixed_cull_programs(changed)
+
+    def test_diagnostic_rejects_changed_rigid48_offsets(self):
+        programs=(Path(__file__).resolve().parents[2]/'graphics_bridge/ncmm_gpu_programs.hpp').read_text(encoding='utf-8')
+        changed=programs.replace('rigid?rigid48::offsets[i]:offsets[i]','offsets[i]')
+        self.assertNotEqual(changed,programs)
+        with self.assertRaises(AssertionError):comparison.diagnostic_no_fixed_cull_programs(changed)
+
     def test_changed_constant_shadow_default_cannot_reconstruct(self):
         source=self.backend().replace('    bool reuse_constant_shadows_=true;','    bool reuse_constant_shadows_=false;')
         with self.assertRaises(AssertionError): comparison.reference_backend(source)

@@ -1,6 +1,7 @@
 #pragma once
 #include "ncmm_graphics_trace.hpp"
 #define NCMM_GPU_CONSTANT_SHADOW_CACHE 1
+#define NCMM_GPU_RIGID48_VERTEX_LAYOUT 1
 #include "ncmm_gpu_constant_shadow.hpp"
 #include "ncmm_gpu_validation.hpp"
 #include "ncmm_gpu_programs.hpp"
@@ -29,6 +30,7 @@ struct recording_metrics {
     uint64_t static_vertex_creations=0,static_vertex_reuses=0,static_vertex_pool_bytes=0;
     double cell_prepare_ms=0;
     uint64_t shadow_dispatches=0,constant_shadow_reuses=0;
+    uint64_t rigid48_draws=0,vertex72_draws=0,rigid48_pipeline_binds=0,rigid48_cached_programs=0;
     uint64_t cell_upload_bytes=0,cell_cache_bytes=0;
     double retirement_ms=0;uint64_t retirement_calls=0;
 };
@@ -37,6 +39,7 @@ class backend {
     device_context context_;
     resource_cache resources_;
     bool compact_opaque_vertices_=true;
+    bool rigid48_vertices_=true;
     bool reuse_constant_shadows_=true;
     constant_shadow_cache constant_shadows_;
     programs programs_;
@@ -129,6 +132,27 @@ class backend {
         depth.stencil_load_op=SDL_GPU_LOADOP_DONT_CARE;depth.stencil_store_op=SDL_GPU_STOREOP_DONT_CARE;
         return SDL_BeginGPURenderPass(commands,colors,2,&depth);
     }
+    struct range_program {bool winding,component,reflective,glass,plain,bounded;unsigned key,index;};
+    static range_program range_policy(const batch &b,const mesh_range &range,const ncmm_gpu_material_v1 &m,bool rigid,bool alpha_only=false){
+        const uint32_t selected=b.pass;
+        const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
+        const bool component=selected==NCMM_GPU_OPAQUE&&b.component_safe&&range.component_surface;
+        const bool reflective=component&&reflective_component_finish(m.finish);
+        const bool glass=selected==NCMM_GPU_TRANSPARENT&&b.component_safe&&range.glass_surface;
+        const bool plain=component&&plain_component_finish(m.finish);
+        const bool bounded=component&&b.depth_bound;
+        const unsigned key=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2)|(unsigned(glass)<<3)|(unsigned(plain)<<4)|(unsigned(bounded)<<5)|(unsigned(rigid)<<6);
+        return {winding,component,reflective,glass,plain,bounded,key,programs::geometry_index(selected,alpha_only,winding,component,reflective,glass,plain,bounded)};
+    }
+    bool prepare_geometry_programs(const std::vector<batch> &batches){
+        for(const auto &b:batches){const auto *mesh=resources_.mesh(b.key);if(!mesh||mesh->vertex_stride!=sizeof(rigid48::vertex))continue;
+            for(const auto &range:mesh->ranges){const auto &material=mesh->materials[range.material];
+                const auto policy=range_policy(b,range,material,true,b.pass==NCMM_GPU_HELD&&material.color[3]<.999f);
+                if(!programs_.prepare_rigid(context_,policy.index))return false;
+            }
+        }
+        recording_.rigid48_cached_programs=programs_.rigid_geometry_count();return true;
+    }
     bool draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene,bool alpha_only=false){
         bool deferred_alpha=false;
         unsigned opaque_policy=0;
@@ -144,23 +168,14 @@ class backend {
                 // Component flags/coverage and every real cell are proved.
                 // Its original detail/reflection/depth expressions remain;
                 // every unproved material, pose or cell uses the old program.
-                const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
-                const bool component=selected==NCMM_GPU_OPAQUE&&b.component_safe&&range.component_surface;
-                const bool reflective=component&&reflective_component_finish(m.finish);
-                const bool glass=selected==NCMM_GPU_TRANSPARENT&&b.component_safe&&range.glass_surface;
-                const bool plain=component&&plain_component_finish(m.finish);
-                const bool bounded=component&&b.depth_bound;
-                const unsigned policy=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2)|(unsigned(glass)<<3)|(unsigned(plain)<<4)|(unsigned(bounded)<<5);
-                if(policy!=opaque_policy){
-                    if(selected==NCMM_GPU_TRANSPARENT)SDL_BindGPUGraphicsPipeline(pass,glass?programs_.transparent_glass:programs_.transparent);
-                    else SDL_BindGPUGraphicsPipeline(pass,bounded?
-                        (plain?(winding?programs_.opaque_plain_bound_culled:programs_.opaque_plain_bound):reflective?
-                         (winding?programs_.opaque_reflective_bound_culled:programs_.opaque_reflective_bound):
-                         (winding?programs_.opaque_component_bound_culled:programs_.opaque_component_bound)):plain?
-                        (winding?programs_.opaque_plain_culled:programs_.opaque_plain):reflective?
-                        (winding?programs_.opaque_reflective_culled:programs_.opaque_reflective):component?
-                        (winding?programs_.opaque_component_culled:programs_.opaque_component):(winding?programs_.opaque_culled:programs_.opaque));
-                    opaque_policy=policy;}
+                const bool rigid=mesh->vertex_stride==sizeof(rigid48::vertex);
+                const auto policy=range_policy(b,range,m,rigid,alpha_only);
+                const bool winding=policy.winding,component=policy.component,reflective=policy.reflective,glass=policy.glass,plain=policy.plain,bounded=policy.bounded;
+                if(policy.key!=opaque_policy){
+                    SDL_BindGPUGraphicsPipeline(pass,programs_.geometry(policy.index,rigid));
+                    opaque_policy=policy.key;if(rigid)++recording_.rigid48_pipeline_binds;
+                }
+                if(rigid)++recording_.rigid48_draws;else ++recording_.vertex72_draws;
                 if(profiling_&&glass)++recording_.glass_draws;
                 if(profiling_&&plain)++recording_.plain_draws;
                 if(bounded){++conservative_depth_draws_;if(profiling_||policy_counts_)++recording_.bounded_depth_draws;}
@@ -203,6 +218,11 @@ public:
     ~backend(){clear();}
     SDL_Texture *output()const{return metrics_.active?context_.output():nullptr;}
     resource_cache &resources(){return resources_;}
+    bool use_rigid48_vertices(bool enabled=true){
+        if(!resources_.use_rigid48_vertices(compact_opaque_vertices_&&enabled)){reason(resources_.reason());return false;}
+        rigid48_vertices_=enabled;return true;
+    }
+    unsigned rigid48_program_count()const{return programs_.rigid_geometry_count();}
     bool has(uint64_t key,uint32_t kind){return kind<=1&&resources_.has(key,kind==1);}
     ncmm_gpu_metrics_v1 metrics(){poll();metrics_.resource_epoch=resource_epoch_;return metrics_;}
     int32_t focus_cell()const{return focus_cell_;}
@@ -234,7 +254,7 @@ public:
     }
     void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;}
     bool bind(SDL_Renderer *renderer,uint64_t generation){if(generation_&&generation_!=generation)abandon();generation_=generation;
-        if(!context_.bind(renderer,generation)){reason(context_.reason());metrics_.active=0;return false;}resources_.bind(context_.device());if(!resources_.use_compact_opaque_vertices(compact_opaque_vertices_)){reason(resources_.reason());return false;}context_.describe(metrics_);return true;}
+        if(!context_.bind(renderer,generation)){reason(context_.reason());metrics_.active=0;return false;}resources_.bind(context_.device());if(!resources_.use_compact_opaque_vertices(compact_opaque_vertices_)){reason(resources_.reason());return false;}if(!resources_.use_rigid48_vertices(compact_opaque_vertices_&&rigid48_vertices_)){reason(resources_.reason());return false;}context_.describe(metrics_);return true;}
     bool available(){return context_.device()!=nullptr;}
     void cpu_frame(){metrics_.active=0;}
     void invalidate(){auto *renderer=context_.renderer();uint64_t generation=generation_;clear();if(renderer)bind(renderer,generation);}
@@ -336,6 +356,10 @@ public:
                 winding_camera(scene.camera)&&winding_pose(d.transform)&&winding_bone(scene.bones[d.bone_offset]);
             uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1,false,component});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
         pick(resources_,scene,metrics_,world,&posed_bounds,&focus_cell_);
+        // A pipeline allocation can fail. Finish the complete format/state
+        // preflight before mapping staging or acquiring any frame commands;
+        // draw_batches consequently never discovers a missing format midpass.
+        if(!prepare_geometry_programs(batches)){const std::string error=context_.reason();invalidate();reason(error);return false;}
         pick_zone.stop();
         if(profiling_)recording_.batching_pick_ms=ms(batching_start);
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}
