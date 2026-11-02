@@ -765,6 +765,38 @@ inline std::shared_ptr<const model> generate(const snapshot &s,const topology &l
             b.cushion({.352f,.18f,chassis+.155f},{.010f,.16f,.03f},.004f,b.rubber);
             for(float y:{.075f,.285f})b.beam({.354f,y,chassis+.12f},{.335f,y,chassis+.12f},.026f,.026f,b.steel,8);
             b.beam({.42f,.18f,chassis+.0625f},{.42f,.18f,chassis+.10f},.025f,.025f,b.steel,4);
+        }else if(std::string_view(p.id)=="integrated_cooler"){
+            // A separate real under-console cooling unit, clear of the seat,
+            // existing heater, radio and alarm at this same installed mount.
+            b.cushion({.44f,-.04f,chassis+.15f},{.10f,.10f,.14f},.018f,b.dark);
+            b.beam({.44f,-.04f,chassis+.0625f},{.44f,-.04f,chassis+.095f},.025f,.025f,b.steel,4);
+            for(unsigned n=0;n<4;++n){const float z=chassis+.105f+.027f*n;
+                b.beam({.386f,-.075f,z},{.386f,-.005f,z},.006f,.008f,b.steel,4);}
+        }else if(std::string_view(p.id)=="cam_control"){
+            // Installed camera controls are a small side-console monitor,
+            // never a box coplanar with the occupied cushion. An unproved
+            // power state does not invent an emissive display or light.
+            b.cushion({.42f,-.43f,chassis+.19f},{.11f,.12f,.16f},.018f,b.dark);
+            const auto screen=b.add({{.025f,.045f,.050f,1},NCMM_VM_PLASTIC});
+            b.cushion({.362f,-.43f,chassis+.19f},{.003f,.09f,.09f},.001f,screen);
+            b.beam({.363f,-.43f,chassis+.115f},{.345f,-.43f,chassis+.115f},.018f,.018f,b.steel,8);
+            b.beam({.42f,-.43f,chassis+.0625f},{.42f,-.43f,chassis+.115f},.025f,.025f,b.steel,4);
+        }else if(std::string_view(p.id)=="horn_big"){
+            // Two actual large-horn trumpets beside the forward seat base.
+            // All geometry remains within this part's one Native mount.
+            const unsigned sides=lod==0?12u:8u;
+            for(float y:{.375f,.455f}){
+                const point back{.335f,y,chassis+.13f},mouth{.475f,y,chassis+.13f};
+                for(unsigned n=0;n<sides;++n){const float a=2*pi*n/sides,c=2*pi*(n+1)/sides;
+                    const point ra{0,std::cos(a),std::sin(a)},rc{0,std::cos(c),std::sin(c)};
+                    const auto ab=back+ra*.015f,cb=back+rc*.015f,am=mouth+ra*.030f,cm=mouth+rc*.030f;
+                    b.face(ab,cb,cm,am,b.steel);
+                    b.face(back,cb,ab,back,b.steel);b.face(mouth,am,cm,mouth,b.dark);
+                }
+                b.torus(mouth,{0,1,0},{0,0,1},.030f,.004f,.004f,b.steel,sides,4);
+            }
+            b.cushion({.35f,.415f,chassis+.08f},{.025f,.13f,.018f},.004f,b.dark);
+            b.beam({.35f,.415f,chassis+.0625f},{.35f,.415f,chassis+.08f},.025f,.025f,b.steel,4);
         }else if(std::string_view(p.id)=="horn_car"){
             // This installed sounder belongs beside the forward seat base,
             // not on its cushion. Keep the real mount and independent part.

@@ -1299,6 +1299,7 @@ int main(){
         require(parts.size()==6&&cells.size()==6,"shared seat data never merges or omits installed parts or lighting cells");
     }
 
+    #include "vehicle_console_clearance_test.inc"
     #include "vehicle_aisle_floor_test.inc"
     #include "vehicle_repeat_input_test.inc"
     #include "vehicle_preparation_test.inc"
