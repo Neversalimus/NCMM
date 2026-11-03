@@ -18,6 +18,7 @@ import time
 PINS = {'1040':'3f7fb352bf492ba521bd9408a0c9f6ce239e8d83',
         '1807':'074aa98bd5be3de4c35f154082db32a0e63bb0f1'}
 MODES = {'controls':{}, 'camera':{'NCMM_FP_CAMERA_INPUT':'1'},
+         'vehicles':{'NCMM_FP_VEHICLE_ONLY':'1'},
          'fps':{'NCMM_FP_GAMEPLAY_AUDIT':'1','NCMM_FP_FPS_INPUT_ONLY':'1'},
          'held':{'NCMM_FP_HELD_GALLERY_ONLY':'1'},
          'target':{'NCMM_FP_GAMEPLAY_AUDIT':'1','NCMM_FP_TARGET_HUD_ONLY':'1'},
@@ -26,6 +27,27 @@ MODES = {'controls':{}, 'camera':{'NCMM_FP_CAMERA_INPUT':'1'},
 
 def digest(path):
     with Path(path).open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
+
+
+def process_memory(status):
+    result={}
+    for key,name in [('VmRSS','rss_bytes'),('VmHWM','peak_rss_bytes')]:
+        match=re.search(r'^'+key+r':\s+(\d+) kB$',status,re.MULTILINE)
+        if not match:raise ValueError('Native process memory field unavailable: '+key)
+        result[name]=int(match[1])*1024
+    return result
+
+
+def observe_process_memory(process, read_status):
+    try:return process_memory(read_status())
+    except (FileNotFoundError,ProcessLookupError,ValueError) as error:
+        # A single poll cannot settle a race with process teardown. Omit a
+        # malformed/missing terminal sample only after a bounded wait proves
+        # that the process has exited;
+        # retain its real exit status and every preceding RSS/HWM sample.
+        try:process.wait(timeout=5)
+        except subprocess.TimeoutExpired:raise error
+        return None
 
 
 def seed_linux_configuration(game):
@@ -65,6 +87,7 @@ def run(args):
             verifier='verify_held_gallery.py' if mode=='held' else 'verify_target_audit.py'
             assert Path(__file__).with_name(verifier).is_file(), 'Compiled Native feature lacks its verifier'
     modes={name:flags for name,flags in MODES.items() if name not in features or features[name]}
+    modes={name:flags for name,flags in modes.items() if (name=='vehicles' if args.mode=='vehicles' else name!='vehicles')}
     engine=args.engine.resolve(); data=args.data.resolve(); output=args.output.resolve()
     assert not output.exists(), 'Preserve earlier Native evidence'
     output.mkdir(parents=True)
@@ -110,12 +133,13 @@ def run(args):
         environment.update(NCMM_FP_APPEARANCE_SMOKE='1',SDL_ASSERT='abort',
                            SDL_RENDER_DRIVER='gpu',SDL_GPU_DRIVER='vulkan',SDL_AUDIODRIVER='dummy')
         environment.update(switches)
+        if mode=='vehicles':environment['NCMM_FP_VEHICLE_SOAK_SECONDS']='900'
         seed_linux_configuration(game)
         if mode=='controls':
             from seed_deferred_options import seed
             seed(game);environment['NCMM_FP_VERIFY_DEFERRED_OPTIONS']='1'
         initial_options=(game/'config/options.json').read_bytes()
-        started=time.time(); timed_out=False
+        started=time.time(); timed_out=False;memory=[]
         # A distro-style Linux build defaults to PREFIX/share/cataclysm-dda.
         # The owned fixture uses the portable data/gfx layout in its cwd.
         # An explicit empty base selects that upstream-supported layout;
@@ -125,7 +149,16 @@ def run(args):
         with (game/'stdout.log').open('wb') as stdout,(game/'stderr.log').open('wb') as stderr:
             process=subprocess.Popen(command,cwd=game,env=environment,
                 stdout=stdout,stderr=stderr,start_new_session=True)
-            try: code=process.wait(timeout=4200 if mode=='gameplay' else 1500)
+            try:
+                if mode!='vehicles':code=process.wait(timeout=4200 if mode=='gameplay' else 1500)
+                else:
+                    deadline=time.monotonic()+3000
+                    while True:
+                        try:code=process.wait(timeout=5);break
+                        except subprocess.TimeoutExpired:
+                            if time.monotonic()>=deadline:raise
+                            sample=observe_process_memory(process,lambda:Path('/proc',str(process.pid),'status').read_text())
+                            if sample is not None:memory.append(dict(elapsed_seconds=time.time()-started,**sample))
             except subprocess.TimeoutExpired:
                 import signal
                 timed_out=True;os.killpg(process.pid,signal.SIGKILL);code=process.wait()
@@ -136,6 +169,9 @@ def run(args):
         results.append(result)
         (output/'process-results.json').write_text(json.dumps(results,indent=2)+'\n')
         evidence=output/'evidence'/mode;evidence.mkdir(parents=True)
+        if mode=='vehicles':
+            (evidence/'first-person-process-memory.json').write_text(json.dumps(dict(schema=1,actual_native=True,
+                source_commit=ncmm_source,engine_commit=source,module_sha256=inventory['FirstPersonView'],sample_period_seconds=5,samples=memory),indent=2)+'\n')
         (evidence/'fixture-options-before-launch.json').write_bytes(initial_options)
         (evidence/'fixture-inputs-before-launch.json').write_text(json.dumps(fixture_inputs,indent=2)+'\n',encoding='utf-8')
         for file in list((game/'ncmm').glob('*'))+list((game/'config').glob('*.log'))+[game/'stdout.log',game/'stderr.log']:
@@ -143,10 +179,16 @@ def run(args):
         print(json.dumps(result),flush=True)
         for file in [game/'stdout.log',game/'stderr.log',game/'ncmm/first-person-audit-progress.txt']:
             if file.exists():print(file.read_text(errors='replace')[-12000:],flush=True)
+        if code!=0:
+            failure=game/'ncmm/first-person-smoke.json'
+            if failure.exists():print(failure.read_text(errors='replace')[:8192],flush=True)
         assert not timed_out and code==0, f'Actual Linux Native failed: {mode}, exit {code}'
         smoke=json.loads((game/'ncmm/first-person-smoke.json').read_text())
         gameplay=json.loads((game/'ncmm/gameplay-smoke.json').read_text())
         assert smoke['success'] and gameplay['success']
+        if mode=='vehicles':
+            from verify_vehicle_gallery import verify
+            verify(evidence,output/'vehicle-review',ncmm_source,source,inventory['FirstPersonView'])
         if mode=='controls':
             assert smoke['sdl_frames']>=70
             restored=json.loads((evidence/'first-person-deferred-options.json').read_text())
@@ -194,4 +236,5 @@ if __name__=='__main__':
     parser.add_argument('--modules',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--build',choices=PINS,required=True)
+    parser.add_argument('--mode',choices=['standard','vehicles'],default='standard')
     run(parser.parse_args())

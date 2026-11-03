@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import apply_graphics_bridge as bridge
+from test_vehicle_bridge import ACTOR_HEADER,ACTOR_SOURCE
 from native_compiler_bridge import BEFORE as NATIVE_TOGGLE
 
 REPO = Path(__file__).resolve().parents[2]
@@ -148,6 +149,31 @@ def native_shadowcast_originals():
 
 
 class ApplyTests(unittest.TestCase):
+    def test_private_gpu_include_closure_is_copied_for_both_pins(self):
+        for pin in bridge.SOURCES:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp); self.fixture(root,pin)
+                with patch.object(bridge.subprocess,"check_output",return_value=pin): bridge.apply(root)
+                receipt=json.loads((root/"first-person-source.json").read_text(encoding="utf-8"))
+                pending=["ncmm_gpu_backend.hpp"]; copied=set()
+                while pending:
+                    name=pending.pop()
+                    if name in copied:continue
+                    copied.add(name);path=root/"src"/name
+                    self.assertTrue(path.is_file(),"Unpackaged private GPU dependency: "+name)
+                    data=path.read_bytes()
+                    self.assertEqual(receipt["inputs"][name],hashlib.sha256(data).hexdigest())
+                    self.assertEqual(data,Path(bridge.__file__).with_name(name).read_bytes())
+                    pending.extend(re.findall(r'^\s*#include "(ncmm_[A-Za-z0-9_]+\.(?:h|hpp|inc))"',data.decode("utf-8"),re.M))
+                self.assertIn("ncmm_gpu_conservative_depth.hpp",copied)
+                self.assertIn("ncmm_gpu_programs.hpp",copied)
+                self.assertIn("ncmm_gpu_resources.hpp",copied)
+                self.assertIn("ncmm_gpu_vertex_pack.hpp",copied)
+                self.assertIn("ncmm_gpu_constant_shadow.hpp",copied)
+                self.assertIn("ncmm_gpu_rigid48.hpp",copied)
+                self.assertIn("ncmm_gpu_fragment_state.hpp",copied)
+                self.assertIn("ncmm_gpu_material_palette.hpp",copied)
+
     def test_shadowcast_complete_primary_and_exact_square_dispatch(self):
         cpp, header = native_shadowcast_originals()
         # Independent pinned digests, not computed from the changed helper.
@@ -983,6 +1009,9 @@ class ApplyTests(unittest.TestCase):
         (root / "src/game.h").write_text("        bool save();\n")
         (root / "src/game.cpp").write_text('#include "game.h"\n'+native_update_map_original()+'\n// Native continuation retained.\n')
         (root / "src/vehicle_use.cpp").write_text(NATIVE_TOGGLE)
+        (root / "src/vehicle.h").write_text('struct vehicle_part {\n};\nclass vehicle {\n    public:\n        vehicle( const vehicle & ) = delete;\n};\n',encoding='utf-8')
+        (root / 'src/activity_actor.cpp').write_text(ACTOR_SOURCE,encoding='utf-8')
+        (root / 'src/activity_actor_definitions.h').write_text(ACTOR_HEADER,encoding='utf-8')
         (root / "src/debug.cpp").write_text('#include "debug.h"\nstd::string ncmm_debug_report_text( const std::string &text )\n{ return text; }\nvoid native_debug_window() {\n    for( bool stop = false; !stop; ) {\n    }\n}\n')
         options='static void ncmm_apply_deferred_option_value( const std::string &, options_manager::cOpt & );\n// NCMM v8.7.6.6 stale world-option repair:\n'
         for kind in ['bool','int','float','enum']:

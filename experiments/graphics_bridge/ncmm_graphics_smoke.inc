@@ -116,7 +116,9 @@ bool graphics_scene_smoke()
         require( !graphics_view.enabled, "view_not_initially_disabled" );
         press_f6();
         require( graphics_view.enabled, "view_did_not_enable" );
-        if( const char *static_stairs=std::getenv( "NCMM_FP_STATIC_STAIRS_ONLY" ) ) {
+        if(std::getenv("NCMM_FP_VEHICLE_ONLY")){
+            #include "ncmm_graphics_vehicle_smoke.inc"
+        } else if( const char *static_stairs=std::getenv( "NCMM_FP_STATIC_STAIRS_ONLY" ) ) {
             require(std::strcmp(static_stairs,"1")==0&&!std::getenv("NCMM_FP_GAMEPLAY_AUDIT")&&
                 !std::getenv("NCMM_FP_FPS_INPUT_ONLY")&&!std::getenv("NCMM_FP_TARGET_HUD_ONLY")&&
                 !std::getenv("NCMM_FP_SAVE_ONLY")&&!std::getenv("NCMM_FP_CAMERA_INPUT")&&

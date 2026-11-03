@@ -1,21 +1,41 @@
 #pragma once
 #include "ncmm_graphics_trace.hpp"
+#define NCMM_GPU_CONSTANT_SHADOW_CACHE 1
+#define NCMM_GPU_RIGID48_VERTEX_LAYOUT 1
+#include "ncmm_gpu_constant_shadow.hpp"
+#include "ncmm_gpu_fragment_state.hpp"
+#define NCMM_GPU_FRAGMENT_STATE_CACHE 1
+#define NCMM_GPU_MATERIAL_PALETTE 1
 #include "ncmm_gpu_validation.hpp"
 #include "ncmm_gpu_programs.hpp"
+#include "ncmm_gpu_conservative_depth.hpp"
+#define NCMM_GPU_CONSERVATIVE_DEPTH_PROGRAM 1
 #include "ncmm_gpu_geometry.hpp"
 #include <chrono>
 #include <tuple>
 
+#define NCMM_GPU_COMPONENT_GLASS_PROGRAM 1
+#define NCMM_GPU_COMPONENT_PLAIN_PROGRAM 1
 namespace ncmm_gpu {
 // Private diagnostics: CPU time spent preparing/recording commands, never GPU
 // execution timestamps. The public metrics V1 layout remains unchanged.
 struct recording_metrics {
     double batching_pick_ms=0,shadow_ms=0,world_ms=0,creature_ms=0,held_ms=0,volume_ms=0,compose_ms=0;
+    uint64_t glass_draws=0;
+    uint64_t material_palette_draws=0,material_palette_ranges_replaced=0;
+    uint64_t plain_draws=0;
+    uint64_t opaque_component_draws=0,opaque_winding_draws=0,opaque_requested_winding_draws=0,opaque_range_rejections=0,opaque_batch_rejections=0,opaque_reflective_draws=0;
+    uint64_t opaque_component_triangles=0,opaque_winding_triangles=0;
+    uint64_t counted_plain_draws=0,counted_glass_draws=0;
+    uint64_t bounded_depth_draws=0;
     uint64_t bones=0,held_bones=0,static_upload_bytes=0,dynamic_geometry_bytes=0;
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
     uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
     uint64_t static_vertex_creations=0,static_vertex_reuses=0,static_vertex_pool_bytes=0;
     double cell_prepare_ms=0;
+    uint64_t shadow_dispatches=0,constant_shadow_reuses=0;
+    uint64_t material_uniform_pushes=0,material_uniform_reuses=0,sampler_binds=0,sampler_binding_reuses=0,fragment_state_invalidations=0;
+    uint64_t rigid48_draws=0,vertex72_draws=0,rigid48_pipeline_binds=0,rigid48_cached_programs=0;
     uint64_t cell_upload_bytes=0,cell_cache_bytes=0;
     double retirement_ms=0;uint64_t retirement_calls=0;
 };
@@ -23,6 +43,12 @@ class backend {
     int32_t focus_cell_=-1;
     device_context context_;
     resource_cache resources_;
+    bool compact_opaque_vertices_=true;
+    bool rigid48_vertices_=true;
+    bool reuse_fragment_state_=true;
+    bool material_palette_enabled_=true;
+    bool reuse_constant_shadows_=true;
+    constant_shadow_cache constant_shadows_;
     programs programs_;
     SDL_GPUTexture *world_=nullptr,*id_=nullptr,*held_depth_=nullptr,*effects_=nullptr,*effect_depth_=nullptr,*white_=nullptr;
     SDL_GPUBuffer *instances_=nullptr,*bones_=nullptr,*cells_=nullptr,*shadows_=nullptr,*counter_=nullptr;
@@ -33,6 +59,9 @@ class backend {
     uint64_t generation_=0,resource_epoch_=1,world_epoch_=0,last_serial_=0,readback_generation_=1;
     ncmm_gpu_metrics_v1 metrics_{};
     recording_metrics recording_{};
+    bool policy_counts_=false;
+    bool conservative_depth_enabled_=true;
+    uint64_t conservative_depth_draws_=0;
     bool profiling_=false,white_ready_=false,cells_ready_=false,retirement_failed_=false;
     struct readback {SDL_GPUTransferBuffer *transfer=nullptr;SDL_GPUFence *fence=nullptr;uint64_t serial=0,generation=0;};
     std::array<readback,3> readbacks_{};
@@ -40,13 +69,13 @@ class backend {
     struct gpu_cell {ncmm_gpu_cell_v1 appearance;float origin[4],lower_light[4];};
     static_assert(sizeof(gpu_cell)==112,"owned std430 world cell layout");
     std::vector<gpu_cell> cell_snapshot_;
-    struct batch {uint64_t key;uint32_t pass,first,count;};
+    struct batch {uint64_t key;uint32_t pass,first,count;bool winding_safe=false,component_safe=false,depth_bound=false,palette=false;};
     using clock=std::chrono::steady_clock;
     static double ms(clock::time_point begin){return std::chrono::duration<double,std::milli>(clock::now()-begin).count();}
     void reason(const std::string &value){std::strncpy(metrics_.reason,value.c_str(),sizeof(metrics_.reason)-1);metrics_.reason[sizeof(metrics_.reason)-1]=0;}
     void release_targets(){auto *d=context_.device();if(d)for(auto *t:{world_,id_,held_depth_,effects_,effect_depth_,white_})if(t)SDL_ReleaseGPUTexture(d,t);
         world_=id_=held_depth_=effects_=effect_depth_=white_=nullptr;width_=height_=0;white_ready_=false;}
-    void release_buffers(){auto *d=context_.device();if(d){for(auto *b:{instances_,bones_,cells_,shadows_,counter_})if(b)SDL_ReleaseGPUBuffer(d,b);
+    void release_buffers(){constant_shadows_.invalidate();auto *d=context_.device();if(d){for(auto *b:{instances_,bones_,cells_,shadows_,counter_})if(b)SDL_ReleaseGPUBuffer(d,b);
             for(auto &r:readbacks_){if(r.fence)SDL_ReleaseGPUFence(d,r.fence);if(r.transfer)SDL_ReleaseGPUTransferBuffer(d,r.transfer);}
             if(frame_upload_)SDL_ReleaseGPUTransferBuffer(d,frame_upload_);}
         if(d&&completed_retirement_)SDL_ReleaseGPUFence(d,completed_retirement_);
@@ -110,8 +139,32 @@ class backend {
         depth.stencil_load_op=SDL_GPU_LOADOP_DONT_CARE;depth.stencil_store_op=SDL_GPU_STOREOP_DONT_CARE;
         return SDL_BeginGPURenderPass(commands,colors,2,&depth);
     }
+    struct range_program {bool winding,component,reflective,glass,plain,bounded;unsigned key,index;};
+    static range_program range_policy(const batch &b,const mesh_range &range,const ncmm_gpu_material_v1 &m,bool rigid,bool alpha_only=false){
+        const uint32_t selected=b.pass;
+        const bool winding=selected==NCMM_GPU_OPAQUE&&b.winding_safe&&range.winding_safe;
+        const bool component=selected==NCMM_GPU_OPAQUE&&b.component_safe&&range.component_surface;
+        const bool reflective=component&&reflective_component_finish(m.finish);
+        const bool glass=selected==NCMM_GPU_TRANSPARENT&&b.component_safe&&range.glass_surface;
+        const bool plain=component&&plain_component_finish(m.finish);
+        const bool bounded=component&&b.depth_bound;
+        const unsigned key=unsigned(winding)|(unsigned(component)<<1)|(unsigned(reflective)<<2)|(unsigned(glass)<<3)|(unsigned(plain)<<4)|(unsigned(bounded)<<5)|(unsigned(rigid)<<6);
+        return {winding,component,reflective,glass,plain,bounded,key,programs::geometry_index(selected,alpha_only,winding,component,reflective,glass,plain,bounded)};
+    }
+    bool prepare_geometry_programs(const std::vector<batch> &batches){
+        if(std::any_of(batches.begin(),batches.end(),[](const batch &b){return b.palette;})&&!programs_.prepare_material_palette(context_))return false;
+        for(const auto &b:batches){const auto *mesh=resources_.mesh(b.key);if(!mesh||mesh->vertex_stride!=sizeof(rigid48::vertex))continue;
+            for(const auto &range:mesh->ranges){const auto &material=mesh->materials[range.material];
+                const auto policy=range_policy(b,range,material,true,b.pass==NCMM_GPU_HELD&&material.color[3]<.999f);
+                if(!programs_.prepare_rigid(context_,policy.index))return false;
+            }
+        }
+        recording_.rigid48_cached_programs=programs_.rigid_geometry_count();return true;
+    }
     bool draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene,bool alpha_only=false){
         bool deferred_alpha=false;
+        fragment_state_cache fragment_state;
+        unsigned opaque_policy=0;
         SDL_BindGPUGraphicsPipeline(pass,selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held);
         SDL_GPUBuffer *vertex_storage[]={instances_,bones_};SDL_BindGPUVertexStorageBuffers(pass,0,vertex_storage,2);
         SDL_GPUBuffer *fragment_storage[]={cells_,shadows_};SDL_BindGPUFragmentStorageBuffers(pass,0,fragment_storage,2);
@@ -119,19 +172,74 @@ class backend {
         for(const auto &b:batches)if(b.pass==selected){auto *mesh=resources_.mesh(b.key);if(!mesh)continue;
             SDL_GPUBufferBinding vertex{mesh->vertices,0},index{mesh->indices,0};SDL_BindGPUVertexBuffers(pass,0,&vertex,1);SDL_BindGPUIndexBuffer(pass,&index,SDL_GPU_INDEXELEMENTSIZE_32BIT);
             const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));
+            if(b.palette){
+                const auto draw_start=profiling_?clock::now():clock::time_point{};
+                const auto uniform=material_palette::encode(mesh->materials);
+                SDL_BindGPUGraphicsPipeline(pass,programs_.material_palette());
+                SDL_PushGPUFragmentUniformData(commands,1,uniform.data(),uint32_t(sizeof(uniform)));
+                SDL_GPUTextureSamplerBinding textures[3]{{white_,programs_.linear},{white_,programs_.nearest},{white_,programs_.nearest}};
+                SDL_BindGPUFragmentSamplers(pass,0,textures,3);
+                const auto indices=uint32_t(mesh->gpu_index_data().size());
+                SDL_DrawGPUIndexedPrimitives(pass,indices,b.count,0,0,0);
+                ++metrics_.draw_calls;const uint64_t triangles=uint64_t(indices/3)*b.count;metrics_.triangles+=triangles;
+                ++recording_.material_palette_draws;recording_.material_palette_ranges_replaced+=mesh->ranges.size();
+                ++recording_.vertex72_draws;++recording_.material_uniform_pushes;++recording_.sampler_binds;
+                if(profiling_||policy_counts_){++recording_.opaque_component_draws;recording_.opaque_component_triangles+=triangles;}
+                // A palette upload has a different size and pipeline. The next
+                // original material range must rebind all its original state.
+                fragment_state.invalidate();++recording_.fragment_state_invalidations;opaque_policy=~0u;
+                if(profiling_)recording_.world_ms+=ms(draw_start);
+                continue;
+            }
             for(const auto &range:mesh->ranges){const auto &m=mesh->materials[range.material];
                 if(selected==NCMM_GPU_HELD&&(m.color[3]<.999f)!=alpha_only){deferred_alpha|=m.color[3]<.999f;continue;}
+                // Component flags/coverage and every real cell are proved.
+                // Its original detail/reflection/depth expressions remain;
+                // every unproved material, pose or cell uses the old program.
+                const bool rigid=mesh->vertex_stride==sizeof(rigid48::vertex);
+                const auto policy=range_policy(b,range,m,rigid,alpha_only);
+                const bool winding=policy.winding,component=policy.component,reflective=policy.reflective,glass=policy.glass,plain=policy.plain,bounded=policy.bounded;
+                if(policy.key!=opaque_policy){
+                    SDL_BindGPUGraphicsPipeline(pass,programs_.geometry(policy.index,rigid));
+                    fragment_state.invalidate();++recording_.fragment_state_invalidations;
+                    opaque_policy=policy.key;if(rigid)++recording_.rigid48_pipeline_binds;
+                }
+                if(rigid)++recording_.rigid48_draws;else ++recording_.vertex72_draws;
+                if(profiling_&&glass)++recording_.glass_draws;
+                if(profiling_&&plain)++recording_.plain_draws;
+                if(bounded){++conservative_depth_draws_;if(profiling_||policy_counts_)++recording_.bounded_depth_draws;}
+                if(profiling_||policy_counts_){
+                    if(plain){++recording_.counted_plain_draws;}
+                    if(glass){++recording_.counted_glass_draws;}
+                    if(selected==NCMM_GPU_OPAQUE){
+                        recording_.opaque_component_draws+=component;recording_.opaque_winding_draws+=winding;
+                        recording_.opaque_requested_winding_draws+=bool(m.flags&NCMM_GPU_CULL_BACK);
+                        recording_.opaque_range_rejections+=bool(m.flags&NCMM_GPU_CULL_BACK)&&!range.winding_safe;
+                        recording_.opaque_batch_rejections+=range.winding_safe&&!b.winding_safe;
+                        recording_.opaque_reflective_draws+=reflective;
+                        const uint64_t triangles=uint64_t(range.count/3)*b.count;
+                        if(component)recording_.opaque_component_triangles+=triangles;
+                        if(winding)recording_.opaque_winding_triangles+=triangles;
+                    }
+                }
                 const bool creature_zone=ncmm_graphics_trace::enabled()&&selected!=NCMM_GPU_HELD&&(m.flags&NCMM_GPU_CREATURE_VISUAL);
                 if(creature_zone){nvtxRangePushA("Creatures");SDL_PushGPUDebugGroup(commands,"Creatures");}
                 const auto draw_start=profiling_?clock::now():clock::time_point{};
                 struct material {float color[4];uint32_t state[4];float impostor[4];} uniform{};
                 std::copy_n(m.color,4,uniform.color);uniform.state[0]=m.flags;uniform.state[1]=m.finish;uniform.state[2]=m.liquid;uniform.state[3]=m.banks;
                 uniform.impostor[0]=m.impostor_span;uniform.impostor[1]=m.impostor_yaw;
-                SDL_PushGPUFragmentUniformData(commands,1,&uniform,sizeof(uniform));
+                static_assert(sizeof(uniform)==48,"original fragment material word layout");
+                if(!reuse_fragment_state_||fragment_state.uniform_changed(&uniform,sizeof(uniform))){
+                    SDL_PushGPUFragmentUniformData(commands,1,&uniform,sizeof(uniform));++recording_.material_uniform_pushes;
+                }else ++recording_.material_uniform_reuses;
                 SDL_GPUTextureSamplerBinding textures[3]{};const uint64_t keys[]={m.texture_key,m.normal_key,m.depth_key};
                 for(int i=0;i<3;++i){const auto *t=resources_.texture(keys[i]);textures[i].texture=t?t->texture:white_;
                     textures[i].sampler=i?programs_.nearest:(m.flags&NCMM_GPU_CREATURE_VISUAL)?programs_.pixel_art:programs_.linear;}
-                SDL_BindGPUFragmentSamplers(pass,0,textures,3);SDL_DrawGPUIndexedPrimitives(pass,range.count,b.count,range.first,0,0);
+                const std::array<fragment_binding_identity,3> bindings{{{textures[0].texture,textures[0].sampler},{textures[1].texture,textures[1].sampler},{textures[2].texture,textures[2].sampler}}};
+                if(!reuse_fragment_state_||fragment_state.samplers_changed(bindings)){
+                    SDL_BindGPUFragmentSamplers(pass,0,textures,3);++recording_.sampler_binds;
+                }else ++recording_.sampler_binding_reuses;
+                SDL_DrawGPUIndexedPrimitives(pass,range.count,b.count,range.first,0,0);
                 ++metrics_.draw_calls;metrics_.triangles+=uint64_t(range.count/3)*b.count;
                 if(creature_zone){SDL_PopGPUDebugGroup(commands);nvtxRangePop();}
                 if(profiling_){const double took=ms(draw_start);
@@ -142,29 +250,49 @@ class backend {
         return deferred_alpha;
     }
 public:
-    backend(){metrics_.struct_size=sizeof(metrics_);metrics_.gpu_ms=-1;metrics_.target_cell=-1;}
+    explicit backend(bool compact_opaque_vertices=true):compact_opaque_vertices_(compact_opaque_vertices){metrics_.struct_size=sizeof(metrics_);metrics_.gpu_ms=-1;metrics_.target_cell=-1;}
     ~backend(){clear();}
     SDL_Texture *output()const{return metrics_.active?context_.output():nullptr;}
     resource_cache &resources(){return resources_;}
+    bool use_rigid48_vertices(bool enabled=true){
+        if(!resources_.use_rigid48_vertices(compact_opaque_vertices_&&enabled)){reason(resources_.reason());return false;}
+        rigid48_vertices_=enabled;return true;
+    }
+    unsigned rigid48_program_count()const{return programs_.rigid_geometry_count();}
+    void reuse_fragment_state(bool enabled=true){reuse_fragment_state_=enabled;}
     bool has(uint64_t key,uint32_t kind){return kind<=1&&resources_.has(key,kind==1);}
     ncmm_gpu_metrics_v1 metrics(){poll();metrics_.resource_epoch=resource_epoch_;return metrics_;}
     int32_t focus_cell()const{return focus_cell_;}
     void profile(bool enabled=true){profiling_=enabled;}
+    void reuse_constant_shadows(bool enabled=true){if(reuse_constant_shadows_!=enabled){reuse_constant_shadows_=enabled;constant_shadows_.invalidate();}}
+    // Private backend diagnostics for actual CI storage readback/lifetime controls.
+    SDL_GPUBuffer *constant_shadow_buffer()const{return shadows_;}
+    uint32_t constant_shadow_prefix()const{return constant_shadows_.initialized_prefix();}
+    void count_policies(bool enabled=true){policy_counts_=enabled;}
+    void conservative_depth(bool enabled=true){conservative_depth_enabled_=enabled;}
+    uint64_t conservative_depth_draws()const{return conservative_depth_draws_;}
+    void use_material_palette(bool enabled=true){material_palette_enabled_=enabled;}
     const recording_metrics &recording()const{return recording_;}
     void clear(){
         // SDL can still have composition commands queued against our output,
         // and a software D3D12 worker may still execute the last native frame.
         // Drain only at lifecycle boundaries, before releasing any borrowed-
         // device children. Ordinary submit()/walking never waits for GPU idle.
-        if(context_.device()){
+        auto *device=context_.device();
+        if(device){
             if(context_.renderer())SDL_FlushRenderer(context_.renderer());
             SDL_WaitForGPUIdle(context_.device());
         }
         resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
+        // SDL queues Release* calls in a pending-destroy list. The preceding
+        // drain protects queued draws, but cannot retire objects released
+        // afterwards. Finish disposal at this lifecycle boundary, including
+        // when the next mode is CPU and no further 3D submission will occur.
+        if(device)SDL_WaitForGPUIdle(device);
     }
     void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;}
     bool bind(SDL_Renderer *renderer,uint64_t generation){if(generation_&&generation_!=generation)abandon();generation_=generation;
-        if(!context_.bind(renderer,generation)){reason(context_.reason());metrics_.active=0;return false;}resources_.bind(context_.device());context_.describe(metrics_);return true;}
+        if(!context_.bind(renderer,generation)){reason(context_.reason());metrics_.active=0;return false;}resources_.bind(context_.device());if(!resources_.use_compact_opaque_vertices(compact_opaque_vertices_)){reason(resources_.reason());return false;}if(!resources_.use_rigid48_vertices(compact_opaque_vertices_&&rigid48_vertices_)){reason(resources_.reason());return false;}context_.describe(metrics_);return true;}
     bool available(){return context_.device()!=nullptr;}
     void cpu_frame(){metrics_.active=0;}
     void invalidate(){auto *renderer=context_.renderer();uint64_t generation=generation_;clear();if(renderer)bind(renderer,generation);}
@@ -192,6 +320,8 @@ public:
         if(!SDL_FlushRenderer(context_.renderer())){context_.fail("flush SDL GPU state");reason(context_.reason());return false;}
         const double renderer_flush_ms=ms(renderer_flush_begin);
         if(!cells_||cell_size_<scene.cell_count*sizeof(gpu_cell))cells_ready_=false;
+        // A newly allocated or cycled backing buffer has no initialized prefix.
+        if(!shadows_||shadow_size_<std::max(16u,scene.cell_count*4))constant_shadows_.invalidate();
         if(!buffer(instances_,instance_size_,uint32_t(scene.draw_count*sizeof(instance)),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
            !buffer(bones_,bone_size_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
            !buffer(cells_,cell_size_,scene.cell_count*sizeof(gpu_cell),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ)||
@@ -238,11 +368,45 @@ public:
             if(d.pass==NCMM_GPU_TRANSPARENT){point center=transform(d.transform,{0,0,0});transparent.push_back({i,dot(center-from(scene.camera.eye),from(scene.camera.forward))});continue;}
             if(mesh&&d.pass!=NCMM_GPU_HELD&&mesh->joint_count<=d.bone_count&&!in_frustum(posed_bounds[i],scene.camera))continue;
             uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);groups[{d.pass,d.mesh_key}].push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
-        for(const auto &[key,list]:groups){batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size())});instances.insert(instances.end(),list.begin(),list.end());}
+        std::vector<float> depth_values;
+        for(const auto &[key,list]:groups){
+            const bool winding=key.first==NCMM_GPU_OPAQUE&&winding_camera(scene.camera)&&std::all_of(list.begin(),list.end(),[&](const instance &i){
+                return i.bone_count==1&&i.bone_offset<scene.bone_count&&winding_bone(scene.bones[i.bone_offset])&&winding_pose(i.world);});
+            const bool component=winding&&std::all_of(list.begin(),list.end(),[&](const instance &i){return i.cell<scene.cell_count;});
+            auto *mesh=resources_.mesh(key.second);
+            bool bounded=conservative_depth_enabled_&&component&&mesh&&!mesh->dynamic&&mesh->joint_count==1&&mesh->joints.size()==1&&mesh->joints[0].valid()&&
+                !mesh->ranges.empty()&&std::all_of(mesh->ranges.begin(),mesh->ranges.end(),[](const mesh_range &r){return r.component_surface;});
+            if(bounded){depth_values.clear();depth_values.reserve(list.size());for(const auto &i:list){
+                if(i.reserved!=0){bounded=false;break;}
+                const conservative_depth::point eye{{scene.camera.eye[0],scene.camera.eye[1],scene.camera.eye[2]}},forward{{scene.camera.forward[0],scene.camera.forward[1],scene.camera.forward[2]}};
+                const auto value=conservative_depth::lower_bound(mesh->joints[0].lo,mesh->joints[0].hi,i.world,eye,forward,scene.camera.projection[3]);
+                if(!value){bounded=false;break;}depth_values.push_back(*value);
+            }}
+            const auto first=uint32_t(instances.size());
+            batches.push_back({key.second,key.first,first,uint32_t(list.size()),winding,component,bounded});instances.insert(instances.end(),list.begin(),list.end());
+            if(material_palette_enabled_&&key.first==NCMM_GPU_OPAQUE&&component&&mesh&&mesh->material_palette_safe&&!mesh->dynamic&&!mesh->compacted&&
+               mesh->vertex_stride==sizeof(ncmm_gpu_vertex_v1)&&mesh->joint_count==1&&mesh->ranges.size()>=8&&list.size()<=16&&
+               std::all_of(list.begin(),list.end(),[](const instance &i){return i.reserved==0;})){
+                std::vector<ncmm_gpu_matrix_v1> poses;poses.reserve(list.size());for(const auto &i:list)poses.push_back(i.world);
+                const auto &vertices=mesh->vertex_data();
+                const ncmm_gpu_mesh_v1 source{key.second,vertices.data(),mesh->cpu_indices.data(),mesh->materials.data(),
+                    uint32_t(vertices.size()),uint32_t(mesh->cpu_indices.size()),uint32_t(mesh->materials.size()),0};
+                batches.back().palette=material_palette::instance_order(source,poses,scene.camera);
+            }
+            // Only this all-qualified group uses the alternate vertex program.
+            // Its private instance word carries a strict lower bound; the old
+            // zero-heading value is preserved for every unproved group.
+            if(bounded)for(size_t i=0;i<depth_values.size();++i)std::memcpy(&instances[first+i].reserved,&depth_values[i],sizeof(float));}
         std::stable_sort(transparent.begin(),transparent.end(),[](const auto &a,const auto &b){return a.distance>b.distance;});
         for(const auto &t:transparent){const auto &d=scene.draws[t.index];auto *mesh=resources_.mesh(d.mesh_key);if(mesh&&mesh->joint_count<=d.bone_count&&!in_frustum(posed_bounds[t.index],scene.camera))continue;
-            uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
+            const bool component=d.cell<scene.cell_count&&d.bone_count==1&&d.bone_offset<scene.bone_count&&
+                winding_camera(scene.camera)&&winding_pose(d.transform)&&winding_bone(scene.bones[d.bone_offset]);
+            uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1,false,component});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
         pick(resources_,scene,metrics_,world,&posed_bounds,&focus_cell_);
+        // A pipeline allocation can fail. Finish the complete format/state
+        // preflight before mapping staging or acquiring any frame commands;
+        // draw_batches consequently never discovers a missing format midpass.
+        if(!prepare_geometry_programs(batches)){const std::string error=context_.reason();invalidate();reason(error);return false;}
         pick_zone.stop();
         if(profiling_)recording_.batching_pick_ms=ms(batching_start);
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}
@@ -264,8 +428,15 @@ public:
         ncmm_graphics_trace::cpu_zone upload_zone("Upload");
         auto *transfer=frame_upload_;
         auto *mapped=static_cast<unsigned char *>(SDL_MapGPUTransferBuffer(context_.device(),transfer,true));if(!mapped){context_.fail("map frame transfer");reason(context_.reason());return false;}
-        stage=clock::now();uint32_t offset=0;std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));offset+=uint32_t(instances.size()*sizeof(instance));
-        std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));offset+=scene.bone_count*sizeof(ncmm_gpu_matrix_v1);
+        stage=clock::now();uint32_t offset=0;
+        if(!instances.empty()){
+            std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));
+        }
+        offset+=uint32_t(instances.size()*sizeof(instance));
+        if(scene.bone_count){
+            std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));
+        }
+        offset+=scene.bone_count*sizeof(ncmm_gpu_matrix_v1);
         if(cell_upload_size)std::memcpy(mapped+offset,cell_snapshot_.data(),cell_upload_size);
         offset+=cell_upload_size;
 
@@ -294,9 +465,18 @@ public:
         auto phase_start=profiling_?clock::now():clock::time_point{};
         ncmm_graphics_trace::cpu_zone world_zone("World");
         if(trace)SDL_PushGPUDebugGroup(commands,"World");
-        SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=cycle_private_scratch();
-        auto *compute=SDL_BeginGPUComputePass(commands,nullptr,0,&shadow_binding,1);if(!compute)return stop("begin shadow compute pass");SDL_BindGPUComputePipeline(compute,programs_.shadow);
-        SDL_BindGPUComputeStorageBuffers(compute,0,&cells_,1);SDL_PushGPUComputeUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DispatchGPUCompute(compute,(scene.cell_count+63)/64,1,1);SDL_EndGPUComputePass(compute);
+        // XYZ lighting is already propagated by the Host. Its shadow program
+        // writes exactly1.0 for every cell; retain only a successfully submitted
+        // initialized prefix. Fragment programs still read this owned buffer.
+        const bool reuse_shadows=constant_shadows_.reusable(reuse_constant_shadows_,scene.camera.grid[3],scene.cell_count);
+        SDL_GPUComputePass *compute=nullptr;
+        if(reuse_shadows){++recording_.constant_shadow_reuses;}else{
+            constant_shadows_.invalidate();
+            SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=cycle_private_scratch();
+            compute=SDL_BeginGPUComputePass(commands,nullptr,0,&shadow_binding,1);if(!compute)return stop("begin shadow compute pass");SDL_BindGPUComputePipeline(compute,programs_.shadow);
+            SDL_BindGPUComputeStorageBuffers(compute,0,&cells_,1);SDL_PushGPUComputeUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DispatchGPUCompute(compute,(scene.cell_count+63)/64,1,1);SDL_EndGPUComputePass(compute);
+            ++recording_.shadow_dispatches;
+        }
         if(profiling_)recording_.shadow_ms=ms(phase_start);
         auto *pass=begin(commands,false,true);if(!pass){SDL_CancelGPUCommandBuffer(commands);context_.fail("begin world GPU pass");reason(context_.reason());return false;}
         SDL_BindGPUGraphicsPipeline(pass,programs_.sky);SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DrawGPUPrimitives(pass,3,1,0,0);++metrics_.draw_calls;
@@ -355,6 +535,7 @@ public:
         if(read){read->serial=scene.frame_serial;read->generation=readback_generation_;read->fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);success=read->fence!=nullptr;}else success=SDL_SubmitGPUCommandBuffer(commands);
         metrics_.submit_ms=ms(stage);
         if(!success){context_.fail("submit full GPU frame");const std::string error=context_.reason();invalidate();reason(error);return false;}
+        if(!reuse_shadows&&reuse_constant_shadows_&&scene.camera.grid[3]>.5f)constant_shadows_.submitted_constant(scene.cell_count);
         white_ready_=cells_ready_=true;
         metrics_.active=1;metrics_.cpu_raster_calls=0;metrics_.resource_epoch=resource_epoch_;metrics_.reason[0]=0;return true;
     }

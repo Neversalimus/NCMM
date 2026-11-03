@@ -116,12 +116,14 @@ std::array<float,3> graphics_sample_rgb(const tripoint_bub_ms &p)
     auto channel=[&](float c){return level*(1-tint+(maximum>0?tint*c/maximum:0));};
     return{channel(color.r),channel(color.g),channel(color.b)};
 }
+float graphics_vehicle_eye_height(float fallback);
 float graphics_eye_height()
 {
+    if(graphics_smoke_vehicle_eye){return *graphics_smoke_vehicle_eye;}
     avatar &you=get_avatar();float height=std::clamp(you.height()*.00885f,.5f,3.5f);
     if(you.is_crouching())height*=.72f;
     if(you.is_prone())height*=.25f;
-    if(you.in_vehicle&&get_map().veh_at(you.pos_bub()))height=std::min(height,1.18f);
+    if(you.in_vehicle&&get_map().veh_at(you.pos_bub()))height=graphics_vehicle_eye_height(std::min(height,1.18f));
     return height;
 }
 void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
@@ -197,7 +199,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     graphics_grass_active=false;
     const vehicle *occupied=nullptr;
     std::map<const vehicle *,std::tuple<int,bool,int,float>> layouts;
-    if( const auto vp=here.veh_at( you.pos_bub() ) ) if( you.in_vehicle ) { occupied=&vp->vehicle(); p.eye_height=std::min(p.eye_height,1.18f); }
+    if( const auto vp=here.veh_at( you.pos_bub() ) ) if( you.in_vehicle ) { occupied=&vp->vehicle(); }
     for( size_t i=0; i<base.cell_count; ++i ) {
         if( !( base.cells[i].flags&NCMM_GFX_VISIBLE ) ) continue;
         auto &d=graphics_presentation_cells[i]; const auto &pos=positions[i];

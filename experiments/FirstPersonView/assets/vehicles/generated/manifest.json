@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "source_selection_sha256": "ba550a196a7ecd858818ed6d8739d3d6158dc9ef93dc76dcc7daf21588e22895",
+  "models": [
+    {
+      "id": "road_wheel",
+      "source": "wheel-default.obj",
+      "source_min": [
+        -0.2,
+        -0.3,
+        -0.3
+      ],
+      "source_max": [
+        0.2,
+        0.3,
+        0.3
+      ],
+      "triangles": 664,
+      "normalized_radius": 1,
+      "normalized_axle_width": 1,
+      "palette_colors": 72
+    },
+    {
+      "id": "truck_wheel",
+      "source": "wheel-truck.obj",
+      "source_min": [
+        -0.175,
+        -0.3,
+        -0.3
+      ],
+      "source_max": [
+        0.175,
+        0.3,
+        0.3
+      ],
+      "triangles": 856,
+      "normalized_radius": 1,
+      "normalized_axle_width": 1,
+      "palette_colors": 92
+    }
+  ],
+  "files": {
+    "vehicle_components.generated.hpp": "352d65af0c768804f4a3a0026fc8b316014223bebfbe6923354379bdd17cd4f6",
+    "vehicle_components.generated.cpp": "69c80349f0869031c4290a4ae54acaf8e837d4e94262c0686e4eb466fe8f218c"
+  }
+}

@@ -1,0 +1,44 @@
+    {
+        // Full software raster execution is CI-only. Every old fixture above
+        // keeps its exact original source counts and every pixel gate.
+        fixture rims;rims.vehicles.draws.clear();
+        v::snapshot input;input.scene.level_height=3.2f;ncmm_graphics_vehicle_v1 car{};car.entity_id=7;car.part_count=1;input.vehicles.push_back(car);
+        ncmm_graphics_vehicle_part_v1 part{};part.part_id=1;part.state=NCMM_VP_EXISTS;part.health=1;part.features=NCMM_VP_WINDOW;
+        part.material=NCMM_VM_GLASS;part.color[0]=.4f;part.color[1]=.3f;part.color[2]=.2f;part.color[3]=1;std::strcpy(part.id,"window");input.parts.push_back(part);
+        const v::topology shape(input,input.vehicles[0]);
+        v::preparation_workspace workspace;unsigned comparisons=0;
+        for(unsigned variant=0;variant<3;++variant){
+            part.health=variant==1?.35f:1.f;
+            std::shared_ptr<const v::model> actual,reference;
+            if(variant<2){actual=v::generate(input,shape,part,0,false,&workspace);reference=v::generate(input,shape,part,0);}
+            else{v::builder a(part,&workspace),b(part);
+                for(auto *builder:{&a,&b}){builder->output.recipe=0x4f50415152494d53ull;
+                    builder->beam({0,-.8f,.15f},{0,-.8f,1.6f},.08f,.07f,builder->dark);
+                    builder->beam({0,.8f,.15f},{0,.8f,1.6f},.08f,.07f,builder->steel);
+                    builder->beam({0,-.8f,1.6f},{0,.8f,1.6f},.07f,.08f,builder->dark);
+                    builder->face({0,-.8f,.15f},{0,.8f,.15f},{0,.8f,1.6f},{0,-.8f,1.6f},builder->glass);
+                }
+                actual=a.finish();reference=b.finish();
+            }
+            require(!actual->closed_shell&&!reference->closed_shell&&actual->face_directions.empty()&&reference->face_directions.empty(),
+                "the CI-failed opaque rim optimization is retired; these exact scenes retain the original two-sided path");
+            const auto placement=v::rigid({6,12.5f,.1f},.23f);
+            const auto center=placement.position((actual->minimum+actual->maximum)*.5f);
+            const auto near=placement.position({actual->maximum.x+.015f,(actual->minimum.y+actual->maximum.y)*.5f,(actual->minimum.z+actual->maximum.z)*.5f});
+            struct view {v::point eye;float yaw,pitch;};
+            const view views[]={{{1.5f,12.5f,1.45f},0,-.08f},{{6,8,1.8f},h::pi*.5f,-.08f},{near,h::pi+.23f,0},{center,.23f,.08f}};
+            for(unsigned view=0;view<4;++view){rims.scene.base.camera_x=views[view].eye.x;rims.scene.base.camera_y=views[view].eye.y;rims.metadata.view.eye_height=views[view].eye.z;
+                rims.scene.environment.daylight=variant==1?0.f:1.f;
+                for(auto &detail:rims.details){detail.light_r=variant==1?.07f:.9f;detail.light_g=variant==1?.05f:.7f;detail.light_b=variant==1?.03f:.6f;}
+                const auto render=[&](const std::shared_ptr<const v::model> &model){rims.vehicles.draws={{model,placement,7,201,312,false,false,true}};
+                    return rims.render(0,views[view].yaw,views[view].pitch);};
+                const auto before=render(reference),after=render(actual);
+                std::fprintf(stderr,"Conservative rim CPU pair variant=%u view=%u\n",variant,view);compare_cached(before,after);
+                require(after.submitted_triangles==before.submitted_triangles,
+                    "every outside, near-plane and inside regression executes all original two-sided source triangles");
+                ++comparisons;
+            }
+        }
+        require(comparisons==12&&workspace.vertex_table_reuses>0&&workspace.normal_table_reuses>0,
+            "all twelve complete 1280x800 regressions preserve every colour/depth/owner/focus bit while actually reusing temporary hash storage");
+    }

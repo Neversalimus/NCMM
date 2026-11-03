@@ -1,5 +1,10 @@
 # First Person View 0.13.1 — FPS controls (development)
 
+The [Modular Vehicle Renderer 2.0 integration](VEHICLES.md) adds individual
+Native vehicle parts, a shared CPU/GPU component library, real-sized wheels and
+independent door state. Legacy stays the default while actual Native images,
+mutation/lifecycle tests, performance and installers are being qualified.
+
 The latest TEST pass adds blended natural terrain edges, calibrated ADS for
 authored and fallback weapons, confirmed-shot flash/smoke and 43 CC0 world prop
 models with round connected pipes. See the [scope and validation report](reports/world-visuals-20261026.md).

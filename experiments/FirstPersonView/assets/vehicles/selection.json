@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "license": "CC0-1.0",
+  "author": "Kenney",
+  "source_page": "https://kenney.nl/assets/car-kit",
+  "author_mirror": "https://opengameart.org/content/car-kit",
+  "archive_sha256": "fac7dacac5c7874348cf19729af3ef205f3d366493edaf0a827d93f4fdf3d0c4",
+  "files": {
+    "License.txt": "c33b7f6453d134deae7b1b8493717d9ccfa754c25ab97f6de89b88f8fda19b00",
+    "wheel-default.obj": "c8ade934b7f340e1d52d2dfa168d170e3faf05a89055194d7a97602eaed6599d",
+    "wheel-default.mtl": "45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060",
+    "wheel-truck.obj": "b4deed247fef1a193cd59b6b0f5ae46e9effb554dcc000153df6a706830e6673",
+    "wheel-truck.mtl": "45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060",
+    "Textures/colormap.png": "f3622a03a20c6696065cae9cbe391351be873508af190c2ebd1d420c055787a5"
+  },
+  "models": [
+    {
+      "id": "road_wheel",
+      "source": "wheel-default.obj"
+    },
+    {
+      "id": "truck_wheel",
+      "source": "wheel-truck.obj"
+    }
+  ],
+  "policy": "Only independent wheels. All vehicle structure is reconstructed from Native parts; no full car model is selected by vehicle name."
+}

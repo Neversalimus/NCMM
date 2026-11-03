@@ -136,6 +136,7 @@ class NativeActionPhaseTests(unittest.TestCase):
 class PayloadMatrixTests(unittest.TestCase):
     held='experiments/FirstPersonView/assets/held_items/selection.json'
     world='experiments/FirstPersonView/assets/world_props/selection.json'
+    vehicles='experiments/FirstPersonView/assets/vehicles/selection.json'
     nvtx='experiments/graphics_bridge/third_party/nvtx3/LICENSE.txt'
     def entries(self,files):
         return {'payload/'+name for name in files}|{'payload/first-person-bundle.json'}
@@ -166,6 +167,18 @@ class PayloadMatrixTests(unittest.TestCase):
         self.assertEqual(len(files),34)
         with self.assertRaisesRegex(ValueError,'trusted source'):
             verify_payload_file_matrix(files,self.entries(files),paths)
+    def test_vehicle_components_require_exact_license_selection_and_manifest(self):
+        paths=[self.held,self.world,self.nvtx,self.vehicles]
+        expected=expected_payload_files(paths)
+        self.assertEqual(len(expected),41)
+        verify_payload_file_matrix(expected,self.entries(expected),paths)
+        for name in ('vehicle-components-license.txt','vehicle-components-selection.json',
+                     'vehicle-components-manifest.json'):
+            files=expected-{'code_mods/FirstPersonView/'+name}
+            with self.subTest(name=name),self.assertRaisesRegex(ValueError,'trusted source'):
+                verify_payload_file_matrix(files,self.entries(files),paths)
+        with self.assertRaisesRegex(ValueError,'trusted source'):
+            verify_payload_file_matrix(expected,self.entries(expected),paths[:-1])
     def test_unlisted_archive_file_and_missing_archive_file_are_rejected(self):
         paths=[self.held,self.nvtx];files=expected_payload_files(paths)
         for entries in (self.entries(files)|{'payload/extra.bin'},self.entries(files)-{'payload/host/first-person-source.json'}):
