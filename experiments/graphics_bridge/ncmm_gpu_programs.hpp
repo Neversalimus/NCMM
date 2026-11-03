@@ -66,12 +66,14 @@ public:
     }
     SDL_GPUGraphicsPipeline *material_palette()const{return material_palette_;}
     bool prepare_material_palette(device_context &context){
-        if(!device_||device_!=context.device())return false;if(material_palette_)return true;
+        if(!device_||device_!=context.device())return false;
+        if(material_palette_)return true;
         auto *vs=context.shader(shaders::geometry_palette_vert_spv,sizeof(shaders::geometry_palette_vert_spv),shaders::geometry_palette_vert_dxil,sizeof(shaders::geometry_palette_vert_dxil),SDL_GPU_SHADERSTAGE_VERTEX,0,2,2);
         auto *fs=context.shader(shaders::geometry_palette_frag_spv,sizeof(shaders::geometry_palette_frag_spv),shaders::geometry_palette_frag_dxil,sizeof(shaders::geometry_palette_frag_dxil),SDL_GPU_SHADERSTAGE_FRAGMENT,3,2,2);
         const SDL_GPUTextureFormat world[]={SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,SDL_GPU_TEXTUREFORMAT_R32_UINT};
         material_palette_=make(vs,fs,true,world,2,true,true,false,true);
-        if(vs)SDL_ReleaseGPUShader(device_,vs);if(fs)SDL_ReleaseGPUShader(device_,fs);
+        if(vs)SDL_ReleaseGPUShader(device_,vs);
+        if(fs)SDL_ReleaseGPUShader(device_,fs);
         return material_palette_!=nullptr||context.fail("create exact material palette program");
     }
     unsigned rigid_geometry_count()const{unsigned n=0;for(auto *p:rigid_geometry_)n+=p!=nullptr;return n;}

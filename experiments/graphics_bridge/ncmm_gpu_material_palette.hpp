@@ -49,17 +49,20 @@ inline bool instance_order(const ncmm_gpu_mesh_v1 &mesh,const std::vector<ncmm_g
     for(const float *axis:{camera.eye,camera.right,camera.up,camera.forward})for(unsigned i=0;i<3;++i)if(!std::isfinite(axis[i])||std::abs(axis[i])>128)return false;
     for(const float *axis:{camera.right,camera.up,camera.forward}){double n=0;for(unsigned i=0;i<3;++i)n+=double(axis[i])*axis[i];if(std::abs(n-1)>1e-5)return false;}
     for(unsigned i=0;i<3;++i)for(unsigned j=i+1;j<3;++j){const float *axes[]={camera.right,camera.up,camera.forward};double d=0;
-        for(unsigned k=0;k<3;++k)d+=double(axes[i][k])*axes[j][k];if(std::abs(d)>1e-5)return false;}
+        for(unsigned k=0;k<3;++k)d+=double(axes[i][k])*axes[j][k];
+        if(std::abs(d)>1e-5)return false;}
     for(float p:camera.projection)if(!std::isfinite(p)||p<=0||p>16384)return false;
     if(camera.projection[2]>4096)return false;
     std::array<double,3> lo{{1e100,1e100,1e100}},hi{{-1e100,-1e100,-1e100}};
     for(uint32_t i=0;i<mesh.vertex_count;++i)for(unsigned a=0;a<3;++a){const double p=mesh.vertices[i].position[a];
-        if(!std::isfinite(p)||std::abs(p)>16)return false;lo[a]=std::min(lo[a],p);hi[a]=std::max(hi[a],p);}
+        if(!std::isfinite(p)||std::abs(p)>16)return false;
+        lo[a]=std::min(lo[a],p);hi[a]=std::max(hi[a],p);}
     std::vector<projected_bounds> bounds;bounds.reserve(poses.size());
     for(const auto &pose:poses){projected_bounds b;
         for(unsigned mask=0;mask<8;++mask){double world[3]{},q[3]{};
             for(unsigned a=0;a<3;++a){world[a]=pose.columns[12+a];for(unsigned axis=0;axis<3;++axis)world[a]+=double(pose.columns[axis*4+a])*((mask&(1u<<axis))?hi[axis]:lo[axis]);
-                if(!std::isfinite(world[a])||std::abs(world[a])>128)return false;world[a]-=camera.eye[a];}
+                if(!std::isfinite(world[a])||std::abs(world[a])>128)return false;
+                world[a]-=camera.eye[a];}
             const float *axes[]={camera.right,camera.up,camera.forward};for(unsigned a=0;a<3;++a)for(unsigned k=0;k<3;++k)q[a]+=world[k]*axes[a][k];
             // Fixed conservative safety margins, not a change to rendering
             // distance, clipping, detail or visibility. Unproved groups fall back.

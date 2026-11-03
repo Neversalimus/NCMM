@@ -212,7 +212,7 @@ def reference_backend(candidate):
 
 def diagnostic_no_fixed_cull_programs(programs):
     """One diagnostic pipeline-state ablation, never the ordinary pixel gate."""
-    assert hashlib.sha256(programs.encode()).hexdigest()=='c51c859e446f963c494642490c0d05052f4d71053ea1961eb2806183970cda7c','Unreviewed diagnostic pipeline source'
+    assert hashlib.sha256(programs.encode()).hexdigest()=='ef0795494b5d3b04c8918d226a9dd09565f02d20e22ea34c12d414d3aa0104f2','Unreviewed diagnostic pipeline source'
     before='if(cull){p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_BACK;'
     after='if(cull){p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_NONE;'
     assert programs.count(before)==1,'Diagnostic must change only the existing fixed-function cull state'
